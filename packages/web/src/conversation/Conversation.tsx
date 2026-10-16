@@ -84,7 +84,7 @@ function ConversationPanel({ id }: ConversationProps) {
             target={id}
             imagesAllowed={imagesAllowedFor(view, models)}
             busy={busy}
-            toolbar={view ? <ThreadToolbar view={view} /> : undefined}
+            toolbar={view ? <ThreadToolbar id={id} view={view} /> : undefined}
             onSend={actions.send}
             onStop={actions.stop}
             onSent={scrollToBottom}

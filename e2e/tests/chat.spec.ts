@@ -93,6 +93,16 @@ test.describe("MVP2 flow", () => {
     await expect(sidebar(page).getByRole("img", { name: "Failed" })).toBeHidden();
   });
 
+  test("switches the model of a thread from the composer", async () => {
+    await openNewThreadIn(page, "Home");
+    await send(page, "hello");
+    const model = conversation(page).getByRole("combobox", { name: "Model" });
+    await expect(model).toContainText("Faux One");
+    await model.click();
+    await page.getByRole("option", { name: /Faux Two/ }).click();
+    await expect(model).toContainText("Faux Two");
+  });
+
   test("archives and deletes a thread", async () => {
     const thread = sidebar(page).getByRole("link", { name: "fail" });
     await page.getByRole("button", { name: "Actions for fail" }).click();

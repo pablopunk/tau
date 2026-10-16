@@ -8,7 +8,7 @@ import { endOf, renderView, viewWhere } from "./test-utils";
 
 vi.mock("@/lib/api", () => ({
   api: {
-    conversations: { send: vi.fn(), abort: vi.fn(), retry: vi.fn(), listAll: vi.fn() },
+    conversations: { send: vi.fn(), abort: vi.fn(), retry: vi.fn(), listAll: vi.fn(), configure: vi.fn() },
     provider: { models: vi.fn() },
   },
 }));
@@ -23,6 +23,13 @@ const model = (images: boolean) => ({
   thinkingLevels: ["off"],
 });
 
+const reasoningModel = {
+  ...model(true),
+  modelId: "faux-r",
+  name: "Faux Reasoner",
+  thinkingLevels: ["off", "low", "high"],
+};
+
 function withModels(images: boolean) {
   vi.mocked(api.provider.models).mockResolvedValue([model(images)] as never);
 }
@@ -36,6 +43,7 @@ function failedView(): ConversationView {
 
 beforeEach(() => {
   vi.mocked(api.conversations.retry).mockReset().mockResolvedValue(undefined);
+  vi.mocked(api.conversations.configure).mockReset().mockResolvedValue(undefined);
   vi.mocked(api.conversations.listAll)
     .mockReset()
     .mockResolvedValue([{ id: "2", title: "Fix the bug", projectId: "home" }] as never);
@@ -44,12 +52,49 @@ beforeEach(() => {
 });
 
 describe("thread header", () => {
-  it("shows title, model name and thinking level", async () => {
+  it("shows the title and the model picker", async () => {
     withModels(true);
     renderView(endOf("text"));
     expect(await screen.findByText("Fix the bug")).toBeInTheDocument();
-    expect(await screen.findByText("Faux One")).toBeInTheDocument();
-    expect(screen.getByText("Thinking: off")).toBeInTheDocument();
+    expect(await screen.findByRole("combobox", { name: "Model" })).toHaveTextContent("Faux One");
+  });
+});
+
+describe("changing the model and thinking level", () => {
+  it("sends the chosen model, then the chosen level of that model", async () => {
+    vi.mocked(api.provider.models).mockResolvedValue([model(true), reasoningModel] as never);
+    renderView(endOf("text"));
+    await userEvent.click(await screen.findByRole("combobox", { name: "Model" }));
+    await userEvent.click(await screen.findByRole("option", { name: /Faux Reasoner/ }));
+    expect(api.conversations.configure).toHaveBeenCalledWith("2", {
+      model: { provider: "faux", modelId: "faux-r" },
+    });
+  });
+
+  it("shows only the levels of the thread's model", async () => {
+    const thread = endOf("text");
+    const agent = thread.docs["pi.agent"] as unknown as { model: object };
+    const onReasoner = {
+      ...thread,
+      docs: { ...thread.docs, "pi.agent": { ...agent, model: { provider: "faux", modelId: "faux-r" } } },
+    } as ConversationView;
+    vi.mocked(api.provider.models).mockResolvedValue([model(true), reasoningModel] as never);
+    renderView(onReasoner);
+    await userEvent.click(await screen.findByRole("combobox", { name: "Thinking level" }));
+    expect((await screen.findAllByRole("option")).map((option) => option.textContent)).toEqual([
+      "off",
+      "low",
+      "high",
+    ]);
+    await userEvent.click(screen.getByRole("option", { name: "high" }));
+    expect(api.conversations.configure).toHaveBeenCalledWith("2", { thinkingLevel: "high" });
+  });
+
+  it("hides the thinking picker for a model without reasoning", async () => {
+    withModels(true);
+    renderView(endOf("text"));
+    await screen.findByRole("combobox", { name: "Model" });
+    expect(screen.queryByRole("combobox", { name: "Thinking level" })).toBeNull();
   });
 });
 

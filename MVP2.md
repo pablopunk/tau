@@ -17,14 +17,14 @@ In:
 4. **Auto thread titles**: the fast model names each thread from its first message; without a fast model, the thread's own model does it.
 5. **Git projects**: add a project from a git URL; the app clones it into the projects folder.
 6. **Settings**: fast model, projects folder, notifications, in the existing settings dialog.
-7. **Model and thinking level per thread**: chosen on the new thread page, fixed for the thread's life, shown in the thread header.
+7. **Model and thinking level per thread**: chosen on the new thread page, shown in the composer toolbar.
 8. **Archive and delete threads**.
 9. **Thread status in the sidebar**: running, error, and "done, not seen yet".
 10. **Copy and retry**: copy any message and code block; retry after a failed or stopped answer.
 11. **Notifications** when a run ends and the page is hidden (opt-in per browser).
 12. **Command palette** (`Mod+K`) and shortcuts (`Mod+Shift+O` new thread, `Esc` stop).
 
-Out (later, see PLAN.md): machine choice, image model fallback, image file store, changing a thread's model, fork/edit message, editing queued messages, mobile keyboard polish, context meter, remote access, terminals, worktrees, other providers, per-project settings.
+Out (later, see PLAN.md): machine choice, image model fallback, image file store, fork/edit message, editing queued messages, mobile keyboard polish, context meter, remote access, terminals, worktrees, other providers, per-project settings.
 
 ## Product decisions
 
@@ -33,6 +33,7 @@ Out (later, see PLAN.md): machine choice, image model fallback, image file store
 - Per browser (localStorage, through `lib/preferences.ts`): last project (falls back to Home if gone), last model and thinking level, notifications on/off, `lastSeenAt` per thread.
 - Composer drafts: text per target (new page, each thread) in localStorage; images in memory.
 - Thinking level default: `"medium"` clamped to what the model supports; `"off"` for models without reasoning. MVP threads read as `"off"` (Pi's default).
+- The model and thinking level can be changed at any time from the composer; a change applies from the next model request.
 - Archiving keeps a running thread running; the archived row still shows its status. Sending to an archived thread unarchives it.
 - Deleting removes the thread from the app. Pi has no conversation delete, so its transcript (and images) stay in `agent.sqlite` until Pi can purge; the confirm dialog says so.
 - Removing a project never deletes its folder, also for cloned projects. The dialog says where the folder is.

@@ -43,6 +43,7 @@ describe("http transport", () => {
     await api.conversations.archive("c 1", true);
     await api.conversations.remove("c1");
     await api.conversations.retry("c1", { requestId: "r1" });
+    await api.conversations.configure("c1", { thinkingLevel: "low" });
     await api.settings.setFastModel(null);
     await api.projects.retryClone("p1");
     const calls = fetchMock.mock.calls as unknown as [string, RequestInit][];
@@ -50,10 +51,11 @@ describe("http transport", () => {
       "PUT /api/conversations/c%201/archived",
       "DELETE /api/conversations/c1",
       "POST /api/conversations/c1/retry",
+      "PATCH /api/conversations/c1/agent",
       "PUT /api/settings/fast-model",
       "POST /api/projects/p1/retry-clone",
     ]);
-    expect(calls[3]?.[1].body).toBe(JSON.stringify({ model: null }));
+    expect(calls[4]?.[1].body).toBe(JSON.stringify({ model: null }));
   });
 
   it("maps an error body to an AppError with the server's code", async () => {

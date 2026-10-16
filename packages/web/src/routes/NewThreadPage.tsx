@@ -1,6 +1,7 @@
 import type { ImageInput, ModelRef, ThinkingLevel } from "@pi-everywhere/protocol";
 import { useState } from "react";
 import { useNavigate, useSearchParams } from "react-router";
+import { ModelThinkingPickers } from "@/components/ModelThinkingPickers";
 import { Composer } from "@/conversation";
 import { api } from "@/lib/api";
 import { findModel, pickModel, pickProjectId, pickThinkingLevel } from "@/lib/new-thread-defaults";
@@ -8,7 +9,7 @@ import { conversationPath } from "@/lib/paths";
 import { preferences } from "@/lib/preferences";
 import { useModels, useProjects, useSettings } from "@/lib/queries";
 import { clearDraftRequestId, draftRequestId } from "@/lib/start-request";
-import { NewThreadToolbar, ProjectPicker } from "./NewThreadFooter";
+import { ProjectPicker } from "./ProjectPicker";
 
 const toRef = ({ provider, modelId }: ModelRef): ModelRef => ({ provider, modelId });
 
@@ -57,7 +58,7 @@ export function NewThreadPage() {
     <ProjectPicker projects={projects.data} projectId={projectId} onProject={setProject} disabled={busy} />
   );
   const toolbar = (
-    <NewThreadToolbar
+    <ModelThinkingPickers
       models={models.data}
       model={model ? toRef(model) : null}
       onModel={setModel}
