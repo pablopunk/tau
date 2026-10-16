@@ -39,6 +39,8 @@ class ExistingStart extends Error {
 
 export interface ConversationStarter {
   start(request: StartRequest): Promise<StartResult>;
+  /** The first commit of `start` alone: what a crash before admission leaves behind. */
+  createPendingOnly(request: StartRequest): Promise<Conversation>;
   /** Re-submits the first message of every thread a restart cut off. Returns the affected project ids. */
   resumePendingStarts(): Promise<string[]>;
 }
@@ -112,6 +114,8 @@ export function createConversationStarter(harness: Harness): ConversationStarter
   }
 
   return {
+    createPendingOnly: create,
+
     async start(request) {
       const { project, input, now } = request;
       try {

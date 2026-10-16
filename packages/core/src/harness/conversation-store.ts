@@ -55,7 +55,8 @@ export type SendResult = {
   readonly titleText?: string;
 };
 
-export interface ConversationStore extends Pick<ConversationStarter, "resumePendingStarts"> {
+export interface ConversationStore
+  extends Pick<ConversationStarter, "resumePendingStarts" | "createPendingOnly"> {
   /** Not deleted, archived included. */
   list(projectId: string): Promise<ConversationSummary[]>;
   start(request: StartRequest): Promise<StartResult>;
@@ -119,6 +120,7 @@ export function createConversationStore(harness: Harness): ConversationStore {
 
   return {
     resumePendingStarts: () => starter.resumePendingStarts(),
+    createPendingOnly: (request) => starter.createPendingOnly(request),
     start: (request) => starter.start(request),
 
     async list(projectId) {
