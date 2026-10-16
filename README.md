@@ -29,6 +29,13 @@ The terminal prints a URL with a private token and opens it in your browser. Run
 * Threads get a generated title (the optional fast model in Settings writes it), show a status dot (running, failed, new activity) and can be archived, deleted or retried after a failed run.
 * Desktop notifications when a run ends, a command palette (`Cmd/Ctrl+K`) and keyboard shortcuts.
 
+### GitHub, sidebar and icons
+
+* With the GitHub CLI (`gh`) logged in, the project picker lists your repos (newest push first). A repo with a copy in your code folder opens as a project; any other repo can be cloned or linked to an existing folder.
+* Settings shows your GitHub status and the code folder, and suggests a folder it finds on disk.
+* The sidebar has two views: Threads (all threads by last activity, with the project on each row) and Projects (collapsible groups). Rows show the model on hover.
+* Each project can get an icon: found in the project (favicon, logo, app icon) or uploaded, from the project menu (Change icon).
+
 ## OpenRouter key
 
 On first start the app asks for your key and stores it in the data home. If the `OPENROUTER_API_KEY` environment variable is set, it is used before any pasted key.

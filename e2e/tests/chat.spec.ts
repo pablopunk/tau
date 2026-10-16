@@ -43,12 +43,13 @@ test.describe("MVP2 flow", () => {
   test("setup lands on the new thread page, Home runs a tool and the title appears", async () => {
     await completeSetup(page);
     await expect(page.getByRole("heading", { name: "New thread" })).toBeVisible();
+    await page.getByRole("radio", { name: "Projects" }).click();
 
     await send(page, "write hello.txt hi");
 
-    const runningDot = sidebar(page).locator('[data-slot="status-dot"][data-status="running"]');
-    await expect(runningDot).toBeVisible();
-    await expect(runningDot).toBeHidden();
+    const runningDot = sidebar(page).locator('[data-slot="bot-avatar"][data-working="true"]');
+    await expect(sidebar(page).getByRole("link", { name: "write hello.txt hi" })).toBeVisible();
+    await expect(runningDot).toHaveCount(0);
 
     const hello = join(homeDir(), "hello.txt");
     await expect.poll(() => existsSync(hello)).toBe(true);
@@ -105,12 +106,14 @@ test.describe("MVP2 flow", () => {
 
   test("archives and deletes a thread", async () => {
     const thread = sidebar(page).getByRole("link", { name: "fail" });
+    await thread.hover();
     await page.getByRole("button", { name: "Actions for fail" }).click();
     await page.getByRole("menuitem", { name: "Archive" }).click();
     await expect(thread).toBeHidden();
 
     await page.getByRole("button", { name: /Archived/ }).click();
     await expect(thread).toBeVisible();
+    await thread.hover();
     await page.getByRole("button", { name: "Actions for fail" }).click();
     await page.getByRole("menuitem", { name: "Delete" }).click();
     await page.getByRole("button", { name: "Delete thread" }).click();

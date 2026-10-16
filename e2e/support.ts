@@ -17,18 +17,30 @@ const GIT_IDENTITY = {
 const git = (cwd: string, ...args: string[]) =>
   execFileSync("git", args, { cwd, env: { ...process.env, ...GIT_IDENTITY }, stdio: "ignore" });
 
+const FAVICON_PNG = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/iZk9HQAAAABJRU5ErkJggg==",
+  "base64",
+);
+
 function createBareRepository(path: string, scratch: string) {
   mkdirSync(scratch);
   git(scratch, "init", "-q", "-b", "main");
   writeFileSync(join(scratch, "README.md"), "# e2e\n");
+  writeFileSync(join(scratch, "favicon.png"), FAVICON_PNG);
   git(scratch, "add", ".");
   git(scratch, "commit", "-q", "-m", "first");
   git(scratch, "clone", "-q", "--bare", scratch, path);
 }
 
-/** The repos the fake `gh` lists: both clone from the local bare repository. */
-export const fakeGhRepos = (bare: string): FakeGhRepo[] =>
-  ["e2e/with-local-copy", "e2e/without-local-copy"].map((full_name, index) => ({
+export const WITH_COPY = "e2e/with-local-copy";
+export const WITHOUT_COPY = "e2e/without-local-copy";
+
+/** The repos the fake `gh` lists: each clones from its own local bare repository. */
+export const fakeGhRepos = (withCopyBare: string, withoutCopyBare: string): FakeGhRepo[] =>
+  [
+    { full_name: WITH_COPY, bare: withCopyBare },
+    { full_name: WITHOUT_COPY, bare: withoutCopyBare },
+  ].map(({ full_name, bare }, index) => ({
     full_name,
     private: index === 1,
     pushed_at: new Date(Date.UTC(2026, 0, 2 - index)).toISOString(),
@@ -37,6 +49,15 @@ export const fakeGhRepos = (bare: string): FakeGhRepo[] =>
     description: null,
   }));
 
+function createWithCopyRepository(root: string) {
+  const bare = join(root, "with-copy.git");
+  createBareRepository(bare, join(root, "scratch-with-copy"));
+  const projects = join(root, "state", "projects");
+  mkdirSync(projects, { recursive: true });
+  git(projects, "clone", "-q", bare, "with-copy");
+  return bare;
+}
+
 /** Playwright loads the config in every worker, so the temp root is created once and shared through the environment. */
 export function e2eRoot(): string {
   const existing = process.env[ROOT_VARIABLE];
@@ -44,9 +65,11 @@ export function e2eRoot(): string {
   const root = realpathSync(mkdtempSync(join(tmpdir(), "pi-everywhere-e2e-")));
   mkdirSync(join(root, "home"));
   createBareRepository(join(root, "remote.git"), join(root, "scratch"));
+  const withoutCopy = join(root, "without-copy.git");
+  createBareRepository(withoutCopy, join(root, "scratch-without-copy"));
   installFakeGh(join(root, "gh"), {
     status: CONNECTED_AS_DEMO,
-    repos: fakeGhRepos(join(root, "remote.git")),
+    repos: fakeGhRepos(createWithCopyRepository(root), withoutCopy),
   });
   process.env[ROOT_VARIABLE] = root;
   return root;
@@ -56,6 +79,7 @@ export function e2eRoot(): string {
 export const homeDir = () => join(e2eRoot(), "home");
 export const stateDir = () => join(e2eRoot(), "state");
 export const bareRepository = () => join(e2eRoot(), "remote.git");
+export const projectsDir = () => join(stateDir(), "projects");
 export const tokenFile = () => join(stateDir(), "token");
 
 export const fakeGhBin = () => join(e2eRoot(), "gh", "bin");
