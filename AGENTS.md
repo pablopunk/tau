@@ -29,6 +29,11 @@ Dependencies point one way: `protocol` <- `testkit` <- dev dependency of `core`,
 * Each workstream commits only inside its own folders, in small commits, with tests green before each commit.
 * Ownership: A `packages/core/src/**` except `testing/**`; B `packages/server/**` and `packages/cli/**`; C `packages/web/src/{app,routes,setup,sidebar,lib}` except `lib/api.ts` and `lib/transport/**`; D `packages/web/src/conversation/**`.
 
+## Design system
+
+* Build every UI feature only from design system components (`packages/web/src/components/ui`, shadcn/ui on our theme tokens). No one-off styled elements or raw Radix in feature code.
+* If a feature needs something the design system lacks, add it to the design system first (a reusable component on the theme tokens), then use it from the feature.
+
 ## Conventions
 
 * TypeScript strict, ESM only, extensionless relative imports, `import type` for types (Biome enforces it).
