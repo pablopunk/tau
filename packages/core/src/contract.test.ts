@@ -22,7 +22,7 @@ const PENDING_A1_TAGS = [
   "[retry]",
   "[listAll]",
 ];
-const PENDING_A2_TAGS = ["[clone]", "[settings]"];
+const PENDING_A2_TAGS: string[] = [];
 
 async function makeBareRepository(path: string): Promise<string> {
   await promisify(execFile)("git", ["init", "--bare", path]);

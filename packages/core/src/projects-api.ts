@@ -44,6 +44,7 @@ export function createProjectsApi(deps: {
     async remove(id) {
       rejectHome(id, "removed");
       await projects.require(id);
+      clones.cancel(id);
       await conversations.removeAllOfProject(id);
       await projects.remove(id);
       announce();
