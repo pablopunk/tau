@@ -23,7 +23,7 @@ export function ModelThinkingPickers(props: ModelThinkingPickersProps) {
         disabled={props.disabled}
         variant="ghost"
         size="sm"
-        className="w-auto max-w-full"
+        className="w-auto min-w-0 max-w-full"
         ariaLabel="Model"
       />
       {showThinking && (
@@ -32,6 +32,7 @@ export function ModelThinkingPickers(props: ModelThinkingPickersProps) {
           variant="ghost"
           size="sm"
           className="w-auto"
+          searchable={false}
           disabled={props.disabled}
           options={props.levels.map((level) => ({ value: level, label: level }))}
           value={props.level}

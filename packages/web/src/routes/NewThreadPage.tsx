@@ -57,22 +57,20 @@ export function NewThreadPage() {
     }
   };
 
-  const footer = (
-    <div className="flex items-center gap-2">
-      <ProjectPicker projects={projects.data} projectId={projectId} onProject={setProject} disabled={busy} />
-      {cloning ? <span className="text-sm text-muted-foreground">Cloning…</span> : null}
-    </div>
-  );
   const toolbar = (
-    <ModelThinkingPickers
-      models={models.data}
-      model={model ? toRef(model) : null}
-      onModel={setModel}
-      levels={levels}
-      level={level}
-      onLevel={setLevel}
-      disabled={busy}
-    />
+    <>
+      <ProjectPicker projects={projects.data} projectId={projectId} onProject={setProject} disabled={busy} />
+      {cloning ? <span className="text-xs text-muted-foreground">Cloning…</span> : null}
+      <ModelThinkingPickers
+        models={models.data}
+        model={model ? toRef(model) : null}
+        onModel={setModel}
+        levels={levels}
+        level={level}
+        onLevel={setLevel}
+        disabled={busy}
+      />
+    </>
   );
 
   return (
@@ -84,7 +82,6 @@ export function NewThreadPage() {
           imagesAllowed={model?.images ?? true}
           busy={busy}
           disabled={cloning}
-          footer={footer}
           toolbar={toolbar}
           onSend={start}
         />

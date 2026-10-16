@@ -46,6 +46,8 @@ interface ComboboxProps {
   contentClassName?: string
   /** Called when the popover opens or closes. */
   onOpenChange?: (open: boolean) => void
+  /** Show the search box; turn off for short lists. */
+  searchable?: boolean
   /** A control shown on the right of a group's heading, by group name, e.g. a refresh button. */
   groupActions?: Record<string, React.ReactNode>
   /** `ghost` with `sm` fits inside a composer toolbar. */
@@ -75,6 +77,7 @@ function Combobox({
   contentClassName,
   onOpenChange,
   groupActions,
+  searchable = true,
   variant = "outline",
   size = "default",
   "aria-label": ariaLabel,
@@ -111,11 +114,11 @@ function Combobox({
       </PopoverTrigger>
       <PopoverContent
         data-slot="combobox-content"
-        className={cn("w-(--radix-popover-trigger-width) min-w-52 p-0", contentClassName)}
+        className={cn("w-(--radix-popover-trigger-width) min-w-52 max-w-[calc(100vw-2rem)] p-0 [&_[data-slot=command-list]]:max-h-[min(18rem,calc(var(--radix-popover-content-available-height)-3rem))]", contentClassName)}
         align="start"
       >
         <Command filter={rankOption}>
-          <CommandInput placeholder={searchPlaceholder} />
+          {searchable ? <CommandInput placeholder={searchPlaceholder} /> : null}
           <CommandList>
             <CommandEmpty>{emptyText}</CommandEmpty>
             {groupOptions(options).map(([group, items]) => (
@@ -136,7 +139,7 @@ function Combobox({
                     }}
                   >
                     {option.icon}
-                    <div className="flex min-w-0 flex-col">
+                    <div className="flex min-w-0 flex-1 flex-col">
                       <span className="truncate">{option.label}</span>
                       {option.description ? (
                         <span className="truncate text-xs text-muted-foreground">
@@ -145,13 +148,10 @@ function Combobox({
                       ) : null}
                     </div>
                     {option.hint ? (
-                      <span className="ml-auto text-xs text-muted-foreground">{option.hint}</span>
+                      <span className="text-xs text-muted-foreground">{option.hint}</span>
                     ) : null}
                     <CheckIcon
-                      className={cn(
-                        option.hint ? "" : "ml-auto",
-                        option.value === value ? "opacity-100" : "opacity-0"
-                      )}
+                      className={cn("ml-auto", option.value === value ? "opacity-100" : "opacity-0")}
                     />
                   </CommandItem>
                 ))}

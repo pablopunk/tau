@@ -73,11 +73,13 @@ export function ProjectPicker({ projects, projectId, onProject, disabled }: Proj
   ];
 
   return (
-    <div className="flex flex-col items-start gap-1">
+    <>
       <Combobox
         aria-label="Project"
-        className="w-auto"
-        contentClassName="w-[min(28rem,calc(100vw-2rem))]"
+        variant="ghost"
+        size="sm"
+        className="w-auto min-w-0 max-w-full"
+        contentClassName="w-[min(32rem,calc(100vw-2rem))]"
         disabled={disabled}
         options={options}
         value={projectId}
@@ -89,7 +91,7 @@ export function ProjectPicker({ projects, projectId, onProject, disabled }: Proj
           status.data?.state === "connected" ? { [GITHUB_GROUP]: <RefreshReposButton /> } : undefined
         }
       />
-      <FormError message={error} />
+      <FormError message={error} className="w-full" />
       <UseRepoDialog
         repo={dialogRepo}
         onClose={() => setDialogRepo(null)}
@@ -98,6 +100,6 @@ export function ProjectPicker({ projects, projectId, onProject, disabled }: Proj
           void selectProject(project);
         }}
       />
-    </div>
+    </>
   );
 }

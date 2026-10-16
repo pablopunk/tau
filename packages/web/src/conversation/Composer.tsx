@@ -147,7 +147,7 @@ function ComposerForm({
           rows={1}
           className="max-h-48 min-h-9 resize-none border-0 bg-transparent px-2 py-1.5 shadow-none focus-visible:ring-0 dark:bg-transparent"
         />
-        <div className="flex items-center gap-1">
+        <div className="flex items-start gap-1">
           {imagesAllowed ? (
             <>
               <Input
@@ -171,7 +171,7 @@ function ComposerForm({
               </Button>
             </>
           ) : null}
-          <div className="flex min-w-0 flex-1 items-center gap-1">{toolbar}</div>
+          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1">{toolbar}</div>
           {busy && onStop ? (
             <Button
               type="button"

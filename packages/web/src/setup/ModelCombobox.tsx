@@ -46,6 +46,7 @@ export function ModelCombobox({
       id={id}
       disabled={disabled}
       className={className}
+      contentClassName="w-[min(32rem,calc(100vw-2rem))]"
       variant={variant}
       size={size}
       aria-label={ariaLabel}
