@@ -9,3 +9,4 @@ playwright-report/
 *.log
 .env*
 *.tsbuildinfo
+.claude/worktrees/

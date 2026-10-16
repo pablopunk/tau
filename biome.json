@@ -9,6 +9,7 @@
     "includes": [
       "**",
       "!**/dist",
+      "!.claude",
       "!**/node_modules",
       "!packages/testkit/fixtures",
       "!pnpm-lock.yaml",
