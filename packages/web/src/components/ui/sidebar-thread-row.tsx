@@ -100,7 +100,7 @@ function SidebarThreadRow({
             <span className={cn("truncate", MOTION, projectIcon && "group-data-[current=true]/menu-item:-translate-x-[21px]")}>{context}</span>
           </span>
         ) : null}
-        <span data-slot="thread-title" className="truncate text-sm">
+        <span data-slot="thread-title" className="line-clamp-2 text-sm break-words">
           {title}
         </span>
       </span>
@@ -118,7 +118,7 @@ function SidebarThreadRow({
         isActive={current}
         size="lg"
         tooltip={tooltip}
-        className="h-auto min-h-14 gap-2 py-2 pr-14 [&>span:last-child]:overflow-visible"
+        className="h-auto min-h-14 gap-2 py-2 pr-14 [&>span:last-child]:overflow-visible [&>span:last-child]:whitespace-normal!"
       >
         {React.cloneElement(link, undefined, content)}
       </SidebarMenuButton>

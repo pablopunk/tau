@@ -37,7 +37,7 @@ function ProjectIcon({ id, name, iconUrl, home = false, tile = 17, className, ..
       <AvatarFallback
         className="rounded-sm text-[0.6rem] font-medium"
         style={{
-          backgroundColor: `color-mix(in oklab, oklch(0.7 0.14 ${hue}) 25%, transparent)`,
+          backgroundColor: `color-mix(in oklab, oklch(0.7 0.14 ${hue}) 25%, var(--background))`,
           color: `oklch(0.55 0.14 ${hue})`,
         }}
       >
