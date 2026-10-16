@@ -2,6 +2,7 @@ import { API_PREFIX, AppError, ERROR_STATUS, toErrorBody } from "@pi-everywhere/
 import type { FastifyReply, FastifyRequest } from "fastify";
 import { type AllowList, isAllowedHost, isAllowedOrigin } from "./allow-list";
 import type { Session } from "./session";
+import { SESSION_START_PAGE } from "./session-start-page";
 import { UNAUTHORIZED_PAGE } from "./unauthorized-page";
 
 export interface GuardOptions {
@@ -33,12 +34,6 @@ function rejectApi(reply: FastifyReply, error: AppError) {
   return reply.code(ERROR_STATUS[error.code]).send(toErrorBody(error));
 }
 
-function tokenRedirectTarget(request: FastifyRequest): string {
-  const url = new URL(request.url, "http://placeholder");
-  url.searchParams.delete("token");
-  return `${url.pathname}${url.search}`;
-}
-
 function sendUnauthenticated(request: FastifyRequest, reply: FastifyReply) {
   if (isApiPath(request)) {
     return rejectApi(reply, new AppError("unauthorized", "Open the URL printed in your terminal"));
@@ -59,7 +54,9 @@ export function createGuard({ allowList, session }: GuardOptions) {
     if (request.method === "GET" && !isApiPath(request) && session.isValidToken(token)) {
       return void reply
         .setCookie(session.cookieName, token as string, { httpOnly: true, sameSite: "strict", path: "/" })
-        .redirect(tokenRedirectTarget(request));
+        .header("cache-control", "no-store")
+        .type("text/html; charset=utf-8")
+        .send(SESSION_START_PAGE);
     }
     if (!session.isValidToken(request.cookies[session.cookieName])) {
       return void sendUnauthenticated(request, reply);

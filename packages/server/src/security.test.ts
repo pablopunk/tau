@@ -94,12 +94,15 @@ describe("Content type", () => {
 });
 
 describe("Token and cookie", () => {
-  it("swaps ?token= for an HttpOnly SameSite=Strict pie_<port> cookie and redirects", async () => {
+  it("swaps ?token= for an HttpOnly SameSite=Strict pie_<port> cookie and answers with a same-origin page", async () => {
     ctx = await startTestServer();
     const { port } = ctx.server;
     const response = await rawRequest(`/?token=${TOKEN}&x=1`, { host: `127.0.0.1:${port}` });
-    expect(response.statusCode).toBe(302);
-    expect(response.headers.location).toBe("/?x=1");
+    expect(response.statusCode).toBe(200);
+    expect(response.headers.location).toBeUndefined();
+    expect(response.headers["content-type"]).toContain("text/html");
+    expect(response.body).toContain('location.replace("/")');
+    expect(response.body).not.toContain(TOKEN);
     const cookie = String(response.headers["set-cookie"]);
     expect(cookie).toContain(`pie_${port}=${TOKEN}`);
     expect(cookie).toContain("HttpOnly");
