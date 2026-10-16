@@ -18,6 +18,8 @@ export const toSummary = (projectId: string, entry: IndexedConversation): Conver
   archivedAt: entry.archivedAt ?? null,
   status: entry.status ?? "idle",
   lastRunEndedAt: entry.lastRunEndedAt ?? null,
+  avatarIndex: entry.conversationId,
+  lastActivityAt: entry.lastRunEndedAt ?? entry.updatedAt,
 });
 
 export const byMostRecentlyUpdated = (a: ConversationSummary, b: ConversationSummary) =>

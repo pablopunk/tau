@@ -1,7 +1,7 @@
 import { homedir } from "node:os";
 import type { Harness } from "@earendil-works/pi-durable";
 import { AppError, type Project } from "@pi-everywhere/protocol";
-import { normalizeGitUrl } from "../git/git-url";
+import { repositoryKey } from "../git/repository-key";
 import { BACKGROUND } from "./open";
 import { type ProjectRecord, ProjectsDoc } from "./projects-doc";
 
@@ -31,6 +31,9 @@ export type ProjectUpdate = { status: "cloning" | "ready" | "failed"; path?: str
 
 const duplicateProject = () => new AppError("duplicate_project", "This project already exists.");
 
+const hasRepository = (records: readonly ProjectRecord[], key: string) =>
+  records.some((record) => record.gitUrl !== undefined && repositoryKey(record.gitUrl) === key);
+
 const notFound = () => new AppError("not_found", "Project not found.");
 
 export interface ProjectStore {
@@ -38,8 +41,17 @@ export interface ProjectStore {
   list(): Promise<Project[]>;
   find(id: string): Promise<Project | undefined>;
   require(id: string): Promise<Project>;
-  /** `path` must already be a real path; rejects `duplicate_project` for a path that is already a project. */
-  add(input: { id: string; name: string; path: string; createdAt: number }): Promise<Project>;
+  /**
+   * `path` must already be a real path; rejects `duplicate_project` for a path that is already a project, or for a
+   * `gitUrl` with the same `repositoryKey` as another project's.
+   */
+  add(input: {
+    id: string;
+    name: string;
+    path: string;
+    createdAt: number;
+    gitUrl?: string;
+  }): Promise<Project>;
   /** A project that is being cloned; rejects `duplicate_project` for the same normalized URL. */
   addGit(input: {
     id: string;
@@ -73,6 +85,9 @@ export function createProjectStore(harness: Harness): ProjectStore {
         if (input.path === homedir() || doc.projects.some((project) => project.path === input.path)) {
           throw new AppError("duplicate_project", "This folder is already a project.");
         }
+        if (input.gitUrl !== undefined && hasRepository(doc.projects, repositoryKey(input.gitUrl))) {
+          throw duplicateProject();
+        }
         const record: ProjectRecord = { ...input, kind: "folder", status: "ready" };
         doc.projects.push(record);
         return toProject(record);
@@ -80,12 +95,9 @@ export function createProjectStore(harness: Harness): ProjectStore {
     addGit: (input) =>
       harness.commit(async (tx) => {
         const doc = await tx.doc(ProjectsDoc);
-        const key = normalizeGitUrl(input.gitUrl);
-        const taken = doc.projects.some(
-          (project) =>
-            project.path === input.path ||
-            (project.gitUrl !== undefined && normalizeGitUrl(project.gitUrl) === key),
-        );
+        const taken =
+          doc.projects.some((project) => project.path === input.path) ||
+          hasRepository(doc.projects, repositoryKey(input.gitUrl));
         if (taken) throw duplicateProject();
         const record: ProjectRecord = { ...input, kind: "git", status: "cloning" };
         doc.projects.push(record);

@@ -8,6 +8,7 @@ export interface DataHome {
   readonly settingsFile: string;
   readonly credentialsFile: string;
   readonly lockFile: string;
+  readonly iconsDirectory: string;
 }
 
 export async function openDataHome(root: string): Promise<DataHome> {
@@ -19,5 +20,6 @@ export async function openDataHome(root: string): Promise<DataHome> {
     settingsFile: join(root, "settings.json"),
     credentialsFile: join(root, "credentials.json"),
     lockFile: join(root, "lock"),
+    iconsDirectory: join(root, "icons"),
   };
 }

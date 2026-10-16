@@ -1,6 +1,7 @@
 import { mkdir } from "node:fs/promises";
 import { isAbsolute } from "node:path";
 import { AppError, type Core, type ModelRef } from "@pi-everywhere/protocol";
+import { type CodeFolderDeps, suggestCodeFolder } from "./github/code-folder";
 import type { SettingsStore } from "./home/settings-store";
 import type { ProviderService } from "./provider/provider-service";
 import { resolveProjectFolder } from "./resolve-project-folder";
@@ -18,8 +19,9 @@ async function createFolder(path: string): Promise<string> {
 export function createSettingsApi(deps: {
   settings: SettingsStore;
   provider: ProviderService;
+  codeFolder: CodeFolderDeps;
 }): Core["settings"] {
-  const { settings, provider } = deps;
+  const { settings, provider, codeFolder } = deps;
   const requireListedModel = async (ref: ModelRef) => {
     if (!(await provider.isConfigured())) throw new AppError("no_provider", "Connect a provider first.");
     if (!(await provider.lists(ref))) {
@@ -28,6 +30,7 @@ export function createSettingsApi(deps: {
   };
   return {
     get: () => settings.get(),
+    suggestedCodeFolder: () => suggestCodeFolder(codeFolder),
     async setDefaultModel(ref) {
       await requireListedModel(ref);
       await settings.setDefaultModel(ref);

@@ -16,6 +16,7 @@ export interface CloneOptions {
   readonly directory: string;
   readonly env: Readonly<Record<string, string | undefined>>;
   readonly allowFileClones: boolean;
+  readonly extraGitConfig?: readonly string[];
   readonly timeoutMs?: number;
   readonly command?: string;
 }
@@ -47,6 +48,7 @@ const quietEnv = (env: CloneOptions["env"]) => ({
 export function startClone(options: CloneOptions): CloneRun {
   const args = [
     ...protocolFlags(options.allowFileClones),
+    ...(options.extraGitConfig ?? []),
     "clone",
     "--no-recurse-submodules",
     "--",

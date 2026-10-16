@@ -1,15 +1,20 @@
+import { homedir } from "node:os";
 import { join } from "node:path";
 import type { Core, CreateCore } from "@pi-everywhere/protocol";
 import { createChangeEmitter } from "./change-emitter";
 import { createConversationRecovery } from "./conversation-recovery";
 import { createConversationsApi } from "./conversations-api";
 import { createCloneService } from "./git/clone-service";
+import { createGithubService } from "./github/github-service";
+import { createRunGh, type RunGh, resolveGhPath } from "./github/run-gh";
 import { createConversationStore } from "./harness/conversation-store";
 import { BACKGROUND, openAgentHarness, openSqliteStorage } from "./harness/open";
 import { createProjectStore } from "./harness/project-store";
 import { openDataHome } from "./home/data-home";
 import { acquireHomeLock } from "./home/lock";
 import { createSettingsStore } from "./home/settings-store";
+import { createIconService } from "./icons/icon-service";
+import { createPresentProject } from "./project-view";
 import { createProjectsApi } from "./projects-api";
 import { createProviderService, type Environment } from "./provider/provider-service";
 import { createSettingsApi } from "./settings-api";
@@ -26,6 +31,10 @@ export interface CreateCoreOptions {
 export interface CoreDependencies {
   readonly env: Environment;
   readonly now: () => number;
+  /** Runs the GitHub CLI; the default execs the `gh` found on the PATH at startup. */
+  readonly runGh: RunGh;
+  /** Absolute path of `gh` (for the git credential helper); `undefined` when it is not installed. */
+  readonly ghPath: string | undefined;
   /** The agent store failed for good: the process cannot continue. */
   readonly onFatal: (error: unknown) => void;
 }
@@ -35,11 +44,16 @@ const exitAfterLogging = (error: unknown) => {
   process.exit(1);
 };
 
-export const defaultCoreDependencies = (): CoreDependencies => ({
-  env: process.env,
-  now: Date.now,
-  onFatal: exitAfterLogging,
-});
+export const defaultCoreDependencies = (): CoreDependencies => {
+  const ghPath = resolveGhPath(process.env);
+  return {
+    env: process.env,
+    now: Date.now,
+    runGh: createRunGh(ghPath, process.env),
+    ghPath,
+    onFatal: exitAfterLogging,
+  };
+};
 
 export async function createCoreWith(options: CreateCoreOptions, deps: CoreDependencies): Promise<Core> {
   const home = await openDataHome(options.home);
@@ -50,7 +64,8 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
       faux: options.faux ?? false,
       env: deps.env,
     });
-    const settings = createSettingsStore(home.settingsFile, join(home.root, "projects"));
+    const defaultProjectsFolder = join(home.root, "projects");
+    const settings = createSettingsStore(home.settingsFile, defaultProjectsFolder);
     const changes = createChangeEmitter();
     const status = createStatusTracker({ changes, now: deps.now });
     const harness = await openAgentHarness({
@@ -67,6 +82,9 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
     const conversations = createConversationStore(harness);
     const shared = { projects, conversations, changes, now: deps.now };
     const titles = createTitleService({ harness, models: provider.models, settings, changes });
+    const icons = createIconService({ iconsDirectory: home.iconsDirectory, now: deps.now });
+    const present = createPresentProject(icons);
+    const githubRef: { current?: ReturnType<typeof createGithubService> } = {};
     const clones = createCloneService({
       harness,
       projects,
@@ -75,7 +93,19 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
       now: deps.now,
       env: deps.env,
       allowFileClones: (options.faux ?? false) && deps.env.PI_EVERYWHERE_ALLOW_FILE_CLONES === "1",
+      extraGitConfig: (url) => githubRef.current?.extraGitConfig(url) ?? [],
     });
+    const github = createGithubService({
+      runGh: deps.runGh,
+      ghPath: deps.ghPath,
+      projects,
+      clones,
+      settings,
+      changes,
+      now: deps.now,
+      presentProject: present,
+    });
+    githubRef.current = github;
     const recovery = createConversationRecovery({ harness, conversations, changes });
     await status.recoverAtStartup();
     await clones.recoverAtStartup();
@@ -83,13 +113,23 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
 
     let closing: Promise<void> | undefined;
     return {
-      settings: createSettingsApi({ settings, provider }),
+      settings: createSettingsApi({
+        settings,
+        provider,
+        codeFolder: { settings, defaultProjectsFolder, homeDirectory: homedir() },
+      }),
+      github: {
+        status: () => github.status(),
+        repos: () => github.repos(),
+        refreshRepos: () => github.refreshRepos(),
+        use: (input) => github.use(input),
+      },
       provider: {
         status: () => provider.status(),
         setApiKey: (key) => provider.setApiKey(key),
         listModels: () => provider.listModels(),
       },
-      projects: createProjectsApi({ ...shared, clones }),
+      projects: createProjectsApi({ ...shared, clones, icons, present }),
       conversations: createConversationsApi({ ...shared, provider, settings, titles, status }),
       onChange: (listener) => changes.subscribe(listener),
       close() {

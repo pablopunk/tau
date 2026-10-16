@@ -10,7 +10,8 @@ import type { ProjectStore } from "../harness/project-store";
 import type { SettingsStore } from "../home/settings-store";
 import { requireName } from "../require-name";
 import { claimFolder } from "./claim-folder";
-import { checkGitUrl, folderNameOf, normalizeGitUrl } from "./git-url";
+import { checkGitUrl, folderNameOf } from "./git-url";
+import { repositoryKey } from "./repository-key";
 import { type CloneRun, startClone } from "./run-clone";
 
 export interface CloneServiceDeps {
@@ -21,6 +22,8 @@ export interface CloneServiceDeps {
   readonly now: () => number;
   readonly env: Readonly<Record<string, string | undefined>>;
   readonly allowFileClones: boolean;
+  /** Extra `git` arguments (`["-c", "key=value", ...]`) for cloning this URL; none by default. */
+  readonly extraGitConfig?: (url: string) => string[];
 }
 
 export interface CloneService {
@@ -48,6 +51,7 @@ const removeFolder = (path: string) => rm(path, { recursive: true, force: true }
 
 export function createCloneService(deps: CloneServiceDeps): CloneService {
   const { projects, settings, changes, now, env, allowFileClones } = deps;
+  const extraGitConfig = deps.extraGitConfig ?? (() => []);
   const running = new Map<string, CloneRun>();
   const announce = () => changes.emit({ resource: "projects" });
 
@@ -64,7 +68,7 @@ export function createCloneService(deps: CloneServiceDeps): CloneService {
   };
 
   const begin = (id: string, url: string, directory: string) => {
-    const run = startClone({ url, directory, env, allowFileClones });
+    const run = startClone({ url, directory, env, allowFileClones, extraGitConfig: extraGitConfig(url) });
     running.set(id, run);
     void run.done
       .then((outcome) => settle(id, directory, outcome))
@@ -81,9 +85,10 @@ export function createCloneService(deps: CloneServiceDeps): CloneService {
     return realpath(projectsFolder);
   };
 
-  const requireNoDuplicate = async (normalizedUrl: string) => {
+  const requireNoDuplicate = async (url: string) => {
+    const key = repositoryKey(url);
     const taken = (await projects.list()).some(
-      (project) => project.gitUrl !== undefined && normalizeGitUrl(project.gitUrl) === normalizedUrl,
+      (project) => project.gitUrl !== undefined && repositoryKey(project.gitUrl) === key,
     );
     if (taken) throw new AppError("duplicate_project", "This repository is already a project.");
   };
@@ -93,7 +98,7 @@ export function createCloneService(deps: CloneServiceDeps): CloneService {
       await requireGit(env);
       const normalized = checkGitUrl(url, allowFileClones);
       const projectName = name === undefined ? folderNameOf(normalized) : requireName(name);
-      await requireNoDuplicate(normalized);
+      await requireNoDuplicate(url);
       const directory = await claimFolder(await projectsRoot(), folderNameOf(normalized));
       try {
         const project = await projects.addGit({

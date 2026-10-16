@@ -10,6 +10,9 @@ import { createCore } from "./index";
 
 const REAL_CORE_IMPLEMENTED = true;
 
+/** MVP3 Phase 1: A1 removes `[github]`, A2 removes `[icons]` as they implement them. */
+const PENDING_TAGS = ["[github]", "[icons]"];
+
 process.env.PI_EVERYWHERE_ALLOW_FILE_CLONES = "1";
 
 async function makeBareRepository(path: string): Promise<string> {
@@ -55,5 +58,5 @@ async function makeRealTarget(): Promise<ContractTarget> {
 }
 
 describe.skipIf(!REAL_CORE_IMPLEMENTED)("real core", () => {
-  runCoreContract("real core (faux mode)", makeRealTarget);
+  runCoreContract("real core (faux mode)", makeRealTarget, { pending: PENDING_TAGS });
 });

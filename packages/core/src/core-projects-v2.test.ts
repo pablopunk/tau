@@ -48,7 +48,15 @@ describe("app.projects v2 migration", () => {
     const core = await world.reopen();
     expect(await core.projects.list()).toEqual([
       expect.objectContaining({ id: "home", kind: "home" }),
-      { id: "old", name: "Old", path, createdAt: 7, kind: "folder", status: "ready" },
+      {
+        id: "old",
+        name: "Old",
+        path,
+        createdAt: 7,
+        kind: "folder",
+        status: "ready",
+        iconUrl: "/api/projects/old/icon?v=auto",
+      },
     ]);
   });
 });
