@@ -30,11 +30,13 @@ export interface ConversationWatcher {
 /**
  * The application core. Every method rejects with `AppError` (see `errors.ts`) for expected failures; anything else
  * is an internal error. The server only depends on this interface, and `createCore` (packages/core) implements it.
+ * Ids (projects, conversations) are opaque strings. `ProviderStatus.provider` is the provider the key belongs to
+ * (`openrouter`, also in faux mode); `ModelRef.provider` is the model's own provider (`faux` in faux mode).
  */
 export interface Core {
   settings: {
     get(): Promise<Settings>;
-    /** Only affects conversations created afterwards. Rejects `invalid_request` for a model the provider does not list. */
+    /** Only affects conversations created afterwards. Rejects `no_provider` without a key, `invalid_request` for a model the provider does not list. */
     setDefaultModel(ref: ModelRef): Promise<void>;
   };
   provider: {
