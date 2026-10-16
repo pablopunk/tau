@@ -35,7 +35,14 @@ Dependencies point one way: `protocol` <- `testkit` <- dev dependency of `core`,
   * D web conversation: `packages/web/src/conversation/**`.
   * E web navigation: `packages/web/src/{sidebar,palette,notifications,activity}`.
   * Integrator only: `packages/core/src/{testing/**,create-core.ts}`, `package.json` files, `pnpm-lock.yaml`, `packages/{protocol,testkit}/**`, `packages/web/src/lib/{api.ts,transport/**}`. Ask through `CONTRACT-CHANGES.md`. Shared design system (`packages/web/src/components/ui/**`): any owner may add a component, nobody changes an existing one in a breaking way. `core/src/test-support/**` and the core test files belong to A1 (chat) and A2 (projects, settings, provider).
-  * Contract suite: remove your own `[tag]` entries from the pending lists in `packages/core/src/contract.test.ts` as you implement them (A1: start, images, titles, status, archive, delete, retry, listAll; A2: clone, settings).
+  * Ownership (MVP3, see `MVP3.md`; Phase 0 is done, the integrator only edits the frozen files):
+    * A1 core GitHub: `packages/core/src/github/**`, `git/{repository-key,clone-service}.ts`, `harness/project-store.ts` duplicate checks, the settings suggestion (`github/code-folder.ts`).
+    * A2 core icons: `packages/core/src/icons/**` only.
+    * B server: `packages/server/**` (icon, GitHub and image routes: limits, CSP, tests).
+    * C web project menu and settings: `routes/ProjectPicker.tsx`, new `github/**`, settings rows.
+    * E web sidebar and icons: `sidebar/**`, new `icons/**` (Change icon dialog).
+    * Fake `gh` (`core/src/test-support/fake-gh*`, `gh-argv.ts`) is shared by core tests and e2e: change it only through the integrator.
+  * Contract suite: remove your own `[tag]` entries from the pending lists in `packages/core/src/contract.test.ts` as you implement them (A1: start, images, titles, status, archive, delete, retry, listAll; A2: clone, settings; MVP3: A1 `[github]`, A2 `[icons]`).
 
 ## Design system
 

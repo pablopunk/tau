@@ -140,6 +140,7 @@ REST:
 ## Web
 
 ### Design system first (Phase 0)
+- Decision (user): reuse shadcn/ui as much as possible and do not copy webr's styles. webr's behavior is ported (sorting, toggle, collapse, FLIP reorder, avatars, project icons, takeover); the visuals come from shadcn primitives and our theme tokens: `SidebarThreadRow` is composed from `SidebarMenuItem`/`SidebarMenuButton`, `SegmentedControl` from `ToggleGroup`, `ProjectIcon` from `Avatar`. No webr CSS (25px grid, accent-bar glow) unless shadcn has no equivalent.
 - `BotAvatar` wrapper around `bot-avatars@0.1.2` (pinned; Phase 0 adds the dependency): `avatarIndex` → type `botAvatarTypes[i % len]`, color `hsl(i*137.508 % 360, 72%, 58%)`, seed `(i*0.618033…) % 1`; `state` working/default; `paused`; static under reduced motion. Status badge slot (top-left).
 - `ProjectIcon`: 17 px tile, initial letter on a tinted token color, image fades in on load, letter on error.
 - `SegmentedControl` (two icon buttons, `aria-pressed`).

@@ -27,3 +27,17 @@ Differences between `MVP2.md` and what Phase 0 left in the repo. Phase 2 reconci
 * A2: `CloneService.stopAll()` kills every running clone group; `create-core.ts` `close()` calls it before closing the harness.
 * E: the window-event workaround is replaced by `app/settings-dialog.tsx` (`SettingsDialogProvider`, `useOpenSettings`) used by `AppSidebar` and the palette; `palette/settings-event.ts` is deleted.
 * Flaky `run-clone.test.ts`: the test now waits for the fake git to record its pid instead of sleeping 300 ms.
+
+## MVP3 Phase 0 deviations
+
+* **Candidate route uses a query string, supported in `RouteDef`.** `RouteDef` gained `query?: TSchema` and `responseKind?: "json" | "image"`; `GET /projects/:id/icon-candidates/file?name=...` is the only route with a query. `iconCandidateUrl(projectId, name)` builds the `src`. `JsonRouteName` excludes the image routes from `Transport.request`.
+* **Core icon candidates have no `index`.** `projects.iconCandidates(id)` returns `{ name }[]` and `projects.iconCandidate(id, name)` takes the name (MVP3.md already says candidates are addressed by name). The REST list adds `url`.
+* **`SuggestedCodeFolder` answers JSON `null`.** `defineRoute` sends the literal `null` body for a `null` result.
+* **Image routes live in `server/src/rest/define-image-route.ts`** (nosniff, `Cache-Control: no-cache`, ETag with 304, SVG `Content-Security-Policy: sandbox`, 404 without an image) and the icon routes are already wired, so B only adds hardening and tests.
+* **`SegmentedControl` is a radio group** (shadcn `ToggleGroup` with `type="single"`: `role="radio"`, `aria-checked`), not two `aria-pressed` buttons. `ToggleGroup`, `Toggle` and `Avatar` were added with the shadcn CLI (its bogus `cn` dependency was removed again).
+* **`SidebarThreadRow`** takes `link` (the router `<Link/>`), `avatar`, `context`, `takeover`, `time` and `actions`; it is built from the shadcn sidebar menu, not webr's grid CSS (see the MVP3.md design-system decision).
+* **Shared helpers added to `protocol`**: `isIconPng`, `projectIconUrl`, `iconCandidateUrl`, icon size limits.
+* **Core stubs (frozen shapes)**: `GithubServiceDeps`/`GithubService` (`github/github-service.ts`, with `extraGitConfig(url)` wired into `CloneService`), `suggestCodeFolder` (`github/code-folder.ts`), `IconService` (`icons/icon-service.ts`), `createRunGh`, `resolveGhPath` and `ghEnvironment` (`github/run-gh.ts`, real). `RunGh` resolves `{ stdout, stderr, exitCode }` for any exit code and rejects only when `gh` cannot run (`code` `ENOENT` or `ETIMEDOUT`). `CoreDependencies` gained `runGh` and `ghPath`. `DataHome` gained `iconsDirectory`.
+* **Fake `gh`**: `core/src/test-support/fake-gh/gh` (Node script), `fake-gh.ts` (`installFakeGh`, config types) and `gh-argv.ts` (the two exact argv lists). Config comes from `FAKE_GH_CONFIG`, calls are logged to `FAKE_GH_LOG`. `e2e/support.ts` installs it (two repos cloning from the local bare repository) and puts it first on the server's PATH.
+* **Contract**: `ContractTarget.github` (optional) names a repo with and without a local copy; `[github]` and `[icons]` are pending for the real core (`PENDING_TAGS` in `core/src/contract.test.ts`), `[sidebar-data]` is live. The real core's contract target must inject a fake `runGh` through `createCoreWith` and set up a code folder with a copy (A1).
+* **`ConversationSummary` sorting**: `useAllConversations` and `useConversations` still sort by `updatedAt`; E switches the sidebar to `lastActivityAt`.
