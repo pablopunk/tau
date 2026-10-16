@@ -1,34 +1,38 @@
-import { parseArgs } from "node:util";
+import { createCore } from "@pi-everywhere/core";
+import { createServer } from "@pi-everywhere/server";
+import { parseCliOptions } from "./options";
+import { run } from "./run";
+import { findStaticDir } from "./static-dir";
 
-export interface CliOptions {
-  readonly port: number;
-  readonly open: boolean;
-  readonly home: string | undefined;
-  readonly faux: boolean;
+async function openBrowser(url: string): Promise<void> {
+  const { default: open } = await import("open");
+  await open(url);
 }
 
-export const DEFAULT_PORT = 4317;
-
-export function parseCliOptions(argv: readonly string[]): CliOptions {
-  const { values } = parseArgs({
-    args: [...argv],
-    options: {
-      port: { type: "string" },
-      "no-open": { type: "boolean", default: false },
-      home: { type: "string" },
-      faux: { type: "boolean", default: false },
-    },
-  });
-  return {
-    port: values.port ? Number(values.port) : DEFAULT_PORT,
-    open: !values["no-open"],
-    home: values.home ?? process.env.PI_EVERYWHERE_HOME,
-    faux: values.faux || process.env.PI_EVERYWHERE_FAUX === "1",
+function closeOnSignals(close: () => Promise<void>): void {
+  let closing = false;
+  const shutDown = () => {
+    if (closing) return;
+    closing = true;
+    close().then(
+      () => process.exit(0),
+      (error: unknown) => {
+        console.error(error);
+        process.exit(1);
+      },
+    );
   };
+  process.on("SIGINT", shutDown);
+  process.on("SIGTERM", shutDown);
 }
 
-/** Stub: workstream B (server + CLI) wires createCore and createServer here. */
 export async function main(argv: readonly string[]): Promise<void> {
-  const options = parseCliOptions(argv);
-  throw new Error(`pi-everywhere is not wired up yet (port ${options.port})`);
+  const app = await run(parseCliOptions(argv), {
+    createCore,
+    createServer,
+    openBrowser,
+    log: (message) => console.log(message),
+    staticDir: findStaticDir(),
+  });
+  if (app) closeOnSignals(app.close);
 }

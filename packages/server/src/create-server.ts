@@ -69,7 +69,12 @@ export const createServer: CreateServer = async (options) => {
   registerRoutes(app, options.core);
   registerLive(app, options.core);
   await registerStaticAssets(app, options.staticDir);
-  await app.listen({ port: options.port, host: options.host ?? DEFAULT_HOST });
+  try {
+    await app.listen({ port: options.port, host: options.host ?? DEFAULT_HOST });
+  } catch (error) {
+    await app.close();
+    throw error;
+  }
   const address = app.server.address();
   boundPort = typeof address === "object" && address ? address.port : options.port;
   const origin = `http://${DEFAULT_HOST}:${boundPort}`;
