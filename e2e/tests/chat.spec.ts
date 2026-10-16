@@ -5,7 +5,7 @@ import { bareRepository, homeDir, tokenFile } from "../support";
 
 const readToken = () => readFileSync(tokenFile(), "utf8").trim();
 const conversation = (page: Page) => page.getByTestId("conversation");
-const sidebar = (page: Page) => page.getByRole("complementary").or(page.getByLabel("Projects and chats"));
+const sidebar = (page: Page) => page.getByRole("complementary").or(page.getByLabel("Projects and threads"));
 
 async function completeSetup(page: Page) {
   await page.getByLabel("OpenRouter API key").fill("sk-or-v1-faux");
@@ -23,7 +23,7 @@ async function send(page: Page, text: string) {
 }
 
 async function openNewThreadIn(page: Page, project: string) {
-  await page.getByRole("button", { name: `New chat in ${project}` }).click();
+  await page.getByRole("button", { name: `New thread in ${project}` }).click();
   await expect(page.getByRole("heading", { name: "New thread" })).toBeVisible();
   await expect(page.getByRole("combobox", { name: "Project" })).toHaveText(project);
 }
@@ -63,8 +63,8 @@ test.describe("MVP2 flow", () => {
     await page.getByLabel("Repository URL").fill(bareRepository());
     await page.getByRole("button", { name: "Clone project" }).click();
 
-    const newChat = page.getByRole("button", { name: "New chat in remote" });
-    await expect(newChat).toBeVisible({ timeout: 20_000 });
+    const newThread = page.getByRole("button", { name: "New thread in remote" });
+    await expect(newThread).toBeVisible({ timeout: 20_000 });
     await openNewThreadIn(page, "remote");
     await send(page, "hello from the clone");
     await expect(conversation(page).getByText("hello from the clone", { exact: true })).toBeVisible();
