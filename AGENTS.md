@@ -27,7 +27,15 @@ Dependencies point one way: `protocol` <- `testkit` <- dev dependency of `core`,
 * Phase 1 agents never edit `package.json`, `pnpm-lock.yaml`, `packages/protocol/**` (including the `Core` interface), `packages/testkit/**`, or files another workstream owns. `protocol` and `testkit` belong to the integrator.
 * A needed contract change is a short note in `CONTRACT-CHANGES.md` (what, why, the exact change). The integrator applies it.
 * Each workstream commits only inside its own folders, in small commits, with tests green before each commit.
-* Ownership: A `packages/core/src/**` except `testing/**`; B `packages/server/**` and `packages/cli/**`; C `packages/web/src/{app,routes,setup,sidebar,lib}` except `lib/api.ts` and `lib/transport/**`; D `packages/web/src/conversation/**`.
+* Ownership (MVP2, see `MVP2.md`):
+  * A1 core conversations: `packages/core/src/{conversations-api,conversation-title,conversation-recovery}.ts`, `harness/{conversation-store,conversation-docs}.ts`, `titles/**`, `status/**`.
+  * A2 core projects, settings, git: `packages/core/src/{projects-api,settings-api,resolve-project-folder}.ts`, `harness/{project-store,projects-doc}.ts`, `home/settings-store.ts`, `provider/**`, `git/**`.
+  * B server and CLI: `packages/server/**`, `packages/cli/**`.
+  * C web shell: `packages/web/src/{app,routes,setup,lib}` except `lib/api.ts`, `lib/transport/**` and the frozen files (`lib/paths.ts`, `lib/queries.ts`, `lib/use-changed-invalidation.ts`, `lib/preferences.ts`, `lib/hotkeys.ts`, and the placeholder mounts in `routes/MainLayout.tsx`). C replaces `routes/NewThreadPage.tsx` and `setup/` placeholders; E replaces the placeholders in its folders; D replaces `conversation/Composer.tsx` keeping `ComposerProps`.
+  * D web conversation: `packages/web/src/conversation/**`.
+  * E web navigation: `packages/web/src/{sidebar,palette,notifications,activity}`.
+  * Integrator only: `packages/core/src/{testing/**,create-core.ts}`, `package.json` files, `pnpm-lock.yaml`, `packages/{protocol,testkit}/**`, `packages/web/src/lib/{api.ts,transport/**}`. Ask through `CONTRACT-CHANGES.md`. Shared design system (`packages/web/src/components/ui/**`): any owner may add a component, nobody changes an existing one in a breaking way. `core/src/test-support/**` and the core test files belong to A1 (chat) and A2 (projects, settings, provider).
+  * Contract suite: remove your own `[tag]` entries from the pending lists in `packages/core/src/contract.test.ts` as you implement them (A1: start, images, titles, status, archive, delete, retry, listAll; A2: clone, settings).
 
 ## Design system
 
