@@ -156,7 +156,7 @@ describe("settings", () => {
     mocks.setProjectsFolder.mockResolvedValue(undefined);
     wrap(<CodeFolderSuggestion />);
     await userEvent.click(
-      await screen.findByRole("button", { name: "Use /Users/me/src as your code folder" }),
+      await screen.findByRole("button", { name: "Use ~/src as your code folder" }),
     );
     expect(mocks.setProjectsFolder).toHaveBeenCalledWith("/Users/me/src");
   });

@@ -36,7 +36,6 @@ export function NewThreadPage() {
   const cloning = projects.data.find((project) => project.id === projectId)?.status === "cloning";
 
   const start = async ({ text, images }: { text: string; images: ImageInput[] }) => {
-    if (cloning) throw new Error("Cloning… you can send once the project is ready.");
     setBusy(true);
     try {
       const created = await api.conversations.start({
@@ -83,6 +82,7 @@ export function NewThreadPage() {
           target="new"
           imagesAllowed={model?.images ?? true}
           busy={busy}
+          disabled={cloning}
           footer={footer}
           toolbar={toolbar}
           onSend={start}

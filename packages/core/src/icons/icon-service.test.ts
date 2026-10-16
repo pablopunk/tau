@@ -161,7 +161,7 @@ describe("custom icon", () => {
     await s.put("favicon.ico", "found");
     expect(await s.service.version("p1")).toBe("auto");
     await s.service.setCustom("p1", png);
-    expect(await s.service.icon(s.info)).toEqual({ contentType: "image/png", data: png });
+    expect(await s.service.icon(s.info)).toMatchObject({ contentType: "image/png", data: png });
     expect(await s.service.version("p1")).not.toBe("auto");
     await s.service.setCustom("p1", null);
     expect(await s.service.version("p1")).toBe("auto");

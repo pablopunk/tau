@@ -23,6 +23,7 @@ export interface GithubServiceDeps {
   readonly settings: SettingsStore;
   readonly changes: ChangeEmitter;
   readonly now: () => number;
+  readonly allowFileClones: boolean;
   /** Fills `iconUrl`; every `Project` that leaves the core goes through it. */
   readonly presentProject: PresentProject;
 }
@@ -31,8 +32,6 @@ export type GithubService = Core["github"] & {
   /** `git` arguments that let a private https clone use gh's credential helper; none when not applicable. */
   extraGitConfig(url: string): string[];
 };
-
-const allowsLocalUrls = () => process.env.PI_EVERYWHERE_ALLOW_FILE_CLONES === "1";
 
 function createStatusCache(deps: GithubServiceDeps) {
   let cached: { at: number; value: Promise<GithubStatus> } | undefined;
@@ -58,7 +57,7 @@ export function createGithubService(deps: GithubServiceDeps): GithubService {
     settings: deps.settings,
     homeDirectory: homedir(),
     now: deps.now,
-    allowLocalUrls: allowsLocalUrls(),
+    allowLocalUrls: deps.allowFileClones,
   });
   const useRepo = createUseRepo(deps);
   const inFlight = new Map<string, Promise<Project>>();

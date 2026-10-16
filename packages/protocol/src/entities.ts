@@ -90,6 +90,7 @@ export const ConversationSummarySchema = Type.Object({
   lastRunEndedAt: Type.Union([Type.Number(), Type.Null()]),
   avatarIndex: Type.Number(),
   lastActivityAt: Type.Number(),
+  model: Type.Union([ModelRefSchema, Type.Null()]),
 });
 export type ConversationSummary = Type.Static<typeof ConversationSummarySchema>;
 
@@ -178,4 +179,4 @@ export type IconCandidate = Type.Static<typeof IconCandidateSchema>;
 export const IconCandidateLinkSchema = Type.Object({ name: Type.String(), url: Type.String() });
 export type IconCandidateLink = Type.Static<typeof IconCandidateLinkSchema>;
 
-export type ProjectIconImage = { contentType: string; data: Uint8Array };
+export type ProjectIconImage = { contentType: string; data: Uint8Array; etag?: string };

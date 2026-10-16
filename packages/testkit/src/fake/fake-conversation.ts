@@ -156,6 +156,7 @@ export class FakeConversation {
       lastRunEndedAt: this.lastRunEndedAt,
       avatarIndex: Number(this.id),
       lastActivityAt: this.lastRunEndedAt ?? this.updatedAt,
+      model: { provider: this.model.provider, modelId: this.model.modelId },
     };
   }
 

@@ -100,6 +100,7 @@ export function createConversationStarter(harness: Harness): ConversationStarter
             startRequestId: input.requestId,
             pendingStart: true,
             status: "running",
+            model,
           });
         },
       },

@@ -1,3 +1,4 @@
+import type { ConversationSummary } from "@pi-everywhere/protocol";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "./api";
 
@@ -23,12 +24,15 @@ export const useProjects = () =>
 
 export const useModels = () => useQuery({ queryKey: queryKeys.models, queryFn: () => api.provider.models() });
 
+export const byActivity = (a: ConversationSummary, b: ConversationSummary): number =>
+  b.lastActivityAt - a.lastActivityAt || (a.id < b.id ? 1 : a.id > b.id ? -1 : 0);
+
 export const useConversations = (projectId: string) =>
   useQuery({
     queryKey: queryKeys.conversations(projectId),
     queryFn: async () => {
       const list = await api.conversations.list(projectId);
-      return [...list].sort((a, b) => b.updatedAt - a.updatedAt);
+      return [...list].sort(byActivity);
     },
   });
 
@@ -37,7 +41,7 @@ export const useAllConversations = () =>
     queryKey: queryKeys.allConversations,
     queryFn: async () => {
       const list = await api.conversations.listAll();
-      return [...list].sort((a, b) => b.updatedAt - a.updatedAt);
+      return [...list].sort(byActivity);
     },
   });
 

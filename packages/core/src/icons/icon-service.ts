@@ -29,7 +29,8 @@ const notFound = () => new AppError("not_found", "This image is not available.")
 
 async function load(found: FoundIcon): Promise<ProjectIconImage | null> {
   try {
-    return { contentType: found.contentType, data: new Uint8Array(await readFile(found.file)) };
+    const data = new Uint8Array(await readFile(found.file));
+    return { contentType: found.contentType, data, etag: `${found.mtimeMs}-${found.size}` };
   } catch {
     return null;
   }
@@ -50,7 +51,7 @@ export function createIconService(deps: IconServiceDeps): IconService {
   return {
     async icon(project) {
       const custom = await readCustomIcon(iconsDirectory, project.id);
-      if (custom) return { contentType: "image/png", data: custom };
+      if (custom) return { contentType: "image/png", data: custom, etag: hashIcon(custom) };
       const found = await discovered(project);
       return found ? load(found) : null;
     },

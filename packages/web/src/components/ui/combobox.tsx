@@ -22,7 +22,7 @@ export interface ComboboxOption {
   /** Secondary text under the label, e.g. an id. */
   description?: string
   /** Short text on the right of the option, e.g. why it cannot be chosen, or "local". */
-  hint?: string
+  hint?: React.ReactNode
   /** Leading icon, e.g. a project icon or a lock. */
   icon?: React.ReactNode
   disabled?: boolean

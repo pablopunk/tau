@@ -1,15 +1,11 @@
 import type { ConversationSummary, Project } from "@pi-everywhere/protocol";
 
-export const byActivity = (a: ConversationSummary, b: ConversationSummary): number =>
-  b.lastActivityAt - a.lastActivityAt || (a.id < b.id ? 1 : a.id > b.id ? -1 : 0);
-
 export const isArchived = (conversation: ConversationSummary): boolean => conversation.archivedAt !== null;
 
 export const activeThreads = (all: readonly ConversationSummary[]) =>
-  all.filter((conversation) => !isArchived(conversation)).sort(byActivity);
+  all.filter((conversation) => !isArchived(conversation));
 
-export const archivedThreads = (all: readonly ConversationSummary[]) =>
-  all.filter(isArchived).sort(byActivity);
+export const archivedThreads = (all: readonly ConversationSummary[]) => all.filter(isArchived);
 
 export interface ProjectSection {
   project: Project;

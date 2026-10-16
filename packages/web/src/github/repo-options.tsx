@@ -1,7 +1,7 @@
 import type { GithubRepo, GithubStatus } from "@pi-everywhere/protocol";
 import { LockIcon } from "lucide-react";
 import type { ComboboxOption } from "@/components/ui/combobox";
-import { formatRelativeTime } from "@/components/ui/relative-time";
+import { RelativeTime } from "@/components/ui/relative-time";
 
 export const GITHUB_GROUP = "On GitHub";
 const PREFIX = "github:";
@@ -12,8 +12,12 @@ export const githubValue = (nameWithOwner: string) => `${PREFIX}${nameWithOwner}
 export const parseGithubValue = (value: string): string | null =>
   value.startsWith(PREFIX) && value !== HINT_VALUE ? value.slice(PREFIX.length) : null;
 
-const repoHint = (repo: GithubRepo, now: number) =>
-  [repo.localPath ? "local" : null, formatRelativeTime(repo.pushedAt, now)].filter(Boolean).join(" · ");
+const repoHint = (repo: GithubRepo, now: number) => (
+  <>
+    {repo.localPath ? "local · " : null}
+    <RelativeTime at={repo.pushedAt} now={now} />
+  </>
+);
 
 export const repoOption = (repo: GithubRepo, now = Date.now()): ComboboxOption => ({
   value: githubValue(repo.nameWithOwner),

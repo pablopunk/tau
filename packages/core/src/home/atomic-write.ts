@@ -7,7 +7,7 @@ export const PRIVATE_DIRECTORY_MODE = 0o700;
 /** Writes to a temp file next to the target, then renames, so readers never see a half-written file. */
 export async function writeFileAtomic(
   path: string,
-  content: string,
+  content: string | Uint8Array,
   mode = PRIVATE_FILE_MODE,
 ): Promise<void> {
   const temporary = `${path}.${randomUUID()}.tmp`;

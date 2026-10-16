@@ -154,7 +154,12 @@ export function createConversationStore(harness: Harness): ConversationStore {
     },
 
     async configure(id, { model, thinkingLevel }) {
-      await (await known(id)).conversation.configure({ model, thinkingLevel }, BACKGROUND);
+      const { conversation, id: conversationId, projectId } = await known(id);
+      await conversation.configure({ model, thinkingLevel }, BACKGROUND);
+      await updateLiveConversation(harness, conversationId, projectId, (_meta, entry) => {
+        entry.model = { provider: model.provider, modelId: model.modelId };
+        return true;
+      });
     },
 
     async rename(id, title) {

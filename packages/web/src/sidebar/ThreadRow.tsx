@@ -31,8 +31,8 @@ interface ThreadRowProps {
   showProject: boolean;
 }
 
-const tooltipOf = (title: string, project: Project | undefined, status: string) =>
-  [title, project?.name, status].filter(Boolean).join(" · ");
+const tooltipOf = (title: string, project: Project | undefined, conversation: ConversationSummary) =>
+  [title, project?.name, conversation.model?.modelId, conversation.status].filter(Boolean).join(" · ");
 
 export function ThreadRow({ conversation, project, active, showProject }: ThreadRowProps) {
   const [dialog, setDialog] = useState<"rename" | "delete" | null>(null);
@@ -82,7 +82,7 @@ export function ThreadRow({ conversation, project, active, showProject }: Thread
         flipId={conversation.id}
         current={active}
         title={title}
-        tooltip={tooltipOf(title, project, conversation.status)}
+        tooltip={tooltipOf(title, project, conversation)}
         link={
           <Link
             to={conversationPath(conversation.projectId, conversation.id)}

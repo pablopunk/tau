@@ -22,6 +22,8 @@ export interface ComposerProps {
   target: "new" | string;
   imagesAllowed: boolean;
   busy?: boolean;
+  /** Sending is blocked, e.g. while the project is cloning. */
+  disabled?: boolean;
   /** Rendered under the input box, e.g. the project picker. */
   footer?: ReactNode;
   /** Rendered inside the input box toolbar after the attach button, e.g. model and thinking. */
@@ -48,6 +50,7 @@ function ComposerForm({
   target,
   imagesAllowed,
   busy = false,
+  disabled = false,
   footer,
   toolbar,
   onSend,
@@ -60,7 +63,7 @@ function ComposerForm({
   const picker = useRef<HTMLInputElement>(null);
   const { attachments, preparing, addFiles, remove, replace } = useAttachments(target, imagesAllowed);
   const [pageDragging, endPageDrag] = usePageDrag(true);
-  const canSend = (text.trim().length > 0 || attachments.length > 0) && !preparing;
+  const canSend = (text.trim().length > 0 || attachments.length > 0) && !preparing && !disabled;
 
   const setText = (value: string) => {
     saveDraft(target, value);

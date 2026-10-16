@@ -242,6 +242,22 @@ describe("github.use", () => {
   });
 });
 
+describe("local clone urls from gh", () => {
+  it("are rejected by a real (non-faux) core even with the env var set", async () => {
+    const root = await tempDir();
+    const bare = join(root, "remote.git");
+    await run("git", ["init", "--bare", bare]);
+    const gh = runGhFromConfig(() => ({
+      status: connected(),
+      repos: [repo("me/local", "2026-01-01T00:00:00Z", { clone_url: bare })],
+    }));
+    const deps = { ...defaultCoreDependencies(), runGh: gh.run, ghPath: "/usr/bin/gh" };
+    const core = await createCoreWith({ home: homeIn(root), faux: false }, deps);
+    open.push(core);
+    expect(await core.github.repos()).toEqual([]);
+  });
+});
+
 describe("extraGitConfig", () => {
   const stubs = {} as never;
   const serviceFor = (status: FakeGhConfig["status"], ghPath: string | undefined) =>
@@ -253,6 +269,7 @@ describe("extraGitConfig", () => {
       settings: stubs,
       changes: stubs,
       now: Date.now,
+      allowFileClones: false,
       presentProject: stubs,
     });
 

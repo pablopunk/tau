@@ -4,6 +4,7 @@ import { useSubmit } from "@/app/use-submit";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api";
 import { queryKeys, useSettings, useSuggestedCodeFolder } from "@/lib/queries";
+import { homeRelative } from "@/sidebar/sidebar-model";
 
 export function CodeFolderSuggestion() {
   const queryClient = useQueryClient();
@@ -22,7 +23,7 @@ export function CodeFolderSuggestion() {
   return (
     <div className="flex flex-col gap-2">
       <Button type="button" variant="outline" disabled={pending} onClick={() => void accept()}>
-        Use {path} as your code folder
+        Use {homeRelative(path)} as your code folder
       </Button>
       <FormError message={error} />
     </div>

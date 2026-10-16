@@ -41,3 +41,11 @@ Differences between `MVP2.md` and what Phase 0 left in the repo. Phase 2 reconci
 * **Fake `gh`**: `core/src/test-support/fake-gh/gh` (Node script), `fake-gh.ts` (`installFakeGh`, config types) and `gh-argv.ts` (the two exact argv lists). Config comes from `FAKE_GH_CONFIG`, calls are logged to `FAKE_GH_LOG`. `e2e/support.ts` installs it (two repos cloning from the local bare repository) and puts it first on the server's PATH.
 * **Contract**: `ContractTarget.github` (optional) names a repo with and without a local copy; `[github]` and `[icons]` are pending for the real core (`PENDING_TAGS` in `core/src/contract.test.ts`), `[sidebar-data]` is live. The real core's contract target must inject a fake `runGh` through `createCoreWith` and set up a code folder with a copy (A1).
 * **`ConversationSummary` sorting**: `useAllConversations` and `useConversations` still sort by `updatedAt`; E switches the sidebar to `lastActivityAt`.
+
+## MVP3 Phase 2: applied notes
+
+* C: `ComposerProps.disabled` blocks Send; `NewThreadPage` passes it while the chosen project is cloning (the "Cloning…" hint stays). `ComboboxOption.hint` is a `ReactNode`; repo options show `RelativeTime`, the code-folder suggestion shows `~`.
+* E: `ConversationSummary.model: ModelRef | null` comes from the project index entry (set on start and on `configure`; threads started before this show `null`). The sidebar tooltip shows it. The fake and the contract carry it.
+* E: `useConversations` and `useAllConversations` sort by `lastActivityAt` desc (tie: id desc); `sidebar-model.ts` no longer re-sorts. `App.test.tsx` already starts in Projects mode.
+* Icons: `writeFileAtomic` accepts bytes and `custom-icon.ts` uses it. `ProjectIconImage` gained optional `etag` (discovered file: mtime-size; custom icon: its hash) and the image route uses it before falling back to a content hash.
+* Security: `GithubServiceDeps.allowFileClones` replaces the `process.env` read; `create-core.ts` computes it once (faux and `PI_EVERYWHERE_ALLOW_FILE_CLONES=1`) for the clone and GitHub services. A test proves a non-faux core drops local clone URLs from gh.

@@ -26,6 +26,7 @@ export const conversation = (overrides: Partial<ConversationSummary> = {}): Conv
   archivedAt: null,
   status: "idle",
   lastRunEndedAt: null,
+  model: null,
   ...overrides,
 });
 

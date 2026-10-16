@@ -85,6 +85,7 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
     const icons = createIconService({ iconsDirectory: home.iconsDirectory, now: deps.now });
     const present = createPresentProject(icons);
     const githubRef: { current?: ReturnType<typeof createGithubService> } = {};
+    const allowFileClones = (options.faux ?? false) && deps.env.PI_EVERYWHERE_ALLOW_FILE_CLONES === "1";
     const clones = createCloneService({
       harness,
       projects,
@@ -92,7 +93,7 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
       changes,
       now: deps.now,
       env: deps.env,
-      allowFileClones: (options.faux ?? false) && deps.env.PI_EVERYWHERE_ALLOW_FILE_CLONES === "1",
+      allowFileClones,
       extraGitConfig: (url) => githubRef.current?.extraGitConfig(url) ?? [],
     });
     const github = createGithubService({
@@ -103,6 +104,7 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
       settings,
       changes,
       now: deps.now,
+      allowFileClones,
       presentProject: present,
     });
     githubRef.current = github;

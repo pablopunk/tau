@@ -1,6 +1,7 @@
-import { createHash, randomUUID } from "node:crypto";
-import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import { mkdir, readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
+import { PRIVATE_DIRECTORY_MODE, writeFileAtomic } from "../home/atomic-write";
 
 const SAFE_ID = /^[A-Za-z0-9_-]+$/;
 
@@ -19,15 +20,8 @@ export async function readCustomIcon(directory: string, projectId: string): Prom
 
 export async function writeCustomIcon(directory: string, projectId: string, png: Uint8Array): Promise<void> {
   const path = customIconPath(directory, projectId);
-  const temporary = `${path}.${randomUUID()}.tmp`;
-  await mkdir(directory, { recursive: true, mode: 0o700 });
-  try {
-    await writeFile(temporary, png, { mode: 0o600 });
-    await rename(temporary, path);
-  } catch (error) {
-    await rm(temporary, { force: true });
-    throw error;
-  }
+  await mkdir(directory, { recursive: true, mode: PRIVATE_DIRECTORY_MODE });
+  await writeFileAtomic(path, png);
 }
 
 export async function deleteCustomIcon(directory: string, projectId: string): Promise<void> {

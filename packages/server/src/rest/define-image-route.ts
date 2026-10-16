@@ -5,13 +5,14 @@ import { etagMatches } from "./etag-match";
 
 type Handler<R extends RouteDef> = (input: RouteInput<R>) => Promise<ProjectIconImage | null>;
 
-const etagOf = (data: Uint8Array) => `"${createHash("sha1").update(data).digest("base64url")}"`;
+const hashOf = (data: Uint8Array) => createHash("sha1").update(data).digest("base64url");
+const etagOf = (image: ProjectIconImage) => `"${image.etag ?? hashOf(image.data)}"`;
 
 function setImageHeaders(reply: FastifyReply, image: ProjectIconImage) {
   reply
     .header("x-content-type-options", "nosniff")
     .header("cache-control", "no-cache")
-    .header("etag", etagOf(image.data));
+    .header("etag", etagOf(image));
   if (image.contentType === "image/svg+xml") reply.header("content-security-policy", "sandbox");
 }
 
@@ -36,7 +37,7 @@ export function defineImageRoute<R extends RouteDef>(
     handler: async (request, reply) => {
       const image = await handler({ params: request.params, query: request.query } as RouteInput<R>);
       if (!image) return reply.code(404).send({ error: { code: "not_found", message: "No icon." } });
-      if (etagMatches(request.headers["if-none-match"], etagOf(image.data))) {
+      if (etagMatches(request.headers["if-none-match"], etagOf(image))) {
         setImageHeaders(reply, image);
         return reply.code(304).send();
       }
