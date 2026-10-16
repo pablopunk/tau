@@ -14,6 +14,8 @@ export interface ContractTarget {
     /** A well-formed git URL whose clone fails. */
     failingCloneUrl(): string;
   };
+  /** Present when the target has a connected GitHub account with these repos (a local copy and none). */
+  readonly github?: { readonly repoWithLocalCopy: string; readonly repoWithoutLocalCopy: string };
   /** Reads a file the agent wrote into a project folder. Absent when the target has no file system. */
   readProjectFile?(directory: string, name: string): Promise<string | undefined>;
   /** Closes `core` and opens a new one on the same data. Absent when the target cannot persist. */

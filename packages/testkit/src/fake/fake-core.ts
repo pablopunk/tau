@@ -11,7 +11,9 @@ import {
 import { clampFakeThinkingLevel, FAKE_MODELS, FAKE_PROVIDER_ID, findFakeModel } from "./catalog";
 import { FakeConversation, type FakeInput } from "./fake-conversation";
 import { assertDirectory, baseName, FAKE_FS, type FakeFs, normalizePath } from "./fake-fs";
-import { cloneWouldFail, folderNameFor, normalizeGitUrl } from "./fake-git";
+import { cloneWouldFail, folderNameFor, repositoryKeyOf } from "./fake-git";
+import { createFakeGithub, type FakeGithubOptions } from "./fake-github";
+import { createFakeIcons } from "./fake-icons";
 import { assertImageMatchesMimeType } from "./fake-images";
 
 export interface FakeCoreOptions {
@@ -24,6 +26,8 @@ export interface FakeCoreOptions {
   readonly now?: () => number;
   /** How long a clone stays in `cloning`, before `speed`. Default 1200 ms. */
   readonly cloneMs?: number;
+  /** The GitHub account and repos. Default: connected as `demo` with three repos. */
+  readonly github?: FakeGithubOptions;
 }
 
 export const FAKE_HOME_PATH = "/Users/demo";
@@ -53,6 +57,7 @@ export function createFakeCore(options: FakeCoreOptions = {}): Core {
   const projects: Project[] = [];
   const clones = new Map<string, ReturnType<typeof setTimeout>>();
   const conversations = new Map<string, FakeConversation>();
+  const icons = createFakeIcons();
   const startsByRequest = new Map<string, string>();
   let keyStored = options.configured ?? false;
   let defaultModel: ModelRef | null = options.configured ? modelRef(0) : null;
@@ -66,6 +71,10 @@ export function createFakeCore(options: FakeCoreOptions = {}): Core {
   };
 
   const allProjects = () => [home, ...projects];
+  const present = (project: Project): Project => ({
+    ...project,
+    iconUrl: project.id === HOME_ID ? null : icons.iconUrl(project.id),
+  });
 
   const requireProject = (id: string): Project => {
     const project = allProjects().find((candidate) => candidate.id === id);
@@ -133,6 +142,55 @@ export function createFakeCore(options: FakeCoreOptions = {}): Core {
     );
   };
 
+  const resolveFolder = (path: string) =>
+    normalizePath(path) === home.path ? home.path : assertDirectory(fs, path);
+
+  const addFolderProject = (input: { path: string; name?: string; gitUrl?: string }): Project => {
+    const real = normalizePath(input.path);
+    const key = input.gitUrl && repositoryKeyOf(input.gitUrl);
+    const taken = allProjects().some(
+      (project) =>
+        project.path === real || (key && project.gitUrl && repositoryKeyOf(project.gitUrl) === key),
+    );
+    if (taken) throw new AppError("duplicate_project", `Already added: ${real}`);
+    const project: Project = {
+      id: `project-${nextProjectId++}`,
+      name: input.name ?? baseName(real),
+      path: real,
+      createdAt: now(),
+      kind: "folder",
+      status: "ready",
+      ...(input.gitUrl ? { gitUrl: input.gitUrl } : {}),
+    };
+    projects.push(project);
+    emit({ resource: "projects" });
+    return present(project);
+  };
+
+  const cloneProject = ({ url, name }: { url: string; name?: string }): Project => {
+    const key = repositoryKeyOf(url);
+    if (projects.some((project) => project.gitUrl && repositoryKeyOf(project.gitUrl) === key)) {
+      throw new AppError("duplicate_project", `Already added: ${url}`);
+    }
+    const taken = new Set(projects.map((project) => project.path));
+    const base = `${projectsFolder}/${folderNameFor(url)}`;
+    let path = base;
+    for (let suffix = 2; taken.has(path); suffix++) path = `${base}-${suffix}`;
+    const project: Project = {
+      id: `project-${nextProjectId++}`,
+      name: name ?? baseName(path),
+      path,
+      createdAt: now(),
+      kind: "git",
+      gitUrl: url,
+      status: "cloning",
+    };
+    projects.push(project);
+    scheduleClone(project);
+    emit({ resource: "projects" });
+    return present(project);
+  };
+
   async function startConversation(input: StartConversationInput) {
     const project = requireProject(input.projectId);
     if (project.status !== "ready") throw new AppError("project_not_ready", "This project is not ready.");
@@ -162,6 +220,9 @@ export function createFakeCore(options: FakeCoreOptions = {}): Core {
 
   return {
     settings: {
+      async suggestedCodeFolder() {
+        return null;
+      },
       async get(): Promise<Settings> {
         return { defaultModel, fastModel, projectsFolder };
       },
@@ -204,49 +265,23 @@ export function createFakeCore(options: FakeCoreOptions = {}): Core {
         return FAKE_MODELS.map((model) => ({ ...model, thinkingLevels: [...model.thinkingLevels] }));
       },
     },
+    github: createFakeGithub({
+      options: options.github ?? {},
+      now,
+      fs,
+      projects: () => allProjects(),
+      addFolderProject,
+      cloneProject,
+    }),
     projects: {
       async list() {
-        return allProjects().map((project) => ({ ...project }));
+        return allProjects().map(present);
       },
       async add({ path, name }) {
-        const real = normalizePath(path) === home.path ? home.path : assertDirectory(fs, path);
-        if (allProjects().some((project) => project.path === real)) {
-          throw new AppError("duplicate_project", `Already added: ${real}`);
-        }
-        const project: Project = {
-          id: `project-${nextProjectId++}`,
-          name: name ?? baseName(real),
-          path: real,
-          createdAt: now(),
-          kind: "folder",
-          status: "ready",
-        };
-        projects.push(project);
-        emit({ resource: "projects" });
-        return { ...project };
+        return addFolderProject({ path: resolveFolder(path), name });
       },
       async clone({ url, name }) {
-        const normalized = normalizeGitUrl(url);
-        if (projects.some((project) => project.gitUrl && normalizeGitUrl(project.gitUrl) === normalized)) {
-          throw new AppError("duplicate_project", `Already added: ${url}`);
-        }
-        const taken = new Set(projects.map((project) => project.path));
-        const base = `${projectsFolder}/${folderNameFor(url)}`;
-        let path = base;
-        for (let suffix = 2; taken.has(path); suffix++) path = `${base}-${suffix}`;
-        const project: Project = {
-          id: `project-${nextProjectId++}`,
-          name: name ?? baseName(path),
-          path,
-          createdAt: now(),
-          kind: "git",
-          gitUrl: url,
-          status: "cloning",
-        };
-        projects.push(project);
-        scheduleClone(project);
-        emit({ resource: "projects" });
-        return { ...project };
+        return cloneProject({ url, name });
       },
       async retryClone(id) {
         const project = requireProject(id);
@@ -254,6 +289,24 @@ export function createFakeCore(options: FakeCoreOptions = {}): Core {
         project.status = "cloning";
         delete project.error;
         scheduleClone(project);
+        emit({ resource: "projects" });
+      },
+      async icon(id) {
+        requireProject(id);
+        return icons.icon(id);
+      },
+      async iconCandidates(id) {
+        requireProject(id);
+        return [];
+      },
+      async iconCandidate(id) {
+        requireProject(id);
+        throw new AppError("not_found", "This image is not available.");
+      },
+      async setIcon(id, png) {
+        requireProject(id);
+        rejectHome(id, "given a custom icon");
+        icons.set(id, png);
         emit({ resource: "projects" });
       },
       async rename(id, name) {
@@ -275,6 +328,7 @@ export function createFakeCore(options: FakeCoreOptions = {}): Core {
           projects.findIndex((project) => project.id === id),
           1,
         );
+        icons.forget(id);
         emit({ resource: "projects" });
         emit({ resource: "conversations", projectId: id });
       },

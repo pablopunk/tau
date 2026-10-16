@@ -1,13 +1,18 @@
 import { runCoreContract } from "./contract/index";
-import { createFakeCore } from "./index";
+import { createFakeCore, type FakeGithubRepo } from "./index";
 
 const SPEED = 20;
 
 runCoreContract("testkit fake", async () => {
   const fs: Record<string, "directory" | "file"> = { "/fake/notes.txt": "file" };
-  const core = createFakeCore({ speed: SPEED, fs });
+  const repos: FakeGithubRepo[] = [
+    { nameWithOwner: "demo/local", description: null, private: false, pushedAt: 2, localPath: "/fake/local" },
+    { nameWithOwner: "demo/remote", description: null, private: true, pushedAt: 3, localPath: null },
+  ];
+  const core = createFakeCore({ speed: SPEED, fs, github: { repos } });
   return {
     core,
+    github: { repoWithLocalCopy: "demo/local", repoWithoutLocalCopy: "demo/remote" },
     paths: {
       directory: async (name) => {
         fs[`/fake/${name}`] = "directory";

@@ -154,6 +154,8 @@ export class FakeConversation {
       archivedAt: this.archivedAt,
       status: this.status(),
       lastRunEndedAt: this.lastRunEndedAt,
+      avatarIndex: Number(this.id),
+      lastActivityAt: this.lastRunEndedAt ?? this.updatedAt,
     };
   }
 

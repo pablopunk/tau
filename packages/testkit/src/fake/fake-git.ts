@@ -29,3 +29,13 @@ export function folderNameFor(url: string): string {
 }
 
 export const cloneWouldFail = (url: string): boolean => url.includes(FAILING_URL_MARKER);
+
+const GITHUB_HOST = /^ssh:\/\/(?:ssh\.)?github\.com\//;
+
+/** Duplicate detection key: GitHub repositories compare case-insensitively across URL forms. */
+export function repositoryKeyOf(url: string): string {
+  const normalized = normalizeGitUrl(url);
+  return GITHUB_HOST.test(normalized)
+    ? normalized.replace(/^ssh:\/\/ssh\./, "ssh://").toLowerCase()
+    : normalized;
+}

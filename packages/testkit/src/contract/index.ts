@@ -4,10 +4,13 @@ import { chatCases } from "./chat";
 import { cloneCases } from "./clone";
 import { configureCases } from "./configure";
 import { conversationCases } from "./conversations";
+import { githubCases } from "./github";
+import { iconCases } from "./icons";
 import { lifecycleCases } from "./lifecycle";
 import { projectCases } from "./projects";
 import { retryCases } from "./retry";
 import { settingsAndProviderCases } from "./settings-provider";
+import { sidebarDataCases } from "./sidebar-data";
 import { startCases } from "./start";
 import { titleAndStatusCases } from "./titles-status";
 import type { MakeContractTarget } from "./types";
@@ -37,5 +40,8 @@ export function runCoreContract(
     configureCases(makeTarget, test);
     cloneCases(makeTarget, test);
     chatCases(makeTarget, test);
+    githubCases(makeTarget, test);
+    iconCases(makeTarget, test);
+    sidebarDataCases(makeTarget, test);
   });
 }
