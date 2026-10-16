@@ -12,7 +12,6 @@ const REAL_CORE_IMPLEMENTED = true;
 
 process.env.PI_EVERYWHERE_ALLOW_FILE_CLONES = "1";
 
-
 async function makeBareRepository(path: string): Promise<string> {
   await promisify(execFile)("git", ["init", "--bare", path]);
   return path;
