@@ -1,6 +1,6 @@
 # MVP3 plan
 
-Status: APPROVED v3 (review rounds 1–2 applied; webr sidebar added). One open question for the user below. Builds on [MVP2.md](MVP2.md) (architecture, security, testing and parallel-work rules still apply). Product context: [PLAN.md](PLAN.md).
+Status: APPROVED v3 (review rounds 1–2 applied; webr sidebar added). Builds on [MVP2.md](MVP2.md) (architecture, security, testing and parallel-work rules still apply). Product context: [PLAN.md](PLAN.md).
 
 ## Goal
 
@@ -199,5 +199,5 @@ REST:
 
 ### Phase 2: integration, e2e, real run with the user's `gh` and `~/src`.
 
-## Open questions for the user
-- webr has no project filter; this plan ports its Threads / Projects switch and per-project collapse. Is a multi-select "show only these projects" filter wanted too?
+## Decisions from the user
+- The "project filter" is the Threads / Projects toggle; no multi-select filter.
