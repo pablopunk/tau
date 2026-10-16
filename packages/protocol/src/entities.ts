@@ -45,7 +45,11 @@ export const ProviderStatusSchema = Type.Object({
 });
 export type ProviderStatus = Type.Static<typeof ProviderStatusSchema>;
 
-export const ProjectKindSchema = Type.Union([Type.Literal("home"), Type.Literal("folder"), Type.Literal("git")]);
+export const ProjectKindSchema = Type.Union([
+  Type.Literal("home"),
+  Type.Literal("folder"),
+  Type.Literal("git"),
+]);
 export type ProjectKind = Type.Static<typeof ProjectKindSchema>;
 
 export const ProjectStatusSchema = Type.Union([

@@ -9,6 +9,7 @@ export type {
   UserMessage,
 } from "@earendil-works/pi-ai";
 export type {
+  AgentState,
   ConversationRecord,
   ConversationView,
   EntryRecord,
@@ -19,5 +20,4 @@ export type {
   ToolSlot,
   UsageState,
 } from "@earendil-works/pi-durable";
-export type { AgentState } from "@earendil-works/pi-durable";
 export type { EditToolDetails, ReadToolDetails } from "@earendil-works/pi-durable/tools";

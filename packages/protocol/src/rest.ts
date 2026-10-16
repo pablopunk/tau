@@ -89,7 +89,12 @@ export const routes = {
     }),
     response: ProjectSchema,
   },
-  retryClone: { method: "POST", path: `${API_PREFIX}/projects/:id/retry-clone`, status: 204, params: IdParams },
+  retryClone: {
+    method: "POST",
+    path: `${API_PREFIX}/projects/:id/retry-clone`,
+    status: 204,
+    params: IdParams,
+  },
   renameProject: {
     method: "PATCH",
     path: `${API_PREFIX}/projects/:id`,
@@ -141,7 +146,12 @@ export const routes = {
     params: IdParams,
     body: Type.Object({ archived: Type.Boolean() }),
   },
-  removeConversation: { method: "DELETE", path: `${API_PREFIX}/conversations/:id`, status: 204, params: IdParams },
+  removeConversation: {
+    method: "DELETE",
+    path: `${API_PREFIX}/conversations/:id`,
+    status: 204,
+    params: IdParams,
+  },
   retryConversation: {
     method: "POST",
     path: `${API_PREFIX}/conversations/:id/retry`,

@@ -10,7 +10,6 @@ import {
   openFauxWorld,
   setUpConversation,
   trackView,
-  waitForAnswer,
   waitForAnswerAfter,
   waitUntil,
 } from "./test-support/faux-core";
