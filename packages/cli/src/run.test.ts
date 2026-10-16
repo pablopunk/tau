@@ -11,7 +11,7 @@ const newHome = () => join(mkdtempSync(join(tmpdir(), "pie-cli-")), "home");
 
 function fakeDependencies(overrides: Partial<RunDependencies> = {}) {
   const logs: string[] = [];
-  const coreClose = vi.fn(async () => undefined);
+  const coreClose = vi.fn(async (): Promise<void> => undefined);
   const core = { close: coreClose } as unknown as Core;
   const serverClose = vi.fn(async () => undefined);
   const createCore = vi.fn(async ({ home }: { home: string }) => {
