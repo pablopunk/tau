@@ -1,5 +1,6 @@
 import { type Core, iconCandidateUrl, routes } from "@pi-everywhere/protocol";
 import type { FastifyInstance } from "fastify";
+import { requireCandidateName } from "./candidate-name";
 import { defineImageRoute } from "./define-image-route";
 import { defineRoute } from "./define-route";
 
@@ -34,7 +35,7 @@ export function registerRoutes(app: FastifyInstance, core: Core): void {
     })),
   );
   defineImageRoute(app, routes.getIconCandidate, ({ params, query }) =>
-    core.projects.iconCandidate(params.id, query.name),
+    core.projects.iconCandidate(params.id, requireCandidateName(query.name)),
   );
   defineRoute(app, routes.listConversations, ({ params }) => core.conversations.list(params.id));
   defineRoute(app, routes.listAllConversations, () => core.conversations.listAll());
