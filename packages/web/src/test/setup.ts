@@ -1,6 +1,11 @@
 import "@testing-library/jest-dom/vitest";
 import { cleanup } from "@testing-library/react";
-import { afterEach } from "vitest";
+import { afterEach, vi } from "vitest";
+
+vi.mock("bot-avatars", () => ({
+  BotAvatar: () => null,
+  botAvatarTypes: ["clover", "blob", "cube"],
+}));
 
 afterEach(cleanup);
 
@@ -22,3 +27,9 @@ window.ResizeObserver ??= class {
 };
 
 Element.prototype.scrollIntoView ??= () => {};
+
+Element.prototype.animate ??= (() => ({
+  cancel() {},
+  finish() {},
+  onfinish: null,
+})) as unknown as typeof Element.prototype.animate;

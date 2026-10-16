@@ -189,6 +189,9 @@ importers:
       '@tanstack/react-query':
         specifier: 5.104.3
         version: 5.104.3(react@19.3.1)
+      bot-avatars:
+        specifier: 0.1.2
+        version: 0.1.2(react@19.3.1)
       class-variance-authority:
         specifier: 0.7.1
         version: 0.7.1
@@ -2310,6 +2313,11 @@ packages:
   body-parser@2.3.0:
     resolution: {integrity: sha512-2cGmJupaNgg+QUwVLAucDuWuoMZ6EX9iHDRswZ5lsNYEmwPaRknMPCLZz07yTzVq/83p4o/wzbDZbBrTvGGTIw==}
     engines: {node: '>=18'}
+
+  bot-avatars@0.1.2:
+    resolution: {integrity: sha512-XwOf7UF1TI3rPKWQ2G7Y68yRHE0EsIqmENdbxfxwZObs1nPh5ZEFzHyUVBuopU6awUSuQA/mozjPc+68lWyg/Q==}
+    peerDependencies:
+      react: '>=18.0.0'
 
   bowser@2.14.1:
     resolution: {integrity: sha512-tzPjzCxygAKWFOJP011oxFHs57HzIhOEracIgAePE4pqB3LikALKnSzUyU4MGs9/iCEUuHlAJTjTc5M+u7YEGg==}
@@ -6596,6 +6604,10 @@ snapshots:
       type-is: 2.1.0
     transitivePeerDependencies:
       - supports-color
+
+  bot-avatars@0.1.2(react@19.3.1):
+    dependencies:
+      react: 19.3.1
 
   bowser@2.14.1: {}
 

@@ -21,8 +21,10 @@ export interface ComboboxOption {
   label: string
   /** Secondary text under the label, e.g. an id. */
   description?: string
-  /** Why the option cannot be chosen, shown next to a disabled option. */
+  /** Short text on the right of the option, e.g. why it cannot be chosen, or "local". */
   hint?: string
+  /** Leading icon, e.g. a project icon or a lock. */
+  icon?: React.ReactNode
   disabled?: boolean
   group?: string
   /** Extra words the search matches. */
@@ -39,6 +41,8 @@ interface ComboboxProps {
   id?: string
   disabled?: boolean
   className?: string
+  /** A control shown on the right of a group's heading, by group name, e.g. a refresh button. */
+  groupActions?: Record<string, React.ReactNode>
   /** `ghost` with `sm` fits inside a composer toolbar. */
   variant?: "outline" | "ghost"
   size?: "default" | "sm"
@@ -63,6 +67,7 @@ function Combobox({
   id,
   disabled,
   className,
+  groupActions,
   variant = "outline",
   size = "default",
   "aria-label": ariaLabel,
@@ -101,7 +106,12 @@ function Combobox({
           <CommandList>
             <CommandEmpty>{emptyText}</CommandEmpty>
             {groupOptions(options).map(([group, items]) => (
-              <CommandGroup key={group ?? "options"} heading={group}>
+              <CommandGroup key={group ?? "options"} heading={group} className="relative">
+                {group !== undefined && groupActions?.[group] ? (
+                  <div data-slot="combobox-group-action" className="absolute top-1 right-1 z-10">
+                    {groupActions[group]}
+                  </div>
+                ) : null}
                 {items.map((option) => (
                   <CommandItem
                     key={option.value}
@@ -112,6 +122,7 @@ function Combobox({
                       setOpen(false)
                     }}
                   >
+                    {option.icon}
                     <div className="flex min-w-0 flex-col">
                       <span className="truncate">{option.label}</span>
                       {option.description ? (
