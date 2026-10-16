@@ -12,17 +12,6 @@ const REAL_CORE_IMPLEMENTED = true;
 
 process.env.PI_EVERYWHERE_ALLOW_FILE_CLONES = "1";
 
-const PENDING_A1_TAGS = [
-  "[start]",
-  "[images]",
-  "[titles]",
-  "[status]",
-  "[archive]",
-  "[delete]",
-  "[retry]",
-  "[listAll]",
-];
-const PENDING_A2_TAGS: string[] = [];
 
 async function makeBareRepository(path: string): Promise<string> {
   await promisify(execFile)("git", ["init", "--bare", path]);
@@ -67,7 +56,5 @@ async function makeRealTarget(): Promise<ContractTarget> {
 }
 
 describe.skipIf(!REAL_CORE_IMPLEMENTED)("real core", () => {
-  runCoreContract("real core (faux mode)", makeRealTarget, {
-    pending: [...PENDING_A1_TAGS, ...PENDING_A2_TAGS],
-  });
+  runCoreContract("real core (faux mode)", makeRealTarget);
 });

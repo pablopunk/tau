@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { Change } from "@pi-everywhere/protocol";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -15,6 +15,7 @@ import {
 } from "./test-support/faux-core";
 import { useTempDir } from "./test-support/temp-dir";
 
+const FAST_MODEL = { provider: "faux", modelId: "faux-fast" };
 const tempDir = useTempDir();
 let clock: number;
 let world: FauxWorld;
@@ -41,6 +42,7 @@ describe("chat on the real core", () => {
   });
 
   it("titles the conversation from its first message only, and bumps updatedAt on every send", async () => {
+    await writeFile(join(world.home, "settings.json"), JSON.stringify({ fastModel: FAST_MODEL }));
     const { project, conversation } = await setUpConversation(world, "  First\n\nmessage   here ");
     const { core } = world;
     const [afterFirst] = await core.conversations.list(project.id);
@@ -130,10 +132,11 @@ describe("change notifications", () => {
     const changes: Change[] = [];
     const unsubscribe = world.core.onChange((change) => changes.push(change));
     await world.core.conversations.send(conversation.id, { text: "hello", requestId: "r1" });
-    expect(changes).toEqual([{ resource: "conversations", projectId: project.id }]);
+    expect(changes).toContainEqual({ resource: "conversations", projectId: project.id });
     unsubscribe();
+    const countAfterUnsubscribe = changes.length;
     await world.core.conversations.send(conversation.id, { text: "again", requestId: "r2" });
-    expect(changes).toHaveLength(1);
+    expect(changes).toHaveLength(countAfterUnsubscribe);
   });
 
   it("does not announce a failed operation", async () => {

@@ -1,5 +1,5 @@
 import { defineDoc, defineDocFamily } from "@earendil-works/pi-durable";
-import type { ConversationStatus } from "@pi-everywhere/protocol";
+import type { ConversationStatus, ImageInput } from "@pi-everywhere/protocol";
 
 export type IndexedConversation = {
   conversationId: number;
@@ -14,6 +14,18 @@ export type IndexedConversation = {
   lastRunEndedAt?: number;
 };
 
+export type TitleSource = "first-message" | "generated" | "user";
+
+export type PendingFirstInput = { text: string; images: ImageInput[]; requestId: string };
+
+export type ConversationMeta = {
+  projectId: string;
+  title: string;
+  titleSource: TitleSource;
+  pendingFirstInput?: PendingFirstInput;
+  deletedAt?: number;
+};
+
 /** Keyed by project id: `scanConversations` cannot filter by project and also returns subagent children. */
 export const ProjectIndexDoc = defineDocFamily<{ conversations: IndexedConversation[] }, null>({
   kind: "app.project-index",
@@ -23,13 +35,18 @@ export const ProjectIndexDoc = defineDocFamily<{ conversations: IndexedConversat
   initial: () => ({ conversations: [] }),
 });
 
-export const ConversationDoc = defineDoc<{ projectId: string; title: string }>({
+export const ConversationDoc = defineDoc<ConversationMeta>({
   kind: "app.conversation",
-  version: 1,
+  version: 2,
   scope: "conversation",
   history: "latest",
   fork: "current",
-  initial: () => ({ projectId: "", title: "" }),
+  initial: () => ({ projectId: "", title: "", titleSource: "first-message" }),
+  migrate: (value, fromVersion) => {
+    if (fromVersion >= 2) return value as ConversationMeta;
+    const titled = typeof value.title === "string" && value.title !== "";
+    return { ...value, titleSource: titled ? "user" : "first-message" } as ConversationMeta;
+  },
 });
 
 export const INDEX_SEED = null;

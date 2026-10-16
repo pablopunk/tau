@@ -13,8 +13,14 @@ export interface ConversationRecovery {
   recoverAtStartup(): Promise<void>;
 }
 
-export function createConversationRecovery(_deps: ConversationRecoveryDeps): ConversationRecovery {
+export function createConversationRecovery(deps: ConversationRecoveryDeps): ConversationRecovery {
+  const { conversations, changes } = deps;
   return {
-    async recoverAtStartup() {},
+    async recoverAtStartup() {
+      await conversations.abortTombstonedRuns();
+      for (const projectId of await conversations.resumePendingStarts()) {
+        changes.emit({ resource: "conversations", projectId });
+      }
+    },
   };
 }
