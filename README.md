@@ -22,6 +22,13 @@ The terminal prints a URL with a private token and opens it in your browser. Run
 | `--home <dir>` | Data home (default `~/.pi-everywhere`, or `PI_EVERYWHERE_HOME`). |
 | `--faux` | Use a scripted fake model instead of OpenRouter (or `PI_EVERYWHERE_FAUX=1`). |
 
+## Features
+
+* A Home project (your home folder) is always there; add folders or clone a Git repository (https or ssh) into the projects folder.
+* A new thread page picks the project, model and thinking level, and accepts images (attach, paste or drop).
+* Threads get a generated title (the optional fast model in Settings writes it), show a status dot (running, failed, new activity) and can be archived, deleted or retried after a failed run.
+* Desktop notifications when a run ends, a command palette (`Cmd/Ctrl+K`) and keyboard shortcuts.
+
 ## OpenRouter key
 
 On first start the app asks for your key and stores it in the data home. If the `OPENROUTER_API_KEY` environment variable is set, it is used before any pasted key.
