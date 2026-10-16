@@ -1,1 +1,22 @@
-{"name":"@pi-everywhere/testkit","version":"0.0.0","private":true,"type":"module","dependencies":{"@earendil-works/chord":"1.3.0","@pi-everywhere/protocol":"workspace:*","typebox":"1.3.27"}}
+{
+  "name": "@pi-everywhere/testkit",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./contract": "./src/contract/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@earendil-works/chord": "1.3.0",
+    "@pi-everywhere/protocol": "workspace:*",
+    "typebox": "1.3.27"
+  },
+  "devDependencies": {
+    "vitest": "5.0.5"
+  }
+}

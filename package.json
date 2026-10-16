@@ -9,8 +9,8 @@
   "scripts": {
     "check": "biome check . && pnpm -r --workspace-concurrency=1 typecheck",
     "format": "biome check --write .",
-    "test": "pnpm -r test",
-    "build": "pnpm -r build",
+    "test": "pnpm -r --filter '!@pi-everywhere/e2e' test",
+    "build": "pnpm -r --filter '!@pi-everywhere/e2e' build",
     "fixtures": "pnpm --filter @pi-everywhere/core fixtures",
     "e2e": "pnpm --filter @pi-everywhere/e2e test"
   },

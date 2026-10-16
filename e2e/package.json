@@ -1,1 +1,13 @@
-{"name":"@pi-everywhere/e2e","version":"0.0.0","private":true,"type":"module","devDependencies":{"@playwright/test":"1.64.1"}}
+{
+  "name": "@pi-everywhere/e2e",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "playwright test --pass-with-no-tests"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.64.1"
+  }
+}
