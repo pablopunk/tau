@@ -15,9 +15,12 @@ vi.mock("@/lib/api", () => ({
       clone: vi.fn(),
       retryClone: vi.fn(),
       rename: vi.fn(),
+      iconCandidates: vi.fn(),
+      setIcon: vi.fn(),
+      resetIcon: vi.fn(),
       remove: vi.fn(),
     },
-    conversations: { list: vi.fn(), archive: vi.fn(), remove: vi.fn(), rename: vi.fn() },
+    conversations: { listAll: vi.fn(), archive: vi.fn(), remove: vi.fn(), rename: vi.fn() },
     settings: { get: vi.fn() },
     provider: { status: vi.fn(), models: vi.fn(), setKey: vi.fn() },
   },
@@ -36,16 +39,17 @@ const renderSidebar = (path = "/") =>
 beforeEach(() => {
   vi.resetAllMocks();
   window.localStorage.clear();
+  preferences.setSidebarMode("projects");
   mocked.settings.get.mockResolvedValue({ defaultModel: null, fastModel: null, projectsFolder: "/projects" });
   mocked.projects.list.mockResolvedValue([project()]);
-  mocked.conversations.list.mockResolvedValue([]);
+  mocked.conversations.listAll.mockResolvedValue([]);
 });
 
 describe("sidebar rows", () => {
   it("lists Home first with status dots for running, error and unseen", async () => {
     preferences.getSeenBaseline(100);
     mocked.projects.list.mockResolvedValue([project(), project({ id: "p2", name: "Repo", kind: "folder" })]);
-    mocked.conversations.list.mockResolvedValue([
+    mocked.conversations.listAll.mockResolvedValue([
       conversation({ id: "a", title: "Busy", status: "running" }),
       conversation({ id: "b", title: "Broken", status: "error" }),
       conversation({ id: "c", title: "Fresh", lastRunEndedAt: Date.now() + 1000 }),
@@ -58,21 +62,22 @@ describe("sidebar rows", () => {
     const home = within(groups[0] as HTMLElement);
     const dotOf = async (title: string) =>
       (await home.findByRole("link", { name: new RegExp(title) })).querySelector("[data-slot=status-dot]");
-    expect((await dotOf("Busy"))?.getAttribute("data-status")).toBe("running");
+    const busy = await home.findByRole("link", { name: /Busy/ });
+    expect(busy.querySelector("[data-slot=bot-avatar]")?.getAttribute("data-working")).toBe("true");
     expect((await dotOf("Broken"))?.getAttribute("data-status")).toBe("error");
     expect((await dotOf("Fresh"))?.getAttribute("data-status")).toBe("unseen");
     expect(await dotOf("Old")).toBeNull();
   });
 
   it("does not mark the open thread as unseen", async () => {
-    mocked.conversations.list.mockResolvedValue([conversation({ lastRunEndedAt: Date.now() + 1000 })]);
+    mocked.conversations.listAll.mockResolvedValue([conversation({ lastRunEndedAt: Date.now() + 1000 })]);
     renderSidebar("/p/p1/c/c1");
     const link = await screen.findByRole("link", { name: /First thread/ });
     expect(link.querySelector("[data-slot=status-dot]")).toBeNull();
   });
 
   it("shows archived threads in a collapsed Archived group", async () => {
-    mocked.conversations.list.mockResolvedValue([
+    mocked.conversations.listAll.mockResolvedValue([
       conversation(),
       conversation({ id: "z", title: "Shelved", archivedAt: 5 }),
     ]);
@@ -86,7 +91,7 @@ describe("sidebar rows", () => {
   });
 
   it("archives from the row menu", async () => {
-    mocked.conversations.list.mockResolvedValue([conversation()]);
+    mocked.conversations.listAll.mockResolvedValue([conversation()]);
     mocked.conversations.archive.mockResolvedValue();
     const user = userEvent.setup();
     renderSidebar();
@@ -97,7 +102,7 @@ describe("sidebar rows", () => {
   });
 
   it("confirms a delete, says the transcript stays, and leaves the open thread for /", async () => {
-    mocked.conversations.list.mockResolvedValue([conversation()]);
+    mocked.conversations.listAll.mockResolvedValue([conversation()]);
     mocked.conversations.remove.mockResolvedValue();
     const user = userEvent.setup();
     renderSidebar("/p/p1/c/c1");

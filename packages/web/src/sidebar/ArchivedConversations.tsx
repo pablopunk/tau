@@ -1,15 +1,22 @@
-import type { ConversationSummary } from "@pi-everywhere/protocol";
+import type { ConversationSummary, Project } from "@pi-everywhere/protocol";
 import { ChevronRightIcon } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { SidebarMenu } from "@/components/ui/sidebar";
-import { ConversationItem } from "./ConversationItem";
+import { ThreadRow } from "./ThreadRow";
 
 interface ArchivedConversationsProps {
   conversations: ConversationSummary[];
   activeConversationId: string | undefined;
+  projects: ReadonlyMap<string, Project>;
+  showProject: boolean;
 }
 
-export function ArchivedConversations({ conversations, activeConversationId }: ArchivedConversationsProps) {
+export function ArchivedConversations({
+  conversations,
+  activeConversationId,
+  projects,
+  showProject,
+}: ArchivedConversationsProps) {
   if (conversations.length === 0) return null;
   return (
     <Collapsible className="group/archived">
@@ -20,10 +27,12 @@ export function ArchivedConversations({ conversations, activeConversationId }: A
       <CollapsibleContent>
         <SidebarMenu>
           {conversations.map((conversation) => (
-            <ConversationItem
+            <ThreadRow
               key={conversation.id}
               conversation={conversation}
+              project={projects.get(conversation.projectId)}
               active={conversation.id === activeConversationId}
+              showProject={showProject}
             />
           ))}
         </SidebarMenu>

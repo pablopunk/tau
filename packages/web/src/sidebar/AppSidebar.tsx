@@ -1,9 +1,10 @@
-import { FolderPlusIcon, SettingsIcon } from "lucide-react";
+import { FolderPlusIcon, FoldersIcon, ListIcon, MessageSquarePlusIcon, SettingsIcon } from "lucide-react";
 import { useState } from "react";
 import { useNavigate } from "react-router";
 import { useOpenConversation } from "@/activity";
 import { useOpenSettings } from "@/app/settings-dialog";
 import { Button } from "@/components/ui/button";
+import { SegmentedControl } from "@/components/ui/segmented-control";
 import {
   Sidebar,
   SidebarContent,
@@ -12,37 +13,64 @@ import {
   SidebarMenuSkeleton,
 } from "@/components/ui/sidebar";
 import { errorMessage } from "@/lib/error-message";
-import { useProjects } from "@/lib/queries";
+import { newThreadPath } from "@/lib/paths";
+import type { SidebarMode } from "@/lib/preferences";
+import { useAllConversations, useProjects } from "@/lib/queries";
 import { AddProjectDialog } from "./AddProjectDialog";
-import { ProjectGroup } from "./ProjectGroup";
+import { ProjectsView } from "./ProjectsView";
+import { ThreadsView } from "./ThreadsView";
+import { useSidebarMode } from "./use-sidebar-preferences";
+
+const MODE_OPTIONS = [
+  { value: "threads", label: "Threads", icon: <ListIcon /> },
+  { value: "projects", label: "Projects", icon: <FoldersIcon /> },
+] as const satisfies readonly { value: SidebarMode; label: string; icon: React.ReactNode }[];
 
 export function AppSidebar() {
   const [adding, setAdding] = useState(false);
+  const [mode, setMode] = useSidebarMode();
   const { projectId, conversationId } = useOpenConversation();
   const projects = useProjects();
+  const conversations = useAllConversations();
   const navigate = useNavigate();
   const openSettings = useOpenSettings();
+  const onProjectRemoved = (removedId: string) => removedId === projectId && navigate("/");
+  const View = mode === "threads" ? ThreadsView : ProjectsView;
 
   return (
     <Sidebar aria-label="Projects and threads">
-      <SidebarHeader className="flex-row items-center justify-between px-4 py-3">
-        <span className="text-sm font-semibold">pi-everywhere</span>
-        <Button variant="ghost" size="sm" onClick={() => setAdding(true)}>
-          <FolderPlusIcon />
-          Add project
-        </Button>
+      <SidebarHeader className="gap-2 px-4 py-3">
+        <div className="flex items-center justify-between">
+          <span className="text-sm font-semibold">pi-everywhere</span>
+          <Button variant="ghost" size="sm" onClick={() => setAdding(true)}>
+            <FolderPlusIcon />
+            Add project
+          </Button>
+        </div>
+        <div className="flex items-center justify-between">
+          <Button variant="outline" size="sm" onClick={() => navigate(newThreadPath())}>
+            <MessageSquarePlusIcon />
+            New thread
+          </Button>
+          <SegmentedControl
+            value={mode}
+            onChange={setMode}
+            options={MODE_OPTIONS}
+            aria-label="Sidebar view"
+          />
+        </div>
       </SidebarHeader>
       <SidebarContent>
         {projects.isPending && <SidebarMenuSkeleton showIcon />}
         {projects.isError && <p className="px-4 text-sm text-destructive">{errorMessage(projects.error)}</p>}
-        {projects.data?.map((project) => (
-          <ProjectGroup
-            key={project.id}
-            project={project}
-            activeConversationId={project.id === projectId ? conversationId : undefined}
-            onRemoved={() => project.id === projectId && navigate("/")}
+        {projects.data && (
+          <View
+            projects={projects.data}
+            conversations={conversations.data ?? []}
+            activeConversationId={conversationId}
+            onProjectRemoved={onProjectRemoved}
           />
-        ))}
+        )}
       </SidebarContent>
       <SidebarFooter>
         <Button variant="ghost" className="justify-start" onClick={openSettings}>

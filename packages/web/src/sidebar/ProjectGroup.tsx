@@ -1,68 +1,80 @@
 import type { Project } from "@pi-everywhere/protocol";
 import { useQueryClient } from "@tanstack/react-query";
-import { MoreHorizontalIcon, PlusIcon } from "lucide-react";
+import { ChevronRightIcon, MoreHorizontalIcon, PlusIcon } from "lucide-react";
 import { useState } from "react";
 import { useNavigate } from "react-router";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { ProjectIcon } from "@/components/ui/project-icon";
 import {
   SidebarGroup,
   SidebarGroupAction,
   SidebarGroupContent,
   SidebarGroupLabel,
   SidebarMenu,
-  SidebarMenuSkeleton,
 } from "@/components/ui/sidebar";
 import { Spinner } from "@/components/ui/spinner";
+import { ChangeIconDialog } from "@/icons/ChangeIconDialog";
 import { api } from "@/lib/api";
-import { errorMessage } from "@/lib/error-message";
 import { newThreadPath } from "@/lib/paths";
-import { queryKeys, useConversations } from "@/lib/queries";
+import { queryKeys } from "@/lib/queries";
 import { ArchivedConversations } from "./ArchivedConversations";
 import { CloneFailed } from "./CloneFailed";
-import { ConversationItem } from "./ConversationItem";
 import { NameDialog } from "./NameDialog";
 import { RemoveProjectDialog } from "./RemoveProjectDialog";
+import { homeRelative, type ProjectSection } from "./sidebar-model";
+import { ThreadRow } from "./ThreadRow";
+import { useRemoveProject } from "./use-remove-project";
 
 interface ProjectGroupProps {
-  project: Project;
+  section: ProjectSection;
+  projects: ReadonlyMap<string, Project>;
   activeConversationId: string | undefined;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
   onRemoved: () => void;
 }
 
-export function ProjectGroup({ project, activeConversationId, onRemoved }: ProjectGroupProps) {
-  const [dialog, setDialog] = useState<"rename" | "remove" | null>(null);
-  const conversations = useConversations(project.id);
+type Dialog = "rename" | "remove" | "icon" | null;
+
+export function ProjectGroup({
+  section,
+  projects,
+  activeConversationId,
+  open,
+  onOpenChange,
+  onRemoved,
+}: ProjectGroupProps) {
+  const { project, active, archived } = section;
+  const [dialog, setDialog] = useState<Dialog>(null);
   const queryClient = useQueryClient();
   const navigate = useNavigate();
-  const active = conversations.data?.filter((conversation) => conversation.archivedAt === null) ?? [];
-  const archived = conversations.data?.filter((conversation) => conversation.archivedAt !== null) ?? [];
   const closeDialog = () => setDialog(null);
-
-  const newThread = () => navigate(newThreadPath(project.id));
+  const isHome = project.kind === "home";
+  const remove = useRemoveProject(project.id, onRemoved);
 
   const rename = async (name: string) => {
     await api.projects.rename(project.id, name);
     await queryClient.invalidateQueries({ queryKey: queryKeys.projects });
   };
 
-  const remove = async () => {
-    await api.projects.remove(project.id);
-    await queryClient.invalidateQueries({ queryKey: queryKeys.projects });
-    onRemoved();
-  };
-
   return (
     <SidebarGroup role="group" aria-label={project.name}>
-      <SidebarGroupLabel title={project.path} className="pr-14">
-        <span className="truncate">{project.name}</span>
-        {project.status === "cloning" && <Spinner className="ml-2 size-3" aria-label="Cloning" />}
-      </SidebarGroupLabel>
-      {project.kind !== "home" && (
+      <Collapsible open={open} onOpenChange={onOpenChange}>
+        <SidebarGroupLabel asChild title={project.path} className="pr-14">
+          <CollapsibleTrigger className="w-full gap-1.5">
+            <ChevronRightIcon className={open ? "rotate-90 transition-transform" : "transition-transform"} />
+            <ProjectIcon id={project.id} name={project.name} iconUrl={project.iconUrl} home={isHome} />
+            <span className="truncate">{project.name}</span>
+            {project.status === "cloning" && <Spinner className="ml-1 size-3" aria-label="Cloning" />}
+          </CollapsibleTrigger>
+        </SidebarGroupLabel>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <SidebarGroupAction aria-label={`Actions for ${project.name}`} className="right-8">
@@ -70,46 +82,63 @@ export function ProjectGroup({ project, activeConversationId, onRemoved }: Proje
             </SidebarGroupAction>
           </DropdownMenuTrigger>
           <DropdownMenuContent side="right" align="start">
-            <DropdownMenuItem onSelect={() => setDialog("rename")}>Rename project</DropdownMenuItem>
-            <DropdownMenuItem variant="destructive" onSelect={() => setDialog("remove")}>
-              Remove project
-            </DropdownMenuItem>
+            {project.status === "ready" && (
+              <DropdownMenuItem onSelect={() => navigate(newThreadPath(project.id))}>
+                New thread
+              </DropdownMenuItem>
+            )}
+            {!isHome && (
+              <>
+                <DropdownMenuItem onSelect={() => setDialog("rename")}>Rename project</DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => setDialog("icon")}>Change icon</DropdownMenuItem>
+                <DropdownMenuItem variant="destructive" onSelect={() => setDialog("remove")}>
+                  Remove project
+                </DropdownMenuItem>
+              </>
+            )}
+            <DropdownMenuSeparator />
+            <p className="px-2 py-1 text-xs text-muted-foreground">{homeRelative(project.path)}</p>
           </DropdownMenuContent>
         </DropdownMenu>
-      )}
-      {project.status === "ready" && (
-        <SidebarGroupAction
-          aria-label={`New thread in ${project.name}`}
-          title="New thread"
-          onClick={newThread}
-        >
-          <PlusIcon />
-        </SidebarGroupAction>
-      )}
-      {project.status === "failed" && (
-        <CloneFailed projectId={project.id} error={project.error} onRemove={() => setDialog("remove")} />
-      )}
-      {project.status === "ready" && (
-        <SidebarGroupContent>
-          <SidebarMenu>
-            {conversations.isPending && <SidebarMenuSkeleton />}
-            {conversations.isError && (
-              <p className="px-2 text-xs text-destructive">{errorMessage(conversations.error)}</p>
-            )}
-            {active.length === 0 && conversations.data && (
-              <p className="px-2 py-1 text-xs text-muted-foreground">No threads yet</p>
-            )}
-            {active.map((conversation) => (
-              <ConversationItem
-                key={conversation.id}
-                conversation={conversation}
-                active={conversation.id === activeConversationId}
+        {project.status === "ready" && (
+          <SidebarGroupAction
+            aria-label={`New thread in ${project.name}`}
+            title="New thread"
+            onClick={() => navigate(newThreadPath(project.id))}
+          >
+            <PlusIcon />
+          </SidebarGroupAction>
+        )}
+        <CollapsibleContent>
+          {project.status === "failed" && (
+            <CloneFailed projectId={project.id} error={project.error} onRemove={() => setDialog("remove")} />
+          )}
+          {project.status === "ready" && (
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {active.length === 0 && (
+                  <p className="px-2 py-1 text-xs text-muted-foreground">No threads yet</p>
+                )}
+                {active.map((conversation) => (
+                  <ThreadRow
+                    key={conversation.id}
+                    conversation={conversation}
+                    project={project}
+                    active={conversation.id === activeConversationId}
+                    showProject={false}
+                  />
+                ))}
+              </SidebarMenu>
+              <ArchivedConversations
+                conversations={archived}
+                activeConversationId={activeConversationId}
+                projects={projects}
+                showProject={false}
               />
-            ))}
-          </SidebarMenu>
-          <ArchivedConversations conversations={archived} activeConversationId={activeConversationId} />
-        </SidebarGroupContent>
-      )}
+            </SidebarGroupContent>
+          )}
+        </CollapsibleContent>
+      </Collapsible>
       {dialog === "rename" && (
         <NameDialog
           title="Rename project"
@@ -122,6 +151,7 @@ export function ProjectGroup({ project, activeConversationId, onRemoved }: Proje
       {dialog === "remove" && (
         <RemoveProjectDialog project={project} onConfirm={remove} onClose={closeDialog} />
       )}
+      {dialog === "icon" && <ChangeIconDialog project={project} onClose={closeDialog} />}
     </SidebarGroup>
   );
 }
