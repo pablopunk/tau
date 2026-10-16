@@ -15,19 +15,41 @@ interface ModelComboboxProps {
   onChange: (ref: ModelRef) => void;
   id?: string;
   disabled?: boolean;
+  className?: string;
+  ariaLabel?: string;
+  /** Extra first option that clears the choice (e.g. "Same as thread"). */
+  clearLabel?: string;
+  onClear?: () => void;
 }
 
-export function ModelCombobox({ models, value, onChange, id, disabled }: ModelComboboxProps) {
+const CLEAR_KEY = "__clear__";
+
+export function ModelCombobox({
+  models,
+  value,
+  onChange,
+  id,
+  disabled,
+  className,
+  ariaLabel,
+  clearLabel,
+  onClear,
+}: ModelComboboxProps) {
+  const options = models.map(toOption);
+  const clearOption: ComboboxOption[] = clearLabel ? [{ value: CLEAR_KEY, label: clearLabel }] : [];
   return (
     <Combobox
       id={id}
       disabled={disabled}
-      options={models.map(toOption)}
-      value={value ? keyOf(value) : null}
+      className={className}
+      aria-label={ariaLabel}
+      options={[...clearOption, ...options]}
+      value={value ? keyOf(value) : clearLabel ? CLEAR_KEY : null}
       placeholder="Select a model…"
       searchPlaceholder="Search models…"
       emptyText="No model found."
       onChange={(key) => {
+        if (key === CLEAR_KEY) return onClear?.();
         const model = models.find((candidate) => keyOf(candidate) === key);
         if (model) onChange({ provider: model.provider, modelId: model.modelId });
       }}

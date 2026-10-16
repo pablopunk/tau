@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 afterEach(() => {
   vi.unstubAllEnvs();
   vi.resetModules();
+  window.localStorage.clear();
   window.history.replaceState(null, "", "/");
 });
 
@@ -25,9 +26,10 @@ describe("setup", () => {
     await user.click(screen.getByRole("button", { name: "Continue" }));
 
     expect(await screen.findByText(/only affects new conversations/i)).toBeInTheDocument();
-    await user.click(screen.getByRole("combobox"));
+    await user.click(screen.getByRole("combobox", { name: "Default model" }));
     const [firstModel] = await screen.findAllByRole("option");
     await user.click(firstModel as HTMLElement);
+    await user.click(screen.getByRole("button", { name: "Continue" }));
 
     expect(await screen.findByRole("heading", { name: "New thread" })).toBeInTheDocument();
   });
@@ -108,11 +110,26 @@ describe("main screen", () => {
     await waitFor(() => expect(link).toHaveTextContent("Fix the build"));
   });
 
-  it("opens settings with the default-model note", async () => {
+  it("opens settings with the model, fast model and projects folder fields", async () => {
     const user = await renderApp({ ready: true });
 
     await user.click(await screen.findByRole("button", { name: "Settings" }));
     const dialog = await screen.findByRole("dialog", { name: "Settings" });
-    expect(within(dialog).getByText(/only affects new conversations/i)).toBeInTheDocument();
+    expect(await within(dialog).findByRole("combobox", { name: "Fast model" })).toHaveTextContent(
+      "Same as thread",
+    );
+    expect(within(dialog).getByLabelText("Projects folder")).toBeInTheDocument();
+    expect(within(dialog).getByText(/deleting the data home/i)).toBeInTheDocument();
+  });
+
+  it("starts a thread from the new thread page with the chosen model", async () => {
+    const user = await renderApp({ ready: true });
+
+    expect(await screen.findByRole("combobox", { name: "Project" })).toHaveTextContent("Home");
+    expect(screen.getByRole("combobox", { name: "Model" })).toBeInTheDocument();
+    await user.type(await screen.findByLabelText("Message"), "hello{Enter}");
+
+    expect(await screen.findByTestId("conversation")).toBeInTheDocument();
+    expect(window.sessionStorage.getItem("pi-everywhere:new-thread-request")).toBeNull();
   });
 });

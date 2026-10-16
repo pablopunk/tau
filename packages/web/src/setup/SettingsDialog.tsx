@@ -1,7 +1,8 @@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { NotificationSettings } from "@/notifications";
 import { KeyForm } from "./KeyForm";
-import { ModelStep } from "./ModelStep";
+import { ProjectsFolderField } from "./ProjectsFolderField";
+import { SettingsModels } from "./SettingsModels";
 
 export function SettingsDialog({
   open,
@@ -15,10 +16,11 @@ export function SettingsDialog({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Settings</DialogTitle>
-          <DialogDescription>Provider key and default model.</DialogDescription>
+          <DialogDescription>Models, projects folder, notifications and provider key.</DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-6">
-          <ModelStep />
+          <SettingsModels />
+          <ProjectsFolderField />
           <NotificationSettings />
           <KeyForm replacing />
         </div>
