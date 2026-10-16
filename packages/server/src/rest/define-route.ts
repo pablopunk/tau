@@ -12,13 +12,15 @@ export function defineRoute<R extends RouteDef>(app: FastifyInstance, route: R, 
     ...(route.bodyLimit && { bodyLimit: route.bodyLimit }),
     schema: {
       ...(route.params && { params: route.params }),
+      ...(route.query && { querystring: route.query }),
       ...(route.body && { body: route.body }),
     },
     handler: async (request, reply) => {
-      const input = { params: request.params, body: request.body } as RouteInput<R>;
+      const input = { params: request.params, query: request.query, body: request.body } as RouteInput<R>;
       const output = await handler(input);
       reply.code(route.status);
-      return route.status === 204 ? reply.send() : output;
+      if (route.status === 204) return reply.send();
+      return output === null ? reply.type("application/json").send("null") : output;
     },
   });
 }
