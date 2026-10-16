@@ -11,7 +11,7 @@ import { createCore } from "./index";
 const REAL_CORE_IMPLEMENTED = true;
 
 /** MVP3 Phase 1: A1 removes `[github]`, A2 removes `[icons]` as they implement them. */
-const PENDING_TAGS = ["[github]", "[icons]"];
+const PENDING_TAGS = ["[github]"];
 
 process.env.PI_EVERYWHERE_ALLOW_FILE_CLONES = "1";
 
