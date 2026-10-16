@@ -1,14 +1,14 @@
 import type {
   ClientFrame,
+  JsonRouteName,
   RouteInput,
-  RouteName,
   RouteOutput,
   routes,
   ServerFrame,
 } from "@pi-everywhere/protocol";
 
-export type RouteRequest<N extends RouteName> = RouteInput<(typeof routes)[N]>;
-export type RouteResponse<N extends RouteName> = RouteOutput<(typeof routes)[N]>;
+export type RouteRequest<N extends JsonRouteName> = RouteInput<(typeof routes)[N]>;
+export type RouteResponse<N extends JsonRouteName> = RouteOutput<(typeof routes)[N]>;
 
 export interface LiveHandlers {
   onOpen(): void;
@@ -29,6 +29,6 @@ export interface LiveTransport {
 
 export interface Transport {
   /** Rejects with `AppError`: the server's error code, or `internal` / `unauthorized` for anything else. */
-  request<N extends RouteName>(name: N, input: RouteRequest<N>): Promise<RouteResponse<N>>;
+  request<N extends JsonRouteName>(name: N, input: RouteRequest<N>): Promise<RouteResponse<N>>;
   readonly live: LiveTransport;
 }

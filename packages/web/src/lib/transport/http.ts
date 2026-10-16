@@ -3,8 +3,8 @@ import {
   type ErrorCode,
   fillPath,
   isErrorBody,
+  type JsonRouteName,
   type RouteDef,
-  type RouteName,
   routes,
 } from "@pi-everywhere/protocol";
 import { Value } from "typebox/value";
@@ -59,7 +59,7 @@ async function send(route: RouteDef, input: RequestInput): Promise<unknown> {
 
 export function createHttpTransport(): Transport {
   return {
-    async request<N extends RouteName>(name: N, input: RouteRequest<N>) {
+    async request<N extends JsonRouteName>(name: N, input: RouteRequest<N>) {
       return (await send(routes[name], input as RequestInput)) as RouteResponse<N>;
     },
     live: createWebSocketTransport(),

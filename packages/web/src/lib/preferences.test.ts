@@ -48,4 +48,17 @@ describe("preferences", () => {
     expect(() => preferences.setLastProjectId("p1")).not.toThrow();
     expect(preferences.getNotificationsEnabled()).toBe(false);
   });
+
+  it("remembers the sidebar mode and the closed projects", () => {
+    expect(preferences.getSidebarMode()).toBe("threads");
+    preferences.setSidebarMode("projects");
+    expect(window.localStorage.getItem("pie-sidebar-mode")).toBe("projects");
+    expect(preferences.getSidebarMode()).toBe("projects");
+    expect(preferences.getClosedProjects()).toEqual([]);
+    preferences.setClosedProjects(["a", "b"]);
+    expect(window.localStorage.getItem("pie-sidebar-closed-projects")).toBe('["a","b"]');
+    expect(preferences.getClosedProjects()).toEqual(["a", "b"]);
+    window.localStorage.setItem("pie-sidebar-closed-projects", "{oops");
+    expect(preferences.getClosedProjects()).toEqual([]);
+  });
 });

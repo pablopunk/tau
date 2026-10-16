@@ -65,4 +65,10 @@ describe("useChangedInvalidation", () => {
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ["conversations", "p1"] });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ["conversations", "all"] });
   });
+
+  it("invalidates the GitHub repo list when the projects change", () => {
+    const { change, invalidate } = setup();
+    change({ resource: "projects" });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["github", "repos"] });
+  });
 });

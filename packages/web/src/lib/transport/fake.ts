@@ -5,20 +5,37 @@ import {
   type ClientFrame,
   type Core,
   changedFrame,
+  iconCandidateUrl,
   isAppError,
+  type JsonRouteName,
   RETIRED_OPS,
-  type RouteName,
 } from "@pi-everywhere/protocol";
 import { createFakeCore } from "@pi-everywhere/testkit";
 import type { LiveHandlers, LiveSocket, RouteRequest, RouteResponse, Transport } from "./types";
 
 type Input = { params: { id: string }; body: Record<string, unknown> };
 
-type Handlers = { [N in RouteName]: (core: Core, input: Input) => Promise<unknown> };
+type Handlers = { [N in JsonRouteName]: (core: Core, input: Input) => Promise<unknown> };
 
 const handlers: Handlers = {
   getSettings: (core) => core.settings.get(),
   setDefaultModel: (core, { body }) => core.settings.setDefaultModel(body as never),
+  getSuggestedCodeFolder: (core) => core.settings.suggestedCodeFolder(),
+  getGithubStatus: (core) => core.github.status(),
+  listGithubRepos: (core) => core.github.repos(),
+  refreshGithubRepos: (core) => core.github.refreshRepos(),
+  useGithubRepo: (core, { body }) => core.github.use(body as never),
+  setProjectIcon: (core, { params, body }) =>
+    core.projects.setIcon(
+      params.id,
+      Uint8Array.from(atob(body.png as string), (char) => char.charCodeAt(0)),
+    ),
+  resetProjectIcon: (core, { params }) => core.projects.setIcon(params.id, null),
+  listIconCandidates: async (core, { params }) =>
+    (await core.projects.iconCandidates(params.id)).map(({ name }) => ({
+      name,
+      url: iconCandidateUrl(params.id, name),
+    })),
   getProvider: (core) => core.provider.status(),
   setProviderKey: (core, { body }) => core.provider.setApiKey(body.key as string),
   listModels: (core) => core.provider.listModels(),
@@ -85,7 +102,7 @@ function fakeLiveSocket(core: Core, live: LiveHandlers): LiveSocket {
 
 export function createFakeTransport(core: Core): Transport {
   return {
-    async request<N extends RouteName>(name: N, input: RouteRequest<N>) {
+    async request<N extends JsonRouteName>(name: N, input: RouteRequest<N>) {
       try {
         const result = await handlers[name](core, input as unknown as Input);
         return detach(result) as RouteResponse<N>;

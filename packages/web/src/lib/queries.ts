@@ -8,6 +8,10 @@ export const queryKeys = {
   projects: ["projects"] as const,
   conversations: (projectId: string) => ["conversations", projectId] as const,
   allConversations: ["conversations", "all"] as const,
+  githubStatus: ["github", "status"] as const,
+  githubRepos: ["github", "repos"] as const,
+  suggestedCodeFolder: ["settings", "suggested-code-folder"] as const,
+  iconCandidates: (projectId: string) => ["projects", projectId, "icon-candidates"] as const,
 };
 
 export const useProvider = () =>
@@ -35,4 +39,20 @@ export const useAllConversations = () =>
       const list = await api.conversations.listAll();
       return [...list].sort((a, b) => b.updatedAt - a.updatedAt);
     },
+  });
+
+export const useGithubStatus = () =>
+  useQuery({ queryKey: queryKeys.githubStatus, queryFn: () => api.github.status() });
+
+export const useGithubRepos = (enabled: boolean) =>
+  useQuery({ queryKey: queryKeys.githubRepos, queryFn: () => api.github.repos(), enabled });
+
+export const useSuggestedCodeFolder = () =>
+  useQuery({ queryKey: queryKeys.suggestedCodeFolder, queryFn: () => api.settings.suggestedCodeFolder() });
+
+export const useIconCandidates = (projectId: string, enabled = true) =>
+  useQuery({
+    queryKey: queryKeys.iconCandidates(projectId),
+    queryFn: () => api.projects.iconCandidates(projectId),
+    enabled,
   });

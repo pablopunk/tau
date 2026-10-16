@@ -1,6 +1,8 @@
 import type {
   ConfigureConversationInput,
   ConversationSummary,
+  GithubRepo,
+  GithubStatus,
   ModelInfo,
   ModelRef,
   Project,
@@ -9,7 +11,10 @@ import type {
   SendMessageInput,
   Settings,
   StartConversationInput,
+  SuggestedCodeFolder,
+  UseGithubRepoInput,
 } from "@pi-everywhere/protocol";
+import { fillPath, routes } from "@pi-everywhere/protocol";
 import { createHttpTransport } from "./transport/http";
 import { createLazyTransport } from "./transport/lazy";
 import type { LiveTransport, Transport } from "./transport/types";
@@ -23,6 +28,13 @@ export interface Api {
     setDefaultModel(ref: ModelRef): Promise<void>;
     setFastModel(ref: ModelRef | null): Promise<void>;
     setProjectsFolder(path: string): Promise<void>;
+    suggestedCodeFolder(): Promise<SuggestedCodeFolder>;
+  };
+  github: {
+    status(): Promise<GithubStatus>;
+    repos(): Promise<GithubRepo[]>;
+    refreshRepos(): Promise<GithubRepo[]>;
+    use(input: UseGithubRepoInput): Promise<Project>;
   };
   provider: {
     status(): Promise<ProviderStatus>;
@@ -36,6 +48,12 @@ export interface Api {
     retryClone(id: string): Promise<void>;
     rename(id: string, name: string): Promise<void>;
     remove(id: string): Promise<void>;
+    /** Image sources for `<img src>`; the session cookie authenticates them. */
+    iconUrl(id: string): string;
+    iconCandidates(id: string): Promise<{ name: string; url: string }[]>;
+    /** `png` is a 128x128 PNG. */
+    setIcon(id: string, png: Uint8Array): Promise<void>;
+    resetIcon(id: string): Promise<void>;
   };
   conversations: {
     list(projectId: string): Promise<ConversationSummary[]>;
@@ -53,6 +71,8 @@ export interface Api {
   live: LiveTransport;
 }
 
+const toBase64 = (bytes: Uint8Array) => btoa(Array.from(bytes, (byte) => String.fromCharCode(byte)).join(""));
+
 export function createApi(transport: Transport): Api {
   const { request } = transport;
   return {
@@ -61,6 +81,13 @@ export function createApi(transport: Transport): Api {
       setDefaultModel: (ref) => request("setDefaultModel", { body: ref }),
       setFastModel: (ref) => request("setFastModel", { body: { model: ref } }),
       setProjectsFolder: (path) => request("setProjectsFolder", { body: { path } }),
+      suggestedCodeFolder: () => request("getSuggestedCodeFolder", {}),
+    },
+    github: {
+      status: () => request("getGithubStatus", {}),
+      repos: () => request("listGithubRepos", {}),
+      refreshRepos: () => request("refreshGithubRepos", {}),
+      use: (input) => request("useGithubRepo", { body: input }),
     },
     provider: {
       status: () => request("getProvider", {}),
@@ -74,6 +101,10 @@ export function createApi(transport: Transport): Api {
       retryClone: (id) => request("retryClone", { params: { id } }),
       rename: (id, name) => request("renameProject", { params: { id }, body: { name } }),
       remove: (id) => request("removeProject", { params: { id } }),
+      iconUrl: (id) => fillPath(routes.getProjectIcon.path, { id }),
+      iconCandidates: (id) => request("listIconCandidates", { params: { id } }),
+      setIcon: (id, png) => request("setProjectIcon", { params: { id }, body: { png: toBase64(png) } }),
+      resetIcon: (id) => request("resetProjectIcon", { params: { id } }),
     },
     conversations: {
       list: (projectId) => request("listConversations", { params: { id: projectId } }),

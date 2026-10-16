@@ -16,6 +16,8 @@ export const project = (overrides: Partial<Project> = {}): Project => ({
 });
 
 export const conversation = (overrides: Partial<ConversationSummary> = {}): ConversationSummary => ({
+  avatarIndex: Number(overrides.id) || 1,
+  lastActivityAt: overrides.lastRunEndedAt ?? overrides.updatedAt ?? 1,
   id: "c1",
   projectId: "p1",
   title: "First thread",

@@ -13,6 +13,7 @@ function invalidateEverythingListed(queryClient: QueryClient) {
 function invalidateChange(queryClient: QueryClient, change: Change) {
   if (change.resource === "projects") {
     invalidateEverythingListed(queryClient);
+    void queryClient.invalidateQueries({ queryKey: queryKeys.githubRepos });
     return;
   }
   void queryClient.invalidateQueries({ queryKey: queryKeys.conversations(change.projectId) });

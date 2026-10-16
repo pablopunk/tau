@@ -8,6 +8,8 @@ const KEYS = {
   notifications: `${PREFIX}notifications`,
   lastSeenAt: `${PREFIX}last-seen-at`,
   seenBaseline: `${PREFIX}seen-baseline`,
+  sidebarMode: "pie-sidebar-mode",
+  closedProjects: "pie-sidebar-closed-projects",
 } as const;
 
 function readString(key: string): string | null {
@@ -48,7 +50,18 @@ const isNumberRecord = (value: unknown): value is Record<string, number> =>
   value !== null &&
   Object.values(value).every((entry) => typeof entry === "number");
 
+export type SidebarMode = "threads" | "projects";
+
+const isStringArray = (value: unknown): value is string[] =>
+  Array.isArray(value) && value.every((entry) => typeof entry === "string");
+
 export const preferences = {
+  getSidebarMode: (): SidebarMode => (readString(KEYS.sidebarMode) === "projects" ? "projects" : "threads"),
+  setSidebarMode: (mode: SidebarMode): void => writeString(KEYS.sidebarMode, mode),
+
+  getClosedProjects: (): string[] => readJson(KEYS.closedProjects, isStringArray) ?? [],
+  setClosedProjects: (ids: readonly string[]): void => writeString(KEYS.closedProjects, JSON.stringify(ids)),
+
   getLastProjectId: (): string | null => readString(KEYS.lastProject),
   setLastProjectId: (id: string): void => writeString(KEYS.lastProject, id),
 
