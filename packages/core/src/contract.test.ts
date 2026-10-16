@@ -6,8 +6,7 @@ import { type ContractTarget, runCoreContract } from "@pi-everywhere/testkit/con
 import { describe } from "vitest";
 import { createCore } from "./index";
 
-/** Workstream A flips this once `createCore` is implemented. */
-const REAL_CORE_IMPLEMENTED = false;
+const REAL_CORE_IMPLEMENTED = true;
 
 async function makeRealTarget(): Promise<ContractTarget> {
   const root = await realpath(await mkdtemp(join(tmpdir(), "pie-contract-")));
