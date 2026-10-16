@@ -1,4 +1,5 @@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { NotificationSettings } from "@/notifications";
 import { KeyForm } from "./KeyForm";
 import { ModelStep } from "./ModelStep";
 
@@ -18,6 +19,7 @@ export function SettingsDialog({
         </DialogHeader>
         <div className="flex flex-col gap-6">
           <ModelStep />
+          <NotificationSettings />
           <KeyForm replacing />
         </div>
       </DialogContent>

@@ -1,0 +1,81 @@
+import type { ModelRef, ThinkingLevel } from "@pi-everywhere/protocol";
+
+const PREFIX = "pi-everywhere:";
+const KEYS = {
+  lastProject: `${PREFIX}last-project`,
+  lastModel: `${PREFIX}last-model`,
+  lastThinkingLevel: `${PREFIX}last-thinking-level`,
+  notifications: `${PREFIX}notifications`,
+  lastSeenAt: `${PREFIX}last-seen-at`,
+  seenBaseline: `${PREFIX}seen-baseline`,
+} as const;
+
+function readString(key: string): string | null {
+  try {
+    return window.localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function writeString(key: string, value: string): void {
+  try {
+    window.localStorage.setItem(key, value);
+  } catch {
+    // Storage is unavailable (private mode, quota): preferences just do not persist.
+  }
+}
+
+function readJson<T>(key: string, isValid: (value: unknown) => value is T): T | null {
+  const raw = readString(key);
+  if (raw === null) return null;
+  try {
+    const value: unknown = JSON.parse(raw);
+    return isValid(value) ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+const isModelRef = (value: unknown): value is ModelRef =>
+  typeof value === "object" &&
+  value !== null &&
+  typeof (value as ModelRef).provider === "string" &&
+  typeof (value as ModelRef).modelId === "string";
+
+const isNumberRecord = (value: unknown): value is Record<string, number> =>
+  typeof value === "object" &&
+  value !== null &&
+  Object.values(value).every((entry) => typeof entry === "number");
+
+export const preferences = {
+  getLastProjectId: (): string | null => readString(KEYS.lastProject),
+  setLastProjectId: (id: string): void => writeString(KEYS.lastProject, id),
+
+  getLastModel: (): ModelRef | null => readJson(KEYS.lastModel, isModelRef),
+  setLastModel: (ref: ModelRef): void => writeString(KEYS.lastModel, JSON.stringify(ref)),
+
+  getLastThinkingLevel: (): ThinkingLevel | null =>
+    readString(KEYS.lastThinkingLevel) as ThinkingLevel | null,
+  setLastThinkingLevel: (level: ThinkingLevel): void => writeString(KEYS.lastThinkingLevel, level),
+
+  getNotificationsEnabled: (): boolean => readString(KEYS.notifications) === "on",
+  setNotificationsEnabled: (enabled: boolean): void =>
+    writeString(KEYS.notifications, enabled ? "on" : "off"),
+
+  getLastSeenAt: (conversationId: string): number | null =>
+    readJson(KEYS.lastSeenAt, isNumberRecord)?.[conversationId] ?? null,
+  setLastSeenAt: (conversationId: string, at: number): void =>
+    writeString(
+      KEYS.lastSeenAt,
+      JSON.stringify({ ...readJson(KEYS.lastSeenAt, isNumberRecord), [conversationId]: at }),
+    ),
+
+  /** Set on first load: a thread without `lastSeenAt` counts as seen up to this time. */
+  getSeenBaseline: (now: number): number => {
+    const stored = Number(readString(KEYS.seenBaseline));
+    if (Number.isFinite(stored) && stored > 0) return stored;
+    writeString(KEYS.seenBaseline, String(now));
+    return now;
+  },
+};

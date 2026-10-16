@@ -18,7 +18,7 @@ beforeEach(() => {
 function setup(props: Partial<Parameters<typeof Composer>[0]> = {}) {
   const onSend = vi.fn().mockResolvedValue(undefined);
   const onStop = vi.fn().mockResolvedValue(undefined);
-  render(<Composer busy={false} onSend={onSend} onStop={onStop} {...props} />);
+  render(<Composer target="new" imagesAllowed busy={false} onSend={onSend} onStop={onStop} {...props} />);
   return { onSend, onStop, input: screen.getByLabelText("Message") };
 }
 
@@ -26,7 +26,7 @@ describe("<Composer>", () => {
   it("sends on Enter, trims the text and clears the input", async () => {
     const { onSend, input } = setup();
     await userEvent.type(input, "  hello  {Enter}");
-    expect(onSend).toHaveBeenCalledWith("hello");
+    expect(onSend).toHaveBeenCalledWith({ text: "hello", images: [] });
     expect(input).toHaveValue("");
   });
 
@@ -55,7 +55,7 @@ describe("<Composer>", () => {
     const { onSend, input } = setup();
     await userEvent.type(input, "hi");
     await userEvent.click(screen.getByRole("button", { name: "Send" }));
-    expect(onSend).toHaveBeenCalledWith("hi");
+    expect(onSend).toHaveBeenCalledWith({ text: "hi", images: [] });
   });
 
   it("restores the text and shows the error when sending fails", async () => {
@@ -70,7 +70,7 @@ describe("<Composer>", () => {
     const { onStop, onSend, input } = setup({ busy: true });
     expect(input).toHaveAttribute("placeholder", "Steer the agent…");
     await userEvent.type(input, "change course{Enter}");
-    expect(onSend).toHaveBeenCalledWith("change course");
+    expect(onSend).toHaveBeenCalledWith({ text: "change course", images: [] });
     await userEvent.click(screen.getByRole("button", { name: "Stop" }));
     expect(onStop).toHaveBeenCalledTimes(1);
   });

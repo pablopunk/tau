@@ -59,7 +59,14 @@ function ConversationPanel({ id }: ConversationProps) {
       )}
       {state.status === "gone" ? null : (
         <div className="mx-auto w-full max-w-3xl px-3 pt-1 pb-3 sm:px-4 sm:pb-4">
-          <Composer busy={busy} onSend={actions.send} onStop={actions.stop} onSent={scrollToBottom} />
+          <Composer
+            target={id}
+            imagesAllowed
+            busy={busy}
+            onSend={actions.send}
+            onStop={actions.stop}
+            onSent={scrollToBottom}
+          />
         </div>
       )}
     </div>

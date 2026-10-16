@@ -1,3 +1,4 @@
+import type { Change } from "@pi-everywhere/protocol";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderHook } from "@testing-library/react";
 import type { ReactNode } from "react";
@@ -8,9 +9,13 @@ import { useChangedInvalidation } from "./use-changed-invalidation";
 
 function setup() {
   const listeners = new Set<(status: LiveStatus) => void>();
+  const changeListeners = new Set<(change: Change) => void>();
   const live = {
     subscribe: () => () => {},
-    onChanged: () => () => {},
+    onChanged: (listener) => {
+      changeListeners.add(listener);
+      return () => changeListeners.delete(listener);
+    },
     onStatus: (listener) => {
       listeners.add(listener);
       return () => listeners.delete(listener);
@@ -29,7 +34,10 @@ function setup() {
   const emit = (status: LiveStatus) => {
     for (const listener of listeners) listener(status);
   };
-  return { emit, invalidate };
+  const change = (next: Change) => {
+    for (const listener of changeListeners) listener(next);
+  };
+  return { emit, change, invalidate };
 }
 
 describe("useChangedInvalidation", () => {
@@ -49,5 +57,12 @@ describe("useChangedInvalidation", () => {
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ["conversations"] });
     emit("open");
     expect(invalidate).toHaveBeenCalledTimes(2);
+  });
+
+  it("refreshes the all-threads list when one project's conversations change", () => {
+    const { change, invalidate } = setup();
+    change({ resource: "conversations", projectId: "p1" });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["conversations", "p1"] });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["conversations", "all"] });
   });
 });

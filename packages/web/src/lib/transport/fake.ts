@@ -22,15 +22,24 @@ const handlers: Handlers = {
   getProvider: (core) => core.provider.status(),
   setProviderKey: (core, { body }) => core.provider.setApiKey(body.key as string),
   listModels: (core) => core.provider.listModels(),
+  setFastModel: (core, { body }) => core.settings.setFastModel(body.model as never),
+  setProjectsFolder: (core, { body }) => core.settings.setProjectsFolder(body.path as string),
+  cloneProject: (core, { body }) => core.projects.clone(body as never),
+  retryClone: (core, { params }) => core.projects.retryClone(params.id),
   listProjects: (core) => core.projects.list(),
   addProject: (core, { body }) => core.projects.add(body as never),
   renameProject: (core, { params, body }) => core.projects.rename(params.id, body.name as string),
   removeProject: (core, { params }) => core.projects.remove(params.id),
   listConversations: (core, { params }) => core.conversations.list(params.id),
-  createConversation: (core, { params }) => core.conversations.create(params.id),
+  listAllConversations: (core) => core.conversations.listAll(),
+  startConversation: (core, { body }) => core.conversations.start(body as never),
   renameConversation: (core, { params, body }) => core.conversations.rename(params.id, body.title as string),
   sendMessage: (core, { params, body }) => core.conversations.send(params.id, body as never),
   abortConversation: (core, { params }) => core.conversations.abort(params.id),
+  archiveConversation: (core, { params, body }) =>
+    core.conversations.archive(params.id, body.archived as boolean),
+  removeConversation: (core, { params }) => core.conversations.remove(params.id),
+  retryConversation: (core, { params, body }) => core.conversations.retry(params.id, body as never),
 };
 
 function detach<T>(value: T): T {

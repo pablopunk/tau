@@ -34,9 +34,6 @@ export function AppSidebar() {
       <SidebarContent>
         {projects.isPending && <SidebarMenuSkeleton showIcon />}
         {projects.isError && <p className="px-4 text-sm text-destructive">{errorMessage(projects.error)}</p>}
-        {projects.data?.length === 0 && (
-          <p className="px-4 py-2 text-sm text-muted-foreground">Add a project to start chatting.</p>
-        )}
         {projects.data?.map((project) => (
           <ProjectGroup
             key={project.id}

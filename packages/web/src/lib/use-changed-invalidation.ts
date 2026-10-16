@@ -16,6 +16,7 @@ function invalidateChange(queryClient: QueryClient, change: Change) {
     return;
   }
   void queryClient.invalidateQueries({ queryKey: queryKeys.conversations(change.projectId) });
+  void queryClient.invalidateQueries({ queryKey: queryKeys.allConversations });
 }
 
 const isDisconnected = (status: LiveStatus) => status === "reconnecting" || status === "closed";

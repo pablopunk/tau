@@ -3,7 +3,6 @@ import { useQueryClient } from "@tanstack/react-query";
 import { MoreHorizontalIcon, PlusIcon } from "lucide-react";
 import { useState } from "react";
 import { useNavigate } from "react-router";
-import { toast } from "sonner";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -20,7 +19,7 @@ import {
 } from "@/components/ui/sidebar";
 import { api } from "@/lib/api";
 import { errorMessage } from "@/lib/error-message";
-import { conversationPath } from "@/lib/paths";
+import { newThreadPath } from "@/lib/paths";
 import { queryKeys, useConversations } from "@/lib/queries";
 import { ConversationItem } from "./ConversationItem";
 import { NameDialog } from "./NameDialog";
@@ -39,15 +38,7 @@ export function ProjectGroup({ project, activeConversationId, onRemoved }: Proje
   const navigate = useNavigate();
   const closeDialog = () => setDialog(null);
 
-  const newChat = async () => {
-    try {
-      const created = await api.conversations.create(project.id);
-      await queryClient.invalidateQueries({ queryKey: queryKeys.conversations(project.id) });
-      navigate(conversationPath(project.id, created.id));
-    } catch (error) {
-      toast.error(errorMessage(error));
-    }
-  };
+  const newChat = () => navigate(newThreadPath(project.id));
 
   const rename = async (name: string) => {
     await api.projects.rename(project.id, name);
@@ -65,19 +56,21 @@ export function ProjectGroup({ project, activeConversationId, onRemoved }: Proje
       <SidebarGroupLabel title={project.path} className="pr-14">
         <span className="truncate">{project.name}</span>
       </SidebarGroupLabel>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <SidebarGroupAction aria-label={`Actions for ${project.name}`} className="right-8">
-            <MoreHorizontalIcon />
-          </SidebarGroupAction>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent side="right" align="start">
-          <DropdownMenuItem onSelect={() => setDialog("rename")}>Rename project</DropdownMenuItem>
-          <DropdownMenuItem variant="destructive" onSelect={() => setDialog("remove")}>
-            Remove project
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+      {project.kind !== "home" && (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <SidebarGroupAction aria-label={`Actions for ${project.name}`} className="right-8">
+              <MoreHorizontalIcon />
+            </SidebarGroupAction>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent side="right" align="start">
+            <DropdownMenuItem onSelect={() => setDialog("rename")}>Rename project</DropdownMenuItem>
+            <DropdownMenuItem variant="destructive" onSelect={() => setDialog("remove")}>
+              Remove project
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      )}
       <SidebarGroupAction aria-label={`New chat in ${project.name}`} title="New chat" onClick={newChat}>
         <PlusIcon />
       </SidebarGroupAction>

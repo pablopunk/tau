@@ -7,6 +7,7 @@ export const queryKeys = {
   models: ["models"] as const,
   projects: ["projects"] as const,
   conversations: (projectId: string) => ["conversations", projectId] as const,
+  allConversations: ["conversations", "all"] as const,
 };
 
 export const useProvider = () =>
@@ -23,6 +24,15 @@ export const useConversations = (projectId: string) =>
     queryKey: queryKeys.conversations(projectId),
     queryFn: async () => {
       const list = await api.conversations.list(projectId);
+      return [...list].sort((a, b) => b.updatedAt - a.updatedAt);
+    },
+  });
+
+export const useAllConversations = () =>
+  useQuery({
+    queryKey: queryKeys.allConversations,
+    queryFn: async () => {
+      const list = await api.conversations.listAll();
       return [...list].sort((a, b) => b.updatedAt - a.updatedAt);
     },
   });

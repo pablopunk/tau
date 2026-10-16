@@ -33,8 +33,27 @@ describe("http transport", () => {
   });
 
   it("returns the validated response body", async () => {
-    stubFetch(respond(200, { defaultModel: null }));
-    expect(await api.settings.get()).toEqual({ defaultModel: null });
+    const settings = { defaultModel: null, fastModel: null, projectsFolder: "/data/projects" };
+    stubFetch(respond(200, settings));
+    expect(await api.settings.get()).toEqual(settings);
+  });
+
+  it("calls the MVP2 routes with their paths, methods and bodies", async () => {
+    const fetchMock = stubFetch(respond(204));
+    await api.conversations.archive("c 1", true);
+    await api.conversations.remove("c1");
+    await api.conversations.retry("c1", { requestId: "r1" });
+    await api.settings.setFastModel(null);
+    await api.projects.retryClone("p1");
+    const calls = fetchMock.mock.calls as unknown as [string, RequestInit][];
+    expect(calls.map(([url, init]) => `${init.method} ${url}`)).toEqual([
+      "PUT /api/conversations/c%201/archived",
+      "DELETE /api/conversations/c1",
+      "POST /api/conversations/c1/retry",
+      "PUT /api/settings/fast-model",
+      "POST /api/projects/p1/retry-clone",
+    ]);
+    expect(calls[3]?.[1].body).toBe(JSON.stringify({ model: null }));
   });
 
   it("maps an error body to an AppError with the server's code", async () => {

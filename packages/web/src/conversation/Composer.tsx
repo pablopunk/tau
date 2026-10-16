@@ -1,14 +1,20 @@
+import type { ImageInput } from "@pi-everywhere/protocol";
 import { ArrowUp, Square } from "lucide-react";
-import { type FormEvent, type KeyboardEvent, useState } from "react";
+import { type FormEvent, type KeyboardEvent, type ReactNode, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 
 export interface ComposerProps {
-  readonly busy: boolean;
-  readonly onSend: (text: string) => Promise<void>;
-  readonly onStop: () => Promise<void>;
+  /** Draft key: `"new"` for the new thread page, the conversation id in a thread. */
+  target: "new" | string;
+  imagesAllowed: boolean;
+  busy?: boolean;
+  /** The new thread page puts its project, model and thinking pickers here. */
+  footer?: ReactNode;
+  onSend(input: { text: string; images: ImageInput[] }): Promise<void>;
+  onStop?(): Promise<void>;
   /** Called right after a message is handed to `onSend`, e.g. to scroll to it. */
-  readonly onSent?: () => void;
+  onSent?(): void;
 }
 
 function errorText(error: unknown): string {
@@ -19,7 +25,7 @@ function isPlainEnter(event: KeyboardEvent<HTMLTextAreaElement>): boolean {
   return event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing;
 }
 
-export function Composer({ busy, onSend, onStop, onSent }: ComposerProps) {
+export function Composer({ busy = false, footer, onSend, onStop, onSent }: ComposerProps) {
   const [text, setText] = useState("");
   const [error, setError] = useState<string>();
   const [stopping, setStopping] = useState(false);
@@ -31,13 +37,14 @@ export function Composer({ busy, onSend, onStop, onSent }: ComposerProps) {
     setText("");
     setError(undefined);
     onSent?.();
-    onSend(message).catch((failure: unknown) => {
+    onSend({ text: message, images: [] }).catch((failure: unknown) => {
       setText((current) => current || message);
       setError(errorText(failure));
     });
   };
 
   const stop = () => {
+    if (!onStop) return;
     setStopping(true);
     onStop()
       .catch((failure: unknown) => setError(errorText(failure)))
@@ -72,7 +79,7 @@ export function Composer({ busy, onSend, onStop, onSent }: ComposerProps) {
           rows={1}
           className="max-h-48 min-h-9 resize-none border-0 bg-transparent px-2 py-1.5 shadow-none focus-visible:ring-0 dark:bg-transparent"
         />
-        {busy ? (
+        {busy && onStop ? (
           <Button
             type="button"
             variant="outline"
@@ -88,6 +95,7 @@ export function Composer({ busy, onSend, onStop, onSent }: ComposerProps) {
           <ArrowUp />
         </Button>
       </div>
+      {footer}
     </form>
   );
 }

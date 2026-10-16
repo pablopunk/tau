@@ -29,7 +29,7 @@ describe("setup", () => {
     const [firstModel] = await screen.findAllByRole("option");
     await user.click(firstModel as HTMLElement);
 
-    expect(await screen.findByText("No chat selected")).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "New thread" })).toBeInTheDocument();
   });
 
   it("keeps Continue disabled for an empty key", async () => {
@@ -42,8 +42,10 @@ describe("main screen", () => {
   it("shows the project, an empty state, and starts a chat from the plus button", async () => {
     const user = await renderApp({ ready: true });
 
-    expect(await screen.findByText("No chat selected")).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "New thread" })).toBeInTheDocument();
     await user.click(await screen.findByRole("button", { name: "New chat in project" }));
+    expect(window.location.pathname + window.location.search).toMatch(/^\/new\?project=/);
+    await user.type(await screen.findByLabelText("Message"), "hello{Enter}");
 
     expect(await screen.findByTestId("conversation")).toBeInTheDocument();
     expect(window.location.pathname).toMatch(/^\/p\/[^/]+\/c\/[^/]+$/);
@@ -87,16 +89,16 @@ describe("main screen", () => {
     await user.click(await screen.findByRole("menuitem", { name: "Remove project" }));
     await user.click(screen.getByRole("button", { name: "Remove project" }));
     await waitFor(() => expect(screen.queryByRole("group", { name: "Renamed" })).not.toBeInTheDocument());
-    expect(screen.getByText("Add a project to start chatting.")).toBeInTheDocument();
   });
 
   it("renames a conversation", async () => {
     const user = await renderApp({ ready: true });
 
     await user.click(await screen.findByRole("button", { name: "New chat in project" }));
+    await user.type(await screen.findByLabelText("Message"), "hello{Enter}");
     const group = await screen.findByRole("group", { name: "project" });
     const link = await within(group).findByRole("link");
-    await user.click(within(group).getByRole("button", { name: /^Actions for New chat/ }));
+    await user.click(within(group).getByRole("button", { name: /^Actions for hello/ }));
     await user.click(await screen.findByRole("menuitem", { name: "Rename chat" }));
     const input = screen.getByLabelText("Title");
     await user.clear(input);

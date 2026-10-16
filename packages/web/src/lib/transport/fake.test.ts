@@ -24,7 +24,7 @@ describe("fake transport", () => {
   it("serves the REST routes from the fake core", async () => {
     const { api, socket } = setup();
     const project = await api.projects.add({ path: "/Users/demo/project" });
-    expect(await api.projects.list()).toEqual([project]);
+    expect(await api.projects.list()).toEqual([expect.objectContaining({ kind: "home" }), project]);
     await expect(api.projects.add({ path: "/Users/demo/project" })).rejects.toMatchObject({
       code: "duplicate_project",
     });
@@ -34,7 +34,11 @@ describe("fake transport", () => {
   it("pushes changed frames and ops for subscribed conversations", async () => {
     const { api, frames, socket } = setup();
     const project = await api.projects.add({ path: "/Users/demo/project" });
-    const conversation = await api.conversations.create(project.id);
+    const conversation = await api.conversations.start({
+      projectId: project.id,
+      text: "first",
+      requestId: "r0",
+    });
     socket.send({ type: "subscribe", conversationId: conversation.id });
     await until(() => frames.some((frame) => frame.type === "ops"));
     await api.conversations.send(conversation.id, { text: "hello", requestId: "r1" });
