@@ -3,7 +3,9 @@ dist/
 .turbo/
 coverage/
 test-results/
+test-artifacts/
 playwright-report/
 .DS_Store
 *.log
 .env*
+*.tsbuildinfo

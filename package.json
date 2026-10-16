@@ -1,0 +1,25 @@
+{
+  "name": "pi-everywhere-workspace",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.28.2",
+  "engines": {
+    "node": ">=22.19"
+  },
+  "scripts": {
+    "check": "biome check . && pnpm -r --workspace-concurrency=1 typecheck",
+    "format": "biome check --write .",
+    "test": "pnpm -r test",
+    "build": "pnpm -r build",
+    "fixtures": "pnpm --filter @pi-everywhere/core fixtures",
+    "e2e": "pnpm --filter @pi-everywhere/e2e test"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.15",
+    "@types/node": "26.6.5",
+    "tsdown": "0.23.1",
+    "tsx": "4.23.15",
+    "typescript": "7.0.2",
+    "vitest": "5.0.5"
+  }
+}
