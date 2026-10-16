@@ -11,6 +11,7 @@ const send = vi.mocked(api.conversations.send);
 const abort = vi.mocked(api.conversations.abort);
 
 beforeEach(() => {
+  window.localStorage.clear();
   send.mockReset().mockResolvedValue(undefined);
   abort.mockReset().mockResolvedValue(undefined);
 });
