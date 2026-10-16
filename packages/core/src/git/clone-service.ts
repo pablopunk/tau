@@ -10,6 +10,7 @@ import type { ProjectStore } from "../harness/project-store";
 import type { SettingsStore } from "../home/settings-store";
 import { requireName } from "../require-name";
 import { claimFolder } from "./claim-folder";
+import { withCloneHint } from "./clone-hints";
 import { checkGitUrl, folderNameOf } from "./git-url";
 import { repositoryKey } from "./repository-key";
 import { type CloneRun, startClone } from "./run-clone";
@@ -64,7 +65,7 @@ export function createCloneService(deps: CloneServiceDeps): CloneService {
     }
     await removeFolder(directory);
     running.delete(id);
-    await projects.setCloneState(id, { status: "failed", error: outcome.error });
+    await projects.setCloneState(id, { status: "failed", error: withCloneHint(outcome.error) });
   };
 
   const begin = (id: string, url: string, directory: string) => {
