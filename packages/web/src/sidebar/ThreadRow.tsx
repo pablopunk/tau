@@ -108,14 +108,8 @@ export function ThreadRow({ conversation, project, active, showProject }: Thread
                 badge={dot && dot !== "running" ? <StatusDot status={dot} /> : undefined}
               />
             }
-            context={
-              showProject && project ? (
-                <>
-                  {projectIcon(14)}
-                  <span className="truncate">{project.name}</span>
-                </>
-              ) : undefined
-            }
+            context={showProject ? project?.name : undefined}
+            projectIcon={projectIcon(17)}
             time={<RelativeTime at={conversation.lastActivityAt} />}
             actions={
               <>

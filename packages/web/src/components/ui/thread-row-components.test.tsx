@@ -153,6 +153,26 @@ describe("SidebarThreadRow", () => {
     expect(screen.getByText("Project A")).toBeInTheDocument();
   });
 
+  it("moves the project icon onto the avatar spot of the current row and keeps the name", () => {
+    const { container } = render(
+      <SidebarProvider>
+        <SidebarThreadRow link={<a href="/t/1" />} title="T" avatar="bot" context="Project A" projectIcon={<i>pi</i>} time="1m" current />
+      </SidebarProvider>,
+    );
+    expect(container.querySelector('[data-slot="thread-project-slot"]')).not.toBeNull();
+    expect(screen.getByText("Project A")).toBeInTheDocument();
+    expect(container.querySelector("li")).toHaveAttribute("data-current", "true");
+  });
+
+  it("fades the project icon in over the avatar when there is no context line", () => {
+    const { container } = render(
+      <SidebarProvider>
+        <SidebarThreadRow link={<a href="/t/1" />} title="T" avatar="bot" projectIcon={<i>pi</i>} time="1m" current />
+      </SidebarProvider>,
+    );
+    expect(container.querySelector('[data-slot="thread-project-fade"]')).not.toBeNull();
+  });
+
   it("keeps the actions visible while their menu is open", () => {
     const { container } = render(
       <SidebarProvider>
