@@ -7,8 +7,9 @@ export interface FixtureFrame {
 }
 
 export type FixtureStep = { readonly at: number } & (
-  | { readonly kind: "send"; readonly text: string }
+  | { readonly kind: "send"; readonly text: string; readonly images?: number }
   | { readonly kind: "abort" }
+  | { readonly kind: "retry" }
 );
 
 export interface Fixture {

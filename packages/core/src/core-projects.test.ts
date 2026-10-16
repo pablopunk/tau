@@ -72,7 +72,9 @@ describe("default model", () => {
     await world.core.provider.setApiKey("sk-test");
     await world.core.settings.setDefaultModel({ provider: "faux", modelId: "faux-2" });
     const reopened = await world.reopen();
-    expect(await reopened.settings.get()).toMatchObject({ defaultModel: { provider: "faux", modelId: "faux-2" } });
+    expect(await reopened.settings.get()).toMatchObject({
+      defaultModel: { provider: "faux", modelId: "faux-2" },
+    });
     expect((await reopened.provider.status()).configured).toBe(true);
   });
 });

@@ -1,26 +1,54 @@
 import {
+  AppError,
   baseOps,
+  type ConversationStatus,
   type ConversationSummary,
   type ConversationView,
   type ConversationWatcher,
+  type ImageInput,
   type InboxState,
+  isRetryable,
   type ModelRef,
   type Op,
   type OpsListener,
+  RETIRED_OPS,
+  type ThinkingLevel,
+  type UserMessage,
 } from "@pi-everywhere/protocol";
+import { fixtures } from "../fixtures/index";
 import { fixtureForMessage, triggerOf } from "../fixtures/triggers";
 import type { Fixture } from "../fixtures/types";
 import { fixtureViews } from "../fixtures/views";
-import { diffViews, emptyView, inboxOf, rebase, substituteText, withInbox, withoutRun } from "./replay";
+import {
+  diffViews,
+  emptyView,
+  inboxOf,
+  lastAssistantFailed,
+  rebase,
+  restyleNewUserEntries,
+  substituteText,
+  withInbox,
+  withoutRun,
+} from "./replay";
+
+export const RETRY_PROMPT = "The previous attempt failed or was stopped. Continue.";
 
 export interface FakeConversationDeps {
   readonly id: string;
   readonly projectId: string;
   readonly cwd: string;
   readonly model: ModelRef;
+  readonly thinkingLevel: ThinkingLevel;
   readonly speed: number;
   readonly now: () => number;
   readonly onSummaryChange: (projectId: string) => void;
+  /** The name the title job comes up with, or `undefined` when it fails. */
+  readonly generateTitle: (text: string) => string | undefined;
+}
+
+export interface FakeInput {
+  readonly text: string;
+  readonly images?: readonly ImageInput[];
 }
 
 interface Watcher {
@@ -34,11 +62,27 @@ interface Playback {
   scriptedSends: string[];
 }
 
-const TITLE_LENGTH = 60;
+interface QueuedInput {
+  readonly input: FakeInput;
+  readonly content: UserMessage["content"];
+}
 
-function titleFrom(text: string): string {
-  const line = text.trim().split("\n")[0] ?? "";
+const TITLE_LENGTH = 60;
+const IMAGE_TITLE = "Image";
+const TITLE_JOB_DELAY_MS = 40;
+
+type TitleSource = "first-message" | "generated" | "user";
+
+function titleFrom(input: FakeInput): string {
+  const line = input.text.trim().split("\n")[0] ?? "";
+  if (line === "") return IMAGE_TITLE;
   return line.length > TITLE_LENGTH ? `${line.slice(0, TITLE_LENGTH)}…` : line;
+}
+
+function contentOf(input: FakeInput): UserMessage["content"] {
+  if (!input.images?.length) return input.text;
+  const text = input.text.trim() === "" ? [] : [{ type: "text" as const, text: input.text }];
+  return [...text, ...input.images.map((image) => ({ type: "image" as const, ...image }))];
 }
 
 export class FakeConversation {
@@ -47,12 +91,17 @@ export class FakeConversation {
   readonly createdAt: number;
   title = "";
   updatedAt: number;
+  archivedAt: number | null = null;
+  lastRunEndedAt: number | null = null;
+  private deleted = false;
+  private failed = false;
+  private titleSource: TitleSource = "first-message";
+  private titleTimer: ReturnType<typeof setTimeout> | undefined;
   private view: ConversationView;
   private readonly watchers = new Set<Watcher>();
   private readonly requestIds = new Set<string>();
-  private queued: string[] = [];
+  private queued: QueuedInput[] = [];
   private playback: Playback | undefined;
-  private titleLocked = false;
   private nextSubmissionId = 1000;
 
   constructor(private readonly deps: FakeConversationDeps) {
@@ -60,7 +109,15 @@ export class FakeConversation {
     this.projectId = deps.projectId;
     this.createdAt = deps.now();
     this.updatedAt = this.createdAt;
-    this.view = emptyView(Number(deps.id), deps.cwd, deps.model);
+    this.view = emptyView(Number(deps.id), deps.cwd, deps.model, deps.thinkingLevel);
+  }
+
+  get model(): ModelRef {
+    return this.deps.model;
+  }
+
+  get isDeleted(): boolean {
+    return this.deleted;
   }
 
   summary(): ConversationSummary {
@@ -70,6 +127,9 @@ export class FakeConversation {
       title: this.title,
       createdAt: this.createdAt,
       updatedAt: this.updatedAt,
+      archivedAt: this.archivedAt,
+      status: this.status(),
+      lastRunEndedAt: this.lastRunEndedAt,
     };
   }
 
@@ -77,10 +137,19 @@ export class FakeConversation {
     return this.playback !== undefined;
   }
 
+  hasRequest(requestId: string): boolean {
+    return this.requestIds.has(requestId);
+  }
+
   rename(title: string): void {
     this.title = title;
-    this.titleLocked = true;
+    this.titleSource = "user";
     this.touch();
+  }
+
+  archive(archived: boolean): void {
+    this.archivedAt = archived ? this.deps.now() : null;
+    this.deps.onSummaryChange(this.projectId);
   }
 
   watch(listener: OpsListener): ConversationWatcher {
@@ -96,37 +165,100 @@ export class FakeConversation {
     };
   }
 
-  send(requestId: string, text: string): void {
+  send(requestId: string, input: FakeInput): void {
     if (this.requestIds.has(requestId)) return;
     this.requestIds.add(requestId);
+    this.archivedAt = null;
     this.updatedAt = this.deps.now();
-    if (!this.titleLocked && this.title === "") this.title = titleFrom(text);
-    this.deps.onSummaryChange(this.projectId);
-    if (!this.playback) {
-      void this.playAll(text);
-    } else if (!this.consumeScriptedSend(text)) {
-      this.queued.push(text);
-      this.publish(this.view);
+    this.nameFromFirstMessage(input);
+    this.admit({ input, content: contentOf(input) }, undefined);
+  }
+
+  retry(requestId: string): void {
+    if (this.requestIds.has(requestId)) return;
+    if (this.isBusy() || !isRetryable(this.view)) {
+      throw new AppError("invalid_request", "There is nothing to retry.");
     }
+    this.requestIds.add(requestId);
+    this.archivedAt = null;
+    this.updatedAt = this.deps.now();
+    this.admit({ input: { text: RETRY_PROMPT }, content: RETRY_PROMPT }, "app.retry");
   }
 
   async abort(): Promise<void> {
+    const wasRunning = this.playback !== undefined;
     if (this.playback) this.playback.cancelled = true;
     this.playback = undefined;
     this.queued = [];
     this.publish(withoutRun(this.view));
+    if (wasRunning) this.endRun(false);
+  }
+
+  remove(): void {
+    this.deleted = true;
+    this.cancelWork();
+    for (const watcher of this.watchers) {
+      this.deliver(watcher, RETIRED_OPS);
+      watcher.chain = watcher.chain.then(() => {
+        watcher.stopped = true;
+      });
+    }
+    this.watchers.clear();
   }
 
   stop(): void {
-    if (this.playback) this.playback.cancelled = true;
-    this.playback = undefined;
+    this.cancelWork();
     for (const watcher of this.watchers) watcher.stopped = true;
     this.watchers.clear();
+  }
+
+  private cancelWork(): void {
+    if (this.playback) this.playback.cancelled = true;
+    this.playback = undefined;
+    this.queued = [];
+    clearTimeout(this.titleTimer);
+  }
+
+  private status(): ConversationStatus {
+    if (this.playback) return "running";
+    return this.failed ? "error" : "idle";
+  }
+
+  private nameFromFirstMessage(input: FakeInput): void {
+    if (this.title !== "") return;
+    this.title = titleFrom(input);
+    if (input.text.trim() === "") return;
+    this.titleTimer = setTimeout(() => this.applyGeneratedTitle(input.text), TITLE_JOB_DELAY_MS);
+  }
+
+  private applyGeneratedTitle(text: string): void {
+    const generated = this.deps.generateTitle(text);
+    if (this.deleted || this.titleSource !== "first-message" || generated === undefined) return;
+    this.title = generated;
+    this.titleSource = "generated";
+    this.deps.onSummaryChange(this.projectId);
+  }
+
+  private admit(queued: QueuedInput, entryKind: string | undefined): void {
+    this.deps.onSummaryChange(this.projectId);
+    if (!this.playback) {
+      this.failed = false;
+      void this.playAll(queued, entryKind);
+    } else if (!this.consumeScriptedSend(queued.input.text)) {
+      this.queued.push(queued);
+      this.publish(this.view);
+    }
   }
 
   private touch(): void {
     this.updatedAt = this.deps.now();
     this.deps.onSummaryChange(this.projectId);
+  }
+
+  private endRun(failed: boolean): void {
+    this.failed = failed;
+    this.lastRunEndedAt = this.deps.now();
+    this.touch();
   }
 
   private consumeScriptedSend(text: string): boolean {
@@ -138,7 +270,7 @@ export class FakeConversation {
   }
 
   private queuedInbox(): InboxState["items"] {
-    return this.queued.map((content, index) => ({
+    return this.queued.map(({ content }, index) => ({
       id: this.nextSubmissionId + index,
       mode: "steer",
       content,
@@ -159,19 +291,21 @@ export class FakeConversation {
       .catch(() => undefined);
   }
 
-  private async playAll(firstText: string): Promise<void> {
-    let text: string | undefined = firstText;
-    while (text !== undefined) {
-      const finished = await this.play(text);
+  private async playAll(first: QueuedInput, entryKind: string | undefined): Promise<void> {
+    let next: QueuedInput | undefined = first;
+    let kind = entryKind;
+    while (next !== undefined) {
+      const finished = await this.play(next, kind);
       if (!finished) return;
-      text = this.queued.shift();
+      next = this.queued.shift();
+      kind = undefined;
     }
     this.playback = undefined;
-    this.touch();
+    this.endRun(lastAssistantFailed(this.view));
   }
 
-  private async play(text: string): Promise<boolean> {
-    const fixture = fixtureForMessage(text);
+  private async play({ input, content }: QueuedInput, entryKind: string | undefined): Promise<boolean> {
+    const fixture = entryKind ? fixtures.text : fixtureForMessage(input.text);
     const playback: Playback = { cancelled: false, scriptedSends: scriptedSendsOf(fixture) };
     this.playback = playback;
     const base = this.view;
@@ -184,10 +318,28 @@ export class FakeConversation {
       await sleep((frame.at - previousAt) / this.deps.speed);
       if (playback.cancelled) return false;
       previousAt = frame.at;
-      this.publish(substituteText(rebase(base, fixtureView), triggerOf(fixture) ?? "", text));
+      this.publish(this.replayed(fixture, base, fixtureView, { input, content }, entryKind));
     }
     return !playback.cancelled;
   }
+
+  private replayed(
+    fixture: Fixture,
+    base: ConversationView,
+    fixtureView: ConversationView,
+    { input, content }: QueuedInput,
+    entryKind: string | undefined,
+  ): ConversationView {
+    const substituted = substituteText(rebase(base, fixtureView), triggerOf(fixture) ?? "", input.text);
+    const restyled = restyleNewUserEntries(substituted, base, { content, kind: entryKind });
+    return fixture.name === "image" ? withImageCount(restyled, input.images?.length ?? 0) : restyled;
+  }
+}
+
+function withImageCount(view: ConversationView, count: number): ConversationView {
+  return JSON.parse(
+    JSON.stringify(view).replace("Images received: 1", `Images received: ${count}`),
+  ) as ConversationView;
 }
 
 function scriptedSendsOf(fixture: Fixture): string[] {

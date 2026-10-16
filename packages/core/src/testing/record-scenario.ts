@@ -5,8 +5,9 @@ import { baseOps } from "@pi-everywhere/protocol";
 import type { Fixture, FixtureFrame, FixtureStep } from "@pi-everywhere/testkit";
 import { BACKGROUND, openAgentHarness, openSqliteStorage } from "../harness/open";
 import { createAgentRegistry } from "../harness/registry";
+import { RETRY_PROMPT } from "../retry-prompt";
 import { createFauxSetup } from "./faux-provider";
-import type { Scenario } from "./fixture-scenarios";
+import type { Scenario, ScenarioStep } from "./fixture-scenarios";
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -26,6 +27,34 @@ function scrubPaths(value: unknown, dir: string): unknown {
   return JSON.parse(JSON.stringify(value).split(dir).join(DEMO_PROJECT_DIR));
 }
 
+async function runStep(
+  conversation: Awaited<ReturnType<typeof createConversation>>,
+  step: ScenarioStep,
+  at: number,
+): Promise<FixtureStep> {
+  if (step.kind === "send") {
+    await conversation.submit({ type: "input", content: userInput(step), whenBusy: "steer" }, BACKGROUND);
+    return { at, kind: "send", text: step.text, ...(step.images && { images: step.images.length }) };
+  }
+  if (step.kind === "retry") {
+    await conversation.submit(
+      { type: "input", content: RETRY_PROMPT, entry: { kind: "app.retry" }, whenBusy: "reject" },
+      BACKGROUND,
+    );
+    return { at, kind: "retry" };
+  }
+  await conversation.abort(BACKGROUND);
+  return { at, kind: "abort" };
+}
+
+function userInput(step: Extract<ScenarioStep, { kind: "send" }>) {
+  if (!step.images) return step.text;
+  return [
+    { type: "text" as const, text: step.text },
+    ...step.images.map((image) => ({ type: "image" as const, ...image })),
+  ];
+}
+
 async function runSteps(
   scenario: Scenario,
   conversation: Awaited<ReturnType<typeof createConversation>>,
@@ -35,13 +64,7 @@ async function runSteps(
   for (const step of scenario.steps) {
     await sleep(Math.max(0, step.at - (Date.now() - t0)));
     const at = Date.now() - t0;
-    if (step.kind === "send") {
-      await conversation.submit({ type: "input", content: step.text, whenBusy: "steer" }, BACKGROUND);
-      recordedSteps.push({ at, kind: "send", text: step.text });
-    } else {
-      await conversation.abort(BACKGROUND);
-      recordedSteps.push({ at, kind: "abort" });
-    }
+    recordedSteps.push(await runStep(conversation, step, at));
   }
   return recordedSteps;
 }

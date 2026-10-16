@@ -33,6 +33,13 @@ describe("recorded fixtures", () => {
     expect(kindsOf("steer")).toContain("pi.tool-result");
   });
 
+  it("show an image message and a retry after a failure", () => {
+    expect(JSON.stringify(finalView(fixtures.image)?.entries[0])).toContain('"type":"image"');
+    expect(JSON.stringify(finalView(fixtures.image)?.entries)).toContain("Images received: 1");
+    expect(kindsOf("fail-retry")).toContain("app.retry");
+    expect(fixtures["fail-retry"].steps.map((step) => step.kind)).toEqual(["send", "retry"]);
+  });
+
   it("include a mid-stream reset and a retired view", () => {
     expect(fixtures.overflow.frames.slice(1).some((frame) => isBaseOps(frame.ops))).toBe(true);
     expect(isRetiredOps(fixtures.retired.frames.at(-1)?.ops ?? [])).toBe(true);
@@ -50,6 +57,8 @@ describe("recorded fixtures", () => {
 describe("fixtureForMessage", () => {
   it("picks by exact trigger, then command word, then plain text", () => {
     expect(fixtureForMessage("think").name).toBe("thinking");
+    expect(fixtureForMessage("fail").name).toBe("error");
+    expect(fixtureForMessage("image").name).toBe("image");
     expect(fixtureForMessage("write other.txt hello").name).toBe("write");
     expect(fixtureForMessage("What is a monad?").name).toBe("text");
     expect(fixtureForMessage("anything at all").name).toBe("text");

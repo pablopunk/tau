@@ -15,6 +15,8 @@ runCoreContract("testkit fake", async () => {
       },
       file: async () => "/fake/notes.txt",
       missing: () => "/fake/missing",
+      cloneUrl: async () => "https://example.com/demo/ok.git",
+      failingCloneUrl: () => "https://127.0.0.1:1/fail.git",
     },
     dispose: () => core.close(),
   };

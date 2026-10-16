@@ -1,6 +1,14 @@
 import type { JsonValue } from "@earendil-works/chord";
 import { diffRevisions } from "@earendil-works/chord/delta";
-import type { ConversationView, EntryRecord, InboxState, LiveState, Op } from "@pi-everywhere/protocol";
+import type {
+  ConversationView,
+  EntryRecord,
+  InboxState,
+  LiveState,
+  Op,
+  ThinkingLevel,
+  UserMessage,
+} from "@pi-everywhere/protocol";
 
 type Docs = Record<string, unknown>;
 
@@ -8,9 +16,10 @@ export function emptyView(
   conversationId: number,
   cwd: string,
   model: { provider: string; modelId: string },
+  thinkingLevel: ThinkingLevel,
 ): ConversationView {
   const docs: Docs = {
-    "pi.agent": { model, cwd },
+    "pi.agent": { model, cwd, thinkingLevel },
     "pi.live": {},
     "pi.inbox": { items: [] },
     "pi.provider": { sessionId: `fake-session-${conversationId}` },
@@ -58,7 +67,7 @@ export function rebase(base: ConversationView, fixtureView: ConversationView): C
 }
 
 export function substituteText(view: ConversationView, from: string, to: string): ConversationView {
-  if (from === to) return view;
+  if (from === to || from === "") return view;
   const jsonEscaped = (text: string) => JSON.stringify(text).slice(1, -1);
   return JSON.parse(JSON.stringify(view).split(jsonEscaped(from)).join(jsonEscaped(to))) as ConversationView;
 }
@@ -80,4 +89,29 @@ export function inboxOf(view: ConversationView): InboxState["items"] {
 
 export function isRunning(view: ConversationView): boolean {
   return (view.docs["pi.live"] as LiveState | undefined)?.run !== undefined;
+}
+
+export interface UserEntryEdit {
+  readonly content: UserMessage["content"];
+  readonly kind?: string;
+}
+
+/** Rewrites the user entries added after `base`, so a replayed fixture shows what was really sent. */
+export function restyleNewUserEntries(
+  view: ConversationView,
+  base: ConversationView,
+  edit: UserEntryEdit,
+): ConversationView {
+  const lastOld = maxEntryId(base);
+  const entries = view.entries.map((entry) => {
+    const message = entry.model?.[0];
+    if (Number(entry.id) <= lastOld || message?.role !== "user") return entry;
+    return { ...entry, kind: edit.kind ?? entry.kind, model: [{ ...message, content: edit.content }] };
+  });
+  return { ...view, entries } as unknown as ConversationView;
+}
+
+export function lastAssistantFailed(view: ConversationView): boolean {
+  const last = view.entries.filter((entry) => entry.kind === "pi.assistant").at(-1)?.model?.[0];
+  return last?.role === "assistant" && last.stopReason === "error";
 }

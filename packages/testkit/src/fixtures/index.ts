@@ -3,6 +3,8 @@ import bash from "../../fixtures/bash.json";
 import bashFail from "../../fixtures/bash-fail.json";
 import edit from "../../fixtures/edit.json";
 import error from "../../fixtures/error.json";
+import failRetry from "../../fixtures/fail-retry.json";
+import image from "../../fixtures/image.json";
 import overflow from "../../fixtures/overflow.json";
 import read from "../../fixtures/read.json";
 import retired from "../../fixtures/retired.json";
@@ -29,6 +31,8 @@ export const fixtures = {
   bash: asFixture(bash),
   "bash-fail": asFixture(bashFail),
   error: asFixture(error),
+  image: asFixture(image),
+  "fail-retry": asFixture(failRetry),
   retry: asFixture(retry),
   "retry-exhausted": asFixture(retryExhausted),
   steer: asFixture(steer),

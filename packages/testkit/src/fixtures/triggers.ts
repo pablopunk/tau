@@ -9,6 +9,7 @@ const COMMAND_FIXTURES: Record<string, FixtureName> = {
   fail: "error",
   flaky: "retry",
   overloaded: "retry-exhausted",
+  image: "image",
 };
 
 export function triggerOf(fixture: Fixture): string | undefined {
@@ -18,7 +19,9 @@ export function triggerOf(fixture: Fixture): string | undefined {
 
 /** The fixture a user message plays: an exact trigger, then its script command word, then the plain text one. */
 export function fixtureForMessage(text: string): Fixture {
-  const exact = Object.values(fixtures).find((fixture) => !fixture.synthetic && triggerOf(fixture) === text);
+  const exact = Object.values(fixtures).find(
+    (fixture) => !fixture.synthetic && fixture.steps.length === 1 && triggerOf(fixture) === text,
+  );
   if (exact) return exact;
   const command = text.trim().split(/\s+/)[0] ?? "";
   return fixtures[COMMAND_FIXTURES[command] ?? "text"];

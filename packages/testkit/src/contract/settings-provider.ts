@@ -1,8 +1,9 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { rejectsWithCode } from "./helpers";
+import { afterEach, beforeEach, describe, expect } from "vitest";
+import type { CaseRunner } from "./case-runner";
+import { FAST_MODEL, rejectsWithCode } from "./helpers";
 import type { ContractTarget, MakeContractTarget } from "./types";
 
-export function settingsAndProviderCases(make: MakeContractTarget): void {
+export function settingsAndProviderCases(make: MakeContractTarget, test: CaseRunner): void {
   describe("settings and provider", () => {
     let target: ContractTarget;
     beforeEach(async () => {
@@ -10,16 +11,20 @@ export function settingsAndProviderCases(make: MakeContractTarget): void {
     });
     afterEach(() => target.dispose());
 
-    it("starts without a key, models or default model", async () => {
+    test("starts without a key, models or default model", async () => {
       const { core } = target;
-      expect(await core.settings.get()).toEqual({ defaultModel: null });
+      expect(await core.settings.get()).toEqual({
+        defaultModel: null,
+        fastModel: null,
+        projectsFolder: expect.any(String),
+      });
       const status = await core.provider.status();
       expect(status.configured).toBe(false);
       expect(status.source).toBeNull();
       await rejectsWithCode(core.provider.listModels(), "no_provider");
     });
 
-    it("stores a key, then lists models and accepts one as the default", async () => {
+    test("stores a key, then lists models and accepts one as the default", async () => {
       const { core } = target;
       await core.provider.setApiKey("sk-contract-test");
       const status = await core.provider.status();
@@ -30,18 +35,48 @@ export function settingsAndProviderCases(make: MakeContractTarget): void {
         provider: expect.any(String),
         modelId: expect.any(String),
         name: expect.any(String),
+        images: expect.any(Boolean),
+        thinkingLevels: expect.arrayContaining(["off"]),
       });
+      expect(models.find((model) => model.modelId === "faux-text")?.images).toBe(false);
+      expect(models.find((model) => model.modelId === "faux-2")?.thinkingLevels).toEqual(["off"]);
+      expect(models.find((model) => model.modelId === "faux-1")?.thinkingLevels).toContain("medium");
       const ref = { provider: models[0]?.provider ?? "", modelId: models[0]?.modelId ?? "" };
       await core.settings.setDefaultModel(ref);
-      expect(await core.settings.get()).toEqual({ defaultModel: ref });
+      expect(await core.settings.get()).toMatchObject({ defaultModel: ref });
     });
 
-    it("rejects a default model the provider does not list", async () => {
+    test("rejects a default model the provider does not list", async () => {
       const { core } = target;
       await core.provider.setApiKey("sk-contract-test");
       await rejectsWithCode(
         core.settings.setDefaultModel({ provider: "nope", modelId: "nothing" }),
         "invalid_request",
+      );
+    });
+
+    test("[settings] stores a fast model, clears it, and rejects an unlisted one", async () => {
+      const { core } = target;
+      await core.provider.setApiKey("sk-contract-test");
+      await core.settings.setFastModel(FAST_MODEL);
+      expect((await core.settings.get()).fastModel).toEqual(FAST_MODEL);
+      await core.settings.setFastModel(null);
+      expect((await core.settings.get()).fastModel).toBeNull();
+      await rejectsWithCode(
+        core.settings.setFastModel({ provider: "nope", modelId: "nothing" }),
+        "invalid_request",
+      );
+    });
+
+    test("[settings] stores the projects folder and rejects a relative path or a file", async () => {
+      const { core, paths } = target;
+      const folder = await paths.directory("projects-root");
+      await core.settings.setProjectsFolder(folder);
+      expect((await core.settings.get()).projectsFolder).toBe(folder);
+      await rejectsWithCode(core.settings.setProjectsFolder("relative/path"), "invalid_request");
+      await rejectsWithCode(
+        core.settings.setProjectsFolder(await paths.file("a-file.txt")),
+        "not_a_directory",
       );
     });
   });

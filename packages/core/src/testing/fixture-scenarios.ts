@@ -1,9 +1,16 @@
 import type { HarnessSettings } from "@earendil-works/pi-durable";
+import type { ImageInput } from "@pi-everywhere/protocol";
 
 export type ScenarioStep = { readonly at: number } & (
-  | { readonly kind: "send"; readonly text: string }
+  | { readonly kind: "send"; readonly text: string; readonly images?: readonly ImageInput[] }
   | { readonly kind: "abort" }
+  | { readonly kind: "retry" }
 );
+
+export const TINY_PNG: ImageInput = {
+  mimeType: "image/png",
+  data: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+};
 
 export interface Scenario {
   readonly name: string;
@@ -16,6 +23,13 @@ export interface Scenario {
 }
 
 const send = (text: string, at = 0): ScenarioStep => ({ at, kind: "send", text });
+
+const sendImage = (text: string, images: readonly ImageInput[], at = 0): ScenarioStep => ({
+  at,
+  kind: "send",
+  text,
+  images,
+});
 
 const FAST_PROGRESS = { partialIntervalMs: 1, outputIntervalMs: 1 };
 const QUICK_RETRY = { enabled: true, maxRetries: 2, baseDelayMs: 800 };
@@ -44,6 +58,16 @@ export const SCENARIOS: readonly Scenario[] = [
     name: "error",
     description: "A final model error with no retry.",
     steps: [send("fail")],
+  },
+  {
+    name: "image",
+    description: "A message with one image; the faux reply counts the images.",
+    steps: [sendImage("image", [TINY_PNG])],
+  },
+  {
+    name: "fail-retry",
+    description: "A final model error, then a retry that is answered.",
+    steps: [send("fail"), { at: 1500, kind: "retry" }],
   },
   {
     name: "retry-exhausted",
