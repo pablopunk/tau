@@ -60,8 +60,8 @@ export function ThreadRow({ conversation, project, active, showProject }: Thread
   };
   const remove = async () => {
     await api.conversations.remove(conversation.id);
-    await refresh();
     if (active) navigate("/");
+    await refresh();
   };
 
   const projectIcon = (tile: number) =>

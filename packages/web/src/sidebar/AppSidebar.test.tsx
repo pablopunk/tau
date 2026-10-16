@@ -1,4 +1,4 @@
-import { screen, within } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { SidebarProvider } from "@/components/ui/sidebar";
@@ -112,8 +112,8 @@ describe("sidebar rows", () => {
     expect(await screen.findByText(/transcript stays on disk/i)).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Delete thread" }));
 
-    expect(mocked.conversations.remove).toHaveBeenCalledWith("c1");
-    expect(await screen.findByTestId("location")).toHaveTextContent(/^\/$/);
+    await waitFor(() => expect(mocked.conversations.remove).toHaveBeenCalledWith("c1"));
+    await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent(/^\/$/));
   });
 });
 
