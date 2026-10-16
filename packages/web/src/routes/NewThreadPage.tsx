@@ -33,7 +33,10 @@ export function NewThreadPage() {
   const level = pickThinkingLevel(model, chosenLevel ?? preferences.getLastThinkingLevel());
   const levels = findModel(models.data, model ?? null)?.thinkingLevels ?? ["off"];
 
+  const cloning = projects.data.find((project) => project.id === projectId)?.status === "cloning";
+
   const start = async ({ text, images }: { text: string; images: ImageInput[] }) => {
+    if (cloning) throw new Error("Cloning… you can send once the project is ready.");
     setBusy(true);
     try {
       const created = await api.conversations.start({
@@ -55,7 +58,10 @@ export function NewThreadPage() {
   };
 
   const footer = (
-    <ProjectPicker projects={projects.data} projectId={projectId} onProject={setProject} disabled={busy} />
+    <div className="flex items-center gap-2">
+      <ProjectPicker projects={projects.data} projectId={projectId} onProject={setProject} disabled={busy} />
+      {cloning ? <span className="text-sm text-muted-foreground">Cloning…</span> : null}
+    </div>
   );
   const toolbar = (
     <ModelThinkingPickers

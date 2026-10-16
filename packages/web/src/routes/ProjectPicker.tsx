@@ -1,11 +1,32 @@
-import type { Project } from "@pi-everywhere/protocol";
+import type { GithubRepo, Project } from "@pi-everywhere/protocol";
+import { useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
+import { FormError } from "@/app/FormError";
+import { useSubmit } from "@/app/use-submit";
 import { Combobox, type ComboboxOption } from "@/components/ui/combobox";
+import { ProjectIcon } from "@/components/ui/project-icon";
+import { RefreshReposButton } from "@/github/RefreshReposButton";
+import { GITHUB_GROUP, githubOptions, parseGithubValue } from "@/github/repo-options";
+import { UseRepoDialog } from "@/github/UseRepoDialog";
+import { api } from "@/lib/api";
 import { projectsHomeFirst } from "@/lib/new-thread-defaults";
+import { queryKeys, useGithubRepos, useGithubStatus } from "@/lib/queries";
+
+const PROJECTS_GROUP = "Projects";
 
 const projectOption = (project: Project): ComboboxOption => ({
   value: project.id,
   label: project.name,
-  disabled: project.status !== "ready",
+  group: PROJECTS_GROUP,
+  disabled: project.status === "failed",
+  icon: (
+    <ProjectIcon
+      id={project.id}
+      name={project.name}
+      iconUrl={project.iconUrl}
+      home={project.kind === "home"}
+    />
+  ),
   ...(project.status !== "ready" && { hint: project.status }),
 });
 
@@ -16,15 +37,63 @@ interface ProjectPickerProps {
   disabled: boolean;
 }
 
-export function ProjectPicker(props: ProjectPickerProps) {
+export function ProjectPicker({ projects, projectId, onProject, disabled }: ProjectPickerProps) {
+  const queryClient = useQueryClient();
+  const status = useGithubStatus();
+  const repos = useGithubRepos(status.data?.state === "connected");
+  const [dialogRepo, setDialogRepo] = useState<GithubRepo | null>(null);
+  const { run, error } = useSubmit();
+
+  const selectProject = async (project: Project) => {
+    await queryClient.invalidateQueries({ queryKey: queryKeys.projects });
+    onProject(project.id);
+  };
+
+  const openLocalCopy = (repo: GithubRepo) =>
+    run(async () => {
+      await selectProject(await api.github.use({ nameWithOwner: repo.nameWithOwner, mode: "local" }));
+    });
+
+  const pickRepo = (nameWithOwner: string) => {
+    const repo = repos.data?.find((candidate) => candidate.nameWithOwner === nameWithOwner);
+    if (!repo) return;
+    if (repo.localPath) void openLocalCopy(repo);
+    else setDialogRepo(repo);
+  };
+
+  const onChange = (value: string) => {
+    const repoName = parseGithubValue(value);
+    if (repoName) pickRepo(repoName);
+    else onProject(value);
+  };
+
+  const options = [
+    ...projectsHomeFirst(projects).map(projectOption),
+    ...githubOptions({ status: status.data, repos: repos.data, reposFailed: repos.isError }),
+  ];
+
   return (
-    <Combobox
-      aria-label="Project"
-      className="w-auto"
-      disabled={props.disabled}
-      options={projectsHomeFirst(props.projects).map(projectOption)}
-      value={props.projectId}
-      onChange={props.onProject}
-    />
+    <div className="flex flex-col items-start gap-1">
+      <Combobox
+        aria-label="Project"
+        className="w-auto"
+        disabled={disabled}
+        options={options}
+        value={projectId}
+        onChange={onChange}
+        groupActions={
+          status.data?.state === "connected" ? { [GITHUB_GROUP]: <RefreshReposButton /> } : undefined
+        }
+      />
+      <FormError message={error} />
+      <UseRepoDialog
+        repo={dialogRepo}
+        onClose={() => setDialogRepo(null)}
+        onUsed={(project) => {
+          setDialogRepo(null);
+          void selectProject(project);
+        }}
+      />
+    </div>
   );
 }

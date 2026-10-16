@@ -39,13 +39,22 @@ describe("model", () => {
 });
 
 describe("project", () => {
-  const projects = [project("x", "folder"), project("h", "home"), project("c", "git", "cloning")];
+  const projects = [
+    project("x", "folder"),
+    project("h", "home"),
+    project("c", "git", "cloning"),
+    project("f", "git", "failed"),
+  ];
 
-  it("falls back to Home when the wanted project is gone or not ready", () => {
+  it("falls back to Home when the wanted project is gone or failed", () => {
     expect(pickProjectId(projects, "x")).toBe("x");
     expect(pickProjectId(projects, "gone")).toBe("h");
-    expect(pickProjectId(projects, "c")).toBe("h");
+    expect(pickProjectId(projects, "f")).toBe("h");
     expect(pickProjectId(projects, null)).toBe("h");
+  });
+
+  it("keeps a chosen cloning project instead of falling back to Home", () => {
+    expect(pickProjectId(projects, "c")).toBe("c");
   });
 
   it("lists Home first", () => {

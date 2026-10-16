@@ -1,4 +1,6 @@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { CodeFolderSuggestion } from "@/github/CodeFolderSuggestion";
+import { GithubSettingsRow } from "@/github/GithubSettingsRow";
 import { NotificationSettings } from "@/notifications";
 import { KeyForm } from "./KeyForm";
 import { ProjectsFolderField } from "./ProjectsFolderField";
@@ -21,6 +23,8 @@ export function SettingsDialog({
         <div className="flex flex-col gap-6">
           <SettingsModels />
           <ProjectsFolderField />
+          <CodeFolderSuggestion />
+          <GithubSettingsRow />
           <NotificationSettings />
           <KeyForm replacing />
         </div>

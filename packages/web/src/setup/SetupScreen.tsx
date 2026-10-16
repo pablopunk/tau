@@ -1,3 +1,4 @@
+import { CodeFolderSuggestion } from "@/github/CodeFolderSuggestion";
 import { KeyForm } from "./KeyForm";
 import { ModelStep } from "./ModelStep";
 
@@ -14,6 +15,7 @@ export function SetupScreen({ keyConfigured }: { keyConfigured: boolean }) {
           </p>
         </header>
         {keyConfigured ? <ModelStep /> : <KeyForm />}
+        {keyConfigured ? <CodeFolderSuggestion /> : null}
       </div>
     </main>
   );

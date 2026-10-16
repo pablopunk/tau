@@ -28,7 +28,7 @@ export function pickThinkingLevel(model: ModelInfo | undefined, last: ThinkingLe
 }
 
 export function pickProjectId(projects: Project[], wanted: string | null): string {
-  const usable = projects.find((project) => project.id === wanted && project.status === "ready");
+  const usable = projects.find((project) => project.id === wanted && project.status !== "failed");
   return usable?.id ?? projects.find((project) => project.kind === "home")?.id ?? HOME_PROJECT_ID;
 }
 
