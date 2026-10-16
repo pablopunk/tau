@@ -8,7 +8,8 @@ const WIDTH_OFFSET = 16;
 const HEIGHT_OFFSET = 20;
 
 const hasPngMagic = (bytes: Uint8Array) => PNG_MAGIC.every((value, index) => bytes[index] === value);
-const hasIhdr = (bytes: Uint8Array) => String.fromCharCode(...bytes.subarray(IHDR_OFFSET, IHDR_OFFSET + 4)) === "IHDR";
+const hasIhdr = (bytes: Uint8Array) =>
+  String.fromCharCode(...bytes.subarray(IHDR_OFFSET, IHDR_OFFSET + 4)) === "IHDR";
 const readUint32 = (bytes: Uint8Array, offset: number) =>
   new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength).getUint32(offset);
 

@@ -66,7 +66,12 @@ export const routes = {
     status: 200,
     response: SuggestedCodeFolderSchema,
   },
-  getGithubStatus: { method: "GET", path: `${API_PREFIX}/github/status`, status: 200, response: GithubStatusSchema },
+  getGithubStatus: {
+    method: "GET",
+    path: `${API_PREFIX}/github/status`,
+    status: 200,
+    response: GithubStatusSchema,
+  },
   listGithubRepos: {
     method: "GET",
     path: `${API_PREFIX}/github/repos`,
@@ -154,7 +159,12 @@ export const routes = {
     body: Type.Object({ png: Type.String({ minLength: 1 }) }),
     bodyLimit: ICON_BODY_LIMIT,
   },
-  resetProjectIcon: { method: "DELETE", path: `${API_PREFIX}/projects/:id/icon`, status: 204, params: IdParams },
+  resetProjectIcon: {
+    method: "DELETE",
+    path: `${API_PREFIX}/projects/:id/icon`,
+    status: 204,
+    params: IdParams,
+  },
   listIconCandidates: {
     method: "GET",
     path: `${API_PREFIX}/projects/:id/icon-candidates`,
