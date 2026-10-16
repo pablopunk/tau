@@ -15,6 +15,9 @@ export const ERROR_CODES = [
   "too_large",
   "project_not_ready",
   "git_missing",
+  "github_unavailable",
+  "needs_folder",
+  "remote_mismatch",
   "internal",
 ] as const;
 
@@ -35,6 +38,9 @@ export const ErrorCodeSchema = Type.Union([
   Type.Literal("too_large"),
   Type.Literal("project_not_ready"),
   Type.Literal("git_missing"),
+  Type.Literal("github_unavailable"),
+  Type.Literal("needs_folder"),
+  Type.Literal("remote_mismatch"),
   Type.Literal("internal"),
 ]);
 
@@ -58,6 +64,9 @@ export const ERROR_STATUS: Record<ErrorCode, number> = {
   too_large: 413,
   project_not_ready: 409,
   git_missing: 409,
+  github_unavailable: 409,
+  needs_folder: 409,
+  remote_mismatch: 422,
   internal: 500,
 };
 

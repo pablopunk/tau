@@ -1,6 +1,7 @@
 export * from "./core";
 export * from "./entities";
 export * from "./errors";
+export * from "./icons";
 export * from "./live";
 export * from "./ops";
 export * from "./rest";

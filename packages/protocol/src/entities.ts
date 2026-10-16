@@ -68,6 +68,7 @@ export const ProjectSchema = Type.Object({
   gitUrl: Type.Optional(Type.String()),
   status: ProjectStatusSchema,
   error: Type.Optional(Type.String()),
+  iconUrl: Type.Optional(Type.Union([Type.String(), Type.Null()])),
 });
 export type Project = Type.Static<typeof ProjectSchema>;
 
@@ -87,6 +88,8 @@ export const ConversationSummarySchema = Type.Object({
   archivedAt: Type.Union([Type.Number(), Type.Null()]),
   status: ConversationStatusSchema,
   lastRunEndedAt: Type.Union([Type.Number(), Type.Null()]),
+  avatarIndex: Type.Number(),
+  lastActivityAt: Type.Number(),
 });
 export type ConversationSummary = Type.Static<typeof ConversationSummarySchema>;
 
@@ -135,3 +138,44 @@ export type ConfigureConversationInput = Type.Static<typeof ConfigureConversatio
 
 export const RetryInputSchema = Type.Object({ requestId: Type.String({ minLength: 1 }) });
 export type RetryInput = Type.Static<typeof RetryInputSchema>;
+
+export const GithubStatusSchema = Type.Union([
+  Type.Object({
+    state: Type.Literal("connected"),
+    login: Type.String(),
+    gitProtocol: Type.Union([Type.Literal("https"), Type.Literal("ssh")]),
+    tokenSource: Type.String(),
+  }),
+  Type.Object({ state: Type.Literal("not_installed") }),
+  Type.Object({ state: Type.Literal("not_logged_in"), hint: Type.String() }),
+  Type.Object({ state: Type.Literal("error"), message: Type.String() }),
+]);
+export type GithubStatus = Type.Static<typeof GithubStatusSchema>;
+
+export const GithubRepoSchema = Type.Object({
+  nameWithOwner: Type.String({ pattern: "^[A-Za-z0-9-]+/[A-Za-z0-9._-]+$" }),
+  description: Type.Union([Type.String(), Type.Null()]),
+  private: Type.Boolean(),
+  pushedAt: Type.Number(),
+  localPath: Type.Union([Type.String(), Type.Null()]),
+  projectId: Type.Union([Type.String(), Type.Null()]),
+});
+export type GithubRepo = Type.Static<typeof GithubRepoSchema>;
+
+export const UseGithubRepoInputSchema = Type.Object({
+  nameWithOwner: Type.String({ pattern: "^[A-Za-z0-9-]+/[A-Za-z0-9._-]+$" }),
+  mode: Type.Union([Type.Literal("local"), Type.Literal("clone"), Type.Literal("folder")]),
+  path: Type.Optional(Type.String({ minLength: 1 })),
+});
+export type UseGithubRepoInput = Type.Static<typeof UseGithubRepoInputSchema>;
+
+export const SuggestedCodeFolderSchema = Type.Union([Type.Object({ path: Type.String() }), Type.Null()]);
+export type SuggestedCodeFolder = Type.Static<typeof SuggestedCodeFolderSchema>;
+
+export const IconCandidateSchema = Type.Object({ name: Type.String({ minLength: 1 }) });
+export type IconCandidate = Type.Static<typeof IconCandidateSchema>;
+
+export const IconCandidateLinkSchema = Type.Object({ name: Type.String(), url: Type.String() });
+export type IconCandidateLink = Type.Static<typeof IconCandidateLinkSchema>;
+
+export type ProjectIconImage = { contentType: string; data: Uint8Array };

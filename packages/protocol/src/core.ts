@@ -2,14 +2,20 @@ import type {
   Change,
   ConfigureConversationInput,
   ConversationSummary,
+  GithubRepo,
+  GithubStatus,
+  IconCandidate,
   ModelInfo,
   ModelRef,
   Project,
+  ProjectIconImage,
   ProviderStatus,
   RetryInput,
   SendMessageInput,
   Settings,
   StartConversationInput,
+  SuggestedCodeFolder,
+  UseGithubRepoInput,
 } from "./entities";
 import type { Op } from "./view";
 
@@ -17,14 +23,20 @@ export type {
   Change,
   ConfigureConversationInput,
   ConversationSummary,
+  GithubRepo,
+  GithubStatus,
+  IconCandidate,
   ModelInfo,
   ModelRef,
   Project,
+  ProjectIconImage,
   ProviderStatus,
   RetryInput,
   SendMessageInput,
   Settings,
   StartConversationInput,
+  SuggestedCodeFolder,
+  UseGithubRepoInput,
 } from "./entities";
 
 export type OpsListener = (ops: readonly Op[]) => Promise<void>;
@@ -48,6 +60,21 @@ export interface Core {
     setFastModel(ref: ModelRef | null): Promise<void>;
     /** Absolute path; created when missing and stored as its real path. Rejects `not_a_directory`. */
     setProjectsFolder(path: string): Promise<void>;
+    /** The first existing `~/src`, `~/code`, `~/projects` or `~/dev` while the projects folder is still the default; else `null`. */
+    suggestedCodeFolder(): Promise<SuggestedCodeFolder>;
+  };
+  github: {
+    /** Cached for a minute. Never rejects for a missing or logged-out `gh`: that is a state. */
+    status(): Promise<GithubStatus>;
+    /** Archived and disabled repos dropped, most recently pushed first; `localPath` and `projectId` are computed per call. Rejects `github_unavailable` unless connected. */
+    repos(): Promise<GithubRepo[]>;
+    /** Bypasses the cache; one refresh in flight at a time. */
+    refreshRepos(): Promise<GithubRepo[]>;
+    /**
+     * Idempotent. `local` needs a local copy (else `needs_folder`), `folder` needs `path` and a matching remote
+     * (else `remote_mismatch`), `clone` starts a clone (`kind: "git"`). Rejects `not_found` for a repo not in the list.
+     */
+    use(input: UseGithubRepoInput): Promise<Project>;
   };
   provider: {
     /** `configured` is false and `source`/`valid` are null until a key exists (file or OPENROUTER_API_KEY). */
@@ -72,6 +99,14 @@ export interface Core {
     clone(input: { url: string; name?: string }): Promise<Project>;
     /** Rejects `invalid_request` unless the project's status is `failed`, `not_found` for an unknown id. */
     retryClone(id: string): Promise<void>;
+    /** The custom icon, else the discovered one; `null` when there is none (and for Home). Rejects `not_found`. */
+    icon(id: string): Promise<ProjectIconImage | null>;
+    /** At most 12 images found in the project folder, addressed by relative name. Rejects `not_found`. */
+    iconCandidates(id: string): Promise<IconCandidate[]>;
+    /** Rejects `not_found` for an unknown project or a name that is not a current candidate. */
+    iconCandidate(id: string, name: string): Promise<ProjectIconImage>;
+    /** A 128x128 PNG of at most 256 KB, or `null` to go back to the automatic icon. Rejects `invalid_request`, `not_found`. */
+    setIcon(id: string, png: Uint8Array | null): Promise<void>;
     /** Rejects `not_found`, and `invalid_request` for Home. */
     rename(id: string, name: string): Promise<void>;
     /** Deletes the project's conversations, aborting busy ones. Never touches the folder. Rejects `not_found`, and `invalid_request` for Home. */

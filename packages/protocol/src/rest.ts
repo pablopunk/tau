@@ -2,6 +2,9 @@ import { type TSchema, Type } from "typebox";
 import {
   ConfigureConversationInputSchema,
   ConversationSummarySchema,
+  GithubRepoSchema,
+  GithubStatusSchema,
+  IconCandidateLinkSchema,
   ModelInfoSchema,
   ModelRefSchema,
   ProjectSchema,
@@ -10,7 +13,10 @@ import {
   SendMessageInputSchema,
   SettingsSchema,
   StartConversationInputSchema,
+  SuggestedCodeFolderSchema,
+  UseGithubRepoInputSchema,
 } from "./entities";
+import { ICON_BODY_LIMIT } from "./icons";
 
 export const API_PREFIX = "/api";
 export const LIVE_PATH = `${API_PREFIX}/live`;
@@ -24,6 +30,9 @@ export interface RouteDef {
   readonly path: string;
   readonly status: 200 | 201 | 204;
   readonly params?: TSchema;
+  readonly query?: TSchema;
+  /** `image` routes answer raw bytes (cookie-authenticated GET, used as `<img src>`); the default is JSON. */
+  readonly responseKind?: "json" | "image";
   readonly body?: TSchema;
   readonly response?: TSchema;
   readonly bodyLimit?: number;
@@ -50,6 +59,32 @@ export const routes = {
     path: `${API_PREFIX}/settings/projects-folder`,
     status: 204,
     body: Type.Object({ path: Type.String({ minLength: 1 }) }),
+  },
+  getSuggestedCodeFolder: {
+    method: "GET",
+    path: `${API_PREFIX}/settings/suggested-code-folder`,
+    status: 200,
+    response: SuggestedCodeFolderSchema,
+  },
+  getGithubStatus: { method: "GET", path: `${API_PREFIX}/github/status`, status: 200, response: GithubStatusSchema },
+  listGithubRepos: {
+    method: "GET",
+    path: `${API_PREFIX}/github/repos`,
+    status: 200,
+    response: Type.Array(GithubRepoSchema),
+  },
+  refreshGithubRepos: {
+    method: "POST",
+    path: `${API_PREFIX}/github/repos/refresh`,
+    status: 200,
+    response: Type.Array(GithubRepoSchema),
+  },
+  useGithubRepo: {
+    method: "POST",
+    path: `${API_PREFIX}/github/use`,
+    status: 201,
+    body: UseGithubRepoInputSchema,
+    response: ProjectSchema,
   },
   getProvider: { method: "GET", path: `${API_PREFIX}/provider`, status: 200, response: ProviderStatusSchema },
   setProviderKey: {
@@ -104,6 +139,37 @@ export const routes = {
     body: Type.Object({ name: Type.String({ minLength: 1 }) }),
   },
   removeProject: { method: "DELETE", path: `${API_PREFIX}/projects/:id`, status: 204, params: IdParams },
+  getProjectIcon: {
+    method: "GET",
+    path: `${API_PREFIX}/projects/:id/icon`,
+    status: 200,
+    params: IdParams,
+    responseKind: "image",
+  },
+  setProjectIcon: {
+    method: "PUT",
+    path: `${API_PREFIX}/projects/:id/icon`,
+    status: 204,
+    params: IdParams,
+    body: Type.Object({ png: Type.String({ minLength: 1 }) }),
+    bodyLimit: ICON_BODY_LIMIT,
+  },
+  resetProjectIcon: { method: "DELETE", path: `${API_PREFIX}/projects/:id/icon`, status: 204, params: IdParams },
+  listIconCandidates: {
+    method: "GET",
+    path: `${API_PREFIX}/projects/:id/icon-candidates`,
+    status: 200,
+    params: IdParams,
+    response: Type.Array(IconCandidateLinkSchema),
+  },
+  getIconCandidate: {
+    method: "GET",
+    path: `${API_PREFIX}/projects/:id/icon-candidates/file`,
+    status: 200,
+    params: IdParams,
+    query: Type.Object({ name: Type.String({ minLength: 1 }) }),
+    responseKind: "image",
+  },
   listConversations: {
     method: "GET",
     path: `${API_PREFIX}/projects/:id/conversations`,
@@ -176,16 +242,32 @@ export const routes = {
 } as const satisfies Record<string, RouteDef>;
 
 export type RouteName = keyof typeof routes;
+export type ImageRouteName = {
+  [N in RouteName]: (typeof routes)[N] extends { responseKind: "image" } ? N : never;
+}[RouteName];
+export type JsonRouteName = Exclude<RouteName, ImageRouteName>;
+
+/** The `src` of a candidate image; the name is query-encoded. */
+export function iconCandidateUrl(projectId: string, name: string): string {
+  const path = fillPath(routes.getIconCandidate.path, { id: projectId });
+  return `${path}?name=${encodeURIComponent(name)}`;
+}
 
 type StaticOf<S> = S extends TSchema ? Type.Static<S> : never;
 
 export type RouteInput<R extends RouteDef> = (R extends { params: infer P }
   ? { params: StaticOf<P> }
   : unknown) &
+  (R extends { query: infer Q } ? { query: StaticOf<Q> } : unknown) &
   (R extends { body: infer B } ? { body: StaticOf<B> } : unknown);
 
 export type RouteOutput<R extends RouteDef> = R extends { response: infer S } ? StaticOf<S> : undefined;
 
 export function fillPath(path: string, params: Record<string, string> | undefined): string {
   return path.replace(/:(\w+)/g, (_match, name: string) => encodeURIComponent(params?.[name] ?? ""));
+}
+
+/** The URL of a project's icon; `version` is the custom icon's hash, or "auto". */
+export function projectIconUrl(projectId: string, version: string): string {
+  return `${API_PREFIX}/projects/${encodeURIComponent(projectId)}/icon?v=${encodeURIComponent(version)}`;
 }
