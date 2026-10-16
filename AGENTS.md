@@ -22,6 +22,25 @@ Chat with a coding agent that works in your project folders, from the browser. P
 
 Dependencies point one way: `protocol` <- `testkit` <- dev dependency of `core`, `server`, `web`. `core` never imports `server` or Fastify.
 
+## How we build a milestone
+
+Every milestone (`MVP.md`, `MVP2.md`, `MVP3.md`, …) goes through the same loop:
+
+1. **Talk**: agree on the scope with the user in short questions. Study references (webr, T3 Code, OpenCode, Pi source) with read-only research agents when a feature has prior art.
+2. **Plan**: write `MVPn.md`: goal, scope (in/out), product decisions, the exact contract (`Core`, entities, REST, errors), per-package design, testing, and the parallel split with folder ownership and a Phase 0 freeze list.
+3. **Review**: an adversarial reviewer agent checks the plan against the real code and the real tools (Pi source, CLIs), with evidence (`file:line`, command output). Apply its fixes and repeat until it approves (usually 2–3 rounds). Record each round's decisions at the end of the plan. Commit the plan.
+4. **Phase 0 (one agent, on main)**: freeze the contract (protocol, `Core`, testkit fake, contract cases marked pending, stubs that compile, shared design-system pieces, dependencies, ownership in this file). Done when check, test and build pass.
+5. **Phase 1 (parallel agents, one worktree each)**: one agent per owned folder set, building against the frozen contract and the fake. Agents never edit files they do not own; a needed change goes to `contract-notes/<owner>.md` (or `CONTRACT-CHANGES.md`). Each removes its own pending contract tags.
+6. **Phase 2 (one agent, on main)**: apply the contract notes, write the e2e, fix flaky tests, update the README.
+7. **Verify for real**: run the built app and use it in a browser (agent-browser) with a real provider key: every feature by real user actions, not only tests. Fix what is found, then report.
+
+Working rules for this loop:
+
+* Agents run on Sonnet with low effort by default; the main session plans, reviews, merges and verifies.
+* The integrator merges each Phase 1 branch as it finishes (cherry-pick onto main), runs check and test after each merge, and removes the worktree.
+* Agents use plain `git`. If a hook blocks git, they leave their work uncommitted and say so; they never work around the hook.
+* Announce each finished step out loud with `say` (one short sentence).
+
 ## Parallel work
 
 * Phase 1 agents never edit `package.json`, `pnpm-lock.yaml`, `packages/protocol/**` (including the `Core` interface), `packages/testkit/**`, or files another workstream owns. `protocol` and `testkit` belong to the integrator.
