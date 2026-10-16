@@ -41,11 +41,11 @@ describe("setup", () => {
 });
 
 describe("main screen", () => {
-  it("shows the project, an empty state, and starts a chat from the plus button", async () => {
+  it("shows the project, an empty state, and starts a thread from the plus button", async () => {
     const user = await renderApp({ ready: true });
 
     expect(await screen.findByRole("heading", { name: "New thread" })).toBeInTheDocument();
-    await user.click(await screen.findByRole("button", { name: "New chat in project" }));
+    await user.click(await screen.findByRole("button", { name: "New thread in project" }));
     expect(window.location.pathname + window.location.search).toMatch(/^\/new\?project=/);
     await user.type(await screen.findByLabelText("Message"), "hello{Enter}");
 
@@ -96,12 +96,12 @@ describe("main screen", () => {
   it("renames a conversation", async () => {
     const user = await renderApp({ ready: true });
 
-    await user.click(await screen.findByRole("button", { name: "New chat in project" }));
+    await user.click(await screen.findByRole("button", { name: "New thread in project" }));
     await user.type(await screen.findByLabelText("Message"), "hello{Enter}");
     const group = await screen.findByRole("group", { name: "project" });
     const link = await within(group).findByRole("link");
     await user.click(within(group).getByRole("button", { name: /^Actions for hello/ }));
-    await user.click(await screen.findByRole("menuitem", { name: "Rename chat" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Rename thread" }));
     const input = screen.getByLabelText("Title");
     await user.clear(input);
     await user.type(input, "Fix the build");

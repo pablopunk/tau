@@ -24,7 +24,7 @@ export function AppSidebar() {
   const openSettings = useOpenSettings();
 
   return (
-    <Sidebar aria-label="Projects and chats">
+    <Sidebar aria-label="Projects and threads">
       <SidebarHeader className="flex-row items-center justify-between px-4 py-3">
         <span className="text-sm font-semibold">pi-everywhere</span>
         <Button variant="ghost" size="sm" onClick={() => setAdding(true)}>

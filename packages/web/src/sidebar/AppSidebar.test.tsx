@@ -116,7 +116,7 @@ describe("sidebar projects", () => {
   it("opens the new thread page for a project", async () => {
     const user = userEvent.setup();
     renderSidebar();
-    await user.click(await screen.findByRole("button", { name: "New chat in Home" }));
+    await user.click(await screen.findByRole("button", { name: "New thread in Home" }));
     expect(await screen.findByTestId("location")).toHaveTextContent("/new");
   });
 
@@ -127,7 +127,7 @@ describe("sidebar projects", () => {
     ]);
     renderSidebar();
     expect(await screen.findByRole("status", { name: "Cloning" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "New chat in Repo" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "New thread in Repo" })).not.toBeInTheDocument();
   });
 
   it("shows a failed clone with Retry and Remove", async () => {

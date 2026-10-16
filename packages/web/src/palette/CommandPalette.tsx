@@ -58,7 +58,7 @@ export function CommandPalette() {
                 value={`thread ${conversation.title} ${projectName(conversation.projectId)} ${conversation.id}`}
                 onSelect={run(() => navigate(conversationPath(conversation.projectId, conversation.id)))}
               >
-                {conversation.title.trim() || "New chat"}
+                {conversation.title.trim() || "New thread"}
                 <span className="ml-auto text-xs text-muted-foreground">
                   {projectName(conversation.projectId)}
                 </span>

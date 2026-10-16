@@ -25,7 +25,7 @@ interface ConversationItemProps {
 
 export function ConversationItem({ conversation, active }: ConversationItemProps) {
   const [dialog, setDialog] = useState<"rename" | "delete" | null>(null);
-  const title = conversation.title.trim() || "New chat";
+  const title = conversation.title.trim() || "New thread";
   const archived = conversation.archivedAt !== null;
   const dot = conversationDot(conversation, active);
   const queryClient = useQueryClient();
@@ -75,7 +75,7 @@ export function ConversationItem({ conversation, active }: ConversationItemProps
           </SidebarMenuAction>
         </DropdownMenuTrigger>
         <DropdownMenuContent side="right" align="start">
-          <DropdownMenuItem onSelect={() => setDialog("rename")}>Rename chat</DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => setDialog("rename")}>Rename thread</DropdownMenuItem>
           <DropdownMenuItem onSelect={toggleArchive}>{archived ? "Unarchive" : "Archive"}</DropdownMenuItem>
           <DropdownMenuItem variant="destructive" onSelect={() => setDialog("delete")}>
             Delete
@@ -84,7 +84,7 @@ export function ConversationItem({ conversation, active }: ConversationItemProps
       </DropdownMenu>
       {dialog === "rename" && (
         <NameDialog
-          title="Rename chat"
+          title="Rename thread"
           label="Title"
           initialValue={conversation.title}
           onSubmit={rename}

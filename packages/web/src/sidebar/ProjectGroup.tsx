@@ -43,7 +43,7 @@ export function ProjectGroup({ project, activeConversationId, onRemoved }: Proje
   const archived = conversations.data?.filter((conversation) => conversation.archivedAt !== null) ?? [];
   const closeDialog = () => setDialog(null);
 
-  const newChat = () => navigate(newThreadPath(project.id));
+  const newThread = () => navigate(newThreadPath(project.id));
 
   const rename = async (name: string) => {
     await api.projects.rename(project.id, name);
@@ -78,7 +78,11 @@ export function ProjectGroup({ project, activeConversationId, onRemoved }: Proje
         </DropdownMenu>
       )}
       {project.status === "ready" && (
-        <SidebarGroupAction aria-label={`New chat in ${project.name}`} title="New thread" onClick={newChat}>
+        <SidebarGroupAction
+          aria-label={`New thread in ${project.name}`}
+          title="New thread"
+          onClick={newThread}
+        >
           <PlusIcon />
         </SidebarGroupAction>
       )}

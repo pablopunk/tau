@@ -14,6 +14,7 @@ export function useStickToBottom() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const pinned = useRef(true);
+  const lastScrollTop = useRef(0);
   const [atBottom, setAtBottom] = useState(true);
 
   const scrollToBottom = useCallback(() => {
@@ -22,12 +23,17 @@ export function useStickToBottom() {
     pinned.current = true;
     setAtBottom(true);
     element.scrollTop = element.scrollHeight;
+    lastScrollTop.current = element.scrollTop;
   }, []);
 
   const onScroll = useCallback(() => {
     const element = scrollRef.current;
     if (!element) return;
-    pinned.current = distanceFromBottom(element) <= STICK_THRESHOLD_PX;
+    const scrolledUp = element.scrollTop < lastScrollTop.current;
+    lastScrollTop.current = element.scrollTop;
+    const nearBottom = distanceFromBottom(element) <= STICK_THRESHOLD_PX;
+    if (nearBottom) pinned.current = true;
+    else if (scrolledUp) pinned.current = false;
     setAtBottom(pinned.current);
   }, []);
 
@@ -36,11 +42,14 @@ export function useStickToBottom() {
     const scroller = scrollRef.current;
     if (!content || !scroller) return;
     const follow = () => {
-      if (pinned.current) scroller.scrollTop = scroller.scrollHeight;
+      if (!pinned.current) return;
+      scroller.scrollTop = scroller.scrollHeight;
+      lastScrollTop.current = scroller.scrollTop;
     };
     follow();
     const observer = new ResizeObserver(follow);
     observer.observe(content);
+    observer.observe(scroller);
     return () => observer.disconnect();
   }, []);
 

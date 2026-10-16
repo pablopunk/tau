@@ -24,7 +24,7 @@ export function NotificationWatcher() {
     if (!preferences.getNotificationsEnabled() || !notificationsGranted()) return;
     for (const conversation of finished) {
       if (conversation.id === openId && isVisible()) continue;
-      const notification = new Notification(conversation.title.trim() || "New chat", {
+      const notification = new Notification(conversation.title.trim() || "New thread", {
         body: conversation.status === "error" ? "The run failed." : "The run finished.",
         tag: conversation.id,
       });
