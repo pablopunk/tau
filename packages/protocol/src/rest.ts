@@ -1,5 +1,6 @@
 import { type TSchema, Type } from "typebox";
 import {
+  ConfigureConversationInputSchema,
   ConversationSummarySchema,
   ModelInfoSchema,
   ModelRefSchema,
@@ -151,6 +152,13 @@ export const routes = {
     path: `${API_PREFIX}/conversations/:id`,
     status: 204,
     params: IdParams,
+  },
+  configureConversation: {
+    method: "PATCH",
+    path: `${API_PREFIX}/conversations/:id/agent`,
+    status: 204,
+    params: IdParams,
+    body: ConfigureConversationInputSchema,
   },
   retryConversation: {
     method: "POST",

@@ -315,6 +315,18 @@ export function createFakeCore(options: FakeCoreOptions = {}): Core {
         conversation.remove();
         emit({ resource: "conversations", projectId: conversation.projectId });
       },
+      async configure(id, input) {
+        const conversation = requireConversation(id);
+        if (input.model === undefined && input.thinkingLevel === undefined) {
+          throw new AppError("invalid_request", "Choose a model or a thinking level.");
+        }
+        const model = input.model ?? conversation.model;
+        const info = requireListedModel(model);
+        conversation.configure(
+          model,
+          clampFakeThinkingLevel(info, input.thinkingLevel ?? conversation.thinkingLevel()),
+        );
+      },
       async retry(id, input) {
         requireConversation(id).retry(input.requestId);
       },

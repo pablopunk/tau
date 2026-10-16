@@ -1,4 +1,5 @@
 import type {
+  ConfigureConversationInput,
   ConversationSummary,
   ModelInfo,
   ModelRef,
@@ -45,6 +46,7 @@ export interface Api {
     abort(id: string): Promise<void>;
     archive(id: string, archived: boolean): Promise<void>;
     remove(id: string): Promise<void>;
+    configure(id: string, input: ConfigureConversationInput): Promise<void>;
     retry(id: string, input: RetryInput): Promise<void>;
   };
   /** Raw frames of `/api/live`; `LiveClient` turns them into views. */
@@ -82,6 +84,7 @@ export function createApi(transport: Transport): Api {
       abort: (id) => request("abortConversation", { params: { id } }),
       archive: (id, archived) => request("archiveConversation", { params: { id }, body: { archived } }),
       remove: (id) => request("removeConversation", { params: { id } }),
+      configure: (id, input) => request("configureConversation", { params: { id }, body: input }),
       retry: (id, input) => request("retryConversation", { params: { id }, body: input }),
     },
     live: transport.live,

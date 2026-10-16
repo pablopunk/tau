@@ -112,6 +112,13 @@ describe("REST routes", () => {
       payload: { requestId: "retry-1" },
     });
     expect(retry.statusCode).toBe(400);
+    const patch = (payload: object, thread = id) =>
+      ctx.request({ method: "PATCH", url: `/api/conversations/${thread}/agent`, payload });
+    expect((await patch({ model: { provider: "faux", modelId: "faux-2" } })).statusCode).toBe(204);
+    expect((await patch({ thinkingLevel: "low" })).statusCode).toBe(204);
+    expect((await patch({})).statusCode).toBe(400);
+    expect((await patch({ model: { provider: "faux", modelId: "nope" } })).statusCode).toBe(400);
+    expect((await patch({ thinkingLevel: "low" }, "nope")).statusCode).toBe(404);
     expect((await ctx.request({ method: "DELETE", url: `/api/conversations/${id}` })).statusCode).toBe(204);
   });
 

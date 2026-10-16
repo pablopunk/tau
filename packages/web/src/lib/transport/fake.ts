@@ -39,6 +39,7 @@ const handlers: Handlers = {
   archiveConversation: (core, { params, body }) =>
     core.conversations.archive(params.id, body.archived as boolean),
   removeConversation: (core, { params }) => core.conversations.remove(params.id),
+  configureConversation: (core, { params, body }) => core.conversations.configure(params.id, body as never),
   retryConversation: (core, { params, body }) => core.conversations.retry(params.id, body as never),
 };
 

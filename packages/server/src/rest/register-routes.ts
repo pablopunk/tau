@@ -28,5 +28,8 @@ export function registerRoutes(app: FastifyInstance, core: Core): void {
     core.conversations.archive(params.id, body.archived),
   );
   defineRoute(app, routes.removeConversation, ({ params }) => core.conversations.remove(params.id));
+  defineRoute(app, routes.configureConversation, ({ params, body }) =>
+    core.conversations.configure(params.id, body),
+  );
   defineRoute(app, routes.retryConversation, ({ params, body }) => core.conversations.retry(params.id, body));
 }

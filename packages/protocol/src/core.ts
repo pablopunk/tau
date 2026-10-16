@@ -1,5 +1,6 @@
 import type {
   Change,
+  ConfigureConversationInput,
   ConversationSummary,
   ModelInfo,
   ModelRef,
@@ -14,6 +15,7 @@ import type { Op } from "./view";
 
 export type {
   Change,
+  ConfigureConversationInput,
   ConversationSummary,
   ModelInfo,
   ModelRef,
@@ -99,6 +101,12 @@ export interface Core {
     archive(id: string, archived: boolean): Promise<void>;
     /** Idempotent for an already deleted id; rejects `not_found` for an unknown one. */
     remove(id: string): Promise<void>;
+    /**
+     * Changes the model and/or thinking level; applies from the next model request, also while busy. The level is
+     * clamped to what the resulting model supports. Rejects `not_found`, and `invalid_request` for an unlisted
+     * model or an empty input.
+     */
+    configure(id: string, input: ConfigureConversationInput): Promise<void>;
     /**
      * Continues after a failed or stopped answer (see `isRetryable`), once per `requestId`. Unarchives.
      * Rejects `not_found`, and `invalid_request` unless retryable.

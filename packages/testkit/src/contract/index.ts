@@ -2,6 +2,7 @@ import { describe } from "vitest";
 import { type ContractOptions, caseRunner } from "./case-runner";
 import { chatCases } from "./chat";
 import { cloneCases } from "./clone";
+import { configureCases } from "./configure";
 import { conversationCases } from "./conversations";
 import { lifecycleCases } from "./lifecycle";
 import { projectCases } from "./projects";
@@ -33,6 +34,7 @@ export function runCoreContract(
     titleAndStatusCases(makeTarget, test);
     lifecycleCases(makeTarget, test);
     retryCases(makeTarget, test);
+    configureCases(makeTarget, test);
     cloneCases(makeTarget, test);
     chatCases(makeTarget, test);
   });

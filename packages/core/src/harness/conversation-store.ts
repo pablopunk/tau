@@ -13,6 +13,7 @@ import {
   type OpsListener,
   type RetryInput,
   type SendMessageInput,
+  type ThinkingLevel,
 } from "@pi-everywhere/protocol";
 import { toUserInput } from "../conversation-input";
 import { titleFromFirstMessage } from "../conversation-title";
@@ -49,6 +50,8 @@ interface KnownConversation {
   readonly projectId: string;
 }
 
+export type AgentSettings = { readonly model: ModelRef; readonly thinkingLevel: ThinkingLevel };
+
 export type SendResult = {
   readonly projectId: string;
   /** Set when this send gave an untitled legacy thread its provisional title: the title job should run. */
@@ -62,6 +65,10 @@ export interface ConversationStore
   start(request: StartRequest): Promise<StartResult>;
   /** `not_found` for an unknown or deleted thread. */
   modelOf(id: string): Promise<ModelRef | undefined>;
+  /** `not_found` for an unknown or deleted thread. */
+  agentOf(id: string): Promise<AgentSettings>;
+  /** Applies from the next model request, also while busy. */
+  configure(id: string, settings: AgentSettings): Promise<void>;
   /** Returns the project id so the caller can announce the index change. */
   rename(id: string, title: string): Promise<string>;
   /** Admits the message (steering when busy) exactly once per `requestId`, and unarchives. */
@@ -134,6 +141,20 @@ export function createConversationStore(harness: Harness): ConversationStore {
     async modelOf(id) {
       const { conversation } = await known(id);
       return (await conversation.agent(BACKGROUND)).model;
+    },
+
+    async agentOf(id) {
+      const { conversation } = await known(id);
+      const { model, thinkingLevel } = await conversation.agent(BACKGROUND);
+      if (!model) throw new AppError("invalid_request", "This thread has no model.");
+      return {
+        model: { provider: model.provider, modelId: model.modelId },
+        thinkingLevel: thinkingLevel ?? "off",
+      };
+    },
+
+    async configure(id, { model, thinkingLevel }) {
+      await (await known(id)).conversation.configure({ model, thinkingLevel }, BACKGROUND);
     },
 
     async rename(id, title) {

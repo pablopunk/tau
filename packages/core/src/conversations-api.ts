@@ -1,6 +1,7 @@
 import { clampThinkingLevel } from "@earendil-works/pi-ai/models";
 import {
   AppError,
+  type ConfigureConversationInput,
   type ConversationSummary,
   type Core,
   type ModelRef,
@@ -75,6 +76,21 @@ export function createConversationsApi(deps: {
     return ref;
   }
 
+  async function configureThread(id: string, input: ConfigureConversationInput): Promise<void> {
+    if (input.model === undefined && input.thinkingLevel === undefined) {
+      throw new AppError("invalid_request", "Choose a model or a thinking level.");
+    }
+    const current = await conversations.agentOf(id);
+    const ref = input.model ?? current.model;
+    const model = lookUp(ref);
+    if (!model) throw new AppError("invalid_request", "This model is not available.");
+    const thinkingLevel = clampThinkingLevel(model, input.thinkingLevel ?? current.thinkingLevel);
+    await conversations.configure(id, {
+      model: { provider: ref.provider, modelId: ref.modelId },
+      thinkingLevel,
+    });
+  }
+
   return {
     async list(projectId) {
       await projects.require(projectId);
@@ -110,6 +126,7 @@ export function createConversationsApi(deps: {
       const projectId = await conversations.remove(id, now());
       if (projectId !== undefined) announce(projectId);
     },
+    configure: configureThread,
     async retry(id, input) {
       announce(await conversations.retry(id, input, now()));
     },

@@ -127,5 +127,11 @@ export const StartConversationInputSchema = Type.Object({
 });
 export type StartConversationInput = Type.Static<typeof StartConversationInputSchema>;
 
+export const ConfigureConversationInputSchema = Type.Object(
+  { model: Type.Optional(ModelRefSchema), thinkingLevel: Type.Optional(ThinkingLevelSchema) },
+  { minProperties: 1 },
+);
+export type ConfigureConversationInput = Type.Static<typeof ConfigureConversationInputSchema>;
+
 export const RetryInputSchema = Type.Object({ requestId: Type.String({ minLength: 1 }) });
 export type RetryInput = Type.Static<typeof RetryInputSchema>;

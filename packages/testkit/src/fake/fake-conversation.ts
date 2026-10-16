@@ -113,7 +113,31 @@ export class FakeConversation {
   }
 
   get model(): ModelRef {
-    return this.deps.model;
+    return this.agent().model;
+  }
+
+  configure(model: ModelRef, thinkingLevel: ThinkingLevel): void {
+    const agent = {
+      ...this.agent(),
+      model: { provider: model.provider, modelId: model.modelId },
+      thinkingLevel,
+    };
+    this.publish({
+      ...this.view,
+      docs: { ...this.view.docs, "pi.agent": agent },
+    } as unknown as ConversationView);
+  }
+
+  thinkingLevel(): ThinkingLevel {
+    return this.agent().thinkingLevel;
+  }
+
+  private agent(): { model: ModelRef; cwd: string; thinkingLevel: ThinkingLevel } {
+    return this.view.docs["pi.agent"] as unknown as {
+      model: ModelRef;
+      cwd: string;
+      thinkingLevel: ThinkingLevel;
+    };
   }
 
   get isDeleted(): boolean {
