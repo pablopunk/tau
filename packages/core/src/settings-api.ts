@@ -1,5 +1,6 @@
 import { AppError, type Core } from "@pi-everywhere/protocol";
 import type { SettingsStore } from "./home/settings-store";
+import { notImplemented } from "./not-implemented";
 import type { ProviderService } from "./provider/provider-service";
 
 export function createSettingsApi(deps: {
@@ -15,6 +16,12 @@ export function createSettingsApi(deps: {
         throw new AppError("invalid_request", "This model is not available for your API key.");
       }
       await settings.setDefaultModel(ref);
+    },
+    async setFastModel() {
+      throw notImplemented("settings.setFastModel");
+    },
+    async setProjectsFolder() {
+      throw notImplemented("settings.setProjectsFolder");
     },
   };
 }

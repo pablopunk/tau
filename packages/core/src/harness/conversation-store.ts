@@ -8,7 +8,7 @@ import {
   type SendMessageInput,
 } from "@pi-everywhere/protocol";
 import { titleFromFirstMessage } from "../conversation-title";
-import { ConversationDoc, INDEX_SEED, type IndexedConversation, ProjectIndexDoc } from "./app-docs";
+import { ConversationDoc, INDEX_SEED, type IndexedConversation, ProjectIndexDoc } from "./conversation-docs";
 import { BACKGROUND } from "./open";
 import { watchConversation } from "./watch-conversation";
 
@@ -24,6 +24,9 @@ const toSummary = (projectId: string, entry: IndexedConversation): ConversationS
   title: entry.title,
   createdAt: entry.createdAt,
   updatedAt: entry.updatedAt,
+  archivedAt: entry.archivedAt ?? null,
+  status: entry.status ?? "idle",
+  lastRunEndedAt: entry.lastRunEndedAt ?? null,
 });
 
 const byMostRecentlyUpdated = (a: ConversationSummary, b: ConversationSummary) =>
@@ -42,7 +45,8 @@ export interface ConversationStore {
   /** Admits the message (steering when busy), then titles an untitled conversation. Returns the project id. */
   send(id: string, input: SendMessageInput, now: number): Promise<string>;
   abort(id: string): Promise<void>;
-  abortAllOfProject(projectId: string): Promise<void>;
+  /** Aborts the project's busy conversations and drops them from its index. */
+  removeAllOfProject(projectId: string): Promise<void>;
   watch(id: string, onOps: OpsListener): Promise<{ stop(): Promise<void> }>;
 }
 
@@ -133,7 +137,7 @@ export function createConversationStore(harness: Harness): ConversationStore {
       await (await known(id)).conversation.abort(BACKGROUND);
     },
 
-    async abortAllOfProject(projectId) {
+    async removeAllOfProject(projectId) {
       const entries = await indexOf(projectId);
       await Promise.all(
         entries.map(async (entry) => {
@@ -141,6 +145,10 @@ export function createConversationStore(harness: Harness): ConversationStore {
           await conversation?.abort(BACKGROUND);
         }),
       );
+      await harness.commit(async (tx) => {
+        const index = await tx.doc(ProjectIndexDoc, projectId, INDEX_SEED);
+        index.conversations.splice(0, index.conversations.length);
+      }, BACKGROUND);
     },
 
     async watch(id, onOps) {

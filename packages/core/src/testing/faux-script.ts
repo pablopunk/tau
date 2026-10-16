@@ -16,6 +16,7 @@ export const SCRIPT_USAGE = [
   "fail",
   "flaky",
   "overloaded",
+  "image",
 ] as const;
 
 type Reply = ReturnType<typeof fauxAssistantMessage>;
@@ -24,6 +25,22 @@ function messageText(message: Message): string {
   if (message.role !== "user") return "";
   if (typeof message.content === "string") return message.content;
   return message.content.flatMap((part) => (part.type === "text" ? [part.text] : [])).join("\n");
+}
+
+function imageCount(message: UserMessage | undefined): number {
+  if (!message || typeof message.content === "string") return 0;
+  return message.content.filter((part) => part.type === "image").length;
+}
+
+function imageCountReply(message: UserMessage | undefined): Reply {
+  return fauxAssistantMessage(`Images received: ${imageCount(message)}`);
+}
+
+const FAST_MODEL_ID = "faux-fast";
+const TITLE_WORDS = 3;
+
+function titleReply(input: string): Reply {
+  return fauxAssistantMessage(`Title: ${input.trim().split(/\s+/).slice(0, TITLE_WORDS).join(" ")}`);
 }
 
 function toolCallReply(name: string, args: Record<string, unknown>): Reply {
@@ -60,7 +77,7 @@ function splitOnce(text: string, separator: string): [string, string | undefined
   return index < 0 ? [text, undefined] : [text.slice(0, index), text.slice(index + separator.length)];
 }
 
-function scriptedReply(input: string, attempt: number): Reply {
+function scriptedReply(input: string, attempt: number, user: UserMessage | undefined): Reply {
   const [command = "", rest = ""] = splitOnce(input.trim(), " ") as [string, string];
   switch (command) {
     case "write": {
@@ -88,6 +105,8 @@ function scriptedReply(input: string, attempt: number): Reply {
         : fauxAssistantMessage("Recovered after a failed attempt.");
     case "overloaded":
       return retryableFailureReply();
+    case "image":
+      return imageCountReply(user);
     default:
       return slowTextReply(input);
   }
@@ -111,13 +130,14 @@ function lastUserMessage(messages: readonly Message[]): UserMessage | undefined 
  */
 export function createFauxScript(): FauxResponseFactory {
   const attempts = new Map<string, number>();
-  return (context) => {
-    if (lastMessageIsToolResult(context.messages)) return fauxAssistantMessage("Done.");
+  return (context, _options, _state, model) => {
     const user = lastUserMessage(context.messages);
     const input = user ? messageText(user) : "";
+    if (model.id === FAST_MODEL_ID) return titleReply(input);
+    if (lastMessageIsToolResult(context.messages)) return fauxAssistantMessage("Done.");
     const requestKey = `${user?.timestamp}:${input}`;
     const attempt = attempts.get(requestKey) ?? 0;
     attempts.set(requestKey, attempt + 1);
-    return scriptedReply(input, attempt);
+    return scriptedReply(input, attempt, user);
   };
 }

@@ -1,34 +1,48 @@
-import { type ModelRef, type Settings, SettingsSchema } from "@pi-everywhere/protocol";
+import { type ModelRef, ModelRefSchema, type Settings } from "@pi-everywhere/protocol";
+import { Type } from "typebox";
 import { Value } from "typebox/value";
 import { readFileIfPresent, writeFileAtomic } from "./atomic-write";
 import { createSerialQueue } from "./serial-queue";
 
-const DEFAULT_SETTINGS: Settings = { defaultModel: null };
+const StoredSettingsSchema = Type.Partial(
+  Type.Object({
+    defaultModel: Type.Union([ModelRefSchema, Type.Null()]),
+    fastModel: Type.Union([ModelRefSchema, Type.Null()]),
+    projectsFolder: Type.String(),
+  }),
+);
+type StoredSettings = Type.Static<typeof StoredSettingsSchema>;
 
-function parseSettings(text: string | undefined): Settings {
-  if (text === undefined) return DEFAULT_SETTINGS;
+function parseStored(text: string | undefined): StoredSettings {
+  if (text === undefined) return {};
   try {
     const value: unknown = JSON.parse(text);
-    return Value.Check(SettingsSchema, value) ? value : DEFAULT_SETTINGS;
+    return Value.Check(StoredSettingsSchema, value) ? value : {};
   } catch {
-    return DEFAULT_SETTINGS;
+    return {};
   }
 }
+
+const withDefaults = (stored: StoredSettings, defaultProjectsFolder: string): Settings => ({
+  defaultModel: stored.defaultModel ?? null,
+  fastModel: stored.fastModel ?? null,
+  projectsFolder: stored.projectsFolder ?? defaultProjectsFolder,
+});
 
 export interface SettingsStore {
   get(): Promise<Settings>;
   setDefaultModel(ref: ModelRef): Promise<void>;
 }
 
-export function createSettingsStore(settingsFile: string): SettingsStore {
+export function createSettingsStore(settingsFile: string, defaultProjectsFolder: string): SettingsStore {
   const enqueue = createSerialQueue();
-  const read = async () => parseSettings(await readFileIfPresent(settingsFile));
+  const readStored = async () => parseStored(await readFileIfPresent(settingsFile));
   return {
-    get: () => enqueue(read),
+    get: () => enqueue(async () => withDefaults(await readStored(), defaultProjectsFolder)),
     setDefaultModel: (ref) =>
       enqueue(async () => {
-        const next: Settings = {
-          ...(await read()),
+        const next: StoredSettings = {
+          ...(await readStored()),
           defaultModel: { provider: ref.provider, modelId: ref.modelId },
         };
         await writeFileAtomic(settingsFile, `${JSON.stringify(next, null, 2)}\n`);

@@ -1,6 +1,6 @@
 import { access } from "node:fs/promises";
 import { homedir } from "node:os";
-import { createModels, type Models } from "@earendil-works/pi-ai/models";
+import { createModels, getSupportedThinkingLevels, type Models } from "@earendil-works/pi-ai/models";
 import { openrouterProvider, personalizeOpenRouterCatalog } from "@earendil-works/pi-ai/providers/openrouter";
 import { AppError, type ModelInfo, type ModelRef, type ProviderStatus } from "@pi-everywhere/protocol";
 import { FileCredentialStore } from "../auth/file-credential-store";
@@ -42,19 +42,17 @@ function createRealModels(credentials: FileCredentialStore, env: Environment): M
   return models;
 }
 
-function toModelInfo(model: {
-  provider: string;
-  id: string;
-  name: string;
-  contextWindow: number;
-  reasoning: boolean;
-}): ModelInfo {
+type ListedModel = Parameters<typeof getSupportedThinkingLevels>[0];
+
+function toModelInfo(model: ListedModel): ModelInfo {
   return {
     provider: model.provider,
     modelId: model.id,
     name: model.name,
     contextWindow: model.contextWindow,
     reasoning: model.reasoning,
+    images: model.input.includes("image"),
+    thinkingLevels: getSupportedThinkingLevels(model),
   };
 }
 
@@ -91,7 +89,7 @@ export function createProviderService(options: ProviderServiceOptions): Provider
 
   async function listModels(): Promise<ModelInfo[]> {
     const { key } = await requireKey();
-    if (options.faux) return models.getModels("faux").map(toModelInfo);
+    if (options.faux) return models.getModels("faux").map((model) => toModelInfo(model as ListedModel));
     const catalog = models.getModels(KEY_PROVIDER_ID);
     try {
       const allowed = await personalizeOpenRouterCatalog(catalog, {
@@ -100,7 +98,7 @@ export function createProviderService(options: ProviderServiceOptions): Provider
         allowNetwork: true,
         signal: new AbortController().signal,
       });
-      return allowed.map((model) => toModelInfo(model as Parameters<typeof toModelInfo>[0]));
+      return allowed.map((model) => toModelInfo(model as ListedModel));
     } catch {
       throw new AppError("internal", "Could not load the model list from OpenRouter.");
     }

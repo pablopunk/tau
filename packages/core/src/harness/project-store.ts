@@ -1,25 +1,46 @@
+import { homedir } from "node:os";
 import type { Harness } from "@earendil-works/pi-durable";
 import { AppError, type Project } from "@pi-everywhere/protocol";
-import { INDEX_SEED, ProjectIndexDoc, type ProjectRecord, ProjectsDoc } from "./app-docs";
 import { BACKGROUND } from "./open";
+import { type ProjectRecord, ProjectsDoc } from "./projects-doc";
 
-const toProject = ({ id, name, path, createdAt }: ProjectRecord): Project => ({ id, name, path, createdAt });
+export const HOME_PROJECT_ID = "home";
+
+const homeProject = (): Project => ({
+  id: HOME_PROJECT_ID,
+  name: "Home",
+  path: homedir(),
+  createdAt: 0,
+  kind: "home",
+  status: "ready",
+});
+
+const toProject = ({ id, name, path, createdAt }: ProjectRecord): Project => ({
+  id,
+  name,
+  path,
+  createdAt,
+  kind: "folder",
+  status: "ready",
+});
 
 const notFound = () => new AppError("not_found", "Project not found.");
 
 export interface ProjectStore {
+  /** Home first, then creation order. */
   list(): Promise<Project[]>;
   find(id: string): Promise<Project | undefined>;
   require(id: string): Promise<Project>;
   /** `path` must already be a real path; rejects `duplicate_project` for a path that is already a project. */
   add(input: { id: string; name: string; path: string; createdAt: number }): Promise<Project>;
   rename(id: string, name: string): Promise<void>;
-  /** Drops the project and empties its conversation index in one commit. */
+  /** Drops the project record only; its conversations go through `ConversationStore.removeAllOfProject`. */
   remove(id: string): Promise<void>;
 }
 
 export function createProjectStore(harness: Harness): ProjectStore {
-  const list = async () => ((await harness.snapshot(ProjectsDoc, BACKGROUND))?.projects ?? []).map(toProject);
+  const stored = async () => (await harness.snapshot(ProjectsDoc, BACKGROUND))?.projects ?? [];
+  const list = async () => [homeProject(), ...(await stored()).map(toProject)];
   const find = async (id: string) => (await list()).find((project) => project.id === id);
   return {
     list,
@@ -32,7 +53,7 @@ export function createProjectStore(harness: Harness): ProjectStore {
     add: (input) =>
       harness.commit(async (tx) => {
         const doc = await tx.doc(ProjectsDoc);
-        if (doc.projects.some((project) => project.path === input.path)) {
+        if (input.path === homedir() || doc.projects.some((project) => project.path === input.path)) {
           throw new AppError("duplicate_project", "This folder is already a project.");
         }
         doc.projects.push({ ...input });
@@ -50,8 +71,6 @@ export function createProjectStore(harness: Harness): ProjectStore {
         const position = projects.findIndex((candidate) => candidate.id === id);
         if (position < 0) throw notFound();
         projects.splice(position, 1);
-        const index = await tx.doc(ProjectIndexDoc, id, INDEX_SEED);
-        index.conversations.splice(0, index.conversations.length);
       }, BACKGROUND),
   };
 }

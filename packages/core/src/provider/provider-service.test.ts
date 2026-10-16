@@ -120,7 +120,7 @@ describe("provider service (faux)", () => {
     await service.setApiKey("anything");
     expect(await service.status()).toMatchObject({ configured: true, source: "file", valid: true });
     const models = await service.listModels();
-    expect(models.map((model) => model.modelId)).toEqual(["faux-1", "faux-2"]);
+    expect(models.map((model) => model.modelId)).toEqual(["faux-1", "faux-2", "faux-fast", "faux-text"]);
     expect(models.every((model) => model.provider === "faux")).toBe(true);
     expect(stub.requests).toEqual([]);
   });

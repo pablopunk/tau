@@ -3,6 +3,7 @@ import { join } from "node:path";
 import type { Change } from "@pi-everywhere/protocol";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
+  answerCount,
   entryKinds,
   type FauxWorld,
   isRunning,
@@ -10,6 +11,7 @@ import {
   setUpConversation,
   trackView,
   waitForAnswer,
+  waitForAnswerAfter,
   waitUntil,
 } from "./test-support/faux-core";
 import { useTempDir } from "./test-support/temp-dir";
@@ -29,22 +31,22 @@ describe("chat on the real core", () => {
   it("runs the agent's write tool inside the project folder", async () => {
     const { project, conversation } = await setUpConversation(world);
     const tracker = await trackView(world.core, conversation.id);
+    const before = answerCount(tracker);
     await world.core.conversations.send(conversation.id, {
       text: "write hello.txt hi there",
       requestId: "r1",
     });
-    await waitForAnswer(tracker);
+    await waitForAnswerAfter(tracker, before);
     expect(await readFile(join(project.path, "hello.txt"), "utf8")).toBe("hi there");
     await tracker.stop();
   });
 
   it("titles the conversation from its first message only, and bumps updatedAt on every send", async () => {
-    const { project, conversation } = await setUpConversation(world);
+    const { project, conversation } = await setUpConversation(world, "  First\n\nmessage   here ");
     const { core } = world;
-    await core.conversations.send(conversation.id, { text: "  First\n\nmessage   here ", requestId: "r1" });
     const [afterFirst] = await core.conversations.list(project.id);
     expect(afterFirst?.title).toBe("First message here");
-    expect(afterFirst?.updatedAt).toBeGreaterThan(conversation.updatedAt);
+    expect(afterFirst?.updatedAt).toBeGreaterThanOrEqual(conversation.updatedAt);
     await core.conversations.send(conversation.id, { text: "Second message", requestId: "r2" });
     const [afterSecond] = await core.conversations.list(project.id);
     expect(afterSecond?.title).toBe("First message here");
@@ -52,8 +54,7 @@ describe("chat on the real core", () => {
   });
 
   it("shortens a long first message in the title", async () => {
-    const { project, conversation } = await setUpConversation(world);
-    await world.core.conversations.send(conversation.id, { text: "word ".repeat(60), requestId: "r1" });
+    const { project } = await setUpConversation(world, "word ".repeat(60));
     const [summary] = await world.core.conversations.list(project.id);
     expect(summary?.title.length).toBeLessThanOrEqual(80);
     expect(summary?.title.endsWith("…")).toBe(true);
@@ -68,7 +69,11 @@ describe("chat on the real core", () => {
 
   it("lists the most recently updated conversation first", async () => {
     const { project, conversation } = await setUpConversation(world);
-    const newer = await world.core.conversations.create(project.id);
+    const newer = await world.core.conversations.start({
+      projectId: project.id,
+      text: "newer",
+      requestId: "newer",
+    });
     await world.core.conversations.send(conversation.id, { text: "hello", requestId: "r1" });
     expect((await world.core.conversations.list(project.id)).map((item) => item.id)).toEqual([
       conversation.id,
@@ -89,7 +94,7 @@ describe("chat on the real core", () => {
     await world.core.conversations.send(conversation.id, { text: "hello", requestId: "r1" });
     const reopened = await world.reopen();
     const tracker = await trackView(reopened, conversation.id);
-    await waitForAnswer(tracker);
+    await waitForAnswerAfter(tracker, 1);
     await tracker.stop();
   });
 
@@ -100,7 +105,7 @@ describe("chat on the real core", () => {
     await waitUntil(() => isRunning(tracker.view()), "the run to start");
     await world.core.projects.remove(project.id);
     await waitUntil(() => !isRunning(tracker.view()), "the run to stop");
-    expect(await world.core.projects.list()).toEqual([]);
+    expect((await world.core.projects.list()).map((item) => item.id)).not.toContain(project.id);
     await tracker.stop();
   });
 
@@ -113,7 +118,7 @@ describe("chat on the real core", () => {
     await waitUntil(
       () =>
         !isRunning(tracker.view()) &&
-        entryKinds(tracker.view()).filter((kind) => kind === "pi.user").length === 2,
+        entryKinds(tracker.view()).filter((kind) => kind === "pi.user").length === 3,
       "both messages to be answered",
     );
     await tracker.stop();

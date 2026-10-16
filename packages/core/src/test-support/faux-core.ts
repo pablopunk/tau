@@ -34,13 +34,22 @@ export async function openFauxWorld(root: string, now: () => number = Date.now):
   return world;
 }
 
-export async function setUpConversation(world: FauxWorld) {
+let setUpCounter = 0;
+
+export async function setUpConversation(world: FauxWorld, firstText = "hello") {
   const { core } = world;
   await core.provider.setApiKey("sk-test");
   const [model] = await core.provider.listModels();
   await core.settings.setDefaultModel({ provider: model?.provider ?? "", modelId: model?.modelId ?? "" });
   const project: Project = await core.projects.add({ path: await world.makeFolder("main") });
-  const conversation = await core.conversations.create(project.id);
+  const conversation = await core.conversations.start({
+    projectId: project.id,
+    text: firstText,
+    requestId: `set-up-${++setUpCounter}`,
+  });
+  const tracker = await trackView(core, conversation.id);
+  await waitForAnswer(tracker);
+  await tracker.stop();
   return { project, conversation };
 }
 
@@ -71,6 +80,18 @@ export async function trackView(core: Core, conversationId: string): Promise<Vie
 export const entryKinds = (view: ConversationView | null) => view?.entries.map((entry) => entry.kind) ?? [];
 export const isRunning = (view: ConversationView | null) =>
   (view?.docs["pi.live"] as LiveState | undefined)?.run !== undefined;
+
+const assistantCount = (view: ConversationView | null) =>
+  entryKinds(view).filter((kind) => kind === "pi.assistant").length;
+
+export const answerCount = (tracker: ViewTracker) => assistantCount(tracker.view());
+
+export async function waitForAnswerAfter(tracker: ViewTracker, before: number): Promise<void> {
+  await waitUntil(
+    () => !isRunning(tracker.view()) && assistantCount(tracker.view()) > before,
+    "the next answer",
+  );
+}
 
 export async function waitForAnswer(tracker: ViewTracker): Promise<void> {
   await waitUntil(

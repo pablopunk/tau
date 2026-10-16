@@ -20,6 +20,8 @@ export interface OpenAgentHarnessOptions {
   readonly env?: HarnessOptions["env"];
   readonly settings?: HarnessSettings;
   readonly onReport?: (error: unknown) => void;
+  /** Awaited after the Harness opens and before `resume()`, so listeners see every commit resume makes. */
+  readonly beforeResume?: (harness: Harness) => void | Promise<void>;
 }
 
 export const projectEnv: NonNullable<HarnessOptions["env"]> = ({ cwd }) =>
@@ -42,6 +44,7 @@ export async function openAgentHarness(options: OpenAgentHarnessOptions): Promis
     },
     BACKGROUND,
   );
+  await options.beforeResume?.(harness);
   harness.resume();
   return harness;
 }

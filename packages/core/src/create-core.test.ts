@@ -80,7 +80,11 @@ describe("createCore with OpenRouter", () => {
       core.settings.setDefaultModel({ provider: "openrouter", modelId: "other/model" }),
     ).rejects.toMatchObject({ code: "invalid_request" });
     const project = await core.projects.add({ path: root });
-    const conversation = await core.conversations.create(project.id);
+    const conversation = await core.conversations.start({
+      projectId: project.id,
+      text: "hello",
+      requestId: "r1",
+    });
     expect(conversation.projectId).toBe(project.id);
     await core.close();
   });
