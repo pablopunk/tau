@@ -133,6 +133,23 @@ describe("WebSocket /api/live", () => {
     expect(isRetiredOps((await received.nextOps()).ops)).toBe(true);
   });
 
+  it("forwards a retired view the watch emits after a delete", async () => {
+    const core = createFakeCore({ configured: true, speed: 1000 });
+    const watch = core.conversations.watch.bind(core.conversations);
+    core.conversations.watch = async (id, onOps) => {
+      const watcher = await watch(id, onOps);
+      queueMicrotask(() => void onOps([["r", null]]));
+      return watcher;
+    };
+    ctx = await startTestServer({ core });
+    const id = await createConversation();
+    const socket = connect();
+    await opened(socket);
+    const received = framesOf(socket);
+    subscribe(socket, id);
+    await received.nextOps((frame) => isRetiredOps(frame.ops));
+  });
+
   it("broadcasts changed frames from core.onChange to every socket", async () => {
     ctx = await startTestServer();
     const [first, second] = [connect(), connect()];
@@ -145,6 +162,24 @@ describe("WebSocket /api/live", () => {
         resource: "projects",
       });
     }
+  });
+
+  it("broadcasts conversation changes for archive and delete", async () => {
+    ctx = await startTestServer();
+    const id = await createConversation();
+    const socket = connect();
+    await opened(socket);
+    const received = framesOf(socket);
+    await ctx.request({
+      method: "PUT",
+      url: `/api/conversations/${id}/archived`,
+      payload: { archived: true },
+    });
+    expect((await received.next((frame) => frame.type === "changed")).type).toBe("changed");
+    await ctx.request({ method: "DELETE", url: `/api/conversations/${id}` });
+    await vi.waitFor(() =>
+      expect(received.frames.filter((f) => f.type === "changed").length).toBeGreaterThanOrEqual(2),
+    );
   });
 
   it("stops watchers on unsubscribe and on close", async () => {
