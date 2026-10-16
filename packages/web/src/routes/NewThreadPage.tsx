@@ -8,7 +8,7 @@ import { conversationPath } from "@/lib/paths";
 import { preferences } from "@/lib/preferences";
 import { useModels, useProjects, useSettings } from "@/lib/queries";
 import { clearDraftRequestId, draftRequestId } from "@/lib/start-request";
-import { NewThreadFooter } from "./NewThreadFooter";
+import { NewThreadToolbar, ProjectPicker } from "./NewThreadFooter";
 
 const toRef = ({ provider, modelId }: ModelRef): ModelRef => ({ provider, modelId });
 
@@ -54,10 +54,10 @@ export function NewThreadPage() {
   };
 
   const footer = (
-    <NewThreadFooter
-      projects={projects.data}
-      projectId={projectId}
-      onProject={setProject}
+    <ProjectPicker projects={projects.data} projectId={projectId} onProject={setProject} disabled={busy} />
+  );
+  const toolbar = (
+    <NewThreadToolbar
       models={models.data}
       model={model ? toRef(model) : null}
       onModel={setModel}
@@ -77,6 +77,7 @@ export function NewThreadPage() {
           imagesAllowed={model?.images ?? true}
           busy={busy}
           footer={footer}
+          toolbar={toolbar}
           onSend={start}
         />
       </div>

@@ -39,6 +39,9 @@ interface ComboboxProps {
   id?: string
   disabled?: boolean
   className?: string
+  /** `ghost` with `sm` fits inside a composer toolbar. */
+  variant?: "outline" | "ghost"
+  size?: "default" | "sm"
   "aria-label"?: string
 }
 
@@ -60,6 +63,8 @@ function Combobox({
   id,
   disabled,
   className,
+  variant = "outline",
+  size = "default",
   "aria-label": ariaLabel,
 }: ComboboxProps) {
   const [open, setOpen] = React.useState(false)
@@ -72,7 +77,8 @@ function Combobox({
           id={id}
           data-slot="combobox-trigger"
           type="button"
-          variant="outline"
+          variant={variant}
+          size={size}
           role="combobox"
           aria-label={ariaLabel}
           aria-expanded={open}

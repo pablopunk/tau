@@ -24,6 +24,13 @@ function setup(props: Partial<Parameters<typeof Composer>[0]> = {}) {
 }
 
 describe("<Composer>", () => {
+  it("renders the toolbar inside the input box and the footer outside it", () => {
+    setup({ toolbar: <span>tool</span>, footer: <span>foot</span> });
+    const box = screen.getByLabelText("Message").parentElement;
+    expect(box).toContainElement(screen.getByText("tool"));
+    expect(box).not.toContainElement(screen.getByText("foot"));
+  });
+
   it("sends on Enter, trims the text and clears the input", async () => {
     const { onSend, input } = setup();
     await userEvent.type(input, "  hello  {Enter}");

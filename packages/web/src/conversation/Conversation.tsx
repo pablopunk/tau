@@ -7,6 +7,7 @@ import { Composer } from "./Composer";
 import { imagesAllowedFor } from "./model/agent";
 import { readLive } from "./model/live";
 import { ThreadHeader } from "./ThreadHeader";
+import { ThreadToolbar } from "./ThreadToolbar";
 import { Transcript } from "./Transcript";
 import { useConversationActions } from "./use-conversation-actions";
 import { type ConversationViewState, useConversationView } from "./use-conversation-view";
@@ -59,7 +60,7 @@ function ConversationPanel({ id }: ConversationProps) {
   const busy = state.status === "ready" && readLive(state.view).busy;
   return (
     <div data-testid="conversation" className="relative flex h-full min-h-0 flex-col bg-background">
-      {view ? <ThreadHeader id={id} view={view} /> : null}
+      {view ? <ThreadHeader id={id} /> : null}
       <div ref={scrollRef} onScroll={onScroll} className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
         <div ref={contentRef} className="mx-auto w-full max-w-3xl px-4 py-6">
           <section aria-label="Conversation" aria-live="polite" aria-relevant="additions">
@@ -83,6 +84,7 @@ function ConversationPanel({ id }: ConversationProps) {
             target={id}
             imagesAllowed={imagesAllowedFor(view, models)}
             busy={busy}
+            toolbar={view ? <ThreadToolbar view={view} /> : undefined}
             onSend={actions.send}
             onStop={actions.stop}
             onSent={scrollToBottom}

@@ -1,5 +1,5 @@
 import type { ModelInfo, ModelRef } from "@pi-everywhere/protocol";
-import { Combobox, type ComboboxOption } from "@/components/ui/combobox";
+import { Combobox, type ComboboxOption, type ComboboxProps } from "@/components/ui/combobox";
 
 const keyOf = (ref: ModelRef) => `${ref.provider}/${ref.modelId}`;
 
@@ -16,6 +16,8 @@ interface ModelComboboxProps {
   id?: string;
   disabled?: boolean;
   className?: string;
+  variant?: ComboboxProps["variant"];
+  size?: ComboboxProps["size"];
   ariaLabel?: string;
   /** Extra first option that clears the choice (e.g. "Same as thread"). */
   clearLabel?: string;
@@ -31,6 +33,8 @@ export function ModelCombobox({
   id,
   disabled,
   className,
+  variant,
+  size,
   ariaLabel,
   clearLabel,
   onClear,
@@ -42,6 +46,8 @@ export function ModelCombobox({
       id={id}
       disabled={disabled}
       className={className}
+      variant={variant}
+      size={size}
       aria-label={ariaLabel}
       options={[...clearOption, ...options]}
       value={value ? keyOf(value) : clearLabel ? CLEAR_KEY : null}

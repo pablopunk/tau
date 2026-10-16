@@ -22,8 +22,10 @@ export interface ComposerProps {
   target: "new" | string;
   imagesAllowed: boolean;
   busy?: boolean;
-  /** The new thread page puts its project, model and thinking pickers here. */
+  /** Rendered under the input box, e.g. the project picker. */
   footer?: ReactNode;
+  /** Rendered inside the input box toolbar after the attach button, e.g. model and thinking. */
+  toolbar?: ReactNode;
   onSend(input: { text: string; images: ImageInput[] }): Promise<void>;
   onStop?(): Promise<void>;
   /** Called right after a message is handed to `onSend`, e.g. to scroll to it. */
@@ -47,6 +49,7 @@ function ComposerForm({
   imagesAllowed,
   busy = false,
   footer,
+  toolbar,
   onSend,
   onStop,
   onSent,
@@ -131,7 +134,17 @@ function ComposerForm({
       ) : null}
       <div className="rounded-2xl border bg-card p-2 shadow-xs focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50">
         <AttachmentRow attachments={attachments} onRemove={remove} />
-        <div className="flex items-end gap-2">
+        <Textarea
+          aria-label="Message"
+          value={text}
+          onChange={(event) => setText(event.target.value)}
+          onKeyDown={onKeyDown}
+          onPaste={onPaste}
+          placeholder={busy ? "Steer the agent…" : "Message the agent…"}
+          rows={1}
+          className="max-h-48 min-h-9 resize-none border-0 bg-transparent px-2 py-1.5 shadow-none focus-visible:ring-0 dark:bg-transparent"
+        />
+        <div className="flex items-center gap-1">
           {imagesAllowed ? (
             <>
               <Input
@@ -155,16 +168,7 @@ function ComposerForm({
               </Button>
             </>
           ) : null}
-          <Textarea
-            aria-label="Message"
-            value={text}
-            onChange={(event) => setText(event.target.value)}
-            onKeyDown={onKeyDown}
-            onPaste={onPaste}
-            placeholder={busy ? "Steer the agent…" : "Message the agent…"}
-            rows={1}
-            className="max-h-48 min-h-9 resize-none border-0 bg-transparent px-2 py-1.5 shadow-none focus-visible:ring-0 dark:bg-transparent"
-          />
+          <div className="flex min-w-0 flex-1 items-center gap-1">{toolbar}</div>
           {busy && onStop ? (
             <Button
               type="button"
