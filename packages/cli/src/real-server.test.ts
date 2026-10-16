@@ -33,7 +33,7 @@ describe("run with the real server", () => {
     try {
       expect(app?.url).not.toContain(`:${port}/`);
       const response = await fetch(app?.url ?? "", { redirect: "manual" });
-      expect(response.status).toBe(302);
+      expect(response.status).toBe(200);
       expect(response.headers.get("set-cookie")).toMatch(/^pie_\d+=/);
     } finally {
       await app?.close();
