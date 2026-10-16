@@ -28,6 +28,8 @@ export interface CloneService {
   retryClone(id: string): Promise<void>;
   /** Kills a running clone of this project, if any. */
   cancel(id: string): void;
+  /** Kills every running clone. */
+  stopAll(): void;
   /** Marks interrupted clones as failed and deletes their claimed folders. */
   recoverAtStartup(): Promise<void>;
 }
@@ -130,6 +132,9 @@ export function createCloneService(deps: CloneServiceDeps): CloneService {
     },
 
     cancel: (id) => running.get(id)?.kill(),
+    stopAll() {
+      for (const run of running.values()) run.kill();
+    },
 
     async recoverAtStartup() {
       const interrupted = (await projects.list()).filter((project) => project.status === "cloning");

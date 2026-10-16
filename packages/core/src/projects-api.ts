@@ -48,6 +48,7 @@ export function createProjectsApi(deps: {
       await conversations.removeAllOfProject(id);
       await projects.remove(id);
       announce();
+      changes.emit({ resource: "conversations", projectId: id });
     },
   };
 }

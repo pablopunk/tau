@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router";
 import { useOpenConversation } from "@/activity";
+import { useOpenSettings } from "@/app/settings-dialog";
 import {
   Command,
   CommandDialog,
@@ -13,11 +14,11 @@ import {
 import { useHotkey } from "@/lib/hotkeys";
 import { conversationPath, newThreadPath } from "@/lib/paths";
 import { useAllConversations, useProjects } from "@/lib/queries";
-import { requestOpenSettings } from "./settings-event";
 
 export function CommandPalette() {
   const [open, setOpen] = useState(false);
   const navigate = useNavigate();
+  const openSettings = useOpenSettings();
   const { projectId } = useOpenConversation();
   const conversations = useAllConversations().data ?? [];
   const projects = useProjects().data ?? [];
@@ -37,7 +38,7 @@ export function CommandPalette() {
           <CommandEmpty>No results.</CommandEmpty>
           <CommandGroup heading="Actions">
             <CommandItem onSelect={run(() => navigate(newThreadPath(projectId)))}>New thread</CommandItem>
-            <CommandItem onSelect={run(requestOpenSettings)}>Settings</CommandItem>
+            <CommandItem onSelect={run(openSettings)}>Settings</CommandItem>
           </CommandGroup>
           <CommandGroup heading="Projects">
             {projects.map((project) => (

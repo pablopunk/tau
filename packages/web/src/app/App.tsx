@@ -5,6 +5,7 @@ import { useProvider, useSettings } from "@/lib/queries";
 import { MainLayout } from "@/routes/MainLayout";
 import { SetupScreen } from "@/setup/SetupScreen";
 import { Providers } from "./providers";
+import { SettingsDialogProvider } from "./settings-dialog";
 
 function Gate() {
   const provider = useProvider();
@@ -30,7 +31,11 @@ function Gate() {
   if (!provider.data.configured || !settings.data.defaultModel) {
     return <SetupScreen keyConfigured={provider.data.configured} />;
   }
-  return <MainLayout />;
+  return (
+    <SettingsDialogProvider>
+      <MainLayout />
+    </SettingsDialogProvider>
+  );
 }
 
 export function App() {

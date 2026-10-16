@@ -1,11 +1,11 @@
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { SettingsDialogContext } from "@/app/settings-dialog";
 import { api } from "@/lib/api";
 import { conversation, project, renderAt } from "@/sidebar/test-support";
 import { CommandPalette } from "./CommandPalette";
 import { GlobalShortcuts } from "./GlobalShortcuts";
-import { onOpenSettingsRequested } from "./settings-event";
 
 vi.mock("@/lib/api", () => ({
   api: { projects: { list: vi.fn() }, conversations: { listAll: vi.fn() } },
@@ -68,15 +68,18 @@ describe("command palette", () => {
 
   it("asks to open settings from the Settings action", async () => {
     const opened = vi.fn();
-    const stop = onOpenSettingsRequested(opened);
     const user = userEvent.setup();
-    renderPalette();
+    renderAt(
+      "/",
+      <SettingsDialogContext.Provider value={opened}>
+        <CommandPalette />
+      </SettingsDialogContext.Provider>,
+    );
 
     await user.keyboard("{Control>}k{/Control}");
     await user.click(await screen.findByRole("option", { name: "Settings" }));
 
     expect(opened).toHaveBeenCalledTimes(1);
-    stop();
   });
 });
 

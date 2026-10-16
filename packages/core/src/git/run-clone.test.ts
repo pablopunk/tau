@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { installFakeGit, isAlive } from "../test-support/fake-git";
@@ -6,6 +6,11 @@ import { useTempDir } from "../test-support/temp-dir";
 import { startClone } from "./run-clone";
 
 const tempDir = useTempDir();
+const exists = (path: string) =>
+  stat(path).then(
+    () => true,
+    () => false,
+  );
 
 describe("git clone process", () => {
   it("uses the protocol allowlist, the quiet environment and a detached group", async () => {
@@ -17,7 +22,7 @@ describe("git clone process", () => {
       env: { ...fake.env(process.env), GIT_SSH_COMMAND: "ssh -i key" },
       allowFileClones: false,
     });
-    await new Promise((resolve) => setTimeout(resolve, 300));
+    await expect.poll(() => exists(join(fake.stateDir, "git.pid"))).toBe(true);
     run.kill();
     expect(await run.done).toEqual({ ok: false, error: "Cancelled" });
     expect(await readFile(join(fake.stateDir, "args"), "utf8")).toBe(

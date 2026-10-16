@@ -149,12 +149,11 @@ describe("a clone that hangs", () => {
     expect((await core.projects.list()).map((item) => item.id)).not.toContain(project.id);
   });
 
-  it("is marked failed and cleaned up at the next startup, so a retry reuses the path", async () => {
+  it("is killed when the core closes, then marked failed and cleaned up at the next startup, so a retry reuses the path", async () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     const { core, project, pid } = await startHanging();
     const sleeper = await pid("sleeper.pid");
     await core.close();
-    process.kill(-(await pid("git.pid")), "SIGKILL");
     await vi.waitFor(() => expect(isAlive(sleeper)).toBe(false));
     await vi.waitFor(async () => expect(await exists(project.path)).toBe(false));
     await mkdir(project.path, { recursive: true });

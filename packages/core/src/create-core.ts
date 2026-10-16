@@ -95,6 +95,7 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
       close() {
         closing ??= (async () => {
           changes.clear();
+          clones.stopAll();
           try {
             await harness.close(BACKGROUND);
           } finally {
