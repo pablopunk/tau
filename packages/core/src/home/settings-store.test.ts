@@ -29,6 +29,31 @@ describe("settings store", () => {
     expect(await createSettingsStore(path, PROJECTS).get()).toEqual({ ...DEFAULTS, defaultModel: ref });
   });
 
+  it("keeps the valid fields when another one is invalid", async () => {
+    const path = join(await tempDir(), "settings.json");
+    await writeFile(path, JSON.stringify({ defaultModel: ref, fastModel: 3, projectsFolder: "/x" }));
+    expect(await createSettingsStore(path, PROJECTS).get()).toEqual({
+      ...DEFAULTS,
+      defaultModel: ref,
+      projectsFolder: "/x",
+    });
+  });
+
+  it("stores and clears the fast model and stores the projects folder", async () => {
+    const path = join(await tempDir(), "settings.json");
+    const store = createSettingsStore(path, PROJECTS);
+    const fast = { provider: "openrouter", modelId: "fast/one" };
+    await store.setDefaultModel(ref);
+    await store.setFastModel(fast);
+    await store.setProjectsFolder("/elsewhere");
+    expect(await store.get()).toEqual({ defaultModel: ref, fastModel: fast, projectsFolder: "/elsewhere" });
+    await store.setFastModel(null);
+    expect(JSON.parse(await readFile(path, "utf8"))).toEqual({
+      defaultModel: ref,
+      projectsFolder: "/elsewhere",
+    });
+  });
+
   it("falls back to the defaults for a corrupt file", async () => {
     const path = join(await tempDir(), "settings.json");
     await writeFile(path, "{ nope");
