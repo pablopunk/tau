@@ -12,7 +12,7 @@ export function QueuedMessages({ items }: { items: readonly QueuedMessage[] }) {
     <ul aria-label="Queued messages" className="space-y-2">
       {items.map((item) => (
         <li key={item.id} className="space-y-1">
-          <UserMessage text={item.text} pending />
+          <UserMessage text={item.text} images={item.images} pending />
           <p className="text-right text-xs text-muted-foreground">{MODE_LABELS[item.mode]}</p>
         </li>
       ))}

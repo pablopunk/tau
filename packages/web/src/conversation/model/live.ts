@@ -1,6 +1,7 @@
 import type {
   AssistantMessage,
   ConversationView,
+  ImageContent,
   InboxItem,
   InboxState,
   LiveState,
@@ -17,6 +18,7 @@ export interface QueuedMessage {
   readonly id: number;
   readonly mode: "steer" | "followUp";
   readonly text: string;
+  readonly images: readonly ImageContent[];
 }
 
 export interface LiveInfo {
@@ -37,19 +39,30 @@ function isQueuedMessage(item: InboxItem): item is QueuedItem {
   return item.mode === "steer" || item.mode === "followUp";
 }
 
-function queuedText(item: QueuedItem): string {
+type Block = { type?: string; text?: string };
+
+function queuedBlocks(item: QueuedItem): string | Block[] {
   const content = item.content as unknown;
   if (typeof content === "string") return content;
   const blocks = (content as { content?: unknown } | undefined)?.content;
   if (typeof blocks === "string") return blocks;
-  if (!Array.isArray(blocks)) return "";
-  return blocks
-    .map((block: { type?: string; text?: string }) => (block.type === "text" ? block.text : ""))
-    .join("");
+  return Array.isArray(blocks) ? (blocks as Block[]) : [];
+}
+
+function queuedText(item: QueuedItem): string {
+  const blocks = queuedBlocks(item);
+  if (typeof blocks === "string") return blocks;
+  return blocks.map((block) => (block.type === "text" ? block.text : "")).join("");
+}
+
+function queuedImages(item: QueuedItem): readonly ImageContent[] {
+  const blocks = queuedBlocks(item);
+  if (typeof blocks === "string") return [];
+  return blocks.filter((block): block is ImageContent => block.type === "image");
 }
 
 function queuedOf(item: QueuedItem): QueuedMessage {
-  return { id: Number(item.id), mode: item.mode, text: queuedText(item) };
+  return { id: Number(item.id), mode: item.mode, text: queuedText(item), images: queuedImages(item) };
 }
 
 function retryOf(live: LiveState): RetryInfo | undefined {

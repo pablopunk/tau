@@ -1,4 +1,5 @@
 import { AlertTriangle, RotateCw } from "lucide-react";
+import { Separator } from "@/components/ui/separator";
 import type { RetryInfo } from "../model/live";
 import { useNow } from "../use-now";
 
@@ -36,6 +37,16 @@ export function RetryNotice({ retry }: { retry: RetryInfo }) {
         </p>
         <p className="break-words text-muted-foreground">{retry.error}</p>
       </div>
+    </div>
+  );
+}
+
+export function RetriedDivider() {
+  return (
+    <div className="flex items-center gap-3 text-xs text-muted-foreground">
+      <Separator className="flex-1" />
+      <span>Retried</span>
+      <Separator className="flex-1" />
     </div>
   );
 }

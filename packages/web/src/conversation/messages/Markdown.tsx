@@ -2,6 +2,7 @@ import type { ComponentProps } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { cn } from "@/lib/utils";
+import { CodeBlock } from "./CodeBlock";
 
 const COMPONENTS: Components = {
   p: (props) => <p className="my-2 leading-relaxed first:mt-0 last:mb-0" {...stripNode(props)} />,
@@ -23,12 +24,7 @@ const COMPONENTS: Components = {
       {...stripNode(props)}
     />
   ),
-  pre: (props) => (
-    <pre
-      className="my-2 overflow-x-auto rounded-md border bg-muted px-3 py-2 font-mono text-xs leading-5 [&_code]:bg-transparent [&_code]:p-0"
-      {...stripNode(props)}
-    />
-  ),
+  pre: (props) => <CodeBlock {...stripNode(props)} />,
   code: (props) => (
     <code className="rounded bg-muted px-1 py-0.5 font-mono text-[0.9em]" {...stripNode(props)} />
   ),

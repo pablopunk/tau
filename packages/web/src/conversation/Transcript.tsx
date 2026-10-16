@@ -3,14 +3,16 @@ import type {
   ConversationView,
   ToolCall,
 } from "@pi-everywhere/protocol";
+import { isRetryable } from "@pi-everywhere/protocol";
 import { Loader2 } from "lucide-react";
 import { AssistantMessage } from "./messages/AssistantMessage";
-import { RetryNotice } from "./messages/notices";
+import { RetriedDivider, RetryNotice } from "./messages/notices";
 import { QueuedMessages } from "./messages/QueuedMessages";
 import { UserMessage } from "./messages/UserMessage";
 import { type LiveInfo, readLive } from "./model/live";
 import { isActive, resolveToolCall } from "./model/tool-state";
 import { buildTranscript } from "./model/transcript";
+import { RetryButton } from "./RetryButton";
 
 function hasVisibleContent(message: AssistantMessageData | undefined): message is AssistantMessageData {
   return (
@@ -41,7 +43,13 @@ function isIdleWhileBusy(live: LiveInfo): boolean {
   );
 }
 
-export function Transcript({ view }: { view: ConversationView }) {
+export function Transcript({
+  view,
+  onRetry,
+}: {
+  view: ConversationView;
+  onRetry(requestId: string): Promise<void>;
+}) {
   const { items, results } = buildTranscript(view);
   const live = readLive(view);
   const resolveTool = (call: ToolCall) =>
@@ -49,18 +57,17 @@ export function Transcript({ view }: { view: ConversationView }) {
   if (items.length === 0 && !live.busy && live.queued.length === 0) return <EmptyTranscript />;
   return (
     <div className="space-y-5">
-      {items.map((item) =>
-        item.kind === "user" ? (
-          <UserMessage key={item.key} text={item.text} />
-        ) : (
-          <AssistantMessage key={item.key} message={item.message} resolveTool={resolveTool} />
-        ),
-      )}
+      {items.map((item) => {
+        if (item.kind === "retry") return <RetriedDivider key={item.key} />;
+        if (item.kind === "user") return <UserMessage key={item.key} text={item.text} images={item.images} />;
+        return <AssistantMessage key={item.key} message={item.message} resolveTool={resolveTool} />;
+      })}
       {hasVisibleContent(live.streaming) ? (
         <AssistantMessage message={live.streaming} resolveTool={resolveTool} streaming />
       ) : null}
       {live.retry ? <RetryNotice retry={live.retry} /> : null}
       {isIdleWhileBusy(live) ? <WorkingIndicator /> : null}
+      {isRetryable(view) ? <RetryButton onRetry={onRetry} /> : null}
       <QueuedMessages items={live.queued} />
     </div>
   );

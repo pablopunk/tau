@@ -1,6 +1,8 @@
 import type { ConversationView } from "@pi-everywhere/protocol";
 import { type FixtureName, finalView, fixtures, fixtureViews } from "@pi-everywhere/testkit";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render } from "@testing-library/react";
+import { MemoryRouter } from "react-router";
 import { vi } from "vitest";
 import { Conversation } from "./Conversation";
 import type { LiveClient } from "./live-client";
@@ -36,9 +38,13 @@ export function createStubLiveClient(initial?: ConversationView | null): StubLiv
 
 export function renderConversation(client: LiveClient, id = "2") {
   return render(
-    <LiveClientProvider client={client}>
-      <Conversation id={id} />
-    </LiveClientProvider>,
+    <MemoryRouter>
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <LiveClientProvider client={client}>
+          <Conversation id={id} />
+        </LiveClientProvider>
+      </QueryClientProvider>
+    </MemoryRouter>,
   );
 }
 

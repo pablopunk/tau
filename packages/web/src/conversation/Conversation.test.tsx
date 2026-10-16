@@ -24,7 +24,7 @@ describe("<Conversation> states", () => {
 
   it("shows an unavailable message and no composer for a retired view", () => {
     renderView(null);
-    expect(screen.getByText("This conversation is no longer available.")).toBeInTheDocument();
+    expect(screen.getByText("This thread was deleted")).toBeInTheDocument();
     expect(screen.queryByLabelText("Message")).not.toBeInTheDocument();
   });
 
@@ -32,7 +32,7 @@ describe("<Conversation> states", () => {
     const client = createStubLiveClient(viewWhere("retired", () => true));
     renderConversation(client);
     act(() => client.push(null));
-    expect(screen.getByText("This conversation is no longer available.")).toBeInTheDocument();
+    expect(screen.getByText("This thread was deleted")).toBeInTheDocument();
   });
 
   it("invites the first message in an empty conversation", () => {

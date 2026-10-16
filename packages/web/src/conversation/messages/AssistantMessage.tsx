@@ -2,6 +2,7 @@ import type {
   AssistantMessage as AssistantMessageData,
   ToolCall as ToolCallBlock,
 } from "@pi-everywhere/protocol";
+import { CopyButton } from "@/components/ui/copy-button";
 import type { ToolCallState } from "../model/tool-state";
 import { ToolCall } from "../tools/ToolCall";
 import { Markdown } from "./Markdown";
@@ -30,14 +31,22 @@ function keyOf(block: Block, index: number): string {
   return block.type === "toolCall" ? block.id : `${block.type}:${index}`;
 }
 
+export function markdownOf(message: AssistantMessageData): string {
+  return message.content
+    .flatMap((block) => (block.type === "text" && block.text ? [block.text] : []))
+    .join("\n\n");
+}
+
 export function AssistantMessage(props: AssistantMessageProps) {
   const { message } = props;
+  const markdown = markdownOf(message);
   return (
-    <div className="space-y-2" data-testid="assistant-message">
+    <div className="group space-y-2" data-testid="assistant-message">
       {message.content.map((block, index) => (
         <BlockView key={keyOf(block, index)} block={block} props={props} />
       ))}
       {message.stopReason === "error" ? <ErrorNotice message={message.errorMessage} /> : null}
+      {markdown && !props.streaming ? <CopyButton text={markdown} label="Copy answer" /> : null}
       {message.stopReason === "aborted" ? <p className="text-xs text-muted-foreground">Stopped.</p> : null}
     </div>
   );

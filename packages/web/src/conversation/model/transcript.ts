@@ -20,12 +20,22 @@ export interface ToolResultInfo {
 }
 
 export type TranscriptItem =
-  | { readonly kind: "user"; readonly key: string; readonly text: string }
+  | {
+      readonly kind: "user";
+      readonly key: string;
+      readonly text: string;
+      readonly images: readonly ImageContent[];
+    }
+  | { readonly kind: "retry"; readonly key: string }
   | { readonly kind: "assistant"; readonly key: string; readonly message: AssistantMessage };
 
 export interface Transcript {
   readonly items: readonly TranscriptItem[];
   readonly results: ReadonlyMap<string, ToolResultInfo>;
+}
+
+function isImage(block: TextContent | ImageContent): block is ImageContent {
+  return block.type === "image";
 }
 
 function isText(block: TextContent | ImageContent): block is TextContent {
@@ -40,6 +50,10 @@ export function userText(message: UserMessage): string {
     .join("\n");
 }
 
+export function userImages(message: UserMessage): readonly ImageContent[] {
+  return typeof message.content === "string" ? [] : message.content.filter(isImage);
+}
+
 function diagnosticsOf(entry: EntryRecord): readonly ToolDiagnostic[] {
   const data = entry.data as { diagnostics?: readonly ToolDiagnostic[] } | undefined;
   return data?.diagnostics ?? [];
@@ -52,8 +66,9 @@ function entryKey(entry: EntryRecord): string {
 function itemOf(entry: EntryRecord): TranscriptItem | undefined {
   const message = entry.model?.[0];
   if (entry.kind === "pi.user" && message?.role === "user") {
-    return { kind: "user", key: entryKey(entry), text: userText(message) };
+    return { kind: "user", key: entryKey(entry), text: userText(message), images: userImages(message) };
   }
+  if (entry.kind === "app.retry") return { kind: "retry", key: entryKey(entry) };
   if (entry.kind === "pi.assistant" && message?.role === "assistant") {
     return { kind: "assistant", key: entryKey(entry), message };
   }
