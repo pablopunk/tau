@@ -5,12 +5,16 @@ import {
   ModelRefSchema,
   ProjectSchema,
   ProviderStatusSchema,
+  RetryInputSchema,
   SendMessageInputSchema,
   SettingsSchema,
+  StartConversationInputSchema,
 } from "./entities";
 
 export const API_PREFIX = "/api";
 export const LIVE_PATH = `${API_PREFIX}/live`;
+
+export const MESSAGE_BODY_LIMIT = 42 * 1024 * 1024;
 
 export type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
@@ -21,6 +25,7 @@ export interface RouteDef {
   readonly params?: TSchema;
   readonly body?: TSchema;
   readonly response?: TSchema;
+  readonly bodyLimit?: number;
 }
 
 const IdParams = Type.Object({ id: Type.String({ minLength: 1 }) });
@@ -32,6 +37,18 @@ export const routes = {
     path: `${API_PREFIX}/settings/default-model`,
     status: 204,
     body: ModelRefSchema,
+  },
+  setFastModel: {
+    method: "PUT",
+    path: `${API_PREFIX}/settings/fast-model`,
+    status: 204,
+    body: Type.Object({ model: Type.Union([ModelRefSchema, Type.Null()]) }),
+  },
+  setProjectsFolder: {
+    method: "PUT",
+    path: `${API_PREFIX}/settings/projects-folder`,
+    status: 204,
+    body: Type.Object({ path: Type.String({ minLength: 1 }) }),
   },
   getProvider: { method: "GET", path: `${API_PREFIX}/provider`, status: 200, response: ProviderStatusSchema },
   setProviderKey: {
@@ -62,6 +79,17 @@ export const routes = {
     }),
     response: ProjectSchema,
   },
+  cloneProject: {
+    method: "POST",
+    path: `${API_PREFIX}/projects/clone`,
+    status: 201,
+    body: Type.Object({
+      url: Type.String({ minLength: 1 }),
+      name: Type.Optional(Type.String({ minLength: 1 })),
+    }),
+    response: ProjectSchema,
+  },
+  retryClone: { method: "POST", path: `${API_PREFIX}/projects/:id/retry-clone`, status: 204, params: IdParams },
   renameProject: {
     method: "PATCH",
     path: `${API_PREFIX}/projects/:id`,
@@ -77,12 +105,19 @@ export const routes = {
     params: IdParams,
     response: Type.Array(ConversationSummarySchema),
   },
-  createConversation: {
+  listAllConversations: {
+    method: "GET",
+    path: `${API_PREFIX}/conversations`,
+    status: 200,
+    response: Type.Array(ConversationSummarySchema),
+  },
+  startConversation: {
     method: "POST",
-    path: `${API_PREFIX}/projects/:id/conversations`,
+    path: `${API_PREFIX}/conversations`,
     status: 201,
-    params: IdParams,
+    body: StartConversationInputSchema,
     response: ConversationSummarySchema,
+    bodyLimit: MESSAGE_BODY_LIMIT,
   },
   renameConversation: {
     method: "PATCH",
@@ -97,6 +132,22 @@ export const routes = {
     status: 204,
     params: IdParams,
     body: SendMessageInputSchema,
+    bodyLimit: MESSAGE_BODY_LIMIT,
+  },
+  archiveConversation: {
+    method: "PUT",
+    path: `${API_PREFIX}/conversations/:id/archived`,
+    status: 204,
+    params: IdParams,
+    body: Type.Object({ archived: Type.Boolean() }),
+  },
+  removeConversation: { method: "DELETE", path: `${API_PREFIX}/conversations/:id`, status: 204, params: IdParams },
+  retryConversation: {
+    method: "POST",
+    path: `${API_PREFIX}/conversations/:id/retry`,
+    status: 204,
+    params: IdParams,
+    body: RetryInputSchema,
   },
   abortConversation: {
     method: "POST",

@@ -10,6 +10,11 @@ export const ERROR_CODES = [
   "no_default_model",
   "invalid_request",
   "unauthorized",
+  "images_not_supported",
+  "invalid_git_url",
+  "too_large",
+  "project_not_ready",
+  "git_missing",
   "internal",
 ] as const;
 
@@ -25,6 +30,11 @@ export const ErrorCodeSchema = Type.Union([
   Type.Literal("no_default_model"),
   Type.Literal("invalid_request"),
   Type.Literal("unauthorized"),
+  Type.Literal("images_not_supported"),
+  Type.Literal("invalid_git_url"),
+  Type.Literal("too_large"),
+  Type.Literal("project_not_ready"),
+  Type.Literal("git_missing"),
   Type.Literal("internal"),
 ]);
 
@@ -43,6 +53,11 @@ export const ERROR_STATUS: Record<ErrorCode, number> = {
   no_default_model: 409,
   invalid_request: 400,
   unauthorized: 401,
+  images_not_supported: 422,
+  invalid_git_url: 422,
+  too_large: 413,
+  project_not_ready: 409,
+  git_missing: 409,
   internal: 500,
 };
 

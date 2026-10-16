@@ -12,6 +12,7 @@ import {
   encodeFrame,
   fillPath,
   isErrorBody,
+  isRetryable,
   routes,
   toErrorBody,
 } from "./index";
@@ -55,5 +56,31 @@ describe("frames", () => {
       projectId: "p1",
     });
     expect(decodeServerFrame('{"type":"changed","resource":"nope"}')).toBeUndefined();
+  });
+});
+
+describe("isRetryable", () => {
+  const assistant = (stopReason: string) => ({
+    kind: "pi.assistant",
+    model: [{ role: "assistant", stopReason }],
+  });
+  const viewOf = (entries: unknown[], running = false) =>
+    ({ conversation: { id: 1 }, entries, docs: { "pi.live": running ? { run: {} } : {} } }) as never;
+
+  it("is false for a finished answer, a running thread and an empty one", () => {
+    expect(isRetryable(viewOf([{ kind: "pi.user" }, assistant("stop")]))).toBe(false);
+    expect(isRetryable(viewOf([{ kind: "pi.user" }, assistant("length")]))).toBe(false);
+    expect(isRetryable(viewOf([{ kind: "pi.user" }], true))).toBe(false);
+    expect(isRetryable(viewOf([]))).toBe(false);
+  });
+
+  it("is true after an error, an abort, a stop during a tool or before the first token", () => {
+    expect(isRetryable(viewOf([{ kind: "pi.user" }, assistant("error")]))).toBe(true);
+    expect(isRetryable(viewOf([{ kind: "pi.user" }, assistant("aborted")]))).toBe(true);
+    expect(isRetryable(viewOf([{ kind: "pi.user" }, assistant("toolUse"), { kind: "pi.tool-result" }]))).toBe(
+      true,
+    );
+    expect(isRetryable(viewOf([{ kind: "pi.user" }]))).toBe(true);
+    expect(isRetryable(viewOf([{ kind: "pi.user" }, assistant("stop"), { kind: "app.retry" }]))).toBe(true);
   });
 });
