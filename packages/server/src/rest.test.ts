@@ -24,7 +24,7 @@ describe("REST routes", () => {
       payload: { provider, modelId },
     });
     expect(set.statusCode).toBe(204);
-    expect((await ctx.request({ url: "/api/settings" })).json()).toEqual({
+    expect((await ctx.request({ url: "/api/settings" })).json()).toMatchObject({
       defaultModel: { provider, modelId },
     });
   });
@@ -44,12 +44,17 @@ describe("REST routes", () => {
       payload: { name: "Renamed" },
     });
     expect(renamed.statusCode).toBe(204);
-    expect((await ctx.request({ url: "/api/projects" })).json()[0].name).toBe("Renamed");
+    expect((await ctx.request({ url: "/api/projects" })).json()[1].name).toBe("Renamed");
 
-    const created = await ctx.request({ method: "POST", url: `/api/projects/${project.id}/conversations` });
+    const created = await ctx.request({
+      method: "POST",
+      url: "/api/conversations",
+      payload: { projectId: project.id, text: "hello", requestId: "start-1" },
+    });
     expect(created.statusCode).toBe(201);
     const conversation = created.json();
     expect((await ctx.request({ url: `/api/projects/${project.id}/conversations` })).json()).toHaveLength(1);
+    expect((await ctx.request({ url: "/api/conversations" })).json()).toHaveLength(1);
     expect(
       (
         await ctx.request({
@@ -74,6 +79,51 @@ describe("REST routes", () => {
     expect((await ctx.request({ method: "DELETE", url: `/api/projects/${project.id}` })).statusCode).toBe(
       204,
     );
+  });
+
+  it("maps the MVP2 routes to core", async () => {
+    ctx = await startTestServer({ fake: { configured: true } });
+    const put = (url: string, payload: unknown) => ctx.request({ method: "PUT", url, payload });
+    expect((await put("/api/settings/fast-model", { model: null })).statusCode).toBe(204);
+    expect((await put("/api/settings/projects-folder", { path: "/Users/demo/projects" })).statusCode).toBe(
+      204,
+    );
+    const cloned = await ctx.request({
+      method: "POST",
+      url: "/api/projects/clone",
+      payload: { url: "https://example.com/demo/ok.git" },
+    });
+    expect(cloned.statusCode).toBe(201);
+    expect(cloned.json()).toMatchObject({ kind: "git", status: "cloning" });
+    expect(
+      (await ctx.request({ method: "POST", url: `/api/projects/${cloned.json().id}/retry-clone` }))
+        .statusCode,
+    ).toBe(400);
+    const started = await ctx.request({
+      method: "POST",
+      url: "/api/conversations",
+      payload: { projectId: "home", text: "hello", requestId: "start-2" },
+    });
+    const { id } = started.json();
+    expect((await put(`/api/conversations/${id}/archived`, { archived: true })).statusCode).toBe(204);
+    const retry = await ctx.request({
+      method: "POST",
+      url: `/api/conversations/${id}/retry`,
+      payload: { requestId: "retry-1" },
+    });
+    expect(retry.statusCode).toBe(400);
+    expect((await ctx.request({ method: "DELETE", url: `/api/conversations/${id}` })).statusCode).toBe(204);
+  });
+
+  it("answers a body over the limit with a too_large error", async () => {
+    ctx = await startTestServer({ fake: { configured: true } });
+    const huge = await ctx.request({
+      method: "PUT",
+      url: "/api/provider/key",
+      payload: { key: "x".repeat(2 * 1024 * 1024) },
+    });
+    expect(huge.statusCode).toBe(413);
+    expect(huge.json().error.code).toBe("too_large");
   });
 
   it("turns AppError into the protocol error body with its status", async () => {

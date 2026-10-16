@@ -7,6 +7,8 @@ function isClientError(error: FastifyError): boolean {
 
 function toAppError(error: FastifyError): AppError {
   if (isAppError(error)) return error;
+  if (error.code === "FST_ERR_CTP_BODY_TOO_LARGE")
+    return new AppError("too_large", "The request is too large.");
   if (isClientError(error)) return new AppError("invalid_request", error.message);
   return new AppError("internal", "Internal error");
 }

@@ -67,11 +67,18 @@ function framesOf(socket: WebSocket) {
 const subscribe = (socket: WebSocket, conversationId: string) =>
   socket.send(encodeFrame({ type: "subscribe", conversationId }));
 
+let startCounter = 0;
+
 async function createConversation(): Promise<string> {
   const project = (
     await ctx.request({ method: "POST", url: "/api/projects", payload: { path: "/Users/demo/project" } })
   ).json();
-  return (await ctx.request({ method: "POST", url: `/api/projects/${project.id}/conversations` })).json().id;
+  const started = await ctx.request({
+    method: "POST",
+    url: "/api/conversations",
+    payload: { projectId: project.id, text: "hello", requestId: `start-${++startCounter}` },
+  });
+  return started.json().id;
 }
 
 describe("WebSocket security", () => {

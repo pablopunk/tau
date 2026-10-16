@@ -9,6 +9,7 @@ export function defineRoute<R extends RouteDef>(app: FastifyInstance, route: R, 
   app.route({
     method: route.method,
     url: route.path,
+    ...(route.bodyLimit && { bodyLimit: route.bodyLimit }),
     schema: {
       ...(route.params && { params: route.params }),
       ...(route.body && { body: route.body }),
