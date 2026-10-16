@@ -7,6 +7,7 @@ export default defineConfig({
   target: "node22",
   clean: true,
   dts: false,
-  noExternal: [/^@pi-everywhere\//],
+  fixedExtension: false,
+  deps: { alwaysBundle: [/^@pi-everywhere\//] },
   copy: [{ from: "../web/dist", to: "dist/web" }],
 });

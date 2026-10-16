@@ -1,0 +1,105 @@
+import type { ConversationWatcher } from "@pi-everywhere/protocol";
+import {
+  AppError,
+  type Change,
+  type ClientFrame,
+  type Core,
+  changedFrame,
+  isAppError,
+  RETIRED_OPS,
+  type RouteName,
+} from "@pi-everywhere/protocol";
+import { createFakeCore } from "@pi-everywhere/testkit";
+import type { LiveHandlers, LiveSocket, RouteRequest, RouteResponse, Transport } from "./types";
+
+type Input = { params: { id: string }; body: Record<string, unknown> };
+
+type Handlers = { [N in RouteName]: (core: Core, input: Input) => Promise<unknown> };
+
+const handlers: Handlers = {
+  getSettings: (core) => core.settings.get(),
+  setDefaultModel: (core, { body }) => core.settings.setDefaultModel(body as never),
+  getProvider: (core) => core.provider.status(),
+  setProviderKey: (core, { body }) => core.provider.setApiKey(body.key as string),
+  listModels: (core) => core.provider.listModels(),
+  listProjects: (core) => core.projects.list(),
+  addProject: (core, { body }) => core.projects.add(body as never),
+  renameProject: (core, { params, body }) => core.projects.rename(params.id, body.name as string),
+  removeProject: (core, { params }) => core.projects.remove(params.id),
+  listConversations: (core, { params }) => core.conversations.list(params.id),
+  createConversation: (core, { params }) => core.conversations.create(params.id),
+  renameConversation: (core, { params, body }) => core.conversations.rename(params.id, body.title as string),
+  sendMessage: (core, { params, body }) => core.conversations.send(params.id, body as never),
+  abortConversation: (core, { params }) => core.conversations.abort(params.id),
+};
+
+function detach<T>(value: T): T {
+  return value === undefined ? value : (JSON.parse(JSON.stringify(value)) as T);
+}
+
+function fakeLiveSocket(core: Core, live: LiveHandlers): LiveSocket {
+  const watchers = new Map<string, ConversationWatcher>();
+  let closed = false;
+  const stopChanges = core.onChange((change: Change) => live.onFrame(changedFrame(change)));
+  queueMicrotask(() => live.onOpen());
+
+  const subscribe = async (conversationId: string) => {
+    if (watchers.has(conversationId)) return;
+    try {
+      const watcher = await core.conversations.watch(conversationId, async (ops) => {
+        if (!closed) live.onFrame({ type: "ops", conversationId, ops: detach(ops) });
+      });
+      watchers.set(conversationId, watcher);
+    } catch (error) {
+      if (isAppError(error)) live.onFrame({ type: "ops", conversationId, ops: RETIRED_OPS });
+    }
+  };
+
+  const unsubscribe = async (conversationId: string) => {
+    await watchers.get(conversationId)?.stop();
+    watchers.delete(conversationId);
+  };
+
+  return {
+    send(frame: ClientFrame) {
+      void (frame.type === "subscribe" ? subscribe(frame.conversationId) : unsubscribe(frame.conversationId));
+    },
+    close() {
+      closed = true;
+      stopChanges();
+      for (const watcher of watchers.values()) void watcher.stop();
+      watchers.clear();
+    },
+  };
+}
+
+export function createFakeTransport(core: Core): Transport {
+  return {
+    async request<N extends RouteName>(name: N, input: RouteRequest<N>) {
+      try {
+        const result = await handlers[name](core, input as unknown as Input);
+        return detach(result) as RouteResponse<N>;
+      } catch (error) {
+        throw isAppError(error) ? new AppError(error.code, error.message) : error;
+      }
+    },
+    live: { open: (live) => fakeLiveSocket(core, live) },
+  };
+}
+
+const READY_PROJECT = "/Users/demo/project";
+
+async function seedReadyState(core: Core): Promise<void> {
+  await core.provider.setApiKey("fake");
+  const [model] = await core.provider.listModels();
+  if (model) await core.settings.setDefaultModel({ provider: model.provider, modelId: model.modelId });
+  await core.projects.add({ path: READY_PROJECT });
+}
+
+/** The in-browser backend of `VITE_FAKE=1`. Add `?fake=ready` to the URL to start past setup, with a project. */
+export async function createDefaultFakeTransport(): Promise<Transport> {
+  const ready = new URLSearchParams(window.location.search).get("fake") === "ready";
+  const core = createFakeCore({ configured: ready });
+  if (ready) await seedReadyState(core);
+  return createFakeTransport(core);
+}
