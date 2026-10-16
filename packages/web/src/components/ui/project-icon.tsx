@@ -26,6 +26,7 @@ function ProjectIcon({ id, name, iconUrl, home = false, tile = 17, className, ..
   return (
     <Avatar
       data-slot="project-icon"
+      aria-hidden
       className={cn("rounded-sm after:rounded-sm", className)}
       style={{ width: tile, height: tile }}
       {...props}

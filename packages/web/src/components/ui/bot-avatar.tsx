@@ -17,15 +17,14 @@ export function botAvatarLook(index: number) {
 
 interface BotAvatarProps extends Omit<React.ComponentProps<"span">, "children"> {
   avatarIndex: number
-  /** Hops and spins while the agent works. */
+  /** The only time the avatar moves: it hops and spins while the agent works, otherwise it is still. */
   working?: boolean
-  paused?: boolean
   size?: number
   /** A status marker (a dot or icon) shown on the top left corner. */
   badge?: React.ReactNode
 }
 
-function BotAvatar({ avatarIndex, working = false, paused = false, size = 24, badge, className, ...props }: BotAvatarProps) {
+function BotAvatar({ avatarIndex, working = false, size = 24, badge, className, ...props }: BotAvatarProps) {
   const reducedMotion = usePrefersReducedMotion()
   return (
     <span
@@ -40,7 +39,7 @@ function BotAvatar({ avatarIndex, working = false, paused = false, size = 24, ba
         size={size}
         state={working ? "working" : "default"}
         turn={working ? undefined : 0}
-        paused={paused || reducedMotion}
+        paused={!working || reducedMotion}
         interactive={false}
         aria-hidden
       />

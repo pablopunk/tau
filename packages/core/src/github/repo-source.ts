@@ -16,6 +16,10 @@ export interface RepoSource {
   get(): Promise<RepoSnapshot>;
   /** Bypasses the cache; shares the fetch that is already in flight. */
   refresh(): Promise<RepoSnapshot>;
+  /** Drops the cache so the next read fetches again; a load that is already running is discarded. */
+  invalidate(): void;
+  /** Scans the code folder again now and keeps the cached remotes. */
+  rescan(): Promise<LocalScan>;
 }
 
 export interface RepoSourceDeps {
@@ -38,6 +42,7 @@ async function requireProtocol(status: () => Promise<GithubStatus>) {
 export function createRepoSource(deps: RepoSourceDeps): RepoSource {
   let cached: { at: number; value: RepoSnapshot } | undefined;
   let inFlight: Promise<RepoSnapshot> | undefined;
+  let generation = 0;
 
   const load = async (): Promise<RepoSnapshot> => {
     const protocol = await requireProtocol(deps.status);
@@ -50,15 +55,18 @@ export function createRepoSource(deps: RepoSourceDeps): RepoSource {
   };
 
   const startLoad = () => {
-    inFlight ??= load()
+    const mine = generation;
+    if (inFlight) return inFlight;
+    const running = load()
       .then((value) => {
-        cached = { at: deps.now(), value };
+        if (mine === generation) cached = { at: deps.now(), value };
         return value;
       })
       .finally(() => {
-        inFlight = undefined;
+        if (inFlight === running) inFlight = undefined;
       });
-    return inFlight;
+    inFlight = running;
+    return running;
   };
 
   return {
@@ -67,5 +75,16 @@ export function createRepoSource(deps: RepoSourceDeps): RepoSource {
       return startLoad();
     },
     refresh: async () => startLoad(),
+    invalidate: () => {
+      generation++;
+      cached = undefined;
+      inFlight = undefined;
+    },
+    rescan: async () => {
+      const { projectsFolder } = await deps.settings.get();
+      const scan = await scanLocalRepos(projectsFolder, deps.homeDirectory);
+      if (cached) cached = { ...cached, value: { ...cached.value, scan } };
+      return scan;
+    },
   };
 }

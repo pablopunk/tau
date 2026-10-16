@@ -1,9 +1,15 @@
 import "@testing-library/jest-dom/vitest";
 import { cleanup } from "@testing-library/react";
+import { createElement } from "react";
 import { afterEach, vi } from "vitest";
 
 vi.mock("bot-avatars", () => ({
-  BotAvatar: () => null,
+  BotAvatar: (props: { paused?: boolean; turn?: number }) =>
+    createElement("canvas", {
+      "data-testid": "bot-canvas",
+      "data-paused": String(props.paused),
+      "data-turn": props.turn,
+    }),
   botAvatarTypes: ["clover", "blob", "cube"],
 }));
 

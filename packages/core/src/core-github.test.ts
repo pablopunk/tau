@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { mkdir } from "node:fs/promises";
+import { mkdir, readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import type { Core } from "@pi-everywhere/protocol";
@@ -150,6 +150,22 @@ describe("github.repos", () => {
   });
 });
 
+describe("settings.setProjectsFolder", () => {
+  it("drops the cached scan and announces a projects change", async () => {
+    const world = await openWorld({ status: connected(), repos: [repo("me/moved", "2026-01-01T00:00:00Z")] });
+    expect((await world.core.github.repos())[0]?.localPath).toBeNull();
+    const other = join(await tempDir(), "src");
+    const copy = await makeLocalRepo(other, "moved");
+    await addRemote(copy, "git@github.com:me/moved.git");
+    const changes: unknown[] = [];
+    world.core.onChange((change) => changes.push(change));
+    await world.core.settings.setProjectsFolder(other);
+    expect(changes).toContainEqual({ resource: "projects" });
+    expect((await world.core.github.repos())[0]?.localPath).toBe(copy);
+    expect(apiCalls(world.gh)).toHaveLength(2);
+  });
+});
+
 describe("github.use", () => {
   async function worldWithCopy() {
     const world = await openWorld({
@@ -184,6 +200,27 @@ describe("github.use", () => {
     expect(apiCalls(gh)).toHaveLength(1);
     await core.projects.remove(project.id);
     expect((await core.github.repos())[0]?.projectId).toBeNull();
+  });
+
+  it("names the project after the repository, not the folder", async () => {
+    const world = await openWorld({
+      status: connected(),
+      repos: [repo("me/with-copy", "2026-01-01T00:00:00Z")],
+    });
+    const copy = await makeLocalRepo(join(world.code, "nested"), "short");
+    await addRemote(copy, "git@github.com:me/with-copy.git");
+    const project = await world.core.github.use({ nameWithOwner: "me/with-copy", mode: "local" });
+    expect(project.name).toBe("with-copy");
+  });
+
+  it("never clones a repository that has a local copy made after the scan", async () => {
+    const world = await openWorld({ status: connected(), repos: [repo("me/late", "2026-01-01T00:00:00Z")] });
+    expect((await world.core.github.repos())[0]?.localPath).toBeNull();
+    const copy = await makeLocalRepo(world.code, "late");
+    await addRemote(copy, "git@github.com:me/late.git");
+    const project = await world.core.github.use({ nameWithOwner: "me/late", mode: "clone" });
+    expect(project).toMatchObject({ kind: "folder", path: copy, name: "late" });
+    expect(await readdir(world.code)).toEqual(["late"]);
   });
 
   it("answers needs_folder without a local copy and not_found for an unknown repo", async () => {

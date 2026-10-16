@@ -119,6 +119,7 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
         settings,
         provider,
         codeFolder: { settings, defaultProjectsFolder, homeDirectory: homedir() },
+        onProjectsFolderChanged: () => github.invalidateScan(),
       }),
       github: {
         status: () => github.status(),

@@ -20,8 +20,9 @@ export function createSettingsApi(deps: {
   settings: SettingsStore;
   provider: ProviderService;
   codeFolder: CodeFolderDeps;
+  onProjectsFolderChanged: () => void;
 }): Core["settings"] {
-  const { settings, provider, codeFolder } = deps;
+  const { settings, provider, codeFolder, onProjectsFolderChanged } = deps;
   const requireListedModel = async (ref: ModelRef) => {
     if (!(await provider.isConfigured())) throw new AppError("no_provider", "Connect a provider first.");
     if (!(await provider.lists(ref))) {
@@ -41,6 +42,7 @@ export function createSettingsApi(deps: {
     },
     async setProjectsFolder(path) {
       await settings.setProjectsFolder(await createFolder(path));
+      onProjectsFolderChanged();
     },
   };
 }

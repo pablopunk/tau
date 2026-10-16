@@ -77,10 +77,14 @@ export function ProjectPicker({ projects, projectId, onProject, disabled }: Proj
       <Combobox
         aria-label="Project"
         className="w-auto"
+        contentClassName="w-[min(28rem,calc(100vw-2rem))]"
         disabled={disabled}
         options={options}
         value={projectId}
         onChange={onChange}
+        onOpenChange={(open) =>
+          open && void queryClient.invalidateQueries({ queryKey: queryKeys.githubRepos })
+        }
         groupActions={
           status.data?.state === "connected" ? { [GITHUB_GROUP]: <RefreshReposButton /> } : undefined
         }

@@ -8,7 +8,7 @@ export const keysOfRepo = (repo: RemoteRepo): string[] => [
   ...new Set([repositoryKey(repo.cloneUrl), `github.com/${repo.nameWithOwner.toLowerCase()}`]),
 ];
 
-const repoNameOf = (repo: RemoteRepo) => repo.nameWithOwner.split("/")[1] ?? "";
+export const repoNameOf = (repo: RemoteRepo) => repo.nameWithOwner.split("/")[1] ?? "";
 
 export function localPathOf(repo: RemoteRepo, scan: LocalScan): string | null {
   const paths = keysOfRepo(repo).flatMap((key) => scan.copies.get(key) ?? []);

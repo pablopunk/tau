@@ -57,6 +57,11 @@ describe("ProjectIcon", () => {
     expect(screen.getByText("A")).toBeInTheDocument();
   });
 
+  it("is decorative so a link around it keeps a clean name", () => {
+    const { container } = render(<ProjectIcon id="p" name="demo-project" />);
+    expect(container.querySelector('[data-slot="project-icon"]')).toHaveAttribute("aria-hidden", "true");
+  });
+
   it("shows a house for Home", () => {
     const { container } = render(<ProjectIcon id="home" name="Home" home />);
     expect(container.querySelector("svg")).not.toBeNull();
@@ -74,6 +79,20 @@ describe("BotAvatar", () => {
     const { container } = render(<BotAvatar avatarIndex={2} working badge={<b>!</b>} />);
     expect(container.querySelector('[data-slot="bot-avatar"]')).toHaveAttribute("data-working", "true");
     expect(screen.getByText("!")).toBeInTheDocument();
+  });
+});
+
+describe("BotAvatar motion", () => {
+  it("is frozen at a fixed turn while idle", () => {
+    render(<BotAvatar avatarIndex={1} />);
+    expect(screen.getByTestId("bot-canvas")).toHaveAttribute("data-paused", "true");
+    expect(screen.getByTestId("bot-canvas")).toHaveAttribute("data-turn", "0");
+  });
+
+  it("moves only while working", () => {
+    render(<BotAvatar avatarIndex={1} working />);
+    expect(screen.getByTestId("bot-canvas")).toHaveAttribute("data-paused", "false");
+    expect(screen.getByTestId("bot-canvas")).not.toHaveAttribute("data-turn");
   });
 });
 

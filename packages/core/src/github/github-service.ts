@@ -31,6 +31,8 @@ export interface GithubServiceDeps {
 export type GithubService = Core["github"] & {
   /** `git` arguments that let a private https clone use gh's credential helper; none when not applicable. */
   extraGitConfig(url: string): string[];
+  /** The code folder changed: forget the local-copy scan and tell the web to refetch repos. */
+  invalidateScan(): void;
 };
 
 function createStatusCache(deps: GithubServiceDeps) {
@@ -69,7 +71,8 @@ export function createGithubService(deps: GithubServiceDeps): GithubService {
   };
 
   const useOnce = async (input: Parameters<GithubService["use"]>[0]) => {
-    const { remotes, scan } = await source.get();
+    const { remotes } = await source.get();
+    const scan = await source.rescan();
     const repo = remotes.find(
       (item) => item.nameWithOwner.toLowerCase() === input.nameWithOwner.toLowerCase(),
     );
@@ -81,7 +84,11 @@ export function createGithubService(deps: GithubServiceDeps): GithubService {
 
   return {
     status,
-    repos: () => view(source.get),
+    repos: () =>
+      view(async () => {
+        const { remotes } = await source.get();
+        return { remotes, scan: await source.rescan() };
+      }),
     refreshRepos: () => view(source.refresh),
     use(input) {
       const key = input.nameWithOwner.toLowerCase();
@@ -90,6 +97,10 @@ export function createGithubService(deps: GithubServiceDeps): GithubService {
       return running.finally(() => {
         if (inFlight.get(key) === running) inFlight.delete(key);
       });
+    },
+    invalidateScan() {
+      source.invalidate();
+      deps.changes.emit({ resource: "projects" });
     },
     extraGitConfig: (url) => credentialHelperArgs(url, ghPath, isConnected()),
   };

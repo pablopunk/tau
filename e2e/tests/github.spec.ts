@@ -32,7 +32,7 @@ test.describe("MVP3 flow", () => {
 
   test("a repo with a local copy starts a thread there", async () => {
     await pickRepo(page, WITH_COPY);
-    await expect(page.getByRole("combobox", { name: "Project" })).toHaveText("with-copy");
+    await expect(page.getByRole("combobox", { name: "Project" })).toHaveText("with-local-copy");
     await send(page, "hello local copy");
   });
 
@@ -40,7 +40,7 @@ test.describe("MVP3 flow", () => {
     await pickRepo(page, WITHOUT_COPY);
     await page.getByRole("button", { name: "Clone now" }).click();
     await page.getByRole("button", { name: "Continue" }).click();
-    await expect(page.getByRole("combobox", { name: "Project" })).toHaveText("without-copy");
+    await expect(page.getByRole("combobox", { name: "Project" })).toHaveText("without-local-copy");
     await expect(page.getByRole("button", { name: "Send", exact: true })).toBeDisabled();
     await page.getByRole("textbox", { name: "Message" }).fill("hello fresh clone");
     await expect(page.getByRole("button", { name: "Send", exact: true })).toBeEnabled({ timeout: 20_000 });
@@ -55,18 +55,18 @@ test.describe("MVP3 flow", () => {
     await page.getByRole("radio", { name: "Projects" }).click();
     const localThread = sidebar(page).getByRole("link", { name: /hello local copy/ });
     await expect(localThread).toBeVisible();
-    await page.getByRole("button", { name: "with-copy", exact: true, expanded: true }).click();
+    await page.getByRole("button", { name: "with-local-copy", exact: true, expanded: true }).click();
     await expect(localThread).toBeHidden();
-    await page.getByRole("button", { name: "with-copy", exact: true, expanded: false }).click();
+    await page.getByRole("button", { name: "with-local-copy", exact: true, expanded: false }).click();
     await expect(localThread).toBeVisible();
   });
 
   test("a project icon changes to an image found in the project", async () => {
-    await page.getByRole("button", { name: "Actions for with-copy" }).click();
+    await page.getByRole("button", { name: "Actions for with-local-copy" }).click();
     await page.getByRole("menuitem", { name: "Change icon" }).click();
     await page.getByRole("button", { name: "Open favicon.png" }).click();
     await expect(page.getByRole("dialog")).toBeHidden();
-    const icon = sidebar(page).getByRole("group", { name: "with-copy" }).locator("img").first();
+    const icon = sidebar(page).getByRole("group", { name: "with-local-copy" }).locator("img").first();
     await expect(icon).toHaveAttribute("src", /icon/);
   });
 });

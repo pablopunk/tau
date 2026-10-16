@@ -14,6 +14,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
+import { LABEL_SEPARATOR, rankOption } from "@/components/ui/combobox-rank"
 import { cn } from "@/lib/utils"
 
 export interface ComboboxOption {
@@ -41,6 +42,10 @@ interface ComboboxProps {
   id?: string
   disabled?: boolean
   className?: string
+  /** Classes for the popover; the default is as wide as the trigger. */
+  contentClassName?: string
+  /** Called when the popover opens or closes. */
+  onOpenChange?: (open: boolean) => void
   /** A control shown on the right of a group's heading, by group name, e.g. a refresh button. */
   groupActions?: Record<string, React.ReactNode>
   /** `ghost` with `sm` fits inside a composer toolbar. */
@@ -67,6 +72,8 @@ function Combobox({
   id,
   disabled,
   className,
+  contentClassName,
+  onOpenChange,
   groupActions,
   variant = "outline",
   size = "default",
@@ -76,7 +83,13 @@ function Combobox({
   const selected = options.find((option) => option.value === value)
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next)
+        onOpenChange?.(next)
+      }}
+    >
       <PopoverTrigger asChild>
         <Button
           id={id}
@@ -98,10 +111,10 @@ function Combobox({
       </PopoverTrigger>
       <PopoverContent
         data-slot="combobox-content"
-        className="w-(--radix-popover-trigger-width) min-w-52 p-0"
+        className={cn("w-(--radix-popover-trigger-width) min-w-52 p-0", contentClassName)}
         align="start"
       >
-        <Command>
+        <Command filter={rankOption}>
           <CommandInput placeholder={searchPlaceholder} />
           <CommandList>
             <CommandEmpty>{emptyText}</CommandEmpty>
@@ -115,7 +128,7 @@ function Combobox({
                 {items.map((option) => (
                   <CommandItem
                     key={option.value}
-                    value={[option.label, option.description, ...(option.keywords ?? [])].join(" ")}
+                    value={[option.label, option.description, ...(option.keywords ?? [])].join(LABEL_SEPARATOR)}
                     disabled={option.disabled}
                     onSelect={() => {
                       onChange(option.value)

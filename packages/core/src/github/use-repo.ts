@@ -1,5 +1,4 @@
 import { randomUUID } from "node:crypto";
-import { basename } from "node:path";
 import { AppError, type Project, type UseGithubRepoInput } from "@pi-everywhere/protocol";
 import type { ChangeEmitter } from "../change-emitter";
 import type { CloneService } from "../git/clone-service";
@@ -10,7 +9,7 @@ import { resolveProjectFolder } from "../resolve-project-folder";
 import type { RemoteRepo } from "./gh-repos";
 import type { LocalScan } from "./local-scan";
 import { readRemoteUrls } from "./remotes";
-import { keysOfRepo, localPathOf, projectOfRepo } from "./repo-view";
+import { keysOfRepo, localPathOf, projectOfRepo, repoNameOf } from "./repo-view";
 
 export interface UseRepoDeps {
   readonly projects: ProjectStore;
@@ -40,7 +39,7 @@ export function createUseRepo(deps: UseRepoDeps): UseRepo {
   const addFolderProject = async (path: string, repo: RemoteRepo) => {
     const project = await projects.add({
       id: randomUUID(),
-      name: basename(path),
+      name: repoNameOf(repo),
       path,
       createdAt: now(),
       gitUrl: repo.cloneUrl,
@@ -67,8 +66,10 @@ export function createUseRepo(deps: UseRepoDeps): UseRepo {
   return async (input, repo, scan) => {
     const existing = projectOfRepo(repo, localPathOf(repo, scan), await projects.list());
     if (existing) return presentProject(existing);
-    if (input.mode === "clone") return presentProject(await clones.clone({ url: repo.cloneUrl }));
-    const project = input.mode === "local" ? await useLocal(repo, scan) : await useFolder(input.path, repo);
+    if (input.mode === "clone" && localPathOf(repo, scan) === null) {
+      return presentProject(await clones.clone({ url: repo.cloneUrl, name: repoNameOf(repo) }));
+    }
+    const project = input.mode !== "folder" ? await useLocal(repo, scan) : await useFolder(input.path, repo);
     return presentProject(project);
   };
 }

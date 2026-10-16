@@ -49,7 +49,8 @@ export function SettingsModels() {
         onClear={() => save(() => api.settings.setFastModel(null))}
       />
       <p className="text-sm text-muted-foreground">
-        The fast model names new threads. Models only affect new threads. Existing ones keep theirs.
+        The fast model names new threads. The default model is used for new threads; change a thread's model
+        from its composer.
       </p>
       <FormError message={error} />
     </div>
