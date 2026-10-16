@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, statSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Core } from "@pi-everywhere/protocol";
@@ -11,9 +11,16 @@ const newHome = () => join(mkdtempSync(join(tmpdir(), "pie-cli-")), "home");
 
 function fakeDependencies(overrides: Partial<RunDependencies> = {}) {
   const logs: string[] = [];
-  const core = { close: vi.fn(async () => undefined) } as unknown as Core;
+  const coreClose = vi.fn(async () => undefined);
+  const core = { close: coreClose } as unknown as Core;
   const serverClose = vi.fn(async () => undefined);
-  const createCore = vi.fn(async () => core);
+  const createCore = vi.fn(async ({ home }: { home: string }) => {
+    mkdirSync(home, { recursive: true });
+    const lockFile = join(home, "lock");
+    writeFileSync(lockFile, JSON.stringify({ pid: process.pid }));
+    coreClose.mockImplementation(async () => rmSync(lockFile, { force: true }));
+    return core;
+  });
   const createServer = vi.fn<CreateServer>(async ({ port, token }) => ({
     app: {} as never,
     port,
@@ -28,7 +35,6 @@ function fakeDependencies(overrides: Partial<RunDependencies> = {}) {
     openBrowser,
     log: (message) => logs.push(message),
     staticDir: "/static",
-    isProcessAlive: () => true,
     ...overrides,
   };
   return { dependencies, logs, core, createCore, createServer, openBrowser, serverClose };
@@ -116,8 +122,9 @@ describe("run", () => {
 
   it("ignores the record of a dead process", async () => {
     const home = newHome();
-    await run(optionsFor(home), fakeDependencies().dependencies);
-    const second = fakeDependencies({ isProcessAlive: () => false });
+    mkdirSync(home, { recursive: true });
+    writeFileSync(join(home, "lock"), JSON.stringify({ pid: 2 ** 31 - 2, url: "http://127.0.0.1:1" }));
+    const second = fakeDependencies();
     expect(await run(optionsFor(home), second.dependencies)).toBeDefined();
     expect(second.createCore).toHaveBeenCalled();
   });

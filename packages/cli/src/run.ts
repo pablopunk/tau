@@ -1,9 +1,9 @@
+import { publishServerUrl, readRunningInstance } from "@pi-everywhere/core";
 import type { Core, CreateCore } from "@pi-everywhere/protocol";
 import type { CreateServer } from "@pi-everywhere/server";
 import { listenOnFreePort } from "./listen-on-free-port";
 import type { CliOptions } from "./options";
 import { ensurePrivateDirectory } from "./private-files";
-import { findRunningInstance, forgetRunningInstance, recordRunningInstance } from "./running-instance";
 import { readOrCreateToken } from "./token";
 
 export interface RunDependencies {
@@ -12,7 +12,6 @@ export interface RunDependencies {
   readonly openBrowser: (url: string) => Promise<void>;
   readonly log: (message: string) => void;
   readonly staticDir: string | undefined;
-  readonly isProcessAlive?: (pid: number) => boolean;
 }
 
 export interface RunningApp {
@@ -20,13 +19,12 @@ export interface RunningApp {
   close(): Promise<void>;
 }
 
-const urlFor = (port: number, token: string) =>
-  `http://127.0.0.1:${port}/?token=${encodeURIComponent(token)}`;
+const withToken = (origin: string, token: string) => `${origin}/?token=${encodeURIComponent(token)}`;
 
 async function reportExistingInstance(options: CliOptions, dependencies: RunDependencies, token: string) {
-  const running = await findRunningInstance(options.home, dependencies.isProcessAlive);
-  if (!running) return undefined;
-  const url = urlFor(running.port, token);
+  const running = await readRunningInstance(options.home);
+  if (!running?.url) return undefined;
+  const url = withToken(running.url, token);
   dependencies.log(`pi-everywhere is already running: ${url}`);
   return url;
 }
@@ -55,13 +53,12 @@ export async function run(
     const server = await listenOnFreePort(options.port, (port) =>
       dependencies.createServer({ core, port, token, staticDir: dependencies.staticDir }),
     );
-    await recordRunningInstance(options.home, { pid: process.pid, port: server.port });
+    await publishServerUrl(options.home, server.origin);
     dependencies.log(`pi-everywhere is running: ${server.url}`);
     if (options.open) await openBrowserSafely(server.url, dependencies);
     return {
       url: server.url,
       close: async () => {
-        await forgetRunningInstance(options.home);
         await server.close();
         await core.close();
       },
