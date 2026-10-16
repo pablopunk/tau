@@ -17,10 +17,13 @@ import {
   SidebarMenu,
   SidebarMenuSkeleton,
 } from "@/components/ui/sidebar";
+import { Spinner } from "@/components/ui/spinner";
 import { api } from "@/lib/api";
 import { errorMessage } from "@/lib/error-message";
 import { newThreadPath } from "@/lib/paths";
 import { queryKeys, useConversations } from "@/lib/queries";
+import { ArchivedConversations } from "./ArchivedConversations";
+import { CloneFailed } from "./CloneFailed";
 import { ConversationItem } from "./ConversationItem";
 import { NameDialog } from "./NameDialog";
 import { RemoveProjectDialog } from "./RemoveProjectDialog";
@@ -36,6 +39,8 @@ export function ProjectGroup({ project, activeConversationId, onRemoved }: Proje
   const conversations = useConversations(project.id);
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+  const active = conversations.data?.filter((conversation) => conversation.archivedAt === null) ?? [];
+  const archived = conversations.data?.filter((conversation) => conversation.archivedAt !== null) ?? [];
   const closeDialog = () => setDialog(null);
 
   const newChat = () => navigate(newThreadPath(project.id));
@@ -55,6 +60,7 @@ export function ProjectGroup({ project, activeConversationId, onRemoved }: Proje
     <SidebarGroup role="group" aria-label={project.name}>
       <SidebarGroupLabel title={project.path} className="pr-14">
         <span className="truncate">{project.name}</span>
+        {project.status === "cloning" && <Spinner className="ml-2 size-3" aria-label="Cloning" />}
       </SidebarGroupLabel>
       {project.kind !== "home" && (
         <DropdownMenu>
@@ -71,27 +77,35 @@ export function ProjectGroup({ project, activeConversationId, onRemoved }: Proje
           </DropdownMenuContent>
         </DropdownMenu>
       )}
-      <SidebarGroupAction aria-label={`New chat in ${project.name}`} title="New chat" onClick={newChat}>
-        <PlusIcon />
-      </SidebarGroupAction>
-      <SidebarGroupContent>
-        <SidebarMenu>
-          {conversations.isPending && <SidebarMenuSkeleton />}
-          {conversations.isError && (
-            <p className="px-2 text-xs text-destructive">{errorMessage(conversations.error)}</p>
-          )}
-          {conversations.data?.length === 0 && (
-            <p className="px-2 py-1 text-xs text-muted-foreground">No chats yet</p>
-          )}
-          {conversations.data?.map((conversation) => (
-            <ConversationItem
-              key={conversation.id}
-              conversation={conversation}
-              active={conversation.id === activeConversationId}
-            />
-          ))}
-        </SidebarMenu>
-      </SidebarGroupContent>
+      {project.status === "ready" && (
+        <SidebarGroupAction aria-label={`New chat in ${project.name}`} title="New thread" onClick={newChat}>
+          <PlusIcon />
+        </SidebarGroupAction>
+      )}
+      {project.status === "failed" && (
+        <CloneFailed projectId={project.id} error={project.error} onRemove={() => setDialog("remove")} />
+      )}
+      {project.status === "ready" && (
+        <SidebarGroupContent>
+          <SidebarMenu>
+            {conversations.isPending && <SidebarMenuSkeleton />}
+            {conversations.isError && (
+              <p className="px-2 text-xs text-destructive">{errorMessage(conversations.error)}</p>
+            )}
+            {active.length === 0 && conversations.data && (
+              <p className="px-2 py-1 text-xs text-muted-foreground">No threads yet</p>
+            )}
+            {active.map((conversation) => (
+              <ConversationItem
+                key={conversation.id}
+                conversation={conversation}
+                active={conversation.id === activeConversationId}
+              />
+            ))}
+          </SidebarMenu>
+          <ArchivedConversations conversations={archived} activeConversationId={activeConversationId} />
+        </SidebarGroupContent>
+      )}
       {dialog === "rename" && (
         <NameDialog
           title="Rename project"

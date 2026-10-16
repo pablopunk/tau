@@ -1,6 +1,7 @@
 import { FolderPlusIcon, SettingsIcon } from "lucide-react";
-import { useState } from "react";
-import { useMatch, useNavigate } from "react-router";
+import { useEffect, useState } from "react";
+import { useNavigate } from "react-router";
+import { useOpenConversation } from "@/activity";
 import { Button } from "@/components/ui/button";
 import {
   Sidebar,
@@ -11,6 +12,7 @@ import {
 } from "@/components/ui/sidebar";
 import { errorMessage } from "@/lib/error-message";
 import { useProjects } from "@/lib/queries";
+import { onOpenSettingsRequested } from "@/palette/settings-event";
 import { SettingsDialog } from "@/setup/SettingsDialog";
 import { AddProjectDialog } from "./AddProjectDialog";
 import { ProjectGroup } from "./ProjectGroup";
@@ -18,9 +20,11 @@ import { ProjectGroup } from "./ProjectGroup";
 export function AppSidebar() {
   const [adding, setAdding] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const { projectId, conversationId } = useMatch("/p/:projectId/c/:conversationId")?.params ?? {};
+  const { projectId, conversationId } = useOpenConversation();
   const projects = useProjects();
   const navigate = useNavigate();
+
+  useEffect(() => onOpenSettingsRequested(() => setSettingsOpen(true)), []);
 
   return (
     <Sidebar aria-label="Projects and chats">
