@@ -64,6 +64,14 @@ describe("threads mode", () => {
     expect(within(screen.getByRole("link", { name: /Bravo/ })).getByText("Repo")).toBeInTheDocument();
   });
 
+  it("keeps the project icon and name on the current row", async () => {
+    renderSidebar("/p/p2/c/b");
+    const link = await screen.findByRole("link", { name: /Bravo/ });
+    expect(link.closest("[data-current]")?.getAttribute("data-current")).toBe("true");
+    expect(within(link).getByText("Repo")).toBeInTheDocument();
+    expect(link.querySelector("[data-slot=project-icon]")).not.toBeNull();
+  });
+
   it("keeps one Archived section at the bottom", async () => {
     const user = userEvent.setup();
     renderSidebar();
@@ -145,13 +153,6 @@ describe("projects mode", () => {
     await user.click(await screen.findByRole("button", { name: "Actions for Repo" }));
     expect(await screen.findByText("~/src/repo")).toBeInTheDocument();
     expect(screen.getByRole("menuitem", { name: "Change icon" })).toBeInTheDocument();
-  });
-
-  it("marks the current row as taken over by the project icon", async () => {
-    renderSidebar("/p/p2/c/b");
-    const row = (await screen.findByRole("link", { name: /Bravo/ })).closest("[data-current]");
-    expect(row?.getAttribute("data-current")).toBe("true");
-    expect(row?.querySelector("[data-slot=thread-takeover][data-current=true]")).not.toBeNull();
   });
 
   it("does not animate group toggles under reduced motion", async () => {

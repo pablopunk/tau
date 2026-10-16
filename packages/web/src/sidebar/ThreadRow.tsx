@@ -6,6 +6,12 @@ import { Link, useNavigate } from "react-router";
 import { BotAvatar } from "@/components/ui/bot-avatar";
 import { Button } from "@/components/ui/button";
 import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -22,6 +28,7 @@ import { queryKeys } from "@/lib/queries";
 import { conversationDot } from "./conversation-dot";
 import { DeleteConversationDialog } from "./DeleteConversationDialog";
 import { NameDialog } from "./NameDialog";
+import { ThreadMenuItems } from "./ThreadMenuItems";
 
 interface ThreadRowProps {
   conversation: ConversationSummary;
@@ -36,6 +43,7 @@ const tooltipOf = (title: string, project: Project | undefined, conversation: Co
 
 export function ThreadRow({ conversation, project, active, showProject }: ThreadRowProps) {
   const [dialog, setDialog] = useState<"rename" | "delete" | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
   const title = conversation.title.trim() || "New thread";
   const archived = conversation.archivedAt !== null;
   const dot = conversationDot(conversation, active);
@@ -78,65 +86,77 @@ export function ThreadRow({ conversation, project, active, showProject }: Thread
 
   return (
     <>
-      <SidebarThreadRow
-        flipId={conversation.id}
-        current={active}
-        title={title}
-        tooltip={tooltipOf(title, project, conversation)}
-        link={
-          <Link
-            to={conversationPath(conversation.projectId, conversation.id)}
-            aria-current={active ? "page" : undefined}
-            onClick={() => isMobile && setOpenMobile(false)}
-          />
-        }
-        avatar={
-          <BotAvatar
-            avatarIndex={conversation.avatarIndex}
-            working={conversation.status === "running"}
-            badge={dot && dot !== "running" ? <StatusDot status={dot} /> : undefined}
-          />
-        }
-        context={
-          showProject && project ? (
-            <>
-              {projectIcon(14)}
-              <span className="truncate">{project.name}</span>
-            </>
-          ) : undefined
-        }
-        takeover={projectIcon(24)}
-        takeoverFrom={showProject ? "context" : "fade"}
-        time={<RelativeTime at={conversation.lastActivityAt} />}
-        actions={
-          <>
-            <Button
-              variant="ghost"
-              size="icon-xs"
-              aria-label={`${archived ? "Unarchive" : "Archive"} ${title}`}
-              onClick={toggleArchive}
-            >
-              <ArchiveToggleIcon />
-            </Button>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon-xs" aria-label={`Actions for ${title}`}>
-                  <MoreHorizontalIcon />
+      <ContextMenu>
+        <ContextMenuTrigger asChild>
+          <SidebarThreadRow
+            actionsOpen={menuOpen}
+            flipId={conversation.id}
+            current={active}
+            title={title}
+            tooltip={tooltipOf(title, project, conversation)}
+            link={
+              <Link
+                to={conversationPath(conversation.projectId, conversation.id)}
+                aria-current={active ? "page" : undefined}
+                onClick={() => isMobile && setOpenMobile(false)}
+              />
+            }
+            avatar={
+              <BotAvatar
+                avatarIndex={conversation.avatarIndex}
+                working={conversation.status === "running"}
+                badge={dot && dot !== "running" ? <StatusDot status={dot} /> : undefined}
+              />
+            }
+            context={
+              showProject && project ? (
+                <>
+                  {projectIcon(14)}
+                  <span className="truncate">{project.name}</span>
+                </>
+              ) : undefined
+            }
+            time={<RelativeTime at={conversation.lastActivityAt} />}
+            actions={
+              <>
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
+                  aria-label={`${archived ? "Unarchive" : "Archive"} ${title}`}
+                  onClick={toggleArchive}
+                >
+                  <ArchiveToggleIcon />
                 </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent side="right" align="start">
-                <DropdownMenuItem onSelect={() => setDialog("rename")}>Rename thread</DropdownMenuItem>
-                <DropdownMenuItem onSelect={toggleArchive}>
-                  {archived ? "Unarchive" : "Archive"}
-                </DropdownMenuItem>
-                <DropdownMenuItem variant="destructive" onSelect={() => setDialog("delete")}>
-                  Delete
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </>
-        }
-      />
+                <DropdownMenu onOpenChange={setMenuOpen}>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon-xs" aria-label={`Actions for ${title}`}>
+                      <MoreHorizontalIcon />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent side="right" align="start">
+                    <ThreadMenuItems
+                      Item={DropdownMenuItem}
+                      archived={archived}
+                      onRename={() => setDialog("rename")}
+                      onArchive={toggleArchive}
+                      onDelete={() => setDialog("delete")}
+                    />
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </>
+            }
+          />
+        </ContextMenuTrigger>
+        <ContextMenuContent>
+          <ThreadMenuItems
+            Item={ContextMenuItem}
+            archived={archived}
+            onRename={() => setDialog("rename")}
+            onArchive={toggleArchive}
+            onDelete={() => setDialog("delete")}
+          />
+        </ContextMenuContent>
+      </ContextMenu>
       {dialog === "rename" && (
         <NameDialog
           title="Rename thread"

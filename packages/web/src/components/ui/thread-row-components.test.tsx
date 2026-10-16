@@ -127,7 +127,6 @@ function row(current: boolean) {
           title="Fix login"
           avatar={<span>bot</span>}
           context={<span>Project A</span>}
-          takeover={<span>icon</span>}
           time={<RelativeTime at={0} now={60_000} />}
           actions={<button type="button">Archive</button>}
           current={current}
@@ -148,12 +147,19 @@ describe("SidebarThreadRow", () => {
     expect(screen.getByRole("button", { name: "Archive" })).toBeInTheDocument();
   });
 
-  it("marks the takeover on the current row", () => {
-    const { container, rerender } = render(row(false));
-    expect(container.querySelector('[data-slot="thread-takeover"]')).toHaveAttribute("data-current", "false");
-    rerender(row(true));
-    expect(container.querySelector('[data-slot="thread-takeover"]')).toHaveAttribute("data-current", "true");
+  it("marks the current row and keeps its context line", () => {
+    const { container } = render(row(true));
     expect(container.querySelector("li")).toHaveAttribute("data-current", "true");
+    expect(screen.getByText("Project A")).toBeInTheDocument();
+  });
+
+  it("keeps the actions visible while their menu is open", () => {
+    const { container } = render(
+      <SidebarProvider>
+        <SidebarThreadRow link={<a href="/t/1" />} title="T" avatar="a" time="1m" actions={<b>x</b>} actionsOpen />
+      </SidebarProvider>,
+    );
+    expect(container.querySelector("li")).toHaveAttribute("data-actions-open", "true");
   });
 });
 
