@@ -1,10 +1,8 @@
-import type { Core, Skill } from "@pi-everywhere/protocol";
+import type { Core } from "@pi-everywhere/protocol";
 import type { ProjectStore } from "../harness/project-store";
+import { discoverSkills } from "./discover-skills";
 
-/** Frozen shape; Phase 1 (B) scans the project and user skill folders. */
-export async function discoverSkills(_projectFolder: string | null): Promise<Skill[]> {
-  return [];
-}
+export { discoverSkills };
 
 export function createSkillsApi(deps: { projects: ProjectStore }): Core["skills"] {
   return {
