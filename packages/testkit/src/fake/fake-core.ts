@@ -15,6 +15,7 @@ import {
 } from "@pi-everywhere/protocol";
 import { clampFakeThinkingLevel, FAKE_MODELS, findFakeModel } from "./catalog";
 import { FakeConversation, type FakeInput } from "./fake-conversation";
+import { createFakeDeleteArchived } from "./fake-delete-archived";
 import { suggestFakeFiles } from "./fake-files";
 import {
   assertDirectory,
@@ -478,6 +479,11 @@ export function createFakeCore(options: FakeCoreOptions = {}): Core {
         await removeConversation(conversation);
         emit({ resource: "conversations", projectId: conversation.projectId });
       },
+      deleteArchived: createFakeDeleteArchived({
+        live: liveConversations,
+        remove: removeConversation,
+        announce: (conversation) => emit({ resource: "conversations", projectId: conversation.projectId }),
+      }),
       ...mvp5.threadOps,
       async configure(id, input) {
         const conversation = requireConversation(id);

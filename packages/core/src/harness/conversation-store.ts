@@ -91,6 +91,8 @@ export interface ConversationStore
   /** Resolves when the compaction ends. `not_found`; `nothing_to_compact`; `internal` with pi's message on failure. */
   compact(id: string, instructions: string | undefined): Promise<void>;
   archive(id: string, archived: boolean, now: number): Promise<string>;
+  /** Caches the cleanup pass verdict on the index entry; true when it changed. */
+  setUnmergedWarning(id: string, warning: string | null): Promise<boolean>;
   /** Tombstones, aborts and retires watchers. Idempotent; returns the project id when it deleted something. */
   remove(id: string, now: number): Promise<string | undefined>;
   /** Tombstones every thread of the project. */
@@ -292,6 +294,19 @@ export function createConversationStore(
         }),
       );
       return projectId;
+    },
+
+    async setUnmergedWarning(id, warning) {
+      const { id: conversationId, projectId } = await known(id);
+      let changed = false;
+      await updateLiveConversation(harness, conversationId, projectId, (_meta, entry) => {
+        if ((entry.unmergedWarning ?? null) === warning) return false;
+        if (warning === null) delete entry.unmergedWarning;
+        else entry.unmergedWarning = warning;
+        changed = true;
+        return true;
+      });
+      return changed;
     },
 
     async remove(id, now) {

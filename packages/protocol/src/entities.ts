@@ -198,6 +198,7 @@ export const ConversationSummarySchema = Type.Object({
   agentModel: Type.Union([ModelRefSchema, Type.Null()]),
   agentStatus: Type.Union([AgentStatusSchema, Type.Null()]),
   background: Type.Boolean(),
+  unmergedWarning: Type.Union([Type.String(), Type.Null()]),
 });
 export type ConversationSummary = Type.Static<typeof ConversationSummarySchema>;
 

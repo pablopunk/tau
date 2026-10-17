@@ -15,6 +15,7 @@ import {
   type ThinkingLevel,
   type ThreadWorkspace,
   type UserMessage,
+  unmergedWarningFor,
   type WhenBusy,
 } from "@pi-everywhere/protocol";
 import { fixtures } from "../fixtures/index";
@@ -189,7 +190,15 @@ export class FakeConversation {
       agentModel: null,
       agentStatus: null,
       background: false,
+      unmergedWarning: this.unmergedWarning(),
     };
+  }
+
+  private unmergedWarning(): string | null {
+    const { workspace, changes } = this;
+    const unmerged = changes.dirtyFiles.length > 0 || changes.unmergedCommits > 0;
+    const live = workspace.mode === "worktree" && workspace.state === "ready";
+    return this.archivedAt !== null && live && unmerged ? unmergedWarningFor(workspace.branch) : null;
   }
 
   isBusy(): boolean {

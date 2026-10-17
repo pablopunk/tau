@@ -40,6 +40,7 @@ export const toSummary = (project: ProjectRef, entry: IndexedConversation): Conv
   agentModel: entry.agentModel ?? null,
   agentStatus: entry.agentStatus ?? null,
   background: entry.background ?? false,
+  unmergedWarning: entry.archivedAt === undefined ? null : (entry.unmergedWarning ?? null),
 });
 
 export const byMostRecentlyUpdated = (a: ConversationSummary, b: ConversationSummary) =>

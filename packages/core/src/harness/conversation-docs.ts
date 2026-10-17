@@ -26,6 +26,7 @@ export type IndexedConversation = {
   agentModel?: ModelRef;
   agentStatus?: AgentStatus;
   background?: boolean;
+  unmergedWarning?: string;
 };
 
 export type TitleSource = "first-message" | "generated" | "user";

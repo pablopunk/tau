@@ -1,3 +1,4 @@
+import type { DeleteArchivedInput, DeleteArchivedResult } from "./archived";
 import type {
   Change,
   CompactInput,
@@ -195,6 +196,11 @@ export interface Core {
      * when the worktree has uncommitted changes or unmerged commits, unless `force`.
      */
     remove(id: string, options?: { force?: boolean }): Promise<void>;
+    /**
+     * Deletes archived top-level threads (children go with them). Threads with unmerged work, or running, are kept
+     * with a reason unless `force` (running threads are always kept).
+     */
+    deleteArchived(input: DeleteArchivedInput): Promise<DeleteArchivedResult>;
     /** Stops the run of a subagent child; its status becomes `stopped`. Rejects `not_found`, `invalid_request` for a thread that is not a child. */
     stopAgent(id: string): Promise<void>;
     /** New thread in the same checkout or worktree, with history up to and including the entry. Rejects `not_found`. */

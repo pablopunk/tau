@@ -7,6 +7,7 @@ import {
   summaryOf,
   trackView,
   waitFor,
+  waitForIdle,
   waitForSummary,
 } from "./helpers";
 import type { ContractTarget, MakeContractTarget } from "./types";
@@ -66,6 +67,42 @@ export function lifecycleCases(make: MakeContractTarget, test: CaseRunner): void
         "not_found",
       );
       await rejectsWithCode(core.conversations.remove("nope"), "not_found");
+    });
+
+    async function archivedWorktreeThread(text: string, projectId?: string) {
+      const started = await startConversation(target, {
+        text,
+        projectId,
+        workspace: "worktree",
+        git: projectId === undefined,
+      });
+      const tracker = await trackView(target.core, started.conversation.id);
+      await waitForIdle(tracker);
+      await tracker.stop();
+      await target.core.conversations.archive(started.conversation.id, true);
+      return started;
+    }
+
+    test("[delete-archived] deletes clean archived threads and keeps the rest with a warning", async () => {
+      const { core } = target;
+      const clean = await archivedWorktreeThread("hello");
+      const dirty = await archivedWorktreeThread("write a file", clean.project.id);
+      const live = await startConversation(target, { text: "hello" });
+      const result = await core.conversations.deleteArchived({ force: false });
+      expect(result.deleted).toEqual([clean.conversation.id]);
+      expect(result.kept).toEqual([
+        { id: dirty.conversation.id, reason: expect.stringContaining("Unmerged work") },
+      ]);
+      expect((await summaryOf(core, dirty.conversation)).unmergedWarning).toContain("not cleaned up");
+      expect((await summaryOf(core, live.conversation)).unmergedWarning).toBeNull();
+    });
+
+    test("[delete-archived] force deletes threads with unmerged work", async () => {
+      const { core } = target;
+      const dirty = await archivedWorktreeThread("write a file");
+      const result = await core.conversations.deleteArchived({ force: true });
+      expect(result).toEqual({ deleted: [dirty.conversation.id], kept: [] });
+      expect(await core.conversations.list(dirty.project.id)).toEqual([]);
     });
 
     test("[delete] ends an open watch with a retired view and stops a running thread", async () => {

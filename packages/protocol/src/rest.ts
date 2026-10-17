@@ -1,4 +1,5 @@
 import { type TSchema, Type } from "typebox";
+import { DeleteArchivedInputSchema, DeleteArchivedResultSchema } from "./archived";
 import {
   CompactInputSchema,
   ConfigureConversationInputSchema,
@@ -339,6 +340,13 @@ export const routes = {
     status: 204,
     params: IdParams,
     body: Type.Object({ archived: Type.Boolean() }),
+  },
+  deleteArchivedConversations: {
+    method: "POST",
+    path: `${API_PREFIX}/conversations/archived/delete`,
+    status: 200,
+    body: DeleteArchivedInputSchema,
+    response: DeleteArchivedResultSchema,
   },
   removeConversation: {
     method: "DELETE",

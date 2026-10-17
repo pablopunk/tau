@@ -10,10 +10,11 @@ import {
   type StartConversationInput,
   type ThinkingLevel,
 } from "@pi-everywhere/protocol";
+import type { ArchivedCleanup } from "./archived-cleanup";
 import type { ChangeEmitter } from "./change-emitter";
 import type { CheckpointService } from "./checkpoints/checkpoint-service";
 import { requireContent, requireImageBytesMatchTheirType, requireImagesAllowed } from "./conversation-input";
-import { createConversationRemoval } from "./conversation-removal";
+import type { ConversationRemoval } from "./conversation-removal";
 import { createConversationsMvp5Api } from "./conversations-mvp5-api";
 import type { ConversationForker } from "./harness/conversation-fork";
 import type { ConversationStore } from "./harness/conversation-store";
@@ -21,7 +22,6 @@ import type { ProjectStore } from "./harness/project-store";
 import { createSubagentStopper } from "./harness/subagent-stop";
 import type { SettingsStore } from "./home/settings-store";
 import type { ProviderService } from "./provider/provider-service";
-import type { RemovalHooks } from "./removal-hooks";
 import { requireName } from "./require-name";
 import type { StatusTracker } from "./status/status-tracker";
 import type { TitleService } from "./titles/title-service";
@@ -40,18 +40,14 @@ export function createConversationsApi(deps: {
   checkpoints: CheckpointService;
   forker: ConversationForker;
   harness: Harness;
-  removalHooks: RemovalHooks;
+  removal: ConversationRemoval;
+  archivedCleanup: ArchivedCleanup;
   changes: ChangeEmitter;
   now: () => number;
 }): Core["conversations"] {
   const { conversations, projects, provider, settings, titles, workspaces, checkpoints, changes, now } = deps;
   const announce = (projectId: string) => changes.emit({ resource: "conversations", projectId });
-  const removal = createConversationRemoval({
-    conversations,
-    hooks: deps.removalHooks,
-    now,
-    announce: (projectId) => announce(projectId),
-  });
+  const { removal, archivedCleanup } = deps;
   const reportCheckpointFailure = (error: unknown) =>
     console.error("pi-everywhere: could not take a checkpoint", error);
   const startsInFlight = new Map<string, Promise<ConversationSummary>>();
@@ -175,6 +171,7 @@ export function createConversationsApi(deps: {
       announce(await conversations.archive(id, archived, now()));
     },
     remove: (id, options) => removal.remove(id, options?.force === true),
+    deleteArchived: (input) => archivedCleanup.deleteArchived(input),
     configure: configureThread,
     compact: (id, input) => conversations.compact(id, input.instructions),
     async retry(id, input) {

@@ -3,6 +3,8 @@ import type {
   CompactInput,
   ConfigureConversationInput,
   ConversationSummary,
+  DeleteArchivedInput,
+  DeleteArchivedResult,
   FileSuggestion,
   GithubRepo,
   GithubStatus,
@@ -102,6 +104,7 @@ export interface Api {
     abort(id: string): Promise<void>;
     archive(id: string, archived: boolean): Promise<void>;
     remove(id: string, options?: { force?: boolean }): Promise<void>;
+    deleteArchived(input: DeleteArchivedInput): Promise<DeleteArchivedResult>;
     fork(id: string, entryId: string): Promise<ConversationSummary>;
     rewindPreview(id: string, entryId: string): Promise<RestorePreview>;
     rewind(id: string, entryId: string): Promise<{ conversation: ConversationSummary; draft: string }>;
@@ -198,6 +201,7 @@ export function createApi(transport: Transport): Api {
       archive: (id, archived) => request("archiveConversation", { params: { id }, body: { archived } }),
       remove: (id, options) =>
         request("removeConversation", { params: { id }, query: options?.force ? { force: "true" } : {} }),
+      deleteArchived: (input) => request("deleteArchivedConversations", { body: input }),
       fork: (id, entryId) => request("forkConversation", { params: { id }, body: { entryId } }),
       rewindPreview: (id, entryId) => request("rewindPreview", { params: { id }, body: { entryId } }),
       rewind: (id, entryId) => request("rewindConversation", { params: { id }, body: { entryId } }),

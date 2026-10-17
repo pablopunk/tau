@@ -73,6 +73,8 @@ const handlers: Handlers = {
   abortConversation: (core, { params }) => core.conversations.abort(params.id),
   archiveConversation: (core, { params, body }) =>
     core.conversations.archive(params.id, body.archived as boolean),
+  deleteArchivedConversations: (core, { body }) =>
+    core.conversations.deleteArchived(body as { force: boolean }),
   removeConversation: (core, { params, query }) =>
     core.conversations.remove(params.id, { force: query?.force === "true" }),
   configureConversation: (core, { params, body }) => core.conversations.configure(params.id, body as never),

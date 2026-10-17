@@ -3,9 +3,11 @@ import { join } from "node:path";
 import type { Core, CreateCore } from "@pi-everywhere/protocol";
 import { createAgentTypeLoader } from "./agents/agent-types";
 import { resolveModelAlias } from "./agents/model-alias";
+import { createArchivedCleanup } from "./archived-cleanup";
 import { createChangeEmitter } from "./change-emitter";
 import { createCheckpointService } from "./checkpoints/checkpoint-service";
 import { createConversationRecovery } from "./conversation-recovery";
+import { createConversationRemoval } from "./conversation-removal";
 import { createConversationsApi } from "./conversations-api";
 import { suggestDirectories } from "./fs/suggest-directories";
 import { createCloneService } from "./git/clone-service";
@@ -166,11 +168,31 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
       ],
       onProjectRemoved: [(id) => workspaces.onProjectRemoved(id)],
     };
+    const removal = createConversationRemoval({
+      conversations,
+      hooks: removalHooks,
+      now: deps.now,
+      announce: (projectId) => changes.emit({ resource: "conversations", projectId }),
+    });
+    const archivedCleanup = createArchivedCleanup({
+      conversations,
+      removal,
+      hooks: removalHooks,
+      listArchived: async () => {
+        const perProject = await Promise.all(
+          (await projects.list()).map((project) => conversations.list(project.id)),
+        );
+        return perProject.flat().filter((thread) => thread.archivedAt !== null);
+      },
+      now: deps.now,
+      announce: (projectId) => changes.emit({ resource: "conversations", projectId }),
+    });
     const recovery = createConversationRecovery({ harness, conversations, changes });
     await status.recoverAtStartup();
     await clones.recoverAtStartup();
     await recovery.recoverAtStartup();
     await processes.reapStaleAtStartup();
+    archivedCleanup.start();
 
     let closing: Promise<void> | undefined;
     return {
@@ -200,7 +222,8 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
         checkpoints,
         forker,
         harness,
-        removalHooks,
+        removal,
+        archivedCleanup,
       }),
       workspaces: {
         status: (id) => workspaces.status(id),
@@ -218,6 +241,7 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
       close() {
         closing ??= (async () => {
           changes.clear();
+          await archivedCleanup.stop();
           clones.stopAll();
           try {
             await processes.stopAll();

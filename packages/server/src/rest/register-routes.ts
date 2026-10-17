@@ -65,6 +65,7 @@ export function registerRoutes(app: FastifyInstance, core: Core): void {
   );
   defineRoute(app, routes.listConversations, ({ params }) => core.conversations.list(params.id));
   defineRoute(app, routes.listAllConversations, () => core.conversations.listAll());
+  defineRoute(app, routes.deleteArchivedConversations, ({ body }) => core.conversations.deleteArchived(body));
   defineRoute(app, routes.startConversation, ({ body }) => core.conversations.start(body));
   defineRoute(app, routes.renameConversation, ({ params, body }) =>
     core.conversations.rename(params.id, body.title),
