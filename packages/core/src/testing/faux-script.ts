@@ -13,6 +13,7 @@ export const SCRIPT_USAGE = [
   "read <path>",
   "bash <command>",
   "task <description>",
+  "continue <subagent id> <prompt>",
   "bg <command>",
   "todo <first> | <second> | ...",
   "think",
@@ -111,6 +112,10 @@ function scriptedReply(input: string, attempt: number, user: UserMessage | undef
       return toolCallReply("bash", { command: rest });
     case "task":
       return toolCallReply("task", { description: rest, prompt: rest });
+    case "continue": {
+      const [subagent, prompt = ""] = splitOnce(rest, " ");
+      return toolCallReply("task", { description: prompt, prompt, subagent });
+    }
     case "bg":
       return toolCallReply("process_start", { command: rest });
     case "todo":
@@ -135,13 +140,18 @@ function scriptedReply(input: string, attempt: number, user: UserMessage | undef
   }
 }
 
+function withoutSectionUpdates(messages: readonly Message[]): Message[] {
+  return messages.filter((message) => (message.role as string) !== "system");
+}
+
 function lastMessageIsToolResult(messages: readonly Message[]): boolean {
-  return messages.at(-1)?.role === "toolResult";
+  return withoutSectionUpdates(messages).at(-1)?.role === "toolResult";
 }
 
 function lastUserMessage(messages: readonly Message[]): UserMessage | undefined {
-  for (let index = messages.length - 1; index >= 0; index--) {
-    const message = messages[index];
+  const real = withoutSectionUpdates(messages);
+  for (let index = real.length - 1; index >= 0; index--) {
+    const message = real[index];
     if (message?.role === "user") return message;
   }
   return undefined;

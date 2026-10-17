@@ -2,6 +2,7 @@ import { type ConversationId, configure, type Extension, type Tx } from "@earend
 import { registerChildConversation } from "../conversation-child";
 import { ConversationDoc, INDEX_SEED, ProjectIndexDoc } from "../conversation-docs";
 import { legacyWorkspace } from "../conversation-index";
+import { isLiveChildOf } from "../subagents-prompt";
 
 type SpawnRequest = {
   readonly taskId: string;
@@ -42,4 +43,22 @@ async function createChild(tx: Tx, request: SpawnRequest): Promise<ConversationI
 /** Idempotent: a rerun of the same task finds the child it already made. */
 export async function findOrCreateChild(tx: Tx, request: SpawnRequest): Promise<ConversationId> {
   return (await findOwnedChild(tx, request.taskId)) ?? (await createChild(tx, request));
+}
+
+export const notMyChildMessage = (subagent: string) =>
+  `Subagent ${subagent} is not one of this thread's subagents. Omit \`subagent\` to start a new one.`;
+
+/** Fails the tool call unless `subagent` is a live child thread of `parentId`. */
+export async function requireOwnChild(
+  tx: Tx,
+  parentId: ConversationId,
+  subagent: string,
+): Promise<ConversationId> {
+  const parent = await tx.doc(ConversationDoc, parentId);
+  const index = await tx.doc(ProjectIndexDoc, parent.projectId, INDEX_SEED);
+  const found = index.conversations.some(
+    (entry) => String(entry.conversationId) === subagent && isLiveChildOf(parentId)(entry),
+  );
+  if (!found) throw new Error(notMyChildMessage(subagent));
+  return Number(subagent) as ConversationId;
 }

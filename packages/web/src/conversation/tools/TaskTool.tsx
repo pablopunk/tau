@@ -1,3 +1,4 @@
+import type { ConversationSummary } from "@pi-everywhere/protocol";
 import { Bot } from "lucide-react";
 import { Link } from "react-router";
 import { Button } from "@/components/ui/button";
@@ -13,9 +14,17 @@ function childIdOf(state: ToolRendererProps["state"]): string | undefined {
   return typeof id === "string" ? id : undefined;
 }
 
-function OpenChildLink({ childId }: { childId: string }) {
-  const child = useAllConversations().data?.find((item) => item.id === childId);
-  if (!child) return null;
+function useChild(childId: string | undefined) {
+  const all = useAllConversations().data;
+  return childId ? all?.find((item) => item.id === childId) : undefined;
+}
+
+export function cardTitle(continued: boolean, childTitle: string | undefined): string {
+  if (!continued) return "New subagent";
+  return childTitle ? `Continued ${childTitle}` : "Continued subagent";
+}
+
+function OpenChildLink({ child }: { child: ConversationSummary }) {
   return (
     <Button asChild variant="outline" size="sm">
       <Link to={conversationPath(child.projectId, child.id)}>Open</Link>
@@ -25,16 +34,18 @@ function OpenChildLink({ childId }: { childId: string }) {
 
 export function TaskTool({ state }: ToolRendererProps) {
   const childId = childIdOf(state);
+  const child = useChild(childId);
+  const continued = argText(state, "subagent") !== undefined;
   const answer = resultText(state.result);
   return (
     <ToolCard
       icon={<Bot />}
-      title="Subagent"
+      title={cardTitle(continued, child?.title)}
       subtitle={argText(state, "description")}
       status={state.status}
       defaultOpen
     >
-      {childId ? <OpenChildLink childId={childId} /> : null}
+      {child ? <OpenChildLink child={child} /> : null}
       {answer ? <OutputBlock text={answer} label="Answer" /> : null}
     </ToolCard>
   );

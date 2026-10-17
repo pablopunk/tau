@@ -103,6 +103,19 @@ describe("<TaskTool>", () => {
     expect(screen.getByRole("link", { name: "Open" })).toHaveAttribute("href", "/p/p7/c/9");
   });
 
+  it("labels a new subagent", () => {
+    renderWithClient(<TaskTool state={callState("task", { description: "look around" })} />);
+    expect(screen.getByText("New subagent")).toBeInTheDocument();
+  });
+
+  it("labels a continued subagent and still links to it", () => {
+    renderWithClient(
+      <TaskTool state={callState("task", { description: "more", subagent: "9" }, { conversationId: "9" })} />,
+    );
+    expect(screen.getByText(/^Continued/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Open" })).toHaveAttribute("href", "/p/p7/c/9");
+  });
+
   it("has no link before the child exists", () => {
     renderWithClient(<TaskTool state={callState("task", { description: "look around" })} />);
     expect(screen.queryByRole("link", { name: "Open" })).not.toBeInTheDocument();

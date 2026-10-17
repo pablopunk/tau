@@ -1,6 +1,7 @@
 import { defineExtension, section } from "@earendil-works/pi-durable";
 import { discoverSkills } from "../skills/discover-skills";
 import { skillsPrompt } from "../skills/skills-prompt";
+import { renderSubagentsSection } from "./subagents-prompt";
 
 export const PREAMBLE =
   "You are a coding agent working inside the user's project folder. Use the tools to read, edit and run commands there. Be concise.";
@@ -20,6 +21,7 @@ export const codingExtension = defineExtension({
       const cwd = input.env?.cwd;
       return cwd === undefined ? undefined : skillsPrompt(await discoverSkills(cwd));
     }),
+    section("subagents", renderSubagentsSection),
     section("project-instructions", async (input, context) => {
       const read = await input.env?.readTextFile(PROJECT_INSTRUCTIONS_FILE, context);
       return read?.ok ? read.value : undefined;
