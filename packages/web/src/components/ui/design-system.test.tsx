@@ -31,6 +31,12 @@ describe("Combobox", () => {
     expect(onChange).toHaveBeenCalledWith("api");
   });
 
+  it("hides the search box when not searchable", async () => {
+    render(<Combobox options={OPTIONS} value="home" onChange={vi.fn()} searchable={false} />)
+    await userEvent.click(screen.getByRole("combobox"))
+    expect(screen.queryByPlaceholderText("Search…")).toBeNull()
+  })
+
   it("does not choose a disabled option and shows its hint", async () => {
     const onChange = vi.fn();
     render(<Combobox options={OPTIONS} value={null} onChange={onChange} placeholder="Pick one" />);
