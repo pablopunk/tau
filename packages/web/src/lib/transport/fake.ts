@@ -13,7 +13,7 @@ import {
 import { createFakeCore } from "@pi-everywhere/testkit";
 import type { LiveHandlers, LiveSocket, RouteRequest, RouteResponse, Transport } from "./types";
 
-type Input = { params: { id: string }; body: Record<string, unknown> };
+type Input = { params: { id: string; sid: string }; body: Record<string, unknown> };
 
 type Handlers = { [N in JsonRouteName]: (core: Core, input: Input) => Promise<unknown> };
 
@@ -37,9 +37,19 @@ const handlers: Handlers = {
       name,
       url: iconCandidateUrl(params.id, name),
     })),
-  getProvider: (core) => core.provider.status(),
-  setProviderKey: (core, { body }) => core.provider.setApiKey(body.key as string),
-  listModels: (core) => core.provider.listModels(),
+  listProviders: (core) => core.providers.list(),
+  setProviderKey: (core, { params, body }) =>
+    core.providers.setApiKey(params.id as never, body.key as string),
+  disconnectProvider: (core, { params }) => core.providers.disconnect(params.id as never),
+  startLogin: (core) => core.providers.startLogin("openai"),
+  getLogin: (core, { params }) => core.providers.login(params.sid),
+  submitLoginUrl: (core, { params, body }) => core.providers.submitLoginUrl(params.sid, body.url as string),
+  cancelLogin: (core, { params }) => core.providers.cancelLogin(params.sid),
+  listModels: (core) => core.models.list(),
+  listSkills: (core) => core.skills.list(null),
+  suggestProjectFiles: (core, { params, body }) =>
+    core.projects.suggestFiles(params.id, body.query as string),
+  compactConversation: (core, { params, body }) => core.conversations.compact(params.id, body as never),
   setFastModel: (core, { body }) => core.settings.setFastModel(body.model as never),
   setProjectsFolder: (core, { body }) => core.settings.setProjectsFolder(body.path as string),
   cloneProject: (core, { body }) => core.projects.clone(body as never),
@@ -118,8 +128,8 @@ export function createFakeTransport(core: Core): Transport {
 const READY_PROJECT = "/Users/demo/project";
 
 async function seedReadyState(core: Core): Promise<void> {
-  await core.provider.setApiKey("fake");
-  const [model] = await core.provider.listModels();
+  await core.providers.setApiKey("openrouter", "fake");
+  const [model] = await core.models.list();
   if (model) await core.settings.setDefaultModel({ provider: model.provider, modelId: model.modelId });
   await core.projects.add({ path: READY_PROJECT });
 }

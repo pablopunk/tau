@@ -1,3 +1,4 @@
+import type { Skill } from "@pi-everywhere/protocol";
 import { runCoreContract } from "./contract/index";
 import { createFakeCore, type FakeGithubRepo } from "./index";
 
@@ -9,7 +10,8 @@ runCoreContract("testkit fake", async () => {
     { nameWithOwner: "demo/local", description: null, private: false, pushedAt: 2, localPath: "/fake/local" },
     { nameWithOwner: "demo/remote", description: null, private: true, pushedAt: 3, localPath: null },
   ];
-  const core = createFakeCore({ speed: SPEED, fs, github: { repos } });
+  const skills: Skill[] = [];
+  const core = createFakeCore({ speed: SPEED, fs, github: { repos }, skills });
   return {
     core,
     github: { repoWithLocalCopy: "demo/local", repoWithoutLocalCopy: "demo/remote" },
@@ -22,6 +24,12 @@ runCoreContract("testkit fake", async () => {
       missing: () => "/fake/missing",
       cloneUrl: async () => "https://example.com/demo/ok.git",
       failingCloneUrl: () => "https://127.0.0.1:1/fail.git",
+    },
+    writeProjectFile: async (directory, name) => {
+      fs[`${directory}/${name}`] = "file";
+    },
+    addProjectSkill: async (_directory, name, description) => {
+      skills.push({ name, description, scope: "project", path: `.agents/skills/${name}/SKILL.md` });
     },
     dispose: () => core.close(),
   };

@@ -103,9 +103,13 @@ export function collectChanges(core: Core): { changes: Change[]; stop: () => voi
   return { changes, stop };
 }
 
+export async function hasConnectedProvider(core: Core): Promise<boolean> {
+  return (await core.providers.list()).some((provider) => provider.connection !== null);
+}
+
 export async function configure(core: Core): Promise<void> {
-  await core.provider.setApiKey("sk-contract-test");
-  const [model] = await core.provider.listModels();
+  await core.providers.setApiKey("openrouter", "sk-contract-test");
+  const [model] = await core.models.list();
   if (!model) throw new Error("The provider listed no models");
   await core.settings.setDefaultModel({ provider: model.provider, modelId: model.modelId });
 }
@@ -133,7 +137,7 @@ export interface StartOptions {
 /** Configures the core (unless it already is), adds a project and starts a thread. */
 export async function startConversation(target: ContractTarget, options: StartOptions = {}) {
   const { core } = target;
-  if (!(await core.provider.status()).configured) await configure(core);
+  if (!(await hasConnectedProvider(core))) await configure(core);
   const project = options.projectId
     ? ((await core.projects.list()).find((item) => item.id === options.projectId) as Project)
     : await addProject(target);

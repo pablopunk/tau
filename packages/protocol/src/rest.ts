@@ -1,18 +1,23 @@
 import { type TSchema, Type } from "typebox";
 import {
+  CompactInputSchema,
   ConfigureConversationInputSchema,
   ConversationSummarySchema,
+  FileSuggestionSchema,
   GithubRepoSchema,
   GithubStatusSchema,
   IconCandidateLinkSchema,
+  LoginSessionSchema,
   ModelInfoSchema,
   ModelRefSchema,
   PathSuggestionSchema,
   ProjectSchema,
-  ProviderStatusSchema,
+  ProviderIdSchema,
+  ProviderInfoSchema,
   RetryInputSchema,
   SendMessageInputSchema,
   SettingsSchema,
+  SkillSchema,
   StartConversationInputSchema,
   SuggestDirectoriesInputSchema,
   SuggestedCodeFolderSchema,
@@ -41,6 +46,8 @@ export interface RouteDef {
 }
 
 const IdParams = Type.Object({ id: Type.String({ minLength: 1 }) });
+const ProviderParams = Type.Object({ id: ProviderIdSchema });
+const SessionParams = Type.Object({ sid: Type.String({ minLength: 1 }) });
 
 export const routes = {
   getSettings: { method: "GET", path: `${API_PREFIX}/settings`, status: 200, response: SettingsSchema },
@@ -100,13 +107,50 @@ export const routes = {
     body: UseGithubRepoInputSchema,
     response: ProjectSchema,
   },
-  getProvider: { method: "GET", path: `${API_PREFIX}/provider`, status: 200, response: ProviderStatusSchema },
+  listProviders: {
+    method: "GET",
+    path: `${API_PREFIX}/providers`,
+    status: 200,
+    response: Type.Array(ProviderInfoSchema),
+  },
   setProviderKey: {
     method: "PUT",
-    path: `${API_PREFIX}/provider/key`,
-    status: 204,
+    path: `${API_PREFIX}/providers/:id/key`,
+    status: 200,
+    params: ProviderParams,
     body: Type.Object({ key: Type.String({ minLength: 1 }) }),
+    response: ProviderInfoSchema,
   },
+  disconnectProvider: {
+    method: "DELETE",
+    path: `${API_PREFIX}/providers/:id`,
+    status: 200,
+    params: ProviderParams,
+    response: ProviderInfoSchema,
+  },
+  startLogin: {
+    method: "POST",
+    path: `${API_PREFIX}/providers/:id/login`,
+    status: 201,
+    params: ProviderParams,
+    response: LoginSessionSchema,
+  },
+  getLogin: {
+    method: "GET",
+    path: `${API_PREFIX}/logins/:sid`,
+    status: 200,
+    params: SessionParams,
+    response: LoginSessionSchema,
+  },
+  submitLoginUrl: {
+    method: "POST",
+    path: `${API_PREFIX}/logins/:sid/url`,
+    status: 200,
+    params: SessionParams,
+    body: Type.Object({ url: Type.String({ minLength: 1, maxLength: 4096 }) }),
+    response: LoginSessionSchema,
+  },
+  cancelLogin: { method: "DELETE", path: `${API_PREFIX}/logins/:sid`, status: 204, params: SessionParams },
   listModels: {
     method: "GET",
     path: `${API_PREFIX}/models`,
@@ -189,6 +233,21 @@ export const routes = {
     query: Type.Object({ name: Type.String({ minLength: 1 }) }),
     responseKind: "image",
   },
+  suggestProjectFiles: {
+    method: "POST",
+    path: `${API_PREFIX}/projects/:id/files/suggest`,
+    status: 200,
+    params: IdParams,
+    body: Type.Object({ query: Type.String({ maxLength: 500 }) }),
+    response: Type.Array(FileSuggestionSchema),
+  },
+  listSkills: {
+    method: "GET",
+    path: `${API_PREFIX}/skills`,
+    status: 200,
+    query: Type.Object({ projectId: Type.Optional(Type.String({ minLength: 1 })) }),
+    response: Type.Array(SkillSchema),
+  },
   listConversations: {
     method: "GET",
     path: `${API_PREFIX}/projects/:id/conversations`,
@@ -251,6 +310,13 @@ export const routes = {
     status: 204,
     params: IdParams,
     body: RetryInputSchema,
+  },
+  compactConversation: {
+    method: "POST",
+    path: `${API_PREFIX}/conversations/:id/compact`,
+    status: 204,
+    params: IdParams,
+    body: CompactInputSchema,
   },
   abortConversation: {
     method: "POST",

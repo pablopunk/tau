@@ -3,6 +3,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { defineDoc } from "@earendil-works/pi-durable";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { createChangeEmitter } from "./change-emitter";
 import { BACKGROUND, openAgentHarness, openSqliteStorage } from "./harness/open";
 import { openDataHome } from "./home/data-home";
 import { createProviderService } from "./provider/provider-service";
@@ -29,7 +30,12 @@ const MvpProjectsDoc = defineDoc<{
 
 async function writeMvpProject(home: string, path: string) {
   const dataHome = await openDataHome(home);
-  const provider = createProviderService({ credentialsFile: dataHome.credentialsFile, faux: true, env: {} });
+  const provider = createProviderService({
+    credentialsFile: dataHome.credentialsFile,
+    faux: true,
+    env: {},
+    changes: createChangeEmitter(),
+  });
   const harness = await openAgentHarness({
     storage: await openSqliteStorage(dataHome.agentDatabase),
     models: provider.models,
@@ -90,8 +96,8 @@ describe("settings", () => {
   });
 
   it("stores the fast model, which survives a restart, and clears it with null", async () => {
-    await world.core.provider.setApiKey("sk-test");
-    const [model] = await world.core.provider.listModels();
+    await world.core.providers.setApiKey("openrouter", "sk-test");
+    const [model] = await world.core.models.list();
     const ref = { provider: model?.provider ?? "", modelId: model?.modelId ?? "" };
     await world.core.settings.setFastModel(ref);
     expect((await (await world.reopen()).settings.get()).fastModel).toEqual(ref);

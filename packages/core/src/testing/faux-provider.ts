@@ -1,3 +1,4 @@
+import type { CredentialStore } from "@earendil-works/pi-ai";
 import { createModels, type MutableModels } from "@earendil-works/pi-ai/models";
 import {
   type FauxModelDefinition,
@@ -5,6 +6,7 @@ import {
   type FauxResponseFactory,
   fauxProvider,
 } from "@earendil-works/pi-ai/providers/faux";
+import { withFauxChatGptLogin } from "./faux-chatgpt-login";
 import { createFauxScript } from "./faux-script";
 
 export const FAUX_PROVIDER_ID = "faux";
@@ -31,11 +33,17 @@ function keepScriptRunning(faux: FauxProviderHandle, script: FauxResponseFactory
   return step;
 }
 
-export function createFauxSetup(options: { tokensPerSecond?: number } = {}): FauxSetup {
+export interface FauxSetupOptions {
+  readonly tokensPerSecond?: number;
+  readonly credentials?: CredentialStore;
+}
+
+export function createFauxSetup(options: FauxSetupOptions = {}): FauxSetup {
   const faux = fauxProvider({ models: FAUX_MODELS, tokensPerSecond: options.tokensPerSecond });
   const script = createFauxScript();
   faux.setResponses(Array.from({ length: QUEUED_STEPS }, () => keepScriptRunning(faux, script)));
-  const models = createModels();
+  const models = createModels({ credentials: options.credentials });
   models.setProvider(faux.provider);
+  models.setProvider(withFauxChatGptLogin(faux.provider));
   return { models, faux };
 }

@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { basename } from "node:path";
 import { AppError, type Core, isIconPng } from "@pi-everywhere/protocol";
 import type { ChangeEmitter } from "./change-emitter";
+import { suggestFiles } from "./fs/suggest-files";
 import type { CloneService } from "./git/clone-service";
 import type { ConversationStore } from "./harness/conversation-store";
 import { HOME_PROJECT_ID, type ProjectStore } from "./harness/project-store";
@@ -44,6 +45,9 @@ export function createProjectsApi(deps: {
     },
     clone: async (input) => present(await clones.clone(input)),
     retryClone: (id) => clones.retryClone(id),
+    async suggestFiles(id, query) {
+      return suggestFiles((await projects.require(id)).path, query);
+    },
     async icon(id) {
       const project = await nonHome(id);
       return project ? icons.icon(project) : null;

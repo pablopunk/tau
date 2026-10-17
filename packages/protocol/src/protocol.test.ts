@@ -2,6 +2,7 @@ import { Value } from "typebox/value";
 import { describe, expect, it } from "vitest";
 import {
   AppError,
+  CompactInputSchema,
   changedFrame,
   decodeClientFrame,
   decodeServerFrame,
@@ -13,6 +14,7 @@ import {
   fillPath,
   isErrorBody,
   isRetryable,
+  LoginSessionSchema,
   routes,
   toErrorBody,
 } from "./index";
@@ -27,6 +29,36 @@ describe("errors", () => {
     expect(Value.Check(ErrorBodySchema, body)).toBe(true);
     expect(isErrorBody(body)).toBe(true);
     expect(isErrorBody({ error: { code: "other", message: "x" } })).toBe(false);
+  });
+});
+
+describe("MVP4 contract", () => {
+  it("knows the new error codes and the providers change", () => {
+    expect(ERROR_CODES).toContain("login_failed");
+    expect(ERROR_CODES).toContain("nothing_to_compact");
+    expect(Value.Check(ErrorBodySchema, { error: { code: "nothing_to_compact", message: "x" } })).toBe(true);
+    const frame = encodeFrame(changedFrame({ resource: "providers" }));
+    expect(decodeServerFrame(frame)).toEqual({ type: "changed", resource: "providers" });
+  });
+
+  it("validates a login session and a compact input", () => {
+    const session = {
+      id: "s",
+      provider: "openai",
+      method: "chatgpt",
+      state: "waiting",
+      authUrl: null,
+      error: null,
+    };
+    expect(Value.Check(LoginSessionSchema, session)).toBe(true);
+    expect(Value.Check(LoginSessionSchema, { ...session, provider: "google" })).toBe(false);
+    expect(Value.Check(CompactInputSchema, { instructions: "x".repeat(2000) })).toBe(true);
+    expect(Value.Check(CompactInputSchema, { instructions: "x".repeat(2001) })).toBe(false);
+  });
+
+  it("fills the login and provider paths", () => {
+    expect(fillPath(routes.getLogin.path, { sid: "a b" })).toBe("/api/logins/a%20b");
+    expect(fillPath(routes.startLogin.path, { id: "openai" })).toBe("/api/providers/openai/login");
   });
 });
 

@@ -18,7 +18,9 @@ import { createIconService } from "./icons/icon-service";
 import { createPresentProject } from "./project-view";
 import { createProjectsApi } from "./projects-api";
 import { createProviderService, type Environment } from "./provider/provider-service";
+import { createProvidersApi } from "./providers-api";
 import { createSettingsApi } from "./settings-api";
+import { createSkillsApi } from "./skills/skills-api";
 import { createStatusTracker } from "./status/status-tracker";
 import { createTitleService } from "./titles/title-service";
 
@@ -60,14 +62,15 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
   const home = await openDataHome(options.home);
   const lock = await acquireHomeLock(home.lockFile);
   try {
+    const changes = createChangeEmitter();
     const provider = createProviderService({
       credentialsFile: home.credentialsFile,
       faux: options.faux ?? false,
       env: deps.env,
+      changes,
     });
     const defaultProjectsFolder = join(home.root, "projects");
     const settings = createSettingsStore(home.settingsFile, defaultProjectsFolder);
-    const changes = createChangeEmitter();
     const status = createStatusTracker({ changes, now: deps.now });
     const harness = await openAgentHarness({
       storage: await openSqliteStorage(home.agentDatabase),
@@ -129,11 +132,8 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
         refreshRepos: () => github.refreshRepos(),
         use: (input) => github.use(input),
       },
-      provider: {
-        status: () => provider.status(),
-        setApiKey: (key) => provider.setApiKey(key),
-        listModels: () => provider.listModels(),
-      },
+      ...createProvidersApi(provider),
+      skills: createSkillsApi({ projects }),
       projects: createProjectsApi({ ...shared, clones, icons, present }),
       conversations: createConversationsApi({ ...shared, provider, settings, titles, status }),
       onChange: (listener) => changes.subscribe(listener),

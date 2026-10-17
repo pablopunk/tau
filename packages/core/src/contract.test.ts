@@ -1,7 +1,7 @@
 import { execFile } from "node:child_process";
 import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { promisify } from "node:util";
 import type { Core } from "@pi-everywhere/protocol";
 import { type ContractTarget, runCoreContract } from "@pi-everywhere/testkit/contract";
@@ -13,7 +13,7 @@ import { makeLocalRepo } from "./test-support/local-repo";
 
 const REAL_CORE_IMPLEMENTED = true;
 
-const PENDING_TAGS: string[] = [];
+const PENDING_TAGS: string[] = ["[login]", "[files]", "[skills]"];
 
 process.env.PI_EVERYWHERE_ALLOW_FILE_CLONES = "1";
 
@@ -90,6 +90,15 @@ async function makeRealTarget(): Promise<ContractTarget> {
     },
     github: { repoWithLocalCopy: GITHUB_REPOS.withCopy, repoWithoutLocalCopy: GITHUB_REPOS.withoutCopy },
     readProjectFile: (directory, name) => readFile(join(directory, name), "utf8").catch(() => undefined),
+    writeProjectFile: async (directory, name, content) => {
+      await mkdir(dirname(join(directory, name)), { recursive: true });
+      await writeFile(join(directory, name), content);
+    },
+    addProjectSkill: async (directory, name, description) => {
+      const folder = join(directory, ".agents", "skills", name);
+      await mkdir(folder, { recursive: true });
+      await writeFile(join(folder, "SKILL.md"), `---\nname: ${name}\ndescription: ${description}\n---\n`);
+    },
     reopen: async () => {
       await core.close();
       core = await createCoreWith({ home, faux: true }, deps);

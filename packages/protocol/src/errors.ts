@@ -18,6 +18,8 @@ export const ERROR_CODES = [
   "github_unavailable",
   "needs_folder",
   "remote_mismatch",
+  "login_failed",
+  "nothing_to_compact",
   "internal",
 ] as const;
 
@@ -41,6 +43,8 @@ export const ErrorCodeSchema = Type.Union([
   Type.Literal("github_unavailable"),
   Type.Literal("needs_folder"),
   Type.Literal("remote_mismatch"),
+  Type.Literal("login_failed"),
+  Type.Literal("nothing_to_compact"),
   Type.Literal("internal"),
 ]);
 
@@ -67,6 +71,8 @@ export const ERROR_STATUS: Record<ErrorCode, number> = {
   github_unavailable: 409,
   needs_folder: 409,
   remote_mismatch: 422,
+  login_failed: 422,
+  nothing_to_compact: 409,
   internal: 500,
 };
 

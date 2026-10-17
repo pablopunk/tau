@@ -1,6 +1,27 @@
-import type { ModelInfo, ThinkingLevel } from "@pi-everywhere/protocol";
+import type { ModelInfo, ProviderInfo, ThinkingLevel } from "@pi-everywhere/protocol";
 
-export const FAKE_PROVIDER_ID = "openrouter";
+export const FAKE_PROVIDERS: readonly Omit<ProviderInfo, "connection">[] = [
+  { id: "openrouter", name: "OpenRouter", methods: ["api_key"], keyUrl: "https://openrouter.ai/keys" },
+  {
+    id: "openai",
+    name: "OpenAI",
+    methods: ["api_key", "chatgpt"],
+    keyUrl: "https://platform.openai.com/api-keys",
+  },
+  {
+    id: "anthropic",
+    name: "Anthropic",
+    methods: ["api_key"],
+    keyUrl: "https://console.anthropic.com/settings/keys",
+  },
+  { id: "google", name: "Google", methods: ["api_key"], keyUrl: "https://aistudio.google.com/apikey" },
+  { id: "opencode", name: "OpenCode", methods: ["api_key"], keyUrl: "https://opencode.ai/auth" },
+];
+
+export const FAKE_AUTH_URL = "https://auth.fake.test/authorize?state=faux";
+export const FAKE_VALID_CALLBACK_URL = "http://127.0.0.1:1455/auth/callback?code=ok&state=faux";
+
+const FAKE_PROVIDER_NAME = "Faux";
 
 const REASONING_LEVELS: ThinkingLevel[] = ["off", "minimal", "low", "medium", "high"];
 
@@ -13,6 +34,7 @@ export const FAKE_MODELS: readonly ModelInfo[] = [
     reasoning: true,
     images: true,
     thinkingLevels: REASONING_LEVELS,
+    providerName: FAKE_PROVIDER_NAME,
   },
   {
     provider: "faux",
@@ -22,6 +44,7 @@ export const FAKE_MODELS: readonly ModelInfo[] = [
     reasoning: false,
     images: true,
     thinkingLevels: ["off"],
+    providerName: FAKE_PROVIDER_NAME,
   },
   {
     provider: "faux",
@@ -31,6 +54,7 @@ export const FAKE_MODELS: readonly ModelInfo[] = [
     reasoning: false,
     images: true,
     thinkingLevels: ["off"],
+    providerName: FAKE_PROVIDER_NAME,
   },
   {
     provider: "faux",
@@ -40,6 +64,7 @@ export const FAKE_MODELS: readonly ModelInfo[] = [
     reasoning: false,
     images: false,
     thinkingLevels: ["off"],
+    providerName: FAKE_PROVIDER_NAME,
   },
 ];
 

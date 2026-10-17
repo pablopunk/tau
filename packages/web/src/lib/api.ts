@@ -7,7 +7,7 @@ import type {
   ModelRef,
   PathSuggestion,
   Project,
-  ProviderStatus,
+  ProviderInfo,
   RetryInput,
   SendMessageInput,
   Settings,
@@ -22,6 +22,22 @@ import { createLazyTransport } from "./transport/lazy";
 import type { LiveTransport, Transport } from "./transport/types";
 
 export type { LiveHandlers, LiveSocket, LiveTransport, Transport } from "./transport/types";
+
+/** What the setup gate needs of `GET /providers`. */
+export interface ProviderStatus {
+  configured: boolean;
+  source: "file" | "env" | null;
+  valid: boolean | null;
+}
+
+export function providerStatusOf(providers: readonly ProviderInfo[]): ProviderStatus {
+  const connection = providers.find((provider) => provider.connection)?.connection ?? null;
+  return {
+    configured: connection !== null,
+    source: connection?.source ?? null,
+    valid: connection?.valid ?? null,
+  };
+}
 
 /** The typed REST client. Every method rejects with `AppError` (see `@pi-everywhere/protocol`). */
 export interface Api {
@@ -98,8 +114,10 @@ export function createApi(transport: Transport): Api {
       use: (input) => request("useGithubRepo", { body: input }),
     },
     provider: {
-      status: () => request("getProvider", {}),
-      setKey: (key) => request("setProviderKey", { body: { key } }),
+      status: async () => providerStatusOf(await request("listProviders", {})),
+      setKey: async (key) => {
+        await request("setProviderKey", { params: { id: "openrouter" }, body: { key } });
+      },
       models: () => request("listModels", {}),
     },
     projects: {

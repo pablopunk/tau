@@ -27,6 +27,7 @@ export const ModelInfoSchema = Type.Object({
   reasoning: Type.Boolean(),
   images: Type.Boolean(),
   thinkingLevels: Type.Array(ThinkingLevelSchema),
+  providerName: Type.String(),
 });
 export type ModelInfo = Type.Static<typeof ModelInfoSchema>;
 
@@ -37,13 +38,72 @@ export const SettingsSchema = Type.Object({
 });
 export type Settings = Type.Static<typeof SettingsSchema>;
 
-export const ProviderStatusSchema = Type.Object({
-  provider: Type.String(),
-  configured: Type.Boolean(),
-  source: Type.Union([Type.Literal("file"), Type.Literal("env"), Type.Null()]),
+export const ProviderIdSchema = Type.Union([
+  Type.Literal("openrouter"),
+  Type.Literal("openai"),
+  Type.Literal("anthropic"),
+  Type.Literal("google"),
+  Type.Literal("opencode"),
+]);
+export type ProviderId = Type.Static<typeof ProviderIdSchema>;
+
+export const ProviderMethodSchema = Type.Union([Type.Literal("api_key"), Type.Literal("chatgpt")]);
+export type ProviderMethod = Type.Static<typeof ProviderMethodSchema>;
+
+export const ProviderConnectionSchema = Type.Object({
+  method: ProviderMethodSchema,
+  source: Type.Union([Type.Literal("file"), Type.Literal("env")]),
   valid: Type.Union([Type.Boolean(), Type.Null()]),
 });
-export type ProviderStatus = Type.Static<typeof ProviderStatusSchema>;
+export type ProviderConnection = Type.Static<typeof ProviderConnectionSchema>;
+
+export const ProviderInfoSchema = Type.Object({
+  id: ProviderIdSchema,
+  name: Type.String(),
+  methods: Type.Array(ProviderMethodSchema),
+  keyUrl: Type.String(),
+  connection: Type.Union([ProviderConnectionSchema, Type.Null()]),
+});
+export type ProviderInfo = Type.Static<typeof ProviderInfoSchema>;
+
+export const LoginStateSchema = Type.Union([
+  Type.Literal("starting"),
+  Type.Literal("waiting"),
+  Type.Literal("done"),
+  Type.Literal("failed"),
+  Type.Literal("cancelled"),
+]);
+export type LoginState = Type.Static<typeof LoginStateSchema>;
+
+export const LoginSessionSchema = Type.Object({
+  id: Type.String(),
+  provider: Type.Literal("openai"),
+  method: Type.Literal("chatgpt"),
+  state: LoginStateSchema,
+  authUrl: Type.Union([Type.String(), Type.Null()]),
+  error: Type.Union([Type.String(), Type.Null()]),
+});
+export type LoginSession = Type.Static<typeof LoginSessionSchema>;
+
+export const FileSuggestionSchema = Type.Object({
+  path: Type.String(),
+  kind: Type.Union([Type.Literal("file"), Type.Literal("directory")]),
+});
+export type FileSuggestion = Type.Static<typeof FileSuggestionSchema>;
+
+export const SkillSchema = Type.Object({
+  name: Type.String(),
+  description: Type.String(),
+  scope: Type.Union([Type.Literal("project"), Type.Literal("user")]),
+  path: Type.String(),
+});
+export type Skill = Type.Static<typeof SkillSchema>;
+
+export const COMPACT_INSTRUCTIONS_MAX_LENGTH = 2000;
+export const CompactInputSchema = Type.Object({
+  instructions: Type.Optional(Type.String({ maxLength: COMPACT_INSTRUCTIONS_MAX_LENGTH })),
+});
+export type CompactInput = Type.Static<typeof CompactInputSchema>;
 
 export const ProjectKindSchema = Type.Union([
   Type.Literal("home"),
@@ -96,6 +156,7 @@ export type ConversationSummary = Type.Static<typeof ConversationSummarySchema>;
 
 export const ChangeSchema = Type.Union([
   Type.Object({ resource: Type.Literal("projects") }),
+  Type.Object({ resource: Type.Literal("providers") }),
   Type.Object({ resource: Type.Literal("conversations"), projectId: Type.String() }),
 ]);
 export type Change = Type.Static<typeof ChangeSchema>;

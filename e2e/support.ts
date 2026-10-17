@@ -90,5 +90,9 @@ export const serverEnvironment = () => ({
   ...GIT_IDENTITY,
   HOME: homeDir(),
   OPENROUTER_API_KEY: "",
+  OPENAI_API_KEY: "",
+  ANTHROPIC_API_KEY: "",
+  GEMINI_API_KEY: "",
+  OPENCODE_API_KEY: "",
   PI_EVERYWHERE_ALLOW_FILE_CLONES: "1",
 });

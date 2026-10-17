@@ -48,9 +48,22 @@ export class FileCredentialStore implements CredentialStore {
   }
 
   delete(providerId: string): Promise<void> {
+    return this.deleteMany([providerId]);
+  }
+
+  /** One atomic write of the same credential under several provider ids. */
+  writeMany(providerIds: readonly string[], credential: Credential): Promise<void> {
     return this.#enqueue(async () => {
-      const { [providerId]: _removed, ...rest } = await this.#load();
-      await this.#save(rest);
+      const entries = providerIds.map((providerId) => [providerId, credential] as const);
+      await this.#save({ ...(await this.#load()), ...Object.fromEntries(entries) });
+    });
+  }
+
+  deleteMany(providerIds: readonly string[]): Promise<void> {
+    return this.#enqueue(async () => {
+      const file = await this.#load();
+      for (const providerId of providerIds) delete file[providerId];
+      await this.#save(file);
     });
   }
 

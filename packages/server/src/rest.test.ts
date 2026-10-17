@@ -10,11 +10,22 @@ afterEach(async () => {
 describe("REST routes", () => {
   it("maps settings and provider routes to core", async () => {
     ctx = await startTestServer({ fake: { configured: false } });
-    expect((await ctx.request({ url: "/api/provider" })).json()).toMatchObject({ configured: false });
-    expect((await ctx.request({ url: "/api/models" })).statusCode).toBe(409);
-    const put = await ctx.request({ method: "PUT", url: "/api/provider/key", payload: { key: "sk-test" } });
-    expect(put.statusCode).toBe(204);
-    expect(put.body).toBe("");
+    const providers = (await ctx.request({ url: "/api/providers" })).json();
+    expect(providers.map((provider: { connection: unknown }) => provider.connection)).toEqual([
+      null,
+      null,
+      null,
+      null,
+      null,
+    ]);
+    expect((await ctx.request({ url: "/api/models" })).json()).toEqual([]);
+    const put = await ctx.request({
+      method: "PUT",
+      url: "/api/providers/openrouter/key",
+      payload: { key: "sk-test" },
+    });
+    expect(put.statusCode).toBe(200);
+    expect(put.json()).toMatchObject({ id: "openrouter", connection: { method: "api_key", source: "file" } });
     const models = (await ctx.request({ url: "/api/models" })).json();
     expect(models.length).toBeGreaterThan(0);
     const { provider, modelId } = models[0];
@@ -126,7 +137,7 @@ describe("REST routes", () => {
     ctx = await startTestServer({ fake: { configured: true } });
     const huge = await ctx.request({
       method: "PUT",
-      url: "/api/provider/key",
+      url: "/api/providers/openrouter/key",
       payload: { key: "x".repeat(2 * 1024 * 1024) },
     });
     expect(huge.statusCode).toBe(413);
@@ -165,7 +176,7 @@ describe("REST routes", () => {
     expect(wrongShape.json().error.code).toBe("invalid_request");
     const malformed = await ctx.request({
       method: "PUT",
-      url: "/api/provider/key",
+      url: "/api/providers/openrouter/key",
       headers: { "content-type": "application/json" },
       payload: "{not json",
     });

@@ -69,12 +69,12 @@ describe("default model", () => {
   });
 
   it("survives a restart, and conversations use it", async () => {
-    await world.core.provider.setApiKey("sk-test");
+    await world.core.providers.setApiKey("openrouter", "sk-test");
     await world.core.settings.setDefaultModel({ provider: "faux", modelId: "faux-2" });
     const reopened = await world.reopen();
     expect(await reopened.settings.get()).toMatchObject({
       defaultModel: { provider: "faux", modelId: "faux-2" },
     });
-    expect((await reopened.provider.status()).configured).toBe(true);
+    expect((await reopened.providers.list()).some((provider) => provider.connection !== null)).toBe(true);
   });
 });

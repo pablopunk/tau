@@ -1,8 +1,13 @@
-import { type Core, iconCandidateUrl, routes } from "@pi-everywhere/protocol";
+import { AppError, type Core, iconCandidateUrl, type ProviderId, routes } from "@pi-everywhere/protocol";
 import type { FastifyInstance } from "fastify";
 import { requireCandidateName } from "./candidate-name";
 import { defineImageRoute } from "./define-image-route";
 import { defineRoute } from "./define-route";
+
+function startLoginFor(core: Core, id: ProviderId) {
+  if (id !== "openai") throw new AppError("invalid_request", "This provider has no sign-in.");
+  return core.providers.startLogin(id);
+}
 
 export function registerRoutes(app: FastifyInstance, core: Core): void {
   defineRoute(app, routes.suggestDirectories, ({ body }) => core.fs.suggestDirectories(body));
@@ -15,9 +20,22 @@ export function registerRoutes(app: FastifyInstance, core: Core): void {
   defineRoute(app, routes.listGithubRepos, () => core.github.repos());
   defineRoute(app, routes.refreshGithubRepos, () => core.github.refreshRepos());
   defineRoute(app, routes.useGithubRepo, ({ body }) => core.github.use(body));
-  defineRoute(app, routes.getProvider, () => core.provider.status());
-  defineRoute(app, routes.setProviderKey, ({ body }) => core.provider.setApiKey(body.key));
-  defineRoute(app, routes.listModels, () => core.provider.listModels());
+  defineRoute(app, routes.listProviders, () => core.providers.list());
+  defineRoute(app, routes.setProviderKey, ({ params, body }) =>
+    core.providers.setApiKey(params.id, body.key),
+  );
+  defineRoute(app, routes.disconnectProvider, ({ params }) => core.providers.disconnect(params.id));
+  defineRoute(app, routes.startLogin, ({ params }) => startLoginFor(core, params.id));
+  defineRoute(app, routes.getLogin, ({ params }) => core.providers.login(params.sid));
+  defineRoute(app, routes.submitLoginUrl, ({ params, body }) =>
+    core.providers.submitLoginUrl(params.sid, body.url),
+  );
+  defineRoute(app, routes.cancelLogin, ({ params }) => core.providers.cancelLogin(params.sid));
+  defineRoute(app, routes.listModels, () => core.models.list());
+  defineRoute(app, routes.listSkills, ({ query }) => core.skills.list(query.projectId ?? null));
+  defineRoute(app, routes.suggestProjectFiles, ({ params, body }) =>
+    core.projects.suggestFiles(params.id, body.query),
+  );
   defineRoute(app, routes.listProjects, () => core.projects.list());
   defineRoute(app, routes.addProject, ({ body }) => core.projects.add(body));
   defineRoute(app, routes.cloneProject, ({ body }) => core.projects.clone(body));
@@ -52,6 +70,9 @@ export function registerRoutes(app: FastifyInstance, core: Core): void {
   defineRoute(app, routes.removeConversation, ({ params }) => core.conversations.remove(params.id));
   defineRoute(app, routes.configureConversation, ({ params, body }) =>
     core.conversations.configure(params.id, body),
+  );
+  defineRoute(app, routes.compactConversation, ({ params, body }) =>
+    core.conversations.compact(params.id, body),
   );
   defineRoute(app, routes.retryConversation, ({ params, body }) => core.conversations.retry(params.id, body));
 }

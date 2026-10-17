@@ -51,7 +51,7 @@ describe("createCore lifecycle", () => {
   it("keeps settings and credentials private files in the home", async () => {
     const home = homeIn(await tempDir());
     const core = await createCore({ home, faux: true });
-    await core.provider.setApiKey("sk-test");
+    await core.providers.setApiKey("openrouter", "sk-test");
     await core.settings.setDefaultModel({ provider: "faux", modelId: "faux-1" });
     expect(await modeOf(join(home, "credentials.json"))).toBe(0o600);
     expect(await modeOf(join(home, "settings.json"))).toBe(0o600);
@@ -71,9 +71,9 @@ describe("createCore with OpenRouter", () => {
     const root = await tempDir();
     const { options: coreOptions, deps } = options(homeIn(root), {});
     const core = await createCoreWith(coreOptions, deps);
-    await core.provider.setApiKey("sk-real");
+    await core.providers.setApiKey("openrouter", "sk-real");
     expect(stub.requests[0]?.url).toBe("https://openrouter.ai/api/v1/key");
-    const models = await core.provider.listModels();
+    const models = await core.models.list();
     expect(models.map((model) => model.modelId)).toEqual([modelId]);
     await core.settings.setDefaultModel({ provider: "openrouter", modelId });
     await expect(
@@ -93,12 +93,8 @@ describe("createCore with OpenRouter", () => {
     stubOpenRouter();
     const { options: coreOptions, deps } = options(homeIn(await tempDir()), { OPENROUTER_API_KEY: "sk-env" });
     const core = await createCoreWith(coreOptions, deps);
-    expect(await core.provider.status()).toEqual({
-      provider: "openrouter",
-      configured: true,
-      source: "env",
-      valid: true,
-    });
+    const openrouter = (await core.providers.list()).find((provider) => provider.id === "openrouter");
+    expect(openrouter?.connection).toEqual({ method: "api_key", source: "env", valid: true });
     await core.close();
   });
 });

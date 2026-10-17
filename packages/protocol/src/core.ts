@@ -1,19 +1,24 @@
 import type {
   Change,
+  CompactInput,
   ConfigureConversationInput,
   ConversationSummary,
+  FileSuggestion,
   GithubRepo,
   GithubStatus,
   IconCandidate,
+  LoginSession,
   ModelInfo,
   ModelRef,
   PathSuggestion,
   Project,
   ProjectIconImage,
-  ProviderStatus,
+  ProviderId,
+  ProviderInfo,
   RetryInput,
   SendMessageInput,
   Settings,
+  Skill,
   StartConversationInput,
   SuggestDirectoriesInput,
   SuggestedCodeFolder,
@@ -23,20 +28,25 @@ import type { Op } from "./view";
 
 export type {
   Change,
+  CompactInput,
   ConfigureConversationInput,
   ConversationSummary,
+  FileSuggestion,
   GithubRepo,
   GithubStatus,
   IconCandidate,
+  LoginSession,
   ModelInfo,
   ModelRef,
   PathSuggestion,
   Project,
   ProjectIconImage,
-  ProviderStatus,
+  ProviderId,
+  ProviderInfo,
   RetryInput,
   SendMessageInput,
   Settings,
+  Skill,
   StartConversationInput,
   SuggestDirectoriesInput,
   SuggestedCodeFolder,
@@ -52,8 +62,8 @@ export interface ConversationWatcher {
 /**
  * The application core. Every method rejects with `AppError` (see `errors.ts`) for expected failures; anything else
  * is an internal error. The server only depends on this interface, and `createCore` (packages/core) implements it.
- * Ids (projects, conversations) are opaque strings. `ProviderStatus.provider` is the provider the key belongs to
- * (`openrouter`, also in faux mode); `ModelRef.provider` is the model's own provider (`faux` in faux mode).
+ * Ids (projects, conversations) are opaque strings.
+ * `ProviderInfo.id` is our provider id; `ModelRef.provider` is the model's own pi provider id (`faux` in faux mode).
  */
 export interface Core {
   fs: {
@@ -84,13 +94,29 @@ export interface Core {
      */
     use(input: UseGithubRepoInput): Promise<Project>;
   };
-  provider: {
-    /** `configured` is false and `source`/`valid` are null until a key exists (file or OPENROUTER_API_KEY). */
-    status(): Promise<ProviderStatus>;
-    /** Validates the key against the provider first. Rejects `invalid_key` without storing anything. */
-    setApiKey(key: string): Promise<void>;
-    /** Models the configured key can use. Rejects `no_provider` when nothing is configured. */
-    listModels(): Promise<ModelInfo[]>;
+  providers: {
+    /** Every provider we support, connected or not, in a fixed order. */
+    list(): Promise<ProviderInfo[]>;
+    /** Validates first. Rejects `invalid_key` without storing anything. Replaces a ChatGPT login. */
+    setApiKey(id: ProviderId, key: string): Promise<ProviderInfo>;
+    /** Removes the stored credential only; an env key keeps the provider connected (`source: "env"`). */
+    disconnect(id: ProviderId): Promise<ProviderInfo>;
+    /** One active session; starting one awaits the cancel of the old. Rejects `invalid_request` for a provider without ChatGPT sign-in. */
+    startLogin(id: "openai"): Promise<LoginSession>;
+    /** Rejects `not_found` for an unknown or expired session. */
+    login(sessionId: string): Promise<LoginSession>;
+    /** The full callback URL. Rejects `not_found`; a wrong URL keeps the session waiting with `error` set, and `login_failed` after 5 attempts. */
+    submitLoginUrl(sessionId: string, url: string): Promise<LoginSession>;
+    /** Idempotent. Resolves once the login has stopped. */
+    cancelLogin(sessionId: string): Promise<void>;
+  };
+  models: {
+    /** Models of every connected provider, in provider order; `[]` when none is connected. */
+    list(): Promise<ModelInfo[]>;
+  };
+  skills: {
+    /** Project skills win over user skills with the same name. `null` lists user skills only. */
+    list(projectId: string | null): Promise<Skill[]>;
   };
   projects: {
     /** Home first (`kind: "home"`), then creation order. */
@@ -119,6 +145,8 @@ export interface Core {
     rename(id: string, name: string): Promise<void>;
     /** Deletes the project's conversations, aborting busy ones. Never touches the folder. Rejects `not_found`, and `invalid_request` for Home. */
     remove(id: string): Promise<void>;
+    /** At most 20 files and folders relative to the project folder, best match first. A query with `..` or starting with `/` or `~` gives `[]`. Rejects `not_found`. */
+    suggestFiles(id: string, query: string): Promise<FileSuggestion[]>;
   };
   conversations: {
     /** Most recently updated first, archived included, deleted excluded. Rejects `not_found` for an unknown project. */
@@ -155,6 +183,8 @@ export interface Core {
      * Rejects `not_found`, and `invalid_request` unless retryable.
      */
     retry(id: string, input: RetryInput): Promise<void>;
+    /** Resolves when the compaction ends. Rejects `not_found`, and `nothing_to_compact` when there is nothing to summarize. */
+    compact(id: string, input: CompactInput): Promise<void>;
     /**
      * `onOps` first gets `[["r", view]]` (view is a `ConversationView`), then each commit's ops. After falling behind
      * it may get `[["r", view]]` again, and `[["r", null]]` when the view is retired or the conversation is deleted.

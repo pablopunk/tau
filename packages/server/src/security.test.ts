@@ -72,7 +72,7 @@ describe("Content type", () => {
     for (const type of ["text/plain", "application/x-www-form-urlencoded", "multipart/form-data"]) {
       const response = await ctx.request({
         method: "PUT",
-        url: "/api/provider/key",
+        url: "/api/providers/openrouter/key",
         payload: '{"key":"k"}',
         headers: { "content-type": type },
       });
@@ -85,11 +85,11 @@ describe("Content type", () => {
     ctx = await startTestServer();
     const response = await ctx.request({
       method: "PUT",
-      url: "/api/provider/key",
+      url: "/api/providers/openrouter/key",
       payload: '{"key":"k"}',
       headers: { "content-type": "application/json; charset=utf-8" },
     });
-    expect(response.statusCode).toBe(204);
+    expect(response.statusCode).toBe(200);
   });
 });
 

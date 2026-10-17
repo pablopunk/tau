@@ -24,7 +24,7 @@ export function conversationCases(make: MakeContractTarget, test: CaseRunner): v
       const project = await addProject(target);
       const input = { projectId: project.id, text: "hello", requestId: nextRequestId() };
       await rejectsWithCode(core.conversations.start(input), "no_provider");
-      await core.provider.setApiKey("sk-contract-test");
+      await core.providers.setApiKey("openrouter", "sk-contract-test");
       await rejectsWithCode(core.conversations.start(input), "no_default_model");
     });
 

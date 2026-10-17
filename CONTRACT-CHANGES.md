@@ -49,3 +49,40 @@ Differences between `MVP2.md` and what Phase 0 left in the repo. Phase 2 reconci
 * E: `useConversations` and `useAllConversations` sort by `lastActivityAt` desc (tie: id desc); `sidebar-model.ts` no longer re-sorts. `App.test.tsx` already starts in Projects mode.
 * Icons: `writeFileAtomic` accepts bytes and `custom-icon.ts` uses it. `ProjectIconImage` gained optional `etag` (discovered file: mtime-size; custom icon: its hash) and the image route uses it before falling back to a content hash.
 * Security: `GithubServiceDeps.allowFileClones` replaces the `process.env` read; `create-core.ts` computes it once (faux and `PI_EVERYWHERE_ALLOW_FILE_CLONES=1`) for the clone and GitHub services. A test proves a non-faux core drops local clone URLs from gh.
+
+## MVP4 Phase 0a
+
+Frozen: `protocol` schemas and `Core`, the REST table, the `PROVIDERS` table (`core/src/provider/providers-table.ts`: `id`, `name`, `methods`, `keyUrl`, `envVar`, `piProviders[{piId,label}]`, `validate(key, fetch?) -> "valid" | "invalid" | "unknown"`), `ProviderService` (`list`, `setApiKey`, `disconnect`, `listModels`, `lists`, `logins`), `LoginSessions` (`start`, `get`, `submitUrl`, `cancel`), `suggestFiles(folder, query)`, `discoverSkills(projectFolder | null)`, `compactConversation`.
+
+### Deviations from MVP4.md
+
+* `POST /conversations/:id/compact` answers 204 (no body), like every other void route. The web awaits the promise as before.
+* `PUT /providers/:id/key` and `DELETE /providers/:id` answer 200 with the `ProviderInfo`. `POST /providers/:id/login` answers 201 with the session; any id but `openai` is `invalid_request`. `/skills` takes `?projectId=` (omitted means user skills only). The login URL body is capped at 4096 characters.
+* `submitLoginUrl`: a wrong URL keeps the session `waiting` with `error`; the 5th wrong URL sets `failed`. Submitting to a session that is not `waiting` rejects `login_failed`. `cancelLogin` of an unknown id resolves.
+* Faux mode: `models.list()` answers the four `faux` models (`providerName: "Faux"`) as soon as any provider is connected. Faux mode ignores env keys and skips key validation (an empty key is still `invalid_key`).
+* Added `FileCredentialStore.writeMany` and `deleteMany` (one atomic write for the OpenCode Zen and Go ids).
+* Contract: `ContractTarget` gained optional `writeProjectFile` and `addProjectSkill`. Real core pending tags: `[login]`, `[files]`, `[skills]`. `[providers]` and `[compact]` run for real. The fake's `compact` rejects `nothing_to_compact` until a thread has 2 answers and changes no view; the fake keeps `skills` from `FakeCoreOptions.skills`.
+* Faux script: an `Additional focus: fail` summary request answers a provider error (used to test a failing compaction).
+* Web (smallest fix, owner 0b replaces it): `lib/api.ts` keeps `api.provider.status/setKey/models` on top of `GET /providers` and `PUT /providers/openrouter/key` (local `ProviderStatus` and `providerStatusOf`); `lib/transport/fake.ts` has handlers for every new route; `lib/use-changed-invalidation.ts` handles `{ resource: "providers" }`. `lib/queries.ts` and `app/App.tsx` needed no change.
+* e2e `support.ts` blanks `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `OPENCODE_API_KEY` like `OPENROUTER_API_KEY`.
+
+### Pins
+
+Versions: `@earendil-works/pi-durable@1.3.0`, `@earendil-works/pi-ai@1.3.0` (`dist/` paths below).
+
+1. **Context in the view: nothing is missing, no `pi.context` doc needed.** Real faux conversation, `packages/core/src/context-view.test.ts:59` (threshold, automatic after the third 42k-character message) and `:95` (manual).
+   * Summary entry: `{ kind: "pi.compaction", id, head, data: { reason: "threshold" | "manual" | "overflow" }, model: [UserMessage], byTaskId }` (`entries.d.ts:28`). `head` is the id of the first kept entry; the summary sits right before it in `view.entries`, and entries before `head` are gone from `view.entries`. The web draws the "Context compacted" divider at the entry with `kind === "pi.compaction"`.
+   * Usage: each `pi.assistant` entry has `model[0].usage = { input, output, cacheRead, cacheWrite, totalTokens, cost }`. After a compaction the last answer is kept with its old usage, so the meter must use the entries after `head` (MVP4.md rule) and may show the stale total until the next answer. `docs["pi.usage"]` is the session ledger and not a context size.
+   * Live: `docs["pi.live"].compactions` is `[{ taskId, reason, blocking, attempt, retry? }]` while it runs (`live.d.ts:56,105`): threshold gives `blocking: true` (the run waits), manual gives `blocking: false`. It disappears when the summary is placed. A failed one leaves `compactionFailure: { taskId, reason, error }` (`live.d.ts:110`).
+   * Faux sizes: the threshold compaction fires during the third message of 42k characters (the faux model's 128k window).
+2. **`SettledTask` and "nothing placed"** (`harness/types.d.ts:50`, `types.d.ts:407`, `harness/types.d.ts:471`). `waitForTask(...)` resolves for every outcome; read `settled.state.outcome`:
+   * `{ status: "completed", result: CompactionResult }`; `result` is `{}` (no `entryId`, no `submissionId`) when nothing was placed, so `nothing_to_compact`. Measured on a one-exchange thread: `{"status":"completed","result":{}}`.
+   * `{ status: "failed", error: { message, detail: { reason: "model_error" | "no_model" } } }` (`compaction.js:153,384`): summarizer error, token limit, tool call, empty text. `message` is pi's text ("Summarization failed: Simulated provider failure"). Also `faulted` (`error`), `aborted` (`reason?`), `orphaned` (`reason`). `conversation-compact.ts` maps all of them to `internal` with that message, except nothing placed.
+3. **`models.getAuth(piId)` source labels** (`auth/helpers.js:19,25`, `auth/resolve.js:118`): stored api key `"stored credential"`; env key the variable name (`"OPENROUTER_API_KEY"`); OAuth `"OAuth"`. A stored credential wins and env is read only without one (`resolve.js:23-36`); `getAuth` resolves `undefined` when unconfigured. The code does not depend on the labels: `connection` comes from `credentials.read` first (`provider/connections.ts`), then `getAuth` decides `source: "env"`.
+4. **Validators, status codes with an invalid key** (curl, 2026-10-17, no real keys): OpenAI `/v1/models` Bearer 401; Anthropic `/v1/models` 401; Google `?key=bad` **400** with `"status": "INVALID_ARGUMENT"` (Bearer on Google gives 401); OpenCode `/zen/v1/models` **200 without** the header, 401 with a bad Bearer; OpenRouter `/api/v1/key` 401. Unit tests with stubbed `fetch`: `provider/validators.test.ts`.
+
+### For Phase 1
+
+* **A**: pi aborts the whole ChatGPT login on a bad pasted URL (`openai-chatgpt.js:224-233`: the `manual_code` promise rejects inside `Promise.race`, and `finally` closes the callback server). To keep a session `waiting` after a wrong paste, `login-sessions.ts` must check origin and path itself (the check pi does) before resolving the held prompt, and report a state or code error from pi as `failed`. The faux login (`testing/faux-chatgpt-login.ts`) rejects the same way. `getDeviceId` and the real `models.login` wiring are A's. The `[login]` contract expects the behavior in "Deviations".
+* **B**: `compactConversation` is real and tested; B owns the live-state and `coding-extension.ts` parts. `suggestFiles` and `discoverSkills` return `[]`; fill them and remove `[files]` and `[skills]` from `PENDING_TAGS`.
+* **Web**: `Change` has a third variant, `{ resource: "providers" }`. `ModelInfo.providerName` is `"Faux"` in faux mode.

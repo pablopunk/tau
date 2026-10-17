@@ -28,7 +28,7 @@ export function createSettingsApi(deps: {
   const requireListedModel = async (ref: ModelRef) => {
     if (!(await provider.isConfigured())) throw new AppError("no_provider", "Connect a provider first.");
     if (!(await provider.lists(ref))) {
-      throw new AppError("invalid_request", "This model is not available for your API key.");
+      throw new AppError("invalid_request", "This model is not available from your connected providers.");
     }
   };
   return {

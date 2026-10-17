@@ -38,8 +38,8 @@ let setUpCounter = 0;
 
 export async function setUpConversation(world: FauxWorld, firstText = "hello") {
   const { core } = world;
-  await core.provider.setApiKey("sk-test");
-  const [model] = await core.provider.listModels();
+  await core.providers.setApiKey("openrouter", "sk-test");
+  const [model] = await core.models.list();
   await core.settings.setDefaultModel({ provider: model?.provider ?? "", modelId: model?.modelId ?? "" });
   const project: Project = await core.projects.add({ path: await world.makeFolder("main") });
   const conversation = await core.conversations.start({

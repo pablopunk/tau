@@ -77,7 +77,14 @@ function splitOnce(text: string, separator: string): [string, string | undefined
   return index < 0 ? [text, undefined] : [text.slice(0, index), text.slice(index + separator.length)];
 }
 
+const SUMMARY_REQUEST_START = "<conversation>";
+const FAILING_SUMMARY_FOCUS = "Additional focus: fail";
+
+const isFailingSummaryRequest = (input: string) =>
+  input.startsWith(SUMMARY_REQUEST_START) && input.includes(FAILING_SUMMARY_FOCUS);
+
 function scriptedReply(input: string, attempt: number, user: UserMessage | undefined): Reply {
+  if (isFailingSummaryRequest(input)) return failureReply();
   const [command = "", rest = ""] = splitOnce(input.trim(), " ") as [string, string];
   switch (command) {
     case "write": {

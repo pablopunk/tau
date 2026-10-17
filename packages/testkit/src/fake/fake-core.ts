@@ -4,12 +4,13 @@ import {
   type Core,
   type ModelRef,
   type Project,
-  type ProviderStatus,
   type Settings,
+  type Skill,
   type StartConversationInput,
 } from "@pi-everywhere/protocol";
-import { clampFakeThinkingLevel, FAKE_MODELS, FAKE_PROVIDER_ID, findFakeModel } from "./catalog";
+import { clampFakeThinkingLevel, FAKE_MODELS, findFakeModel } from "./catalog";
 import { FakeConversation, type FakeInput } from "./fake-conversation";
+import { suggestFakeFiles } from "./fake-files";
 import {
   assertDirectory,
   baseName,
@@ -23,6 +24,7 @@ import { cloneWouldFail, folderNameFor, repositoryKeyOf } from "./fake-git";
 import { createFakeGithub, type FakeGithubOptions } from "./fake-github";
 import { createFakeIcons } from "./fake-icons";
 import { assertImageMatchesMimeType } from "./fake-images";
+import { createFakeProviders } from "./fake-providers";
 import { suggestFakeDirectories } from "./fake-suggest";
 
 export interface FakeCoreOptions {
@@ -37,6 +39,8 @@ export interface FakeCoreOptions {
   readonly cloneMs?: number;
   /** The GitHub account and repos. Default: connected as `demo` with three repos. */
   readonly github?: FakeGithubOptions;
+  /** Skills `skills.list` answers with. Default: none. */
+  readonly skills?: readonly Skill[];
 }
 
 export { FAKE_HOME_PATH };
@@ -68,7 +72,6 @@ export function createFakeCore(options: FakeCoreOptions = {}): Core {
   const conversations = new Map<string, FakeConversation>();
   const icons = createFakeIcons();
   const startsByRequest = new Map<string, string>();
-  let keyStored = options.configured ?? false;
   let defaultModel: ModelRef | null = options.configured ? modelRef(0) : null;
   let fastModel: ModelRef | null = null;
   let projectsFolder = FAKE_PROJECTS_FOLDER;
@@ -78,6 +81,7 @@ export function createFakeCore(options: FakeCoreOptions = {}): Core {
   const emit = (change: Change) => {
     for (const listener of [...listeners]) listener(change);
   };
+  const connections = createFakeProviders({ emit, connectOpenRouter: options.configured ?? false });
 
   const allProjects = () => [home, ...projects];
   const present = (project: Project): Project => ({
@@ -100,7 +104,7 @@ export function createFakeCore(options: FakeCoreOptions = {}): Core {
   };
 
   const requireProvider = () => {
-    if (!keyStored) throw new AppError("no_provider", "No API key is configured");
+    if (!connections.isConnected()) throw new AppError("no_provider", "No API key is configured");
   };
 
   const requireListedModel = (ref: ModelRef) => {
@@ -262,22 +266,12 @@ export function createFakeCore(options: FakeCoreOptions = {}): Core {
         projectsFolder = normalizePath(path);
       },
     },
-    provider: {
-      async status(): Promise<ProviderStatus> {
-        return {
-          provider: FAKE_PROVIDER_ID,
-          configured: keyStored,
-          source: keyStored ? "file" : null,
-          valid: keyStored ? true : null,
-        };
-      },
-      async setApiKey(key) {
-        if (key.trim() === "") throw new AppError("invalid_key", "The key is empty");
-        keyStored = true;
-      },
-      async listModels() {
-        requireProvider();
-        return FAKE_MODELS.map((model) => ({ ...model, thinkingLevels: [...model.thinkingLevels] }));
+    providers: connections.providers,
+    models: connections.models,
+    skills: {
+      async list(projectId) {
+        if (projectId !== null) requireProject(projectId);
+        return (options.skills ?? []).map((skill) => ({ ...skill }));
       },
     },
     github: createFakeGithub({
@@ -317,6 +311,9 @@ export function createFakeCore(options: FakeCoreOptions = {}): Core {
       async iconCandidate(id) {
         requireProject(id);
         throw new AppError("not_found", "This image is not available.");
+      },
+      async suggestFiles(id, query) {
+        return suggestFakeFiles(fs, requireProject(id).path, query);
       },
       async setIcon(id, png) {
         requireProject(id);
@@ -398,6 +395,11 @@ export function createFakeCore(options: FakeCoreOptions = {}): Core {
       },
       async retry(id, input) {
         requireConversation(id).retry(input.requestId);
+      },
+      async compact(id) {
+        if (!requireConversation(id).hasHistoryToCompact()) {
+          throw new AppError("nothing_to_compact", "There is nothing to compact yet.");
+        }
       },
       async watch(id, onOps) {
         return requireConversation(id).watch(onOps);

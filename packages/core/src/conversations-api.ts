@@ -127,6 +127,7 @@ export function createConversationsApi(deps: {
       if (projectId !== undefined) announce(projectId);
     },
     configure: configureThread,
+    compact: (id, input) => conversations.compact(id, input.instructions),
     async retry(id, input) {
       announce(await conversations.retry(id, input, now()));
     },

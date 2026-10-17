@@ -67,6 +67,7 @@ interface QueuedInput {
   readonly content: UserMessage["content"];
 }
 
+const MIN_ANSWERS_TO_COMPACT = 2;
 const TITLE_LENGTH = 60;
 const IMAGE_TITLE = "Image";
 const TITLE_JOB_DELAY_MS = 40;
@@ -126,6 +127,12 @@ export class FakeConversation {
       ...this.view,
       docs: { ...this.view.docs, "pi.agent": agent },
     } as unknown as ConversationView);
+  }
+
+  hasHistoryToCompact(): boolean {
+    return (
+      this.view.entries.filter((entry) => entry.kind === "pi.assistant").length >= MIN_ANSWERS_TO_COMPACT
+    );
   }
 
   thinkingLevel(): ThinkingLevel {

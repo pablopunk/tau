@@ -18,6 +18,7 @@ import {
 import { toUserInput } from "../conversation-input";
 import { titleFromFirstMessage } from "../conversation-title";
 import { RETRY_PROMPT } from "../retry-prompt";
+import { compactConversation } from "./conversation-compact";
 import {
   byMostRecentlyUpdated,
   indexOf,
@@ -76,6 +77,8 @@ export interface ConversationStore
   /** One `app.retry` submission, exactly once per `requestId`. `invalid_request` unless the thread is retryable. */
   retry(id: string, input: RetryInput, now: number): Promise<string>;
   abort(id: string): Promise<void>;
+  /** Resolves when the compaction ends. `not_found`; `nothing_to_compact`; `internal` with pi's message on failure. */
+  compact(id: string, instructions: string | undefined): Promise<void>;
   archive(id: string, archived: boolean, now: number): Promise<string>;
   /** Tombstones, aborts and retires watchers. Idempotent; returns the project id when it deleted something. */
   remove(id: string, now: number): Promise<string | undefined>;
@@ -229,6 +232,11 @@ export function createConversationStore(harness: Harness): ConversationStore {
 
     async abort(id) {
       await (await known(id)).conversation.abort(BACKGROUND);
+    },
+
+    async compact(id, instructions) {
+      const { conversation } = await known(id);
+      await compactConversation(harness, conversation, instructions);
     },
 
     async archive(id, archived, now) {

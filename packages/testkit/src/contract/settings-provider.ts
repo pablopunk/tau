@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect } from "vitest";
 import type { CaseRunner } from "./case-runner";
-import { FAST_MODEL, rejectsWithCode } from "./helpers";
+import { FAST_MODEL, hasConnectedProvider, rejectsWithCode } from "./helpers";
 import type { ContractTarget, MakeContractTarget } from "./types";
 
 export function settingsAndProviderCases(make: MakeContractTarget, test: CaseRunner): void {
@@ -18,23 +18,22 @@ export function settingsAndProviderCases(make: MakeContractTarget, test: CaseRun
         fastModel: null,
         projectsFolder: expect.any(String),
       });
-      const status = await core.provider.status();
-      expect(status.configured).toBe(false);
-      expect(status.source).toBeNull();
-      await rejectsWithCode(core.provider.listModels(), "no_provider");
+      expect(await hasConnectedProvider(core)).toBe(false);
+      expect(await core.models.list()).toEqual([]);
     });
 
     test("stores a key, then lists models and accepts one as the default", async () => {
       const { core } = target;
-      await core.provider.setApiKey("sk-contract-test");
-      const status = await core.provider.status();
-      expect(status).toMatchObject({ configured: true, source: "file", valid: true });
-      const models = await core.provider.listModels();
+      await core.providers.setApiKey("openrouter", "sk-contract-test");
+      const openrouter = (await core.providers.list()).find((provider) => provider.id === "openrouter");
+      expect(openrouter?.connection).toMatchObject({ method: "api_key", source: "file", valid: true });
+      const models = await core.models.list();
       expect(models.length).toBeGreaterThan(0);
       expect(models[0]).toMatchObject({
         provider: expect.any(String),
         modelId: expect.any(String),
         name: expect.any(String),
+        providerName: expect.any(String),
         images: expect.any(Boolean),
         thinkingLevels: expect.arrayContaining(["off"]),
       });
@@ -48,7 +47,7 @@ export function settingsAndProviderCases(make: MakeContractTarget, test: CaseRun
 
     test("rejects a default model the provider does not list", async () => {
       const { core } = target;
-      await core.provider.setApiKey("sk-contract-test");
+      await core.providers.setApiKey("openrouter", "sk-contract-test");
       await rejectsWithCode(
         core.settings.setDefaultModel({ provider: "nope", modelId: "nothing" }),
         "invalid_request",
@@ -57,7 +56,7 @@ export function settingsAndProviderCases(make: MakeContractTarget, test: CaseRun
 
     test("[settings] stores a fast model, clears it, and rejects an unlisted one", async () => {
       const { core } = target;
-      await core.provider.setApiKey("sk-contract-test");
+      await core.providers.setApiKey("openrouter", "sk-contract-test");
       await core.settings.setFastModel(FAST_MODEL);
       expect((await core.settings.get()).fastModel).toEqual(FAST_MODEL);
       await core.settings.setFastModel(null);

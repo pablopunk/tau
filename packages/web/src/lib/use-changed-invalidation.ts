@@ -16,6 +16,11 @@ function invalidateChange(queryClient: QueryClient, change: Change) {
     void queryClient.invalidateQueries({ queryKey: queryKeys.githubRepos });
     return;
   }
+  if (change.resource === "providers") {
+    void queryClient.invalidateQueries({ queryKey: queryKeys.provider });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.models });
+    return;
+  }
   void queryClient.invalidateQueries({ queryKey: queryKeys.conversations(change.projectId) });
   void queryClient.invalidateQueries({ queryKey: queryKeys.allConversations });
 }
