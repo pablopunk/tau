@@ -1,4 +1,4 @@
-import type { ImageInput } from "@pi-everywhere/protocol";
+import type { ImageInput, WhenBusy } from "@pi-everywhere/protocol";
 import { useCallback } from "react";
 import { api } from "@/lib/api";
 
@@ -7,17 +7,18 @@ export function newRequestId(): string {
 }
 
 export interface ConversationActions {
-  send(input: { text: string; images: ImageInput[] }): Promise<void>;
+  send(input: { text: string; images: ImageInput[]; whenBusy?: WhenBusy }): Promise<void>;
   stop(): Promise<void>;
   retry(requestId: string): Promise<void>;
 }
 
 export function useConversationActions(conversationId: string): ConversationActions {
   const send = useCallback(
-    ({ text, images }: { text: string; images: ImageInput[] }) =>
+    ({ text, images, whenBusy }: { text: string; images: ImageInput[]; whenBusy?: WhenBusy }) =>
       api.conversations.send(conversationId, {
         text,
         ...(images.length > 0 && { images }),
+        ...(whenBusy && { whenBusy }),
         requestId: newRequestId(),
       }),
     [conversationId],

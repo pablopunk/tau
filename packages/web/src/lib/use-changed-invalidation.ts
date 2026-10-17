@@ -20,9 +20,20 @@ function invalidateChange(queryClient: QueryClient, change: Change) {
     void invalidateProviders(queryClient);
     return;
   }
+  if (change.resource === "processes") {
+    void queryClient.invalidateQueries({ queryKey: queryKeys.processes(change.conversationId) });
+    void queryClient.invalidateQueries({ queryKey: ["process-logs"] });
+    return;
+  }
+  if (change.resource === "mcp") {
+    void queryClient.invalidateQueries({ queryKey: queryKeys.allMcpServers });
+    return;
+  }
   if (change.resource !== "conversations") return;
   void queryClient.invalidateQueries({ queryKey: queryKeys.conversations(change.projectId) });
   void queryClient.invalidateQueries({ queryKey: queryKeys.allConversations });
+  void queryClient.invalidateQueries({ queryKey: ["workspace"] });
+  void queryClient.invalidateQueries({ queryKey: ["checkpoints"] });
 }
 
 const isDisconnected = (status: LiveStatus) => status === "reconnecting" || status === "closed";

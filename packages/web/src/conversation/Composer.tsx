@@ -1,4 +1,4 @@
-import type { ImageInput } from "@pi-everywhere/protocol";
+import type { ImageInput, WhenBusy } from "@pi-everywhere/protocol";
 import { ArrowUp, Paperclip, Square } from "lucide-react";
 import {
   type ChangeEvent,
@@ -35,11 +35,17 @@ export interface ComposerProps {
   footer?: ReactNode;
   /** Rendered inside the input box toolbar after the attach button, e.g. model and thinking. */
   toolbar?: ReactNode;
+  /** Rendered at the start of the toolbar, before `toolbar`. */
+  toolbarStart?: ReactNode;
+  /** Rendered above the input box, e.g. the todo panel. */
+  abovePanel?: ReactNode;
+  /** Delivery mode used while busy; Alt+Enter sends with the other one. Omitted: the server default. */
+  whenBusy?: WhenBusy;
   /** Slash commands the menu offers; a command without a handler is hidden. */
   commands?: CommandHandlers;
   /** Project searched by `@` mentions; without it only skills of the user are offered. */
   projectId?: string | null;
-  onSend(input: { text: string; images: ImageInput[] }): Promise<void>;
+  onSend(input: { text: string; images: ImageInput[]; whenBusy?: WhenBusy }): Promise<void>;
   onStop?(): Promise<void>;
   /** Called right after a message is handed to `onSend`, e.g. to scroll to it. */
   onSent?(): void;
@@ -53,6 +59,8 @@ function isPlainEnter(event: KeyboardEvent<HTMLTextAreaElement>): boolean {
   return event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing;
 }
 
+const otherMode = (mode: WhenBusy = "steer"): WhenBusy => (mode === "steer" ? "followUp" : "steer");
+
 function pastedFiles(event: ClipboardEvent): File[] {
   return Array.from(event.clipboardData.files);
 }
@@ -64,6 +72,9 @@ function ComposerForm({
   disabled = false,
   footer,
   toolbar,
+  toolbarStart,
+  abovePanel,
+  whenBusy,
   commands = {},
   projectId,
   onSend,
@@ -111,7 +122,7 @@ function ComposerForm({
     runCommand(name, "");
   };
 
-  const submit = () => {
+  const submit = (mode: WhenBusy | undefined = whenBusy) => {
     const command = parseSlashCommand(text);
     if (command && commands[command.name]) return runCommand(command.name, command.args);
     const message = text.trim();
@@ -121,7 +132,11 @@ function ComposerForm({
     replace([]);
     setError(undefined);
     onSent?.();
-    onSend({ text: message, images: sent.map((item) => item.image) }).catch((failure: unknown) => {
+    onSend({
+      text: message,
+      images: sent.map((item) => item.image),
+      ...(busy && mode && { whenBusy: mode }),
+    }).catch((failure: unknown) => {
       setText(message);
       replace(sent);
       setError(errorText(failure));
@@ -153,7 +168,7 @@ function ComposerForm({
     if (event.key === "Escape" && busy) return stop();
     if (!isPlainEnter(event)) return;
     event.preventDefault();
-    submit();
+    submit(event.altKey ? otherMode(whenBusy) : whenBusy);
   };
 
   const onChange = (event: ChangeEvent<HTMLTextAreaElement>) => {
@@ -185,6 +200,7 @@ function ComposerForm({
 
   return (
     <form onSubmit={onSubmit} className="space-y-2">
+      {abovePanel}
       {pageDragging ? (
         <DropZone
           className="fixed inset-0 z-50"
@@ -229,6 +245,7 @@ function ComposerForm({
           className="max-h-48 min-h-9 resize-none border-0 bg-transparent px-2 py-1.5 shadow-none focus-visible:ring-0 dark:bg-transparent"
         />
         <div className="flex items-start gap-1">
+          {toolbarStart}
           {imagesAllowed ? (
             <>
               <Input

@@ -28,8 +28,8 @@ import { ArchivedConversations } from "./ArchivedConversations";
 import { CloneFailed } from "./CloneFailed";
 import { NameDialog } from "./NameDialog";
 import { RemoveProjectDialog } from "./RemoveProjectDialog";
-import { homeRelative, type ProjectSection } from "./sidebar-model";
-import { ThreadRow } from "./ThreadRow";
+import { homeRelative, nestThreads, type ProjectSection } from "./sidebar-model";
+import { ThreadTree } from "./ThreadTree";
 import { useRemoveProject } from "./use-remove-project";
 
 interface ProjectGroupProps {
@@ -119,12 +119,13 @@ export function ProjectGroup({
                 {active.length === 0 && (
                   <p className="px-2 py-1 text-xs text-muted-foreground">No threads yet</p>
                 )}
-                {active.map((conversation) => (
-                  <ThreadRow
-                    key={conversation.id}
-                    conversation={conversation}
+                {nestThreads(active).map((node) => (
+                  <ThreadTree
+                    key={node.conversation.id}
+                    node={node}
                     project={project}
-                    active={conversation.id === activeConversationId}
+                    projects={projects}
+                    activeConversationId={activeConversationId}
                     showProject={false}
                   />
                 ))}

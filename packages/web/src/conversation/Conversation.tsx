@@ -4,8 +4,10 @@ import { Link } from "react-router";
 import type { PickersHandle } from "@/components/ModelThinkingPickers";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useAllConversations, useModels } from "@/lib/queries";
+import { useAllConversations, useModels, useSettings } from "@/lib/queries";
 import { NameDialog } from "@/sidebar/NameDialog";
+import { SubagentBanner } from "@/sidebar/subagents/SubagentBanner";
+import { WorkspaceChip } from "@/workspaces/WorkspaceChip";
 import { Composer } from "./Composer";
 import { useThreadCommands } from "./composer/use-thread-commands";
 import { imagesAllowedFor } from "./model/agent";
@@ -13,6 +15,7 @@ import { readLive } from "./model/live";
 import { ThreadHeader } from "./ThreadHeader";
 import { ThreadToolbar } from "./ThreadToolbar";
 import { Transcript } from "./Transcript";
+import { TodoPanel } from "./todos/TodoPanel";
 import { useConversationActions } from "./use-conversation-actions";
 import { type ConversationViewState, useConversationView } from "./use-conversation-view";
 import { useStickToBottom } from "./use-stick-to-bottom";
@@ -44,15 +47,17 @@ function DeletedThread() {
 }
 
 function Body({
+  id,
   state,
   onRetry,
 }: {
+  id: string;
   state: ConversationViewState;
   onRetry(requestId: string): Promise<void>;
 }) {
   if (state.status === "loading") return <LoadingTranscript />;
   if (state.status === "gone") return <DeletedThread />;
-  return <Transcript view={state.view} onRetry={onRetry} />;
+  return <Transcript view={state.view} onRetry={onRetry} conversationId={id} />;
 }
 
 function ConversationPanel({ id }: ConversationProps) {
@@ -65,13 +70,17 @@ function ConversationPanel({ id }: ConversationProps) {
   const thread = useThreadCommands({ conversationId: id, projectId: summary?.projectId, pickers });
   const view = state.status === "ready" ? state.view : undefined;
   const busy = state.status === "ready" && readLive(state.view).busy;
+  const messageMode = useSettings().data?.messageMode;
+  const whenBusy = messageMode ? (messageMode === "queue" ? "followUp" : "steer") : undefined;
+  const parentId = summary?.parentId ?? null;
   return (
     <div data-testid="conversation" className="relative flex h-full min-h-0 flex-col bg-background">
-      {view ? <ThreadHeader id={id} /> : null}
+      {view ? <ThreadHeader id={id} extras={<WorkspaceChip conversationId={id} />} /> : null}
+      {parentId ? <SubagentBanner parentId={parentId} /> : null}
       <div ref={scrollRef} onScroll={onScroll} className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
         <div ref={contentRef} className="mx-auto w-full max-w-3xl px-4 py-6">
           <section aria-label="Conversation" aria-live="polite" aria-relevant="additions">
-            <Body state={state} onRetry={actions.retry} />
+            <Body id={id} state={state} onRetry={actions.retry} />
           </section>
         </div>
       </div>
@@ -85,12 +94,14 @@ function ConversationPanel({ id }: ConversationProps) {
           <ArrowDown /> Jump to latest
         </Button>
       )}
-      {state.status === "gone" ? null : (
+      {state.status === "gone" || parentId ? null : (
         <div className="mx-auto w-full max-w-3xl px-3 pt-1 pb-3 sm:px-4 sm:pb-4">
           <Composer
             target={id}
             imagesAllowed={imagesAllowedFor(view, models)}
             busy={busy}
+            whenBusy={whenBusy}
+            abovePanel={view ? <TodoPanel conversationId={id} view={view} /> : undefined}
             toolbar={view ? <ThreadToolbar id={id} view={view} pickers={pickers} /> : undefined}
             commands={thread.commands}
             projectId={summary?.projectId}

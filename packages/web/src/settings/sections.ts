@@ -4,6 +4,8 @@ export const SETTINGS_SECTIONS = [
   { id: "models", label: "Models" },
   { id: "projects", label: "Projects" },
   { id: "github", label: "GitHub" },
+  { id: "agent", label: "Agent" },
+  { id: "tools", label: "Tools" },
 ] as const;
 
 export type SettingsSectionId = (typeof SETTINGS_SECTIONS)[number]["id"];

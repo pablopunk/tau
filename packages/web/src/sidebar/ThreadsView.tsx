@@ -4,8 +4,8 @@ import { SidebarGroup, SidebarGroupContent, SidebarMenu } from "@/components/ui/
 import { useFlipList } from "@/hooks/use-flip-list";
 import { ArchivedConversations } from "./ArchivedConversations";
 import { ProjectStatusRow } from "./ProjectStatusRow";
-import { activeThreads, archivedThreads } from "./sidebar-model";
-import { ThreadRow } from "./ThreadRow";
+import { activeThreads, archivedThreads, nestThreads } from "./sidebar-model";
+import { ThreadTree } from "./ThreadTree";
 
 interface ThreadsViewProps {
   projects: readonly Project[];
@@ -40,12 +40,13 @@ export function ThreadsView({
                 onRemoved={() => onProjectRemoved(project.id)}
               />
             ))}
-            {activeThreads(visible).map((conversation) => (
-              <ThreadRow
-                key={conversation.id}
-                conversation={conversation}
-                project={byId.get(conversation.projectId)}
-                active={conversation.id === activeConversationId}
+            {nestThreads(activeThreads(visible)).map((node) => (
+              <ThreadTree
+                key={node.conversation.id}
+                node={node}
+                project={byId.get(node.conversation.projectId)}
+                projects={byId}
+                activeConversationId={activeConversationId}
                 showProject
               />
             ))}

@@ -7,6 +7,23 @@ export const activeThreads = (all: readonly ConversationSummary[]) =>
 
 export const archivedThreads = (all: readonly ConversationSummary[]) => all.filter(isArchived);
 
+export interface ThreadNode {
+  conversation: ConversationSummary;
+  children: ConversationSummary[];
+}
+
+export function nestThreads(conversations: readonly ConversationSummary[]): ThreadNode[] {
+  const ids = new Set(conversations.map((conversation) => conversation.id));
+  const isChild = (conversation: ConversationSummary) =>
+    conversation.parentId !== null && ids.has(conversation.parentId);
+  return conversations
+    .filter((conversation) => !isChild(conversation))
+    .map((conversation) => ({
+      conversation,
+      children: conversations.filter((child) => child.parentId === conversation.id),
+    }));
+}
+
 export interface ProjectSection {
   project: Project;
   active: ConversationSummary[];

@@ -23,12 +23,18 @@ export type TranscriptItem =
   | {
       readonly kind: "user";
       readonly key: string;
+      readonly entryId: string;
       readonly text: string;
       readonly images: readonly ImageContent[];
     }
   | { readonly kind: "retry"; readonly key: string }
   | { readonly kind: "compaction"; readonly key: string }
-  | { readonly kind: "assistant"; readonly key: string; readonly message: AssistantMessage };
+  | {
+      readonly kind: "assistant";
+      readonly key: string;
+      readonly entryId: string;
+      readonly message: AssistantMessage;
+    };
 
 export interface Transcript {
   readonly items: readonly TranscriptItem[];
@@ -67,12 +73,18 @@ function entryKey(entry: EntryRecord): string {
 function itemOf(entry: EntryRecord): TranscriptItem | undefined {
   const message = entry.model?.[0];
   if (entry.kind === "pi.user" && message?.role === "user") {
-    return { kind: "user", key: entryKey(entry), text: userText(message), images: userImages(message) };
+    return {
+      kind: "user",
+      key: entryKey(entry),
+      entryId: String(entry.id),
+      text: userText(message),
+      images: userImages(message),
+    };
   }
   if (entry.kind === "pi.compaction") return { kind: "compaction", key: entryKey(entry) };
   if (entry.kind === "app.retry") return { kind: "retry", key: entryKey(entry) };
   if (entry.kind === "pi.assistant" && message?.role === "assistant") {
-    return { kind: "assistant", key: entryKey(entry), message };
+    return { kind: "assistant", key: entryKey(entry), entryId: String(entry.id), message };
   }
   return undefined;
 }

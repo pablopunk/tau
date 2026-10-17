@@ -36,12 +36,14 @@ interface ThreadRowProps {
   active: boolean;
   /** Threads mode shows the project icon and name above the title. */
   showProject: boolean;
+  /** 1 for a subagent thread shown under its parent. */
+  depth?: number;
 }
 
 const tooltipOf = (title: string, project: Project | undefined, conversation: ConversationSummary) =>
   [title, project?.name, conversation.model?.modelId, conversation.status].filter(Boolean).join(" · ");
 
-export function ThreadRow({ conversation, project, active, showProject }: ThreadRowProps) {
+export function ThreadRow({ conversation, project, active, showProject, depth = 0 }: ThreadRowProps) {
   const [dialog, setDialog] = useState<"rename" | "delete" | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const title = conversation.title.trim() || "New thread";
@@ -90,6 +92,8 @@ export function ThreadRow({ conversation, project, active, showProject }: Thread
         <ContextMenuTrigger asChild>
           <SidebarThreadRow
             actionsOpen={menuOpen}
+            data-depth={depth}
+            className={depth > 0 ? "pl-4" : undefined}
             flipId={conversation.id}
             current={active}
             title={title}

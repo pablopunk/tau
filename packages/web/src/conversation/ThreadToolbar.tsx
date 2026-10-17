@@ -11,6 +11,7 @@ import { ContextMeter } from "@/components/ui/context-meter";
 import { api } from "@/lib/api";
 import { errorMessage } from "@/lib/error-message";
 import { useModels } from "@/lib/queries";
+import { ProcessesChip } from "@/processes/ProcessesChip";
 import { contextUsage } from "./composer/context-usage";
 import { findModel, readAgent } from "./model/agent";
 
@@ -44,6 +45,7 @@ export function ThreadToolbar({
         onLevel={(thinkingLevel: ThinkingLevel) => void configure(id, { thinkingLevel })}
       />
       {usage ? <ContextMeter used={usage.used} total={usage.total} label={usage.label} /> : null}
+      <ProcessesChip conversationId={id} />
     </>
   );
 }

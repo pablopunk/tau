@@ -1,4 +1,5 @@
 import type {
+  Checkpoint,
   CompactInput,
   ConfigureConversationInput,
   ConversationSummary,
@@ -6,12 +7,17 @@ import type {
   GithubRepo,
   GithubStatus,
   LoginSession,
+  McpServerConfig,
+  McpServerStatus,
+  MessageMode,
   ModelInfo,
   ModelRef,
   PathSuggestion,
+  ProcessInfo,
   Project,
   ProviderId,
   ProviderInfo,
+  RestorePreview,
   RetryInput,
   SendMessageInput,
   Settings,
@@ -21,6 +27,8 @@ import type {
   SuggestedCodeFolder,
   ThinkingLevel,
   UseGithubRepoInput,
+  WorkspaceMode,
+  WorkspaceStatus,
 } from "@pi-everywhere/protocol";
 import { fillPath, routes } from "@pi-everywhere/protocol";
 import { createHttpTransport } from "./transport/http";
@@ -43,6 +51,8 @@ export interface Api {
     setDefaultThinkingLevel(level: ThinkingLevel | null): Promise<void>;
     setFastThinkingLevel(level: ThinkingLevel | null): Promise<void>;
     setProjectsFolder(path: string): Promise<void>;
+    setMessageMode(mode: MessageMode): Promise<void>;
+    setWorkspaceDefault(mode: WorkspaceMode): Promise<void>;
     suggestedCodeFolder(): Promise<SuggestedCodeFolder>;
   };
   github: {
@@ -91,10 +101,32 @@ export interface Api {
     send(id: string, input: SendMessageInput): Promise<void>;
     abort(id: string): Promise<void>;
     archive(id: string, archived: boolean): Promise<void>;
-    remove(id: string): Promise<void>;
+    remove(id: string, options?: { force?: boolean }): Promise<void>;
+    fork(id: string, entryId: string): Promise<ConversationSummary>;
+    rewindPreview(id: string, entryId: string): Promise<RestorePreview>;
+    rewind(id: string, entryId: string): Promise<{ conversation: ConversationSummary; draft: string }>;
+    cancelQueued(id: string, itemId: string): Promise<{ cancelled: boolean }>;
+    checkpoints(id: string): Promise<Checkpoint[]>;
+    checkpointDiff(id: string, checkpointId: string, path: string): Promise<string>;
     configure(id: string, input: ConfigureConversationInput): Promise<void>;
     retry(id: string, input: RetryInput): Promise<void>;
     compact(id: string, input: CompactInput): Promise<void>;
+  };
+  workspaces: {
+    status(conversationId: string): Promise<WorkspaceStatus>;
+    merge(conversationId: string): Promise<ConversationSummary>;
+    createPullRequest(conversationId: string): Promise<ConversationSummary>;
+    remove(conversationId: string, force?: boolean): Promise<ConversationSummary>;
+  };
+  processes: {
+    list(conversationId: string): Promise<ProcessInfo[]>;
+    logs(id: string, tail?: number): Promise<string>;
+    stop(id: string): Promise<void>;
+  };
+  mcp: {
+    servers(projectId: string | null): Promise<McpServerStatus[]>;
+    save(config: McpServerConfig): Promise<void>;
+    remove(name: string): Promise<void>;
   };
   /** Raw frames of `/api/live`; `LiveClient` turns them into views. */
   live: LiveTransport;
@@ -116,6 +148,8 @@ export function createApi(transport: Transport): Api {
       setFastThinkingLevel: (level) => request("setFastThinking", { body: { thinkingLevel: level } }),
       setProjectsFolder: (path) => request("setProjectsFolder", { body: { path } }),
       suggestedCodeFolder: () => request("getSuggestedCodeFolder", {}),
+      setMessageMode: (mode) => request("setMessageMode", { body: { mode } }),
+      setWorkspaceDefault: (mode) => request("setWorkspaceDefault", { body: { mode } }),
     },
     github: {
       status: () => request("getGithubStatus", {}),
@@ -161,10 +195,36 @@ export function createApi(transport: Transport): Api {
       send: (id, input) => request("sendMessage", { params: { id }, body: input }),
       abort: (id) => request("abortConversation", { params: { id } }),
       archive: (id, archived) => request("archiveConversation", { params: { id }, body: { archived } }),
-      remove: (id) => request("removeConversation", { params: { id }, query: {} }),
+      remove: (id, options) =>
+        request("removeConversation", { params: { id }, query: options?.force ? { force: "true" } : {} }),
+      fork: (id, entryId) => request("forkConversation", { params: { id }, body: { entryId } }),
+      rewindPreview: (id, entryId) => request("rewindPreview", { params: { id }, body: { entryId } }),
+      rewind: (id, entryId) => request("rewindConversation", { params: { id }, body: { entryId } }),
+      cancelQueued: (id, itemId) => request("cancelQueued", { params: { id, itemId } }),
+      checkpoints: (id) => request("listCheckpoints", { params: { id } }),
+      checkpointDiff: async (id, cid, path) =>
+        (await request("getCheckpointDiff", { params: { id, cid }, query: { path } })).diff,
       configure: (id, input) => request("configureConversation", { params: { id }, body: input }),
       retry: (id, input) => request("retryConversation", { params: { id }, body: input }),
       compact: (id, input) => request("compactConversation", { params: { id }, body: input }),
+    },
+    workspaces: {
+      status: (id) => request("getWorkspace", { params: { id } }),
+      merge: (id) => request("mergeWorkspace", { params: { id } }),
+      createPullRequest: (id) => request("createPullRequest", { params: { id } }),
+      remove: (id, force = false) =>
+        request("removeWorkspace", { params: { id }, query: { force: force ? "true" : "false" } }),
+    },
+    processes: {
+      list: (id) => request("listProcesses", { params: { id } }),
+      logs: async (id, tail) =>
+        (await request("getProcessLogs", { params: { id }, query: tail ? { tail: String(tail) } : {} })).logs,
+      stop: (id) => request("stopProcess", { params: { id } }),
+    },
+    mcp: {
+      servers: (projectId) => request("listMcpServers", { query: projectId ? { projectId } : {} }),
+      save: (config) => request("saveMcpServer", { params: { name: config.name }, body: config }),
+      remove: (name) => request("removeMcpServer", { params: { name } }),
     },
     live: transport.live,
   };

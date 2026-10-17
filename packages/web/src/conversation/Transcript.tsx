@@ -5,7 +5,7 @@ import type {
 } from "@pi-everywhere/protocol";
 import { isRetryable } from "@pi-everywhere/protocol";
 import { Loader2 } from "lucide-react";
-import { AssistantMessage } from "./messages/AssistantMessage";
+import { AssistantMessage, markdownOf } from "./messages/AssistantMessage";
 import { CompactedDivider, CompactingNotice, RetriedDivider, RetryNotice } from "./messages/notices";
 import { QueuedMessages } from "./messages/QueuedMessages";
 import { UserMessage } from "./messages/UserMessage";
@@ -46,10 +46,14 @@ function isIdleWhileBusy(live: LiveInfo): boolean {
 export function Transcript({
   view,
   onRetry,
+  conversationId,
 }: {
   view: ConversationView;
   onRetry(requestId: string): Promise<void>;
+  conversationId?: string;
 }) {
+  const entryOf = (entryId: string, role: "user" | "assistant", text: string) =>
+    conversationId ? { conversationId, entryId, role, text } : undefined;
   const { items, results } = buildTranscript(view);
   const live = readLive(view);
   const resolveTool = (call: ToolCall) =>
@@ -61,8 +65,23 @@ export function Transcript({
       {items.map((item) => {
         if (item.kind === "compaction") return <CompactedDivider key={item.key} />;
         if (item.kind === "retry") return <RetriedDivider key={item.key} />;
-        if (item.kind === "user") return <UserMessage key={item.key} text={item.text} images={item.images} />;
-        return <AssistantMessage key={item.key} message={item.message} resolveTool={resolveTool} />;
+        if (item.kind === "user")
+          return (
+            <UserMessage
+              key={item.key}
+              text={item.text}
+              images={item.images}
+              entry={entryOf(item.entryId, "user", item.text)}
+            />
+          );
+        return (
+          <AssistantMessage
+            key={item.key}
+            message={item.message}
+            resolveTool={resolveTool}
+            entry={entryOf(item.entryId, "assistant", markdownOf(item.message))}
+          />
+        );
       })}
       {hasVisibleContent(live.streaming) ? (
         <AssistantMessage message={live.streaming} resolveTool={resolveTool} streaming />
@@ -71,7 +90,7 @@ export function Transcript({
       {live.retry ? <RetryNotice retry={live.retry} /> : null}
       {isIdleWhileBusy(live) ? <WorkingIndicator /> : null}
       {isRetryable(view) ? <RetryButton onRetry={onRetry} /> : null}
-      <QueuedMessages items={live.queued} />
+      <QueuedMessages items={live.queued} conversationId={conversationId} />
     </div>
   );
 }

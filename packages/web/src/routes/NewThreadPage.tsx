@@ -1,4 +1,4 @@
-import type { ImageInput, ModelRef, ThinkingLevel } from "@pi-everywhere/protocol";
+import type { ImageInput, ModelRef, ThinkingLevel, WorkspaceMode } from "@pi-everywhere/protocol";
 import { useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 import { ModelThinkingPickers, type PickersHandle } from "@/components/ModelThinkingPickers";
@@ -11,6 +11,7 @@ import { conversationPath } from "@/lib/paths";
 import { preferences } from "@/lib/preferences";
 import { useModels, useProjects, useSettings } from "@/lib/queries";
 import { clearDraftRequestId, draftRequestId } from "@/lib/start-request";
+import { WorktreeToggle } from "@/workspaces/WorktreeToggle";
 import { ProjectPicker } from "./ProjectPicker";
 
 const toRef = ({ provider, modelId }: ModelRef): ModelRef => ({ provider, modelId });
@@ -24,6 +25,7 @@ export function NewThreadPage() {
   const [chosenProject, setProject] = useState<string | null>(null);
   const [chosenModel, setModel] = useState<ModelRef | null>(null);
   const [chosenLevel, setLevel] = useState<ThinkingLevel | null>(null);
+  const [workspace, setWorkspace] = useState<WorkspaceMode | null>(null);
   const [busy, setBusy] = useState(false);
   const pickers = useRef<PickersHandle>(null);
   const commands = useMemo<CommandHandlers>(
@@ -57,6 +59,7 @@ export function NewThreadPage() {
         requestId: draftRequestId(),
         ...(model && { model: toRef(model) }),
         thinkingLevel: level,
+        ...(workspace && { workspace }),
         ...(images.length > 0 && { images }),
       });
       clearDraftRequestId();
@@ -72,6 +75,7 @@ export function NewThreadPage() {
   const toolbar = (
     <>
       <ProjectPicker projects={projects.data} projectId={projectId} onProject={setProject} disabled={busy} />
+      <WorktreeToggle projectId={projectId} value={workspace} onChange={setWorkspace} disabled={busy} />
       {cloning ? <span className="text-xs text-muted-foreground">Cloning…</span> : null}
       <ModelThinkingPickers
         ref={pickers}

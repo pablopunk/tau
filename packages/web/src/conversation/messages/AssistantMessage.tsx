@@ -6,7 +6,9 @@ import { CopyButton } from "@/components/ui/copy-button";
 import type { ToolCallState } from "../model/tool-state";
 import { ToolCall } from "../tools/ToolCall";
 import { Markdown } from "./Markdown";
+import { MessageMenu } from "./MessageMenu";
 import { ModelLabel } from "./ModelLabel";
+import type { MessageEntry } from "./message-actions";
 import { ErrorNotice } from "./notices";
 import { ThinkingBlock } from "./ThinkingBlock";
 
@@ -15,6 +17,7 @@ export interface AssistantMessageProps {
   readonly resolveTool: (call: ToolCallBlock) => ToolCallState;
   /** A partial message still being generated: tool calls are shown from the live slots instead. */
   readonly streaming?: boolean;
+  readonly entry?: MessageEntry;
 }
 
 type Block = AssistantMessageData["content"][number];
@@ -51,6 +54,7 @@ export function AssistantMessage(props: AssistantMessageProps) {
         <div className="flex items-center gap-2">
           <CopyButton text={markdown} label="Copy answer" />
           <ModelLabel message={message} />
+          {props.entry ? <MessageMenu entry={props.entry} /> : null}
         </div>
       ) : null}
       {message.stopReason === "aborted" ? <p className="text-xs text-muted-foreground">Stopped.</p> : null}

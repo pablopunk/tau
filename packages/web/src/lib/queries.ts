@@ -21,6 +21,13 @@ export const queryKeys = {
   suggestedCodeFolder: ["settings", "suggested-code-folder"] as const,
   pathSuggestions: (prefix: string) => ["fs", "suggest", prefix] as const,
   iconCandidates: (projectId: string) => ["projects", projectId, "icon-candidates"] as const,
+  workspace: (conversationId: string) => ["workspace", conversationId] as const,
+  checkpoints: (conversationId: string) => ["checkpoints", conversationId] as const,
+  processes: (conversationId: string) => ["processes", conversationId] as const,
+  allProcesses: ["processes"] as const,
+  processLogs: (processId: string, tail?: number) => ["process-logs", processId, tail ?? null] as const,
+  mcpServers: (projectId: string | null) => ["mcp", "servers", projectId] as const,
+  allMcpServers: ["mcp"] as const,
 };
 
 export const useProviders = () =>
@@ -103,3 +110,34 @@ export const useIconCandidates = (projectId: string, enabled = true) =>
     queryFn: () => api.projects.iconCandidates(projectId),
     enabled,
   });
+
+export const useWorkspaceStatus = (conversationId: string, enabled = true) =>
+  useQuery({
+    queryKey: queryKeys.workspace(conversationId),
+    queryFn: () => api.workspaces.status(conversationId),
+    enabled,
+  });
+
+export const useCheckpoints = (conversationId: string, enabled = true) =>
+  useQuery({
+    queryKey: queryKeys.checkpoints(conversationId),
+    queryFn: () => api.conversations.checkpoints(conversationId),
+    enabled,
+  });
+
+export const useProcesses = (conversationId: string, enabled = true) =>
+  useQuery({
+    queryKey: queryKeys.processes(conversationId),
+    queryFn: () => api.processes.list(conversationId),
+    enabled,
+  });
+
+export const useProcessLogs = (processId: string, tail?: number, enabled = true) =>
+  useQuery({
+    queryKey: queryKeys.processLogs(processId, tail),
+    queryFn: () => api.processes.logs(processId, tail),
+    enabled,
+  });
+
+export const useMcpServers = (projectId: string | null) =>
+  useQuery({ queryKey: queryKeys.mcpServers(projectId), queryFn: () => api.mcp.servers(projectId) });
