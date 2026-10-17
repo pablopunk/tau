@@ -8,3 +8,9 @@ export function useDebounced<T>(value: T, delayMs: number): T {
   }, [value, delayMs]);
   return debounced;
 }
+
+export function useDebouncedAfterFirst(value: string | null, delayMs: number): string | null {
+  const debounced = useDebounced(value, delayMs);
+  const justOpened = debounced === null || value === null;
+  return justOpened ? value : debounced;
+}

@@ -19,4 +19,12 @@ describe("rankOption", () => {
     expect(exact).toBeGreaterThan(prefix)
     expect(prefix).toBeGreaterThan(inside)
   })
+
+  it("hides items that only match fuzzily", () => {
+    expect(rankOption(item("acme/zebra-tools", "Tools for pipelines everywhere"), "pi-ev")).toBe(0)
+  })
+
+  it("keeps items whose description contains the search", () => {
+    expect(rankOption(item("acme/zebra", "a pi-ev helper"), "pi-ev")).toBeGreaterThan(0)
+  })
 })

@@ -94,6 +94,7 @@ function Combobox({
     setOwnOpen(next)
     onOpenChange?.(next)
   }
+  const listRef = React.useRef<HTMLDivElement>(null)
   const selected = options.find((option) => option.value === value)
 
   return (
@@ -122,12 +123,13 @@ function Combobox({
       </PopoverTrigger>
       <PopoverContent
         data-slot="combobox-content"
-        className={cn("w-(--radix-popover-trigger-width) min-w-52 max-w-[calc(100vw-2rem)] p-0 [&_[data-slot=command-list]]:max-h-[max(9rem,min(18rem,calc(var(--radix-popover-content-available-height)-6rem)))]", contentClassName)}
+        className={cn("max-h-(--radix-popover-content-available-height) w-(--radix-popover-trigger-width) min-w-52 max-w-[calc(100vw-2rem)] p-0 [&_[data-slot=command-list]]:max-h-[max(9rem,min(18rem,calc(var(--radix-popover-content-available-height)-6rem)))]", contentClassName)}
         align="start"
+        collisionPadding={12}
       >
         <Command filter={rankOption}>
-          {searchable ? <CommandInput placeholder={searchPlaceholder} /> : null}
-          <CommandList>
+          {searchable ? <CommandInput placeholder={searchPlaceholder} onValueChange={() => listRef.current && (listRef.current.scrollTop = 0)} /> : null}
+          <CommandList ref={listRef}>
             <CommandEmpty>{emptyText}</CommandEmpty>
             {groupOptions(options).map(([group, items]) => (
               <CommandGroup key={group ?? "options"} heading={group} className="relative">

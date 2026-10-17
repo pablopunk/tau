@@ -8,6 +8,7 @@ interface MentionItem {
   description?: string
   icon?: React.ReactNode
   group?: string
+  disabled?: boolean
 }
 
 interface MentionMenuProps {
@@ -47,6 +48,7 @@ function MentionRow({ item, index, active, onActiveIndexChange, onSelect }: Ment
     <CommandItem
       ref={ref}
       value={item.id}
+      disabled={item.disabled}
       data-selected={active}
       aria-selected={active}
       onMouseMove={() => !active && onActiveIndexChange(index)}

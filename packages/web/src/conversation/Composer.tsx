@@ -104,6 +104,7 @@ function ComposerForm({
   };
 
   const pick = (item: MentionItem) => {
+    if (item.disabled) return;
     if (!item.id.startsWith(commandItemId(""))) return insertMention(insertionOf(item.id));
     const name = insertionOf(item.id) as CommandName;
     if (name === "compact") return setText("/compact ");

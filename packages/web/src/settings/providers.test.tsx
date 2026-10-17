@@ -55,6 +55,17 @@ describe("AppearanceSettings", () => {
   });
 });
 
+describe("AppearanceSettings caption", () => {
+  it("shows the caption only while System is selected", async () => {
+    const user = userEvent.setup();
+    render(<AppearanceSettings />);
+    await user.click(screen.getByRole("radio", { name: "System" }));
+    expect(screen.getByText(/follows your device/)).toBeInTheDocument();
+    await user.click(screen.getByRole("radio", { name: "Dark" }));
+    expect(screen.queryByText(/follows your device/)).not.toBeInTheDocument();
+  });
+});
+
 describe("providers", () => {
   it("adds a key and shows the row as connected", async () => {
     installFakeBackend();

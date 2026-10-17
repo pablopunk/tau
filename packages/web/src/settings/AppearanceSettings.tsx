@@ -10,6 +10,8 @@ const THEME_OPTIONS: readonly SegmentedOption<Theme>[] = [
   { value: "dark", label: "Dark", icon: <MoonIcon /> },
 ];
 
+const SYSTEM_CAPTION = "System follows your device and switches with it.";
+
 const useTheme = () => useSyncExternalStore(preferences.subscribeTheme, preferences.getTheme);
 
 export function AppearanceSettings() {
@@ -25,7 +27,7 @@ export function AppearanceSettings() {
           options={THEME_OPTIONS}
         />
       </div>
-      <FieldDescription>System follows your device and switches with it.</FieldDescription>
+      {theme === "system" && <FieldDescription>{SYSTEM_CAPTION}</FieldDescription>}
     </Field>
   );
 }
