@@ -9,7 +9,7 @@ import { endOf, renderView, viewWhere } from "./test-utils";
 vi.mock("@/lib/api", () => ({
   api: {
     conversations: { send: vi.fn(), abort: vi.fn(), retry: vi.fn(), listAll: vi.fn(), configure: vi.fn() },
-    provider: { models: vi.fn() },
+    models: { list: vi.fn() },
   },
 }));
 
@@ -31,7 +31,7 @@ const reasoningModel = {
 };
 
 function withModels(images: boolean) {
-  vi.mocked(api.provider.models).mockResolvedValue([model(images)] as never);
+  vi.mocked(api.models.list).mockResolvedValue([model(images)] as never);
 }
 
 function failedView(): ConversationView {
@@ -47,7 +47,7 @@ beforeEach(() => {
   vi.mocked(api.conversations.listAll)
     .mockReset()
     .mockResolvedValue([{ id: "2", title: "Fix the bug", projectId: "home" }] as never);
-  vi.mocked(api.provider.models).mockReset().mockRejectedValue(new Error("offline"));
+  vi.mocked(api.models.list).mockReset().mockRejectedValue(new Error("offline"));
   window.localStorage.clear();
 });
 
@@ -62,7 +62,7 @@ describe("thread header", () => {
 
 describe("changing the model and thinking level", () => {
   it("sends the chosen model, then the chosen level of that model", async () => {
-    vi.mocked(api.provider.models).mockResolvedValue([model(true), reasoningModel] as never);
+    vi.mocked(api.models.list).mockResolvedValue([model(true), reasoningModel] as never);
     renderView(endOf("text"));
     await userEvent.click(await screen.findByRole("combobox", { name: "Model" }));
     await userEvent.click(await screen.findByRole("option", { name: /Faux Reasoner/ }));
@@ -78,7 +78,7 @@ describe("changing the model and thinking level", () => {
       ...thread,
       docs: { ...thread.docs, "pi.agent": { ...agent, model: { provider: "faux", modelId: "faux-r" } } },
     } as ConversationView;
-    vi.mocked(api.provider.models).mockResolvedValue([model(true), reasoningModel] as never);
+    vi.mocked(api.models.list).mockResolvedValue([model(true), reasoningModel] as never);
     renderView(onReasoner);
     await userEvent.click(await screen.findByRole("combobox", { name: "Thinking level" }));
     expect((await screen.findAllByRole("option")).map((option) => option.textContent)).toEqual([

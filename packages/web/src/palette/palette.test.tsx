@@ -66,7 +66,7 @@ describe("command palette", () => {
     expect(screen.getByTestId("location")).toHaveTextContent("/new");
   });
 
-  it("asks to open settings from the Settings action", async () => {
+  it("asks to open settings on the chosen section", async () => {
     const opened = vi.fn();
     const user = userEvent.setup();
     renderAt(
@@ -77,9 +77,9 @@ describe("command palette", () => {
     );
 
     await user.keyboard("{Control>}k{/Control}");
-    await user.click(await screen.findByRole("option", { name: "Settings" }));
+    await user.click(await screen.findByRole("option", { name: "Settings: Providers" }));
 
-    expect(opened).toHaveBeenCalledTimes(1);
+    expect(opened).toHaveBeenCalledWith("providers");
   });
 });
 

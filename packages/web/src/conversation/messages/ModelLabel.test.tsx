@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "@/lib/api";
 import { AssistantMessage } from "./AssistantMessage";
 
-vi.mock("@/lib/api", () => ({ api: { provider: { models: vi.fn() } } }));
+vi.mock("@/lib/api", () => ({ api: { models: { list: vi.fn() } } }));
 
 const answer = (provider: string, model: string) =>
   ({
@@ -38,7 +38,7 @@ function renderAnswers(...messages: AssistantMessageData[]) {
 }
 
 beforeEach(() => {
-  vi.mocked(api.provider.models)
+  vi.mocked(api.models.list)
     .mockReset()
     .mockResolvedValue([
       info("deepseek/deepseek-v4.1-flash", "DeepSeek: DeepSeek V4.1 Flash"),

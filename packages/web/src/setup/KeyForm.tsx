@@ -1,24 +1,20 @@
-import { useQueryClient } from "@tanstack/react-query";
 import { type FormEvent, useId, useState } from "react";
 import { FormError } from "@/app/FormError";
 import { useSubmit } from "@/app/use-submit";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { api } from "@/lib/api";
-import { queryKeys } from "@/lib/queries";
+import { useSetProviderKey } from "@/lib/queries";
 
 export function KeyForm({ replacing = false }: { replacing?: boolean }) {
   const id = useId();
   const [key, setKey] = useState("");
-  const queryClient = useQueryClient();
+  const setProviderKey = useSetProviderKey();
   const { run, error, pending } = useSubmit();
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     const saved = await run(async () => {
-      await api.provider.setKey(key.trim());
-      await queryClient.invalidateQueries({ queryKey: queryKeys.models });
-      await queryClient.invalidateQueries({ queryKey: queryKeys.provider });
+      await setProviderKey.mutateAsync({ id: "openrouter", key: key.trim() });
     });
     if (saved) setKey("");
   };

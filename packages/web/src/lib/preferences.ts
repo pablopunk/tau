@@ -10,6 +10,7 @@ const KEYS = {
   seenBaseline: `${PREFIX}seen-baseline`,
   sidebarMode: "pie-sidebar-mode",
   closedProjects: "pie-sidebar-closed-projects",
+  theme: `${PREFIX}theme`,
 } as const;
 
 function readString(key: string): string | null {
@@ -51,6 +52,12 @@ const isNumberRecord = (value: unknown): value is Record<string, number> =>
   Object.values(value).every((entry) => typeof entry === "number");
 
 export type SidebarMode = "threads" | "projects";
+export type Theme = "system" | "light" | "dark";
+
+const isTheme = (value: string | null): value is Theme =>
+  value === "system" || value === "light" || value === "dark";
+
+const themeListeners = new Set<() => void>();
 
 const isStringArray = (value: unknown): value is string[] =>
   Array.isArray(value) && value.every((entry) => typeof entry === "string");
@@ -61,6 +68,26 @@ export const preferences = {
 
   getClosedProjects: (): string[] => readJson(KEYS.closedProjects, isStringArray) ?? [],
   setClosedProjects: (ids: readonly string[]): void => writeString(KEYS.closedProjects, JSON.stringify(ids)),
+
+  getTheme: (): Theme => {
+    const stored = readString(KEYS.theme);
+    return isTheme(stored) ? stored : "system";
+  },
+  setTheme: (theme: Theme): void => {
+    writeString(KEYS.theme, theme);
+    for (const listener of themeListeners) listener();
+  },
+  subscribeTheme: (listener: () => void): (() => void) => {
+    themeListeners.add(listener);
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === KEYS.theme) listener();
+    };
+    window.addEventListener("storage", onStorage);
+    return () => {
+      themeListeners.delete(listener);
+      window.removeEventListener("storage", onStorage);
+    };
+  },
 
   getLastProjectId: (): string | null => readString(KEYS.lastProject),
   setLastProjectId: (id: string): void => writeString(KEYS.lastProject, id),

@@ -1,16 +1,31 @@
-import { createContext, type ReactNode, useContext, useState } from "react";
-import { SettingsDialog } from "@/setup/SettingsDialog";
+import { createContext, type ReactNode, useCallback, useContext, useMemo, useState } from "react";
+import { SettingsDialog } from "@/settings/SettingsDialog";
+import type { SettingsSectionId } from "@/settings/sections";
 
-export const SettingsDialogContext = createContext<() => void>(() => {});
+type OpenSettings = (section?: SettingsSectionId) => void;
 
-export const useOpenSettings = () => useContext(SettingsDialogContext);
+export const SettingsDialogContext = createContext<OpenSettings>(() => {});
+
+export const useOpenSettings = (section?: SettingsSectionId): (() => void) => {
+  const open = useContext(SettingsDialogContext);
+  return useCallback(() => open(section), [open, section]);
+};
 
 export function SettingsDialogProvider({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false);
+  const [section, setSection] = useState<SettingsSectionId>("general");
+  const openOn = useMemo<OpenSettings>(
+    () =>
+      (target = "general") => {
+        setSection(target);
+        setOpen(true);
+      },
+    [],
+  );
   return (
-    <SettingsDialogContext.Provider value={() => setOpen(true)}>
+    <SettingsDialogContext.Provider value={openOn}>
       {children}
-      <SettingsDialog open={open} onOpenChange={setOpen} />
+      <SettingsDialog open={open} onOpenChange={setOpen} section={section} onSectionChange={setSection} />
     </SettingsDialogContext.Provider>
   );
 }

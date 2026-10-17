@@ -19,6 +19,20 @@ describe("preferences", () => {
     expect(preferences.getNotificationsEnabled()).toBe(true);
   });
 
+  it("defaults the theme to system, stores it and tells subscribers", () => {
+    const listener = vi.fn();
+    const unsubscribe = preferences.subscribeTheme(listener);
+    expect(preferences.getTheme()).toBe("system");
+    preferences.setTheme("dark");
+    expect(preferences.getTheme()).toBe("dark");
+    expect(listener).toHaveBeenCalledTimes(1);
+    unsubscribe();
+    preferences.setTheme("light");
+    expect(listener).toHaveBeenCalledTimes(1);
+    window.localStorage.setItem("pi-everywhere:theme", "neon");
+    expect(preferences.getTheme()).toBe("system");
+  });
+
   it("keeps lastSeenAt per thread", () => {
     preferences.setLastSeenAt("1", 100);
     preferences.setLastSeenAt("2", 200);

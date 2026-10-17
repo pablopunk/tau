@@ -1,16 +1,21 @@
 import type {
+  CompactInput,
   ConfigureConversationInput,
   ConversationSummary,
+  FileSuggestion,
   GithubRepo,
   GithubStatus,
+  LoginSession,
   ModelInfo,
   ModelRef,
   PathSuggestion,
   Project,
+  ProviderId,
   ProviderInfo,
   RetryInput,
   SendMessageInput,
   Settings,
+  Skill,
   StartConversationInput,
   SuggestDirectoriesInput,
   SuggestedCodeFolder,
@@ -23,21 +28,7 @@ import type { LiveTransport, Transport } from "./transport/types";
 
 export type { LiveHandlers, LiveSocket, LiveTransport, Transport } from "./transport/types";
 
-/** What the setup gate needs of `GET /providers`. */
-export interface ProviderStatus {
-  configured: boolean;
-  source: "file" | "env" | null;
-  valid: boolean | null;
-}
-
-export function providerStatusOf(providers: readonly ProviderInfo[]): ProviderStatus {
-  const connection = providers.find((provider) => provider.connection)?.connection ?? null;
-  return {
-    configured: connection !== null,
-    source: connection?.source ?? null,
-    valid: connection?.valid ?? null,
-  };
-}
+export const isConnected = (provider: ProviderInfo): boolean => provider.connection !== null;
 
 /** The typed REST client. Every method rejects with `AppError` (see `@pi-everywhere/protocol`). */
 export interface Api {
@@ -57,16 +48,29 @@ export interface Api {
     refreshRepos(): Promise<GithubRepo[]>;
     use(input: UseGithubRepoInput): Promise<Project>;
   };
-  provider: {
-    status(): Promise<ProviderStatus>;
-    setKey(key: string): Promise<void>;
-    models(): Promise<ModelInfo[]>;
+  providers: {
+    list(): Promise<ProviderInfo[]>;
+    setKey(id: ProviderId, key: string): Promise<ProviderInfo>;
+    disconnect(id: ProviderId): Promise<ProviderInfo>;
+  };
+  logins: {
+    start(): Promise<LoginSession>;
+    get(sessionId: string): Promise<LoginSession>;
+    submitUrl(sessionId: string, url: string): Promise<LoginSession>;
+    cancel(sessionId: string): Promise<void>;
+  };
+  models: {
+    list(): Promise<ModelInfo[]>;
+  };
+  skills: {
+    list(projectId: string | null): Promise<Skill[]>;
   };
   projects: {
     list(): Promise<Project[]>;
     add(input: { path: string; name?: string }): Promise<Project>;
     clone(input: { url: string; name?: string }): Promise<Project>;
     retryClone(id: string): Promise<void>;
+    suggestFiles(id: string, query: string): Promise<FileSuggestion[]>;
     rename(id: string, name: string): Promise<void>;
     remove(id: string): Promise<void>;
     /** Image sources for `<img src>`; the session cookie authenticates them. */
@@ -87,6 +91,7 @@ export interface Api {
     remove(id: string): Promise<void>;
     configure(id: string, input: ConfigureConversationInput): Promise<void>;
     retry(id: string, input: RetryInput): Promise<void>;
+    compact(id: string, input: CompactInput): Promise<void>;
   };
   /** Raw frames of `/api/live`; `LiveClient` turns them into views. */
   live: LiveTransport;
@@ -113,18 +118,29 @@ export function createApi(transport: Transport): Api {
       refreshRepos: () => request("refreshGithubRepos", {}),
       use: (input) => request("useGithubRepo", { body: input }),
     },
-    provider: {
-      status: async () => providerStatusOf(await request("listProviders", {})),
-      setKey: async (key) => {
-        await request("setProviderKey", { params: { id: "openrouter" }, body: { key } });
-      },
-      models: () => request("listModels", {}),
+    providers: {
+      list: () => request("listProviders", {}),
+      setKey: (id, key) => request("setProviderKey", { params: { id }, body: { key } }),
+      disconnect: (id) => request("disconnectProvider", { params: { id } }),
+    },
+    logins: {
+      start: () => request("startLogin", { params: { id: "openai" } }),
+      get: (sid) => request("getLogin", { params: { sid } }),
+      submitUrl: (sid, url) => request("submitLoginUrl", { params: { sid }, body: { url } }),
+      cancel: (sid) => request("cancelLogin", { params: { sid } }),
+    },
+    models: {
+      list: () => request("listModels", {}),
+    },
+    skills: {
+      list: (projectId) => request("listSkills", { query: projectId ? { projectId } : {} }),
     },
     projects: {
       list: () => request("listProjects", {}),
       add: (input) => request("addProject", { body: input }),
       clone: (input) => request("cloneProject", { body: input }),
       retryClone: (id) => request("retryClone", { params: { id } }),
+      suggestFiles: (id, query) => request("suggestProjectFiles", { params: { id }, body: { query } }),
       rename: (id, name) => request("renameProject", { params: { id }, body: { name } }),
       remove: (id) => request("removeProject", { params: { id } }),
       iconUrl: (id) => fillPath(routes.getProjectIcon.path, { id }),
@@ -143,6 +159,7 @@ export function createApi(transport: Transport): Api {
       remove: (id) => request("removeConversation", { params: { id } }),
       configure: (id, input) => request("configureConversation", { params: { id }, body: input }),
       retry: (id, input) => request("retryConversation", { params: { id }, body: input }),
+      compact: (id, input) => request("compactConversation", { params: { id }, body: input }),
     },
     live: transport.live,
   };

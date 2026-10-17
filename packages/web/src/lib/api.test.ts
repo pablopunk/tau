@@ -60,7 +60,7 @@ describe("http transport", () => {
 
   it("maps an error body to an AppError with the server's code", async () => {
     stubFetch(respond(422, { error: { code: "invalid_key", message: "Bad key" } }));
-    await expect(api.provider.setKey("nope")).rejects.toMatchObject({
+    await expect(api.providers.setKey("openrouter", "nope")).rejects.toMatchObject({
       code: "invalid_key",
       message: "Bad key",
     });
@@ -80,7 +80,7 @@ describe("http transport", () => {
 
   it("rejects an invalid request body before sending it", async () => {
     const fetchMock = stubFetch(respond(204));
-    await expect(api.provider.setKey("")).rejects.toBeInstanceOf(AppError);
+    await expect(api.providers.setKey("openrouter", "")).rejects.toBeInstanceOf(AppError);
     expect(fetchMock).not.toHaveBeenCalled();
   });
 

@@ -3,7 +3,7 @@ import { type QueryClient, useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
 import { useLiveClient } from "@/conversation";
 import type { LiveStatus } from "@/conversation/live-client";
-import { queryKeys } from "./queries";
+import { invalidateProviders, queryKeys } from "./queries";
 
 function invalidateEverythingListed(queryClient: QueryClient) {
   void queryClient.invalidateQueries({ queryKey: queryKeys.projects });
@@ -17,8 +17,7 @@ function invalidateChange(queryClient: QueryClient, change: Change) {
     return;
   }
   if (change.resource === "providers") {
-    void queryClient.invalidateQueries({ queryKey: queryKeys.provider });
-    void queryClient.invalidateQueries({ queryKey: queryKeys.models });
+    void invalidateProviders(queryClient);
     return;
   }
   void queryClient.invalidateQueries({ queryKey: queryKeys.conversations(change.projectId) });

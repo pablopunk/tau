@@ -11,7 +11,19 @@ import { Value } from "typebox/value";
 import type { RouteRequest, RouteResponse, Transport } from "./types";
 import { createWebSocketTransport } from "./websocket";
 
-type RequestInput = { params?: Record<string, string>; body?: unknown };
+type RequestInput = {
+  params?: Record<string, string>;
+  query?: Record<string, string | undefined>;
+  body?: unknown;
+};
+
+function urlFor(route: RouteDef, input: RequestInput): string {
+  const entries = Object.entries(input.query ?? {}).filter(
+    (entry): entry is [string, string] => entry[1] !== undefined,
+  );
+  const search = new URLSearchParams(entries).toString();
+  return fillPath(route.path, input.params) + (search ? `?${search}` : "");
+}
 
 function assertBody(route: RouteDef, body: unknown): void {
   if (route.body && !Value.Check(route.body, body))
@@ -46,7 +58,7 @@ async function send(route: RouteDef, input: RequestInput): Promise<unknown> {
   assertBody(route, input.body);
   let response: Response;
   try {
-    response = await fetch(fillPath(route.path, input.params), init(route, input.body));
+    response = await fetch(urlFor(route, input), init(route, input.body));
   } catch {
     throw new AppError("internal", "Could not reach the server");
   }

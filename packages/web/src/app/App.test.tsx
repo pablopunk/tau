@@ -123,11 +123,24 @@ describe("main screen", () => {
 
     await user.click(await screen.findByRole("button", { name: "Settings" }));
     const dialog = await screen.findByRole("dialog", { name: "Settings" });
+    await user.click(within(dialog).getByRole("button", { name: "Models" }));
     expect(await within(dialog).findByRole("combobox", { name: "Fast model" })).toHaveTextContent(
       "Same as thread",
     );
-    expect(within(dialog).getByLabelText("Projects folder")).toBeInTheDocument();
+    await user.click(within(dialog).getByRole("button", { name: "Projects" }));
+    expect(await within(dialog).findByLabelText("Projects folder")).toBeInTheDocument();
     expect(within(dialog).getByText(/deleting the data home/i)).toBeInTheDocument();
+  });
+
+  it("lists the providers and their connection in the providers section", async () => {
+    const user = await renderApp({ ready: true });
+
+    await user.click(await screen.findByRole("button", { name: "Settings" }));
+    const dialog = await screen.findByRole("dialog", { name: "Settings" });
+    await user.click(within(dialog).getByRole("button", { name: "Providers" }));
+
+    expect(await within(dialog).findByText("OpenRouter")).toBeInTheDocument();
+    expect(within(dialog).getByText("Connected · key")).toBeInTheDocument();
   });
 
   it("starts a thread from the new thread page with the chosen model", async () => {

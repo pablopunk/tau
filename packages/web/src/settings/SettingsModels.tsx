@@ -7,7 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { api } from "@/lib/api";
 import { errorMessage } from "@/lib/error-message";
 import { queryKeys, useModels, useSettings } from "@/lib/queries";
-import { ModelCombobox } from "./ModelCombobox";
+import { ModelCombobox } from "@/setup/ModelCombobox";
 
 export function SettingsModels() {
   const defaultId = useId();

@@ -7,6 +7,7 @@ const toOption = (model: ModelInfo): ComboboxOption => ({
   value: keyOf(model),
   label: model.name,
   description: model.modelId,
+  group: model.providerName,
 });
 
 interface ModelComboboxProps {

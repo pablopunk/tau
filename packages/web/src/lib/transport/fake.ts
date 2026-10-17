@@ -13,7 +13,11 @@ import {
 import { createFakeCore } from "@pi-everywhere/testkit";
 import type { LiveHandlers, LiveSocket, RouteRequest, RouteResponse, Transport } from "./types";
 
-type Input = { params: { id: string; sid: string }; body: Record<string, unknown> };
+type Input = {
+  params: { id: string; sid: string };
+  query: { projectId?: string };
+  body: Record<string, unknown>;
+};
 
 type Handlers = { [N in JsonRouteName]: (core: Core, input: Input) => Promise<unknown> };
 
@@ -46,7 +50,7 @@ const handlers: Handlers = {
   submitLoginUrl: (core, { params, body }) => core.providers.submitLoginUrl(params.sid, body.url as string),
   cancelLogin: (core, { params }) => core.providers.cancelLogin(params.sid),
   listModels: (core) => core.models.list(),
-  listSkills: (core) => core.skills.list(null),
+  listSkills: (core, { query }) => core.skills.list(query?.projectId ?? null),
   suggestProjectFiles: (core, { params, body }) =>
     core.projects.suggestFiles(params.id, body.query as string),
   compactConversation: (core, { params, body }) => core.conversations.compact(params.id, body as never),
