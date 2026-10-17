@@ -3,10 +3,16 @@ import type {
   ConversationView,
   EntryRecord,
   ImageContent,
+  SubagentNotificationData,
   TextContent,
   ToolResultMessage,
   UserMessage,
 } from "@pi-everywhere/protocol";
+import {
+  isNotificationMarkerText,
+  isSubagentNotificationKind,
+  parseSubagentNotification,
+} from "../notifications/notification-entry";
 
 export interface ToolDiagnostic {
   readonly severity: string;
@@ -29,6 +35,7 @@ export type TranscriptItem =
     }
   | { readonly kind: "retry"; readonly key: string }
   | { readonly kind: "compaction"; readonly key: string }
+  | { readonly kind: "subagent-notification"; readonly key: string; readonly data: SubagentNotificationData }
   | {
       readonly kind: "assistant";
       readonly key: string;
@@ -70,9 +77,18 @@ function entryKey(entry: EntryRecord): string {
   return `${entry.kind}:${entry.id}`;
 }
 
+function notificationItemOf(entry: EntryRecord): TranscriptItem | undefined {
+  if (!isSubagentNotificationKind(entry.kind)) return undefined;
+  const data = parseSubagentNotification(entry.data);
+  return data ? { kind: "subagent-notification", key: entryKey(entry), data } : undefined;
+}
+
 function itemOf(entry: EntryRecord): TranscriptItem | undefined {
   const message = entry.model?.[0];
+  const notification = notificationItemOf(entry);
+  if (notification) return notification;
   if (entry.kind === "pi.user" && message?.role === "user") {
+    if (isNotificationMarkerText(userText(message))) return undefined;
     return {
       kind: "user",
       key: entryKey(entry),

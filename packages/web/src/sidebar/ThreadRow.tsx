@@ -26,6 +26,7 @@ import { TreeBranch, TreeToggle } from "@/components/ui/tree-branch";
 import { api } from "@/lib/api";
 import { conversationPath } from "@/lib/paths";
 import { queryKeys } from "@/lib/queries";
+import { SubagentTypeLabel } from "@/sidebar/subagents/SubagentTypeLabel";
 import { conversationDot } from "./conversation-dot";
 import { DeleteConversationDialog } from "./DeleteConversationDialog";
 import { NameDialog } from "./NameDialog";
@@ -137,7 +138,13 @@ export function ThreadRow({
                 badge={dot && dot !== "running" ? <StatusDot status={dot} /> : undefined}
               />
             }
-            context={showProject && depth === 0 ? project?.name : undefined}
+            context={
+              depth > 0 ? (
+                <SubagentTypeLabel conversation={conversation} />
+              ) : showProject ? (
+                project?.name
+              ) : undefined
+            }
             projectIcon={projectIcon(17)}
             time={<RelativeTime at={conversation.lastActivityAt} />}
             actions={

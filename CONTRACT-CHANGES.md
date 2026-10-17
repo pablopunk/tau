@@ -172,3 +172,9 @@ Pins: `packages/core/src/harness/mvp6-pins.test.ts` (pi-durable 1.3.0, faux). Al
 Protocol: `ConversationSummary` += `agentType`, `agentModel`, `agentStatus`, `background` (legacy: null, null, null, false). `AgentStatus`, `SUBAGENT_NOTIFICATION_KIND`, `SubagentNotificationDataSchema` exported. `Core.conversations.stopAgent` and `POST /conversations/:id/stop-agent` (204; 404 unknown; 400 not a child). Contract tags `[subagents-v2]` (pending in both targets), `[subagents-task]` (pending in the real core), `[subagents]` stop and defaults cases run.
 
 Core: `harness/subagent-{runtime,anchor,reporter,registry-doc,notification,stop}.ts`; `agents/{agent-types,model-alias}.ts` stubs; tool stubs `agent`, `send_message`, `stop_agent`, `list_agents`, `merge_agent` (`implemented: false`); `ToolServices.connectedModels()`; removal now removes children before the parent; archiving aborts children.
+
+## MVP6 Phase 2: applied notes
+
+* Integrator notes applied; both NOTES files removed. `PENDING_TAGS` is empty in the real core and the fake core. The fake `agent` trigger replaces `task` in contract cases; `[subagents-task]` cases now run as `[subagents]` on `agent`.
+* `list_agents` also returns `details.agents[]`; the web cards read `details.conversationId` and `details.agents[]` (pinned in `subagent-tools.test.ts`).
+* Faux triggers: `agent-fork <prompt>` (fork subagent) and `agents` (`list_agents`). `e2e/tests/mvp6.spec.ts` covers two background subagents, Stop, the child page, a fork and the list card.

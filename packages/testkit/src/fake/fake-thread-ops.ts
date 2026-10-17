@@ -1,6 +1,7 @@
 import { AppError, type ConversationSummary, type Core } from "@pi-everywhere/protocol";
 import { fakeDiffOf, rejectUnsafePath } from "./fake-checkpoints";
 import type { FakeConversation } from "./fake-conversation";
+import { reportStopped } from "./fake-subagents";
 
 export interface SpawnParams {
   readonly source: FakeConversation;
@@ -53,6 +54,7 @@ export function createFakeThreadOps(ctx: ThreadOpsContext): ThreadOps {
       const child = ctx.require(id);
       if (child.parentId === null) throw new AppError("invalid_request", "Only a subagent can be stopped.");
       await child.abort();
+      reportStopped(child, ctx.require);
     },
     async cancelQueued(id, itemId) {
       return { cancelled: ctx.require(id).cancelQueued(itemId) };

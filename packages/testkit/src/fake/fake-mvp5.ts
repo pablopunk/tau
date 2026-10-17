@@ -2,12 +2,13 @@ import { AppError, type Change, type Project, type WorkspaceMode } from "@pi-eve
 import type { FakeConversation } from "./fake-conversation";
 import { createFakeMcp } from "./fake-mcp";
 import { createFakeProcesses } from "./fake-processes";
+import { startFakeAgent } from "./fake-subagents";
 import { createFakeThreadOps, type SpawnParams } from "./fake-thread-ops";
 import { checkoutWorkspace, uniqueSlug, worktreeWorkspace } from "./fake-workspace";
 import { createFakeWorkspaces, hasUnmergedWork } from "./fake-workspaces";
 
 export const FAKE_WORKTREES_FOLDER = "/fake/home/.pi-everywhere/worktrees";
-const SUBAGENT_TRIGGER = "task ";
+const SUBAGENT_TRIGGER = "agent ";
 const PROCESS_TRIGGER = "bg ";
 
 export interface Mvp5Context {
@@ -53,13 +54,7 @@ export function createFakeMvp5(ctx: Mvp5Context) {
     afterMessage(conversation: FakeConversation, text: string): void {
       if (text.startsWith(SUBAGENT_TRIGGER)) {
         const description = text.slice(SUBAGENT_TRIGGER.length).trim();
-        const child = ctx.spawn({
-          source: conversation,
-          title: description,
-          forkOf: null,
-          parentId: conversation.id,
-        });
-        child.send(`subagent-${++subagentCount}`, { text: description });
+        startFakeAgent(ctx, conversation, description, ++subagentCount);
       }
       if (text.startsWith(PROCESS_TRIGGER))
         processes.start(conversation.id, text.slice(PROCESS_TRIGGER.length).trim());

@@ -14,6 +14,8 @@ export const SCRIPT_USAGE = [
   "bash <command>",
   "task <description>",
   "agent <prompt>",
+  "agent-fork <prompt>",
+  "agents",
   "continue <subagent id> <prompt>",
   "bg <command>",
   "todo <first> | <second> | ...",
@@ -117,6 +119,10 @@ function scriptedReply(input: string, attempt: number, user: UserMessage | undef
       return toolCallReply("fork_agent", { description: rest, prompt: rest });
     case "agent":
       return toolCallReply("agent", { description: rest, prompt: rest });
+    case "agent-fork":
+      return toolCallReply("agent", { description: rest, prompt: rest, subagent_type: "fork" });
+    case "agents":
+      return toolCallReply("list_agents", {});
     case "continue": {
       const [subagent, prompt = ""] = splitOnce(rest, " ");
       return toolCallReply("task", { description: prompt, prompt, subagent });

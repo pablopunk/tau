@@ -42,5 +42,5 @@ runCoreContract(
       dispose: () => core.close(),
     };
   },
-  { pending: ["[subagents-v2]"] },
+  { pending: [] },
 );

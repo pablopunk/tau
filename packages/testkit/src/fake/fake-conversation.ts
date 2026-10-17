@@ -1,4 +1,5 @@
 import {
+  type AgentStatus,
   AppError,
   baseOps,
   type ConversationStatus,
@@ -52,6 +53,12 @@ export interface FakeConversationDeps {
   readonly onSummaryChange: (projectId: string) => void;
   /** The name the title job comes up with, or `undefined` when it fails. */
   readonly generateTitle: (text: string) => string | undefined;
+}
+
+export interface AgentInfo {
+  readonly type: string;
+  readonly model: ModelRef;
+  readonly status: AgentStatus;
 }
 
 export interface FakeInput {
@@ -109,6 +116,7 @@ export class FakeConversation {
   readonly forkOf: ConversationSummary["forkOf"];
   readonly checkpoints = new FakeCheckpoints();
   readonly changes: WorktreeChanges = { dirtyFiles: [], unmergedCommits: 0 };
+  agentInfo: AgentInfo | undefined;
   private deleted = false;
   private failed = false;
   private titleSource: TitleSource = "first-message";
@@ -186,10 +194,10 @@ export class FakeConversation {
       workspace: { ...this.workspace },
       forkOf: this.forkOf && { ...this.forkOf },
       parentId: this.parentId,
-      agentType: null,
-      agentModel: null,
-      agentStatus: null,
-      background: false,
+      agentType: this.agentInfo?.type ?? null,
+      agentModel: this.agentInfo?.model ?? null,
+      agentStatus: this.agentInfo?.status ?? null,
+      background: this.agentInfo !== undefined,
       unmergedWarning: this.unmergedWarning(),
     };
   }
@@ -199,6 +207,18 @@ export class FakeConversation {
     const unmerged = changes.dirtyFiles.length > 0 || changes.unmergedCommits > 0;
     const live = workspace.mode === "worktree" && workspace.state === "ready";
     return this.archivedAt !== null && live && unmerged ? unmergedWarningFor(workspace.branch) : null;
+  }
+
+  setAgentStatus(status: AgentStatus): void {
+    if (this.agentInfo) this.agentInfo = { ...this.agentInfo, status };
+    this.deps.onSummaryChange(this.projectId);
+  }
+
+  appendEntry(kind: string, data: unknown): void {
+    const id = this.view.entries.reduce((max, entry) => Math.max(max, Number(entry.id)), 0) + 1;
+    const entries = [...this.view.entries, { id, kind, data }];
+    this.publish({ ...this.view, entries } as unknown as ConversationView);
+    this.touch();
   }
 
   isBusy(): boolean {

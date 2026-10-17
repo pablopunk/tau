@@ -38,7 +38,7 @@ describe("stop-agent route", () => {
 
   it("answers 204 for a child", async () => {
     ctx = await startTestServer();
-    const { project } = await startThread("task look around");
+    const { project } = await startThread("agent look around");
     const child = await untilChildOf(project.id);
     const response = await ctx.request({ method: "POST", url: `/api/conversations/${child.id}/stop-agent` });
     expect(response.statusCode).toBe(204);

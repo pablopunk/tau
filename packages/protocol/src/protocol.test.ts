@@ -106,6 +106,12 @@ describe("isRetryable", () => {
     expect(isRetryable(viewOf([]))).toBe(false);
   });
 
+  it("ignores a subagent notification entry after a finished answer or a failed one", () => {
+    const notification = { kind: "app.subagent_notification", model: [{ role: "user" }] };
+    expect(isRetryable(viewOf([{ kind: "pi.user" }, assistant("stop"), notification]))).toBe(false);
+    expect(isRetryable(viewOf([{ kind: "pi.user" }, assistant("error"), notification]))).toBe(true);
+  });
+
   it("is true after an error, an abort, a stop during a tool or before the first token", () => {
     expect(isRetryable(viewOf([{ kind: "pi.user" }, assistant("error")]))).toBe(true);
     expect(isRetryable(viewOf([{ kind: "pi.user" }, assistant("aborted")]))).toBe(true);

@@ -78,7 +78,7 @@ function ConversationPanel({ id }: ConversationProps) {
   return (
     <div data-testid="conversation" className="relative flex h-full min-h-0 flex-col bg-background">
       {view ? <ThreadHeader id={id} extras={<WorkspaceChip conversationId={id} />} /> : null}
-      {parentId ? <SubagentBanner parentId={parentId} /> : null}
+      {parentId ? <SubagentBanner parentId={parentId} childId={id} /> : null}
       <div ref={scrollRef} onScroll={onScroll} className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
         <div ref={contentRef} className="mx-auto w-full max-w-3xl px-4 py-6">
           <section aria-label="Conversation" aria-live="polite" aria-relevant="additions">

@@ -1,4 +1,9 @@
 import type { ComponentType } from "react";
+import { AgentListTool } from "./AgentListTool";
+import { AgentMergeTool } from "./AgentMergeTool";
+import { AgentSendMessageTool } from "./AgentSendMessageTool";
+import { AgentStopTool } from "./AgentStopTool";
+import { AgentTool } from "./AgentTool";
 import { BashTool } from "./BashTool";
 import { EditTool } from "./EditTool";
 import { GenericTool } from "./GenericTool";
@@ -17,6 +22,11 @@ const RENDERERS: Record<string, ComponentType<ToolRendererProps>> = {
   edit: EditTool,
   bash: BashTool,
   task: TaskTool,
+  agent: AgentTool,
+  send_message: AgentSendMessageTool,
+  stop_agent: AgentStopTool,
+  list_agents: AgentListTool,
+  merge_agent: AgentMergeTool,
   todo_write: TodoTool,
   web_search: WebTool,
   fetch_content: WebTool,

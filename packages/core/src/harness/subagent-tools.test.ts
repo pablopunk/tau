@@ -141,3 +141,32 @@ describe("list_agents", () => {
     expect(await transcript(parent.id)).toContain("You have no subagents.");
   });
 });
+
+describe("tool result details read by the web cards", () => {
+  type Result = { toolName?: string; details?: unknown };
+  const detailsOf = async (id: string, toolName: string) =>
+    (await rig.entriesOf(id)).flatMap((entry) => {
+      const result = entry.kind === "pi.tool-result" ? (entry.model?.[0] as Result) : undefined;
+      return result?.toolName === toolName ? [result.details] : [];
+    });
+
+  it("agent carries conversationId and list_agents carries agents rows", async () => {
+    const { parent, child } = await startParentWithChild("hello");
+    await rig.notified(parent.id);
+    await callOnParent(parent.id, "list_agents", {});
+    const [started] = await detailsOf(parent.id, "agent");
+    const [listed] = await detailsOf(parent.id, "list_agents");
+    expect(started).toEqual({ conversationId: child.id, status: "running" });
+    expect(listed).toMatchObject({
+      agents: [
+        {
+          id: child.id,
+          description: "look around",
+          type: "general-purpose",
+          model: "faux/faux-1",
+          status: "done",
+        },
+      ],
+    });
+  });
+});

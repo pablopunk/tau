@@ -146,7 +146,8 @@ export function createConversationForker(
     async messageText(conversationId, entryId) {
       const { entry } = await lookUpEntry(conversationId, entryId);
       const message = entry.model?.[0] as Message | undefined;
-      if (message?.role !== "user") throw new AppError("invalid_request", "This is not a user message.");
+      if (entry.kind !== "pi.user" || message?.role !== "user")
+        throw new AppError("invalid_request", "This is not a user message.");
       return textOf(message);
     },
 

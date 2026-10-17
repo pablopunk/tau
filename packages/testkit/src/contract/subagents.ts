@@ -12,7 +12,7 @@ export function subagentCases(make: MakeContractTarget, test: CaseRunner): void 
     afterEach(() => target.dispose());
 
     async function threadWithChild() {
-      const started = await startConversation(target, { text: "task look around" });
+      const started = await startConversation(target, { text: "agent look around" });
       const { core } = target;
       await waitFor(
         async () =>
@@ -24,23 +24,22 @@ export function subagentCases(make: MakeContractTarget, test: CaseRunner): void 
       return { ...started, child: child as NonNullable<typeof child> };
     }
 
-    test("[subagents-task] lists a subagent thread with its parent and title", async () => {
+    test("[subagents] lists a subagent thread with its parent and title", async () => {
       const { conversation, child } = await threadWithChild();
       expect(child.parentId).toBe(conversation.id);
       expect(child.title).toBe("look around");
       expect(conversation.parentId).toBeNull();
     });
 
-    test("[subagents-task] summaries carry the legacy agent defaults", async () => {
+    test("[subagents] summaries carry agent info for children and defaults for the parent", async () => {
       const { conversation, child } = await threadWithChild();
-      for (const thread of [conversation, child]) {
-        expect(thread).toMatchObject({
-          agentType: null,
-          agentModel: null,
-          agentStatus: null,
-          background: false,
-        });
-      }
+      expect(conversation).toMatchObject({
+        agentType: null,
+        agentModel: null,
+        agentStatus: null,
+        background: false,
+      });
+      expect(child).toMatchObject({ agentType: "general-purpose", background: true });
     });
 
     test("[subagents] stopAgent rejects unknown threads and threads that are not children", async () => {
@@ -50,7 +49,7 @@ export function subagentCases(make: MakeContractTarget, test: CaseRunner): void 
       await rejectsWithCode(core.conversations.stopAgent(conversation.id), "invalid_request");
     });
 
-    test("[subagents-v2] a background child reports back with a notification entry", async () => {
+    test("[subagents] a background child reports back with a notification entry", async () => {
       const started = await startConversation(target, { text: "agent look around" });
       const tracker = await trackView(target.core, started.conversation.id);
       await waitFor(
@@ -66,7 +65,7 @@ export function subagentCases(make: MakeContractTarget, test: CaseRunner): void 
       await tracker.stop();
     });
 
-    test("[subagents-v2] stopAgent stops a running child and reports stopped", async () => {
+    test("[subagents] stopAgent stops a running child and reports stopped", async () => {
       const { core } = target;
       const started = await startConversation(target, { text: "agent bash sleep 30" });
       const child = await waitFor(
@@ -85,7 +84,7 @@ export function subagentCases(make: MakeContractTarget, test: CaseRunner): void 
       );
     });
 
-    test("[subagents-task] archives and deletes children with their parent", async () => {
+    test("[subagents] archives and deletes children with their parent", async () => {
       const { core } = target;
       const { project, conversation, child } = await threadWithChild();
       await core.conversations.archive(conversation.id, true);

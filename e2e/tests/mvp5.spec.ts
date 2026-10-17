@@ -161,9 +161,11 @@ test.describe("MVP5", () => {
 
   test("a subagent child shows in the sidebar and opens read-only", async () => {
     await openNewThread(page);
-    await send(page, "task investigate");
-    await expect(page.getByRole("button", { name: /Subagents \(1\)/ })).toBeVisible({ timeout: 20_000 });
-    await page.getByRole("link", { name: /demo-repo investigate$/ }).click();
+    await send(page, "agent investigate");
+    await expect(page.getByRole("button", { name: /Collapse subagents of/ })).toBeVisible({
+      timeout: 20_000,
+    });
+    await page.getByRole("link", { name: /^(New activity )?investigate$/ }).click();
     await expect(page.getByText("Subagent of")).toBeVisible();
     await expect(messageBox(page)).toHaveCount(0);
   });

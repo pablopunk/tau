@@ -14,6 +14,7 @@ import { UserMessage } from "./messages/UserMessage";
 import { type LiveInfo, readLive } from "./model/live";
 import { isActive, resolveToolCall } from "./model/tool-state";
 import { buildTranscript } from "./model/transcript";
+import { SubagentNotificationRow } from "./notifications/SubagentNotificationRow";
 import { RetryButton } from "./RetryButton";
 import { LatestTodoCallProvider } from "./todos/latest-todo-call";
 import { latestTodoCallId } from "./todos/todo-items";
@@ -88,6 +89,8 @@ export function Transcript({
       <div className="space-y-5">
         {items.map((item, index) => {
           if (item.kind === "compaction") return <CompactedDivider key={item.key} />;
+          if (item.kind === "subagent-notification")
+            return <SubagentNotificationRow key={item.key} data={item.data} />;
           if (item.kind === "retry") return <RetriedDivider key={item.key} />;
           if (item.kind === "user")
             return (
