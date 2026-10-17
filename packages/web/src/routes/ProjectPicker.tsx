@@ -4,6 +4,7 @@ import { PlusIcon } from "lucide-react";
 import { useState } from "react";
 import { FormError } from "@/app/FormError";
 import { useSubmit } from "@/app/use-submit";
+import { Button } from "@/components/ui/button";
 import { Combobox, type ComboboxOption } from "@/components/ui/combobox";
 import { ProjectIcon } from "@/components/ui/project-icon";
 import { RefreshReposButton } from "@/github/RefreshReposButton";
@@ -15,14 +16,6 @@ import { queryKeys, useGithubRepos, useGithubStatus } from "@/lib/queries";
 import { AddProjectDialog } from "@/sidebar/AddProjectDialog";
 
 const PROJECTS_GROUP = "Projects";
-const ADD_PROJECT_VALUE = "__add_project__";
-
-const addProjectOption: ComboboxOption = {
-  value: ADD_PROJECT_VALUE,
-  label: "Add project…",
-  icon: <PlusIcon />,
-  keywords: ["new", "folder", "clone", "git"],
-};
 
 const projectOption = (project: Project): ComboboxOption => ({
   value: project.id,
@@ -73,7 +66,6 @@ export function ProjectPicker({ projects, projectId, onProject, disabled }: Proj
   };
 
   const onChange = (value: string) => {
-    if (value === ADD_PROJECT_VALUE) return setAdding(true);
     const repoName = parseGithubValue(value);
     if (repoName) pickRepo(repoName);
     else onProject(value);
@@ -82,7 +74,6 @@ export function ProjectPicker({ projects, projectId, onProject, disabled }: Proj
   const options = [
     ...projectsHomeFirst(projects).map(projectOption),
     ...githubOptions({ status: status.data, repos: repos.data, reposFailed: repos.isError }),
-    addProjectOption,
   ];
 
   return (
@@ -100,6 +91,20 @@ export function ProjectPicker({ projects, projectId, onProject, disabled }: Proj
         onOpenChange={(open) =>
           open && void queryClient.invalidateQueries({ queryKey: queryKeys.githubRepos })
         }
+        footer={(close) => (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="w-full justify-start font-normal"
+            onClick={() => {
+              close();
+              setAdding(true);
+            }}
+          >
+            <PlusIcon />
+            Add project…
+          </Button>
+        )}
         groupActions={
           status.data?.state === "connected" ? { [GITHUB_GROUP]: <RefreshReposButton /> } : undefined
         }

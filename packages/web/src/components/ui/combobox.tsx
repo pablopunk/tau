@@ -48,6 +48,8 @@ interface ComboboxProps {
   onOpenChange?: (open: boolean) => void
   /** Show the search box; turn off for short lists. */
   searchable?: boolean
+  /** Pinned under the list, always visible and never filtered, e.g. an "Add" action. Receives a function that closes the popover. */
+  footer?: (close: () => void) => React.ReactNode
   /** A control shown on the right of a group's heading, by group name, e.g. a refresh button. */
   groupActions?: Record<string, React.ReactNode>
   /** `ghost` with `sm` fits inside a composer toolbar. */
@@ -78,6 +80,7 @@ function Combobox({
   onOpenChange,
   groupActions,
   searchable = true,
+  footer,
   variant = "outline",
   size = "default",
   "aria-label": ariaLabel,
@@ -114,7 +117,7 @@ function Combobox({
       </PopoverTrigger>
       <PopoverContent
         data-slot="combobox-content"
-        className={cn("w-(--radix-popover-trigger-width) min-w-52 max-w-[calc(100vw-2rem)] p-0 [&_[data-slot=command-list]]:max-h-[min(18rem,calc(var(--radix-popover-content-available-height)-3rem))]", contentClassName)}
+        className={cn("w-(--radix-popover-trigger-width) min-w-52 max-w-[calc(100vw-2rem)] p-0 [&_[data-slot=command-list]]:max-h-[max(9rem,min(18rem,calc(var(--radix-popover-content-available-height)-6rem)))]", contentClassName)}
         align="start"
       >
         <Command filter={rankOption}>
@@ -158,6 +161,11 @@ function Combobox({
               </CommandGroup>
             ))}
           </CommandList>
+          {footer ? (
+            <div data-slot="combobox-footer" className="border-t p-1">
+              {footer(() => setOpen(false))}
+            </div>
+          ) : null}
         </Command>
       </PopoverContent>
     </Popover>

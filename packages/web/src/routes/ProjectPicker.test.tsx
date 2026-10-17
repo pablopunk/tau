@@ -39,7 +39,7 @@ async function openAddProject(onProject = vi.fn()) {
     </QueryClientProvider>,
   );
   await user.click(screen.getByRole("combobox", { name: "Project" }));
-  await user.click(await screen.findByRole("option", { name: /Add project/ }));
+  await user.click(await screen.findByRole("button", { name: /Add project/ }));
   return { user, onProject };
 }
 

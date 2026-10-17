@@ -23,7 +23,7 @@ async function renderApp({ ready }: { ready: boolean }) {
 
 async function openAddProject(user: ReturnType<typeof userEvent.setup>) {
   await user.click(await screen.findByRole("combobox", { name: "Project" }));
-  await user.click(await screen.findByRole("option", { name: /Add project/ }));
+  await user.click(await screen.findByRole("button", { name: /Add project/ }));
 }
 
 describe("setup", () => {
