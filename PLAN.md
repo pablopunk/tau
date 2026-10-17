@@ -74,7 +74,7 @@ What the work plugins (`~/src/maze/claude-plugins`, 27 plugins) actually need:
 - claude.ai connectors go through an Anthropic-hosted proxy with Claude Code's own OAuth token. We want to reuse the Claude Code session, auth and connectors. Options, none chosen yet:
   - **Reverse engineer the proxy**: find how Claude Code lists connectors and calls them, then replay it with the token. Likely doable, but it is the same token reuse Anthropic does not allow outside Claude Code (rejected for model calls above), so it risks the account.
   - **Drive the real interactive `claude` in a PTY on the hub**: reuses session, auth, connectors and hooks natively; read the transcript files in `~/.claude/projects` to render the chat. Cost: those conversations run on Claude Code, not Pi Durable (no durable timers, `submit()` or forks for them).
-  - **Each service's own MCP endpoint with our own OAuth** (Linear, Notion, Figma, Slack, Datadog): no Anthropic involved. Covers only services with a public endpoint.
+  - **Each service's own MCP endpoint with our own OAuth** (Linear, Notion, Figma, Slack, Datadog): no Anthropic involved. Covers only services with a public endpoint. Needs MCP OAuth support in our MCP client (not built yet; MVP5 has stdio and plain HTTP only).
   - **Not used**: `claude -p` / Agent SDK. It may bill at API rates (to verify); this would also hit the "Claude Code as a provider" idea in the setup checklist.
 
 ### First run (setup checklist)
@@ -131,6 +131,12 @@ Out of the MVP: tunnels, pairing, remote runtimes, terminals, other providers, f
 ## Later
 - **Model tiers** in Settings → Models: "smart" (the main thread) and "worker" (subagents), so the parent picks workers without being told in the chat. Keep the Models section uncluttered when adding it.
 - **Chat with a subagent directly**: open the child thread's composer instead of going through the parent.
+- **Timers and loops** (planned): the agent schedules a wake-up ("check CI in 10 minutes"), recurring prompts, and a `/loop` mode. Pi Durable timers survive restarts.
+- **Monitor** (planned): a background command whose output lines or exit wake the agent; processes notify the agent when they exit.
+- **Workflows** (planned): scripted orchestration of many subagents (pipelines, parallel review rounds), on top of MVP6 subagents.
+- **Push to the user** (future): the agent pings the phone and sends files.
+- **Side panes** (explore): HTML panes and links that open beside the chat, instead of artifacts.
+- **Explore**: PDF and notebook reading; moving a running thread between the main checkout and a worktree.
 
 ## Open questions
 - How to use the work Claude subscription through Pi.
