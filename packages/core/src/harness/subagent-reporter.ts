@@ -4,6 +4,7 @@ import type { SubagentNotificationData } from "@pi-everywhere/protocol";
 import { ConversationDoc } from "./conversation-docs";
 import { notificationInput, notificationRequestId } from "./subagent-notification";
 import { SubagentRegistryDoc } from "./subagent-registry-doc";
+import { setAgentStatus } from "./subagent-status";
 
 export type ReporterInput = { childId: ConversationId; message: string; followUp: boolean };
 type ReporterState = { phase: "deliver" } | { phase: "report"; notification?: SubagentNotificationData };
@@ -28,8 +29,10 @@ export const Reporter = defineTask<ReporterInput, ReporterState, null>({
       );
       const settled = await submission.wait(taskContext);
       await runtime.commit(async (tx) => {
-        const next = (notification?: SubagentNotificationData) =>
-          ({ status: "running", checkpoint: { phase: "report", notification } }) as const;
+        const next = async (notification?: SubagentNotificationData) => {
+          if (notification) await setAgentStatus(tx, childId, notification.status);
+          return { status: "running", checkpoint: { phase: "report", notification } } as const;
+        };
         const record = (await tx.doc(SubagentRegistryDoc, runtime.conversationId)).children[String(childId)]!;
         const title = (await tx.doc(ConversationDoc, childId)).title;
         const base = { childId: String(childId), title };

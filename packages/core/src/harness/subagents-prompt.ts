@@ -4,13 +4,21 @@ import { ConversationDoc, type IndexedConversation, ProjectIndexDoc } from "./co
 type Context = Parameters<PromptSection["render"]>[1];
 
 export const SUBAGENTS_INTRO =
-  "These are your subagents. They are persistent threads the user can open from the sidebar. Continue one with the task tool by passing its id as `subagent`.";
+  "These are your subagents. They are persistent threads the user can open from the sidebar. Continue one with send_message (pass its id as `to`), stop it with stop_agent, and see them all with list_agents. Their reports arrive as notifications: do not poll.";
 
-export function subagentLine(entry: IndexedConversation): string {
-  const status = entry.status ?? "idle";
-  const active = new Date(entry.lastRunEndedAt ?? entry.updatedAt).toISOString();
-  return `- id ${entry.conversationId}: ${entry.title} (${status}, last activity ${active})`;
+const activeAt = (entry: IndexedConversation) =>
+  new Date(entry.lastRunEndedAt ?? entry.updatedAt).toISOString();
+
+function agentDetails(entry: IndexedConversation): string {
+  if (entry.agentType === undefined) return `${entry.status ?? "idle"}, last activity ${activeAt(entry)}`;
+  const model = entry.agentModel
+    ? `${entry.agentModel.provider}/${entry.agentModel.modelId}`
+    : "default model";
+  return `${entry.agentType}, ${model}, ${entry.agentStatus ?? "running"}, last activity ${activeAt(entry)}`;
 }
+
+export const subagentLine = (entry: IndexedConversation) =>
+  `- id ${entry.conversationId}: ${entry.title} (${agentDetails(entry)})`;
 
 export function subagentsPrompt(children: readonly IndexedConversation[]): string | undefined {
   return children.length === 0 ? undefined : [SUBAGENTS_INTRO, ...children.map(subagentLine)].join("\n");

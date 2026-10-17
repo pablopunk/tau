@@ -1,6 +1,8 @@
 import { homedir } from "node:os";
 import { join } from "node:path";
 import type { Core, CreateCore } from "@pi-everywhere/protocol";
+import { createAgentTypeLoader } from "./agents/agent-types";
+import { resolveModelAlias } from "./agents/model-alias";
 import { createChangeEmitter } from "./change-emitter";
 import { createCheckpointService } from "./checkpoints/checkpoint-service";
 import { createConversationRecovery } from "./conversation-recovery";
@@ -145,6 +147,13 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
     toolServices.set({
       processes,
       mcp,
+      subagents: {
+        agentTypes: createAgentTypeLoader(),
+        resolveModelAlias,
+        fastModel: async () => (await settings.get()).fastModel ?? undefined,
+        projectOf: (id) => projects.require(id),
+        workspaces,
+      },
       connectedModels: async () =>
         (await provider.listModels()).map(({ provider: id, modelId }) => ({ provider: id, modelId })),
     });
@@ -190,6 +199,7 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
         workspaces,
         checkpoints,
         forker,
+        harness,
         removalHooks,
       }),
       workspaces: {

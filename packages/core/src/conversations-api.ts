@@ -1,4 +1,5 @@
 import { clampThinkingLevel } from "@earendil-works/pi-ai/models";
+import type { Harness } from "@earendil-works/pi-durable";
 import {
   AppError,
   type ConfigureConversationInput,
@@ -38,6 +39,7 @@ export function createConversationsApi(deps: {
   workspaces: WorkspaceService;
   checkpoints: CheckpointService;
   forker: ConversationForker;
+  harness: Harness;
   removalHooks: RemovalHooks;
   changes: ChangeEmitter;
   now: () => number;
@@ -183,7 +185,7 @@ export function createConversationsApi(deps: {
       forker: deps.forker,
       checkpoints,
       conversations,
-      subagents: createSubagentStopper(conversations),
+      subagents: createSubagentStopper(conversations, deps.harness),
     }),
   };
 }

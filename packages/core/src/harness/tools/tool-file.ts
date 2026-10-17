@@ -4,12 +4,14 @@ import type { TSchema } from "typebox";
 import type { McpService } from "../../mcp/mcp-service";
 import { notImplemented } from "../../not-implemented";
 import type { ProcessService } from "../../processes/process-service";
+import type { SubagentServices } from "../subagent-services";
 
 export interface ToolServices {
   /** Models the user has a key for; the `agent` tool lists them in its description. */
   readonly connectedModels: () => Promise<readonly ModelRef[]>;
   readonly processes: ProcessService;
   readonly mcp: McpService;
+  readonly subagents: SubagentServices;
 }
 
 /** The tools are built before the services exist (the Harness needs the registry first), so they read this lazily. */

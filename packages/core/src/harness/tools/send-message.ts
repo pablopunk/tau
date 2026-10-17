@@ -1,6 +1,9 @@
-import { defineExtension } from "@earendil-works/pi-durable";
+import { defineExtension, defineTool } from "@earendil-works/pi-durable";
 import { Type } from "typebox";
-import { type ToolFileFactory, unimplementedTool } from "./tool-file";
+import { childIdOf, requireOwnSubagent } from "../subagent-own";
+import { startReporter } from "../subagent-runtime";
+import { SEND_MESSAGE_DESCRIPTION } from "./agent-description";
+import type { ToolFileFactory } from "./tool-file";
 
 export const SendMessageParameters = Type.Object({
   to: Type.String(),
@@ -9,9 +12,24 @@ export const SendMessageParameters = Type.Object({
 });
 
 export const sendMessageToolFile: ToolFileFactory = () => ({
-  implemented: false,
+  implemented: true,
   extension: defineExtension({
     name: "send-message",
-    tools: [unimplementedTool("send_message", "Message a subagent.", SendMessageParameters)],
+    tools: [
+      defineTool({
+        name: "send_message",
+        description: SEND_MESSAGE_DESCRIPTION,
+        parameters: SendMessageParameters,
+        replay: "unsafe",
+        executionMode: "parallel",
+        execute: async ({ to, message, mode }, api, context) => {
+          const child = await api.commit((tx) => requireOwnSubagent(tx, api.conversationId, to), context);
+          const followUp = mode !== "steer";
+          await startReporter(api, context, { childId: childIdOf(child), message, followUp });
+          const text = `Message sent to subagent ${to}. Its answer will arrive as a notification. Do not poll.`;
+          return { output: [{ type: "text", text }] };
+        },
+      }),
+    ],
   }),
 });
