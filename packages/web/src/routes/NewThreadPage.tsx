@@ -1,9 +1,10 @@
 import type { ImageInput, ModelRef, ThinkingLevel } from "@pi-everywhere/protocol";
-import { useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router";
-import { ModelThinkingPickers } from "@/components/ModelThinkingPickers";
+import { ModelThinkingPickers, type PickersHandle } from "@/components/ModelThinkingPickers";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Composer } from "@/conversation";
+import type { CommandHandlers } from "@/conversation/composer/slash-commands";
 import { api } from "@/lib/api";
 import { findModel, pickModel, pickProjectId, pickThinkingLevel } from "@/lib/new-thread-defaults";
 import { conversationPath } from "@/lib/paths";
@@ -24,6 +25,14 @@ export function NewThreadPage() {
   const [chosenModel, setModel] = useState<ModelRef | null>(null);
   const [chosenLevel, setLevel] = useState<ThinkingLevel | null>(null);
   const [busy, setBusy] = useState(false);
+  const pickers = useRef<PickersHandle>(null);
+  const commands = useMemo<CommandHandlers>(
+    () => ({
+      model: () => pickers.current?.openModel(),
+      thinking: () => pickers.current?.openThinking(),
+    }),
+    [],
+  );
 
   if (!projects.data || !models.data || !settings.data) return <NewThreadSkeleton />;
 
@@ -62,6 +71,7 @@ export function NewThreadPage() {
       <ProjectPicker projects={projects.data} projectId={projectId} onProject={setProject} disabled={busy} />
       {cloning ? <span className="text-xs text-muted-foreground">Cloning…</span> : null}
       <ModelThinkingPickers
+        ref={pickers}
         models={models.data}
         model={model ? toRef(model) : null}
         onModel={setModel}
@@ -83,6 +93,8 @@ export function NewThreadPage() {
           busy={busy}
           disabled={cloning}
           toolbar={toolbar}
+          projectId={projectId}
+          commands={commands}
           onSend={start}
         />
       </div>

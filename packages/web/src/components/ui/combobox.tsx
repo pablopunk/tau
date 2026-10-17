@@ -44,6 +44,8 @@ interface ComboboxProps {
   className?: string
   /** Classes for the popover; the default is as wide as the trigger. */
   contentClassName?: string
+  /** Controls the popover; leave unset to let it manage itself. */
+  open?: boolean
   /** Called when the popover opens or closes. */
   onOpenChange?: (open: boolean) => void
   /** Show the search box; turn off for short lists. */
@@ -77,6 +79,7 @@ function Combobox({
   disabled,
   className,
   contentClassName,
+  open: controlledOpen,
   onOpenChange,
   groupActions,
   searchable = true,
@@ -85,16 +88,18 @@ function Combobox({
   size = "default",
   "aria-label": ariaLabel,
 }: ComboboxProps) {
-  const [open, setOpen] = React.useState(false)
+  const [ownOpen, setOwnOpen] = React.useState(false)
+  const open = controlledOpen ?? ownOpen
+  const setOpen = (next: boolean) => {
+    setOwnOpen(next)
+    onOpenChange?.(next)
+  }
   const selected = options.find((option) => option.value === value)
 
   return (
     <Popover
       open={open}
-      onOpenChange={(next) => {
-        setOpen(next)
-        onOpenChange?.(next)
-      }}
+      onOpenChange={setOpen}
     >
       <PopoverTrigger asChild>
         <Button

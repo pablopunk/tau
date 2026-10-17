@@ -86,3 +86,11 @@ Versions: `@earendil-works/pi-durable@1.3.0`, `@earendil-works/pi-ai@1.3.0` (`di
 * **A**: pi aborts the whole ChatGPT login on a bad pasted URL (`openai-chatgpt.js:224-233`: the `manual_code` promise rejects inside `Promise.race`, and `finally` closes the callback server). To keep a session `waiting` after a wrong paste, `login-sessions.ts` must check origin and path itself (the check pi does) before resolving the held prompt, and report a state or code error from pi as `failed`. The faux login (`testing/faux-chatgpt-login.ts`) rejects the same way. `getDeviceId` and the real `models.login` wiring are A's. The `[login]` contract expects the behavior in "Deviations".
 * **B**: `compactConversation` is real and tested; B owns the live-state and `coding-extension.ts` parts. `suggestFiles` and `discoverSkills` return `[]`; fill them and remove `[files]` and `[skills]` from `PENDING_TAGS`.
 * **Web**: `Change` has a third variant, `{ resource: "providers" }`. `ModelInfo.providerName` is `"Faux"` in faux mode.
+
+## MVP4 Phase 2: applied notes
+
+* `routes/NewThreadPage.tsx` passes `projectId` to `<Composer>` and wires `/model` and `/thinking` through a `PickersHandle` ref.
+* `/new` now uses `newThreadPath(projectId)` (`/new?project=<id>`), the URL the new thread page reads. The agent had written `/?project=<id>`.
+* `components/ui/combobox.tsx` has a controlled `open` prop; `ModelThinkingPickers` opens its pickers through state, not by clicking the trigger. `NOTES-FOR-INTEGRATOR.md` is deleted.
+* e2e: `chat.spec.ts` setup clicks "Add key" and "Save" on the OpenRouter row. `mvp4.spec.ts` covers sections (desktop and phone), add and disconnect a key, ChatGPT success and a wrong address, `/compact` (two 42k-character turns), `@` and the theme after a reload.
+* Flaky tests: core and web had the default 5 s Vitest timeout while `pnpm -r` runs all packages at once. Both now set `testTimeout` and `hookTimeout` to 20 s (`packages/core/vitest.config.ts` is new).

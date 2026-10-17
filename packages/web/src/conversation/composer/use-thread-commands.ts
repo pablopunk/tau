@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import type { PickersHandle } from "@/components/ModelThinkingPickers";
 import { api } from "@/lib/api";
 import { errorMessage } from "@/lib/error-message";
+import { newThreadPath } from "@/lib/paths";
 import type { CommandHandlers } from "./slash-commands";
 
 export interface ThreadCommandsInput {
@@ -32,7 +33,7 @@ export function useThreadCommands({ conversationId, projectId, pickers }: Thread
         api.conversations
           .compact(conversationId, instructions ? { instructions } : {})
           .catch((error: unknown) => void toast.error(compactFailureMessage(error))),
-      new: () => void navigate(projectId ? `/?project=${encodeURIComponent(projectId)}` : "/"),
+      new: () => void navigate(newThreadPath(projectId)),
       model: () => pickers.current?.openModel(),
       thinking: () => pickers.current?.openThinking(),
       rename: () => setRenaming(true),

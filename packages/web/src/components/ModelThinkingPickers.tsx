@@ -1,5 +1,5 @@
 import type { ModelInfo, ModelRef, ThinkingLevel } from "@pi-everywhere/protocol";
-import { type Ref, useImperativeHandle, useRef } from "react";
+import { type Ref, useImperativeHandle, useState } from "react";
 import { Combobox } from "@/components/ui/combobox";
 import { ModelCombobox } from "@/setup/ModelCombobox";
 
@@ -21,15 +21,14 @@ export interface ModelThinkingPickersProps {
 
 export function ModelThinkingPickers(props: ModelThinkingPickersProps) {
   const showThinking = props.levels.some((level) => level !== "off");
-  const container = useRef<HTMLDivElement>(null);
-  const clickTrigger = (label: string) =>
-    container.current?.querySelector<HTMLElement>(`[aria-label="${label}"]`)?.click();
+  const [modelOpen, setModelOpen] = useState(false);
+  const [thinkingOpen, setThinkingOpen] = useState(false);
   useImperativeHandle(props.ref, () => ({
-    openModel: () => clickTrigger("Model"),
-    openThinking: () => clickTrigger("Thinking level"),
+    openModel: () => setModelOpen(true),
+    openThinking: () => setThinkingOpen(true),
   }));
   return (
-    <div ref={container} className="contents">
+    <>
       <ModelCombobox
         models={props.models}
         value={props.model}
@@ -39,6 +38,8 @@ export function ModelThinkingPickers(props: ModelThinkingPickersProps) {
         size="sm"
         className="w-auto min-w-0 max-w-full"
         ariaLabel="Model"
+        open={modelOpen}
+        onOpenChange={setModelOpen}
       />
       {showThinking && (
         <Combobox
@@ -47,12 +48,14 @@ export function ModelThinkingPickers(props: ModelThinkingPickersProps) {
           size="sm"
           className="w-auto"
           searchable={false}
+          open={thinkingOpen}
+          onOpenChange={setThinkingOpen}
           disabled={props.disabled}
           options={props.levels.map((level) => ({ value: level, label: level }))}
           value={props.level}
           onChange={(value) => props.onLevel(value as ThinkingLevel)}
         />
       )}
-    </div>
+    </>
   );
 }

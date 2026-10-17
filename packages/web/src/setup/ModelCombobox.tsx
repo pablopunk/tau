@@ -20,6 +20,8 @@ interface ModelComboboxProps {
   variant?: ComboboxProps["variant"];
   size?: ComboboxProps["size"];
   ariaLabel?: string;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
   /** Extra first option that clears the choice (e.g. "Same as thread"). */
   clearLabel?: string;
   onClear?: () => void;
@@ -37,6 +39,8 @@ export function ModelCombobox({
   variant,
   size,
   ariaLabel,
+  open,
+  onOpenChange,
   clearLabel,
   onClear,
 }: ModelComboboxProps) {
@@ -51,6 +55,8 @@ export function ModelCombobox({
       variant={variant}
       size={size}
       aria-label={ariaLabel}
+      open={open}
+      onOpenChange={onOpenChange}
       options={[...clearOption, ...options]}
       value={value ? keyOf(value) : clearLabel ? CLEAR_KEY : null}
       placeholder="Select a model…"

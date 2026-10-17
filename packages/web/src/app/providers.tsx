@@ -16,13 +16,13 @@ export function Providers({ children }: { children: ReactNode }) {
   const [liveClient] = useState(() => createLiveClient(api.live));
   return (
     <QueryClientProvider client={queryClient}>
-        <LiveClientProvider client={liveClient}>
-          <TooltipProvider>
-            <ChangedInvalidation />
-            {children}
-            <Toaster />
-          </TooltipProvider>
-        </LiveClientProvider>
+      <LiveClientProvider client={liveClient}>
+        <TooltipProvider>
+          <ChangedInvalidation />
+          {children}
+          <Toaster />
+        </TooltipProvider>
+      </LiveClientProvider>
     </QueryClientProvider>
   );
 }
