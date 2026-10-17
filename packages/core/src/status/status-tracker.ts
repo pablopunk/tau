@@ -20,6 +20,8 @@ export interface StatusTracker {
   attach(harness: Harness): void;
   /** Recomputes the status of entries stored as running. */
   recoverAtStartup(): Promise<void>;
+  /** Called after a thread's run ended and its status was recorded. Listener errors are logged, never thrown. */
+  onRunEnded(listener: (conversationId: string) => Promise<void>): void;
 }
 
 type RunState = { busy: boolean; runEnded: boolean };
@@ -27,6 +29,9 @@ type RunState = { busy: boolean; runEnded: boolean };
 export function createStatusTracker(deps: StatusTrackerDeps): StatusTracker {
   const states = new Map<string, RunState>();
   const enqueue = createSerialQueue();
+  const runEndedListeners: ((conversationId: string) => Promise<void>)[] = [];
+  const logRunEndFailure = (error: unknown) =>
+    console.error("pi-everywhere: a run-end listener failed", error);
   let attached: Harness | undefined;
   let closed = false;
 
@@ -56,6 +61,8 @@ export function createStatusTracker(deps: StatusTrackerDeps): StatusTracker {
       return true;
     });
     if (written) deps.changes.emit({ resource: "conversations", projectId: meta.projectId });
+    if (runEnded)
+      for (const listener of runEndedListeners) await listener(conversationId).catch(logRunEndFailure);
   }
 
   function scheduleFlush(conversationId: string): void {
@@ -96,6 +103,9 @@ export function createStatusTracker(deps: StatusTrackerDeps): StatusTracker {
         closed = true;
       });
       observeBusyChanges(harness, ({ conversationId, busy }) => record(conversationId, busy));
+    },
+    onRunEnded(listener) {
+      runEndedListeners.push(listener);
     },
     async recoverAtStartup() {
       await seedFromStorage(harnessOrThrow());
