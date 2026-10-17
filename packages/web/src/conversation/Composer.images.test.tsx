@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { toast } from "sonner";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { Composer } from "./Composer";
+import { ComposerTestWrapper } from "./composer/test-wrapper";
 import { saveAttachments } from "./images/attachments";
 
 vi.mock("sonner", () => ({ toast: { error: vi.fn() } }));
@@ -18,6 +19,7 @@ function setup(props: Partial<Parameters<typeof Composer>[0]> = {}) {
   const onStop = vi.fn().mockResolvedValue(undefined);
   const view = render(
     <Composer target="t1" imagesAllowed busy={false} onSend={onSend} onStop={onStop} {...props} />,
+    { wrapper: ComposerTestWrapper },
   );
   return { onSend, onStop, input: screen.getByLabelText("Message"), view };
 }

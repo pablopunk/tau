@@ -6,7 +6,7 @@ import type {
 import { isRetryable } from "@pi-everywhere/protocol";
 import { Loader2 } from "lucide-react";
 import { AssistantMessage } from "./messages/AssistantMessage";
-import { RetriedDivider, RetryNotice } from "./messages/notices";
+import { CompactedDivider, CompactingNotice, RetriedDivider, RetryNotice } from "./messages/notices";
 import { QueuedMessages } from "./messages/QueuedMessages";
 import { UserMessage } from "./messages/UserMessage";
 import { type LiveInfo, readLive } from "./model/live";
@@ -54,10 +54,12 @@ export function Transcript({
   const live = readLive(view);
   const resolveTool = (call: ToolCall) =>
     resolveToolCall(call, { results, slots: live.slots, busy: live.busy });
-  if (items.length === 0 && !live.busy && live.queued.length === 0) return <EmptyTranscript />;
+  if (items.length === 0 && !live.busy && !live.compacting && live.queued.length === 0)
+    return <EmptyTranscript />;
   return (
     <div className="space-y-5">
       {items.map((item) => {
+        if (item.kind === "compaction") return <CompactedDivider key={item.key} />;
         if (item.kind === "retry") return <RetriedDivider key={item.key} />;
         if (item.kind === "user") return <UserMessage key={item.key} text={item.text} images={item.images} />;
         return <AssistantMessage key={item.key} message={item.message} resolveTool={resolveTool} />;
@@ -65,6 +67,7 @@ export function Transcript({
       {hasVisibleContent(live.streaming) ? (
         <AssistantMessage message={live.streaming} resolveTool={resolveTool} streaming />
       ) : null}
+      {live.compacting ? <CompactingNotice /> : null}
       {live.retry ? <RetryNotice retry={live.retry} /> : null}
       {isIdleWhileBusy(live) ? <WorkingIndicator /> : null}
       {isRetryable(view) ? <RetryButton onRetry={onRetry} /> : null}

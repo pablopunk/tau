@@ -1,4 +1,4 @@
-import { AlertTriangle, RotateCw } from "lucide-react";
+import { AlertTriangle, Loader2, RotateCw } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import type { RetryInfo } from "../model/live";
 import { useNow } from "../use-now";
@@ -38,6 +38,25 @@ export function RetryNotice({ retry }: { retry: RetryInfo }) {
         <p className="break-words text-muted-foreground">{retry.error}</p>
       </div>
     </div>
+  );
+}
+
+export function CompactedDivider() {
+  return (
+    <div className="flex items-center gap-3 text-xs text-muted-foreground">
+      <Separator className="flex-1" />
+      <span>Context compacted</span>
+      <Separator className="flex-1" />
+    </div>
+  );
+}
+
+export function CompactingNotice() {
+  return (
+    <p role="status" className="flex items-center gap-2 text-sm text-muted-foreground">
+      <Loader2 aria-hidden className="size-3.5 animate-spin" />
+      Compacting context…
+    </p>
   );
 }
 

@@ -27,6 +27,7 @@ export type TranscriptItem =
       readonly images: readonly ImageContent[];
     }
   | { readonly kind: "retry"; readonly key: string }
+  | { readonly kind: "compaction"; readonly key: string }
   | { readonly kind: "assistant"; readonly key: string; readonly message: AssistantMessage };
 
 export interface Transcript {
@@ -68,6 +69,7 @@ function itemOf(entry: EntryRecord): TranscriptItem | undefined {
   if (entry.kind === "pi.user" && message?.role === "user") {
     return { kind: "user", key: entryKey(entry), text: userText(message), images: userImages(message) };
   }
+  if (entry.kind === "pi.compaction") return { kind: "compaction", key: entryKey(entry) };
   if (entry.kind === "app.retry") return { kind: "retry", key: entryKey(entry) };
   if (entry.kind === "pi.assistant" && message?.role === "assistant") {
     return { kind: "assistant", key: entryKey(entry), message };

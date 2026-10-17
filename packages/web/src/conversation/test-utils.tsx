@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 import { vi } from "vitest";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import { Conversation } from "./Conversation";
 import type { LiveClient } from "./live-client";
 import { LiveClientProvider } from "./live-client-context";
@@ -40,9 +41,11 @@ export function renderConversation(client: LiveClient, id = "2") {
   return render(
     <MemoryRouter>
       <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-        <LiveClientProvider client={client}>
-          <Conversation id={id} />
-        </LiveClientProvider>
+        <TooltipProvider>
+          <LiveClientProvider client={client}>
+            <Conversation id={id} />
+          </LiveClientProvider>
+        </TooltipProvider>
       </QueryClientProvider>
     </MemoryRouter>,
   );

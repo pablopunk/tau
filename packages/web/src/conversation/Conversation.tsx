@@ -1,9 +1,13 @@
 import { ArrowDown } from "lucide-react";
+import { useRef } from "react";
 import { Link } from "react-router";
+import type { PickersHandle } from "@/components/ModelThinkingPickers";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useModels } from "@/lib/queries";
+import { useAllConversations, useModels } from "@/lib/queries";
+import { NameDialog } from "@/sidebar/NameDialog";
 import { Composer } from "./Composer";
+import { useThreadCommands } from "./composer/use-thread-commands";
 import { imagesAllowedFor } from "./model/agent";
 import { readLive } from "./model/live";
 import { ThreadHeader } from "./ThreadHeader";
@@ -56,6 +60,9 @@ function ConversationPanel({ id }: ConversationProps) {
   const actions = useConversationActions(id);
   const { scrollRef, contentRef, atBottom, onScroll, scrollToBottom } = useStickToBottom();
   const models = useModels().data;
+  const summary = useAllConversations().data?.find((item) => item.id === id);
+  const pickers = useRef<PickersHandle>(null);
+  const thread = useThreadCommands({ conversationId: id, projectId: summary?.projectId, pickers });
   const view = state.status === "ready" ? state.view : undefined;
   const busy = state.status === "ready" && readLive(state.view).busy;
   return (
@@ -84,13 +91,24 @@ function ConversationPanel({ id }: ConversationProps) {
             target={id}
             imagesAllowed={imagesAllowedFor(view, models)}
             busy={busy}
-            toolbar={view ? <ThreadToolbar id={id} view={view} /> : undefined}
+            toolbar={view ? <ThreadToolbar id={id} view={view} pickers={pickers} /> : undefined}
+            commands={thread.commands}
+            projectId={summary?.projectId}
             onSend={actions.send}
             onStop={actions.stop}
             onSent={scrollToBottom}
           />
         </div>
       )}
+      {thread.renaming ? (
+        <NameDialog
+          title="Rename thread"
+          label="Thread name"
+          initialValue={summary?.title ?? ""}
+          onSubmit={thread.rename}
+          onClose={thread.closeRename}
+        />
+      ) : null}
     </div>
   );
 }

@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "@/lib/api";
 import { Composer } from "./Composer";
+import { ComposerTestWrapper } from "./composer/test-wrapper";
 import { endOf, renderView, viewWhere } from "./test-utils";
 
 vi.mock("@/lib/api", () => ({ api: { conversations: { send: vi.fn(), abort: vi.fn() } } }));
@@ -19,7 +20,9 @@ beforeEach(() => {
 function setup(props: Partial<Parameters<typeof Composer>[0]> = {}) {
   const onSend = vi.fn().mockResolvedValue(undefined);
   const onStop = vi.fn().mockResolvedValue(undefined);
-  render(<Composer target="new" imagesAllowed busy={false} onSend={onSend} onStop={onStop} {...props} />);
+  render(<Composer target="new" imagesAllowed busy={false} onSend={onSend} onStop={onStop} {...props} />, {
+    wrapper: ComposerTestWrapper,
+  });
   return { onSend, onStop, input: screen.getByLabelText("Message") };
 }
 

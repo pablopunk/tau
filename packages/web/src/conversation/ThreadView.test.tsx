@@ -158,6 +158,31 @@ describe("retry", () => {
   });
 });
 
+describe("compaction in the transcript", () => {
+  const withCompaction = (reason: string): ConversationView => {
+    const view = endOf("text");
+    const entry = { id: "cmp", kind: "pi.compaction", head: "x", data: { reason }, model: [] };
+    return { ...view, entries: [...view.entries, entry] } as unknown as ConversationView;
+  };
+
+  it.each(["manual", "threshold", "overflow"])("shows a divider for a %s compaction", (reason) => {
+    renderView(withCompaction(reason));
+    expect(screen.getByText("Context compacted")).toBeInTheDocument();
+  });
+
+  it("shows a Compacting row while a compaction runs", () => {
+    const view = endOf("text");
+    const live = { ...(view.docs["pi.live"] as object), compactions: [{ taskId: "t", reason: "manual" }] };
+    renderView({ ...view, docs: { ...view.docs, "pi.live": live } } as unknown as ConversationView);
+    expect(screen.getByText("Compacting context…")).toBeInTheDocument();
+  });
+
+  it("shows no Compacting row otherwise", () => {
+    renderView(endOf("text"));
+    expect(screen.queryByText("Compacting context…")).not.toBeInTheDocument();
+  });
+});
+
 describe("deleted view", () => {
   it("links back to the new thread page", () => {
     renderView(null);

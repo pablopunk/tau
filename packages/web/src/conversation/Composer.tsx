@@ -1,6 +1,7 @@
 import type { ImageInput } from "@pi-everywhere/protocol";
 import { ArrowUp, Paperclip, Square } from "lucide-react";
 import {
+  type ChangeEvent,
   type ClipboardEvent,
   type FormEvent,
   type KeyboardEvent,
@@ -11,9 +12,15 @@ import {
 import { Button } from "@/components/ui/button";
 import { DropZone } from "@/components/ui/drop-zone";
 import { Input } from "@/components/ui/input";
+import { type MentionItem, MentionMenu } from "@/components/ui/mention-menu";
 import { Textarea } from "@/components/ui/textarea";
 import { AttachmentRow } from "./composer/AttachmentRow";
 import { loadDraft, saveDraft } from "./composer/drafts";
+import { applyMention } from "./composer/mentions";
+import { menuKeyAction } from "./composer/menu-keys";
+import { type CommandHandlers, type CommandName, parseSlashCommand } from "./composer/slash-commands";
+import { commandItemId, useComposerMenu } from "./composer/use-composer-menu";
+import { insertionOf } from "./composer/use-mention-items";
 import { usePageDrag } from "./composer/use-page-drop";
 import { useAttachments } from "./images/use-attachments";
 
@@ -28,6 +35,10 @@ export interface ComposerProps {
   footer?: ReactNode;
   /** Rendered inside the input box toolbar after the attach button, e.g. model and thinking. */
   toolbar?: ReactNode;
+  /** Slash commands the menu offers; a command without a handler is hidden. */
+  commands?: CommandHandlers;
+  /** Project searched by `@` mentions; without it only skills of the user are offered. */
+  projectId?: string | null;
   onSend(input: { text: string; images: ImageInput[] }): Promise<void>;
   onStop?(): Promise<void>;
   /** Called right after a message is handed to `onSend`, e.g. to scroll to it. */
@@ -53,6 +64,8 @@ function ComposerForm({
   disabled = false,
   footer,
   toolbar,
+  commands = {},
+  projectId,
   onSend,
   onStop,
   onSent,
@@ -63,6 +76,12 @@ function ComposerForm({
   const picker = useRef<HTMLInputElement>(null);
   const { attachments, preparing, addFiles, remove, replace } = useAttachments(target, imagesAllowed);
   const [pageDragging, endPageDrag] = usePageDrag(true);
+  const [caret, setCaret] = useState(0);
+  const [anchor, setAnchor] = useState<HTMLElement | null>(null);
+  const [pastedText, setPastedText] = useState<string | null>(null);
+  const pasting = useRef(false);
+  const textarea = useRef<HTMLTextAreaElement>(null);
+  const menu = useComposerMenu({ text, caret, commands, projectId, pastedText });
   const canSend = (text.trim().length > 0 || attachments.length > 0) && !preparing && !disabled;
 
   const setText = (value: string) => {
@@ -70,7 +89,30 @@ function ComposerForm({
     setTextState(value);
   };
 
+  const runCommand = (name: CommandName, args: string) => {
+    setText("");
+    setError(undefined);
+    Promise.resolve(commands[name]?.(args)).catch((failure: unknown) => setError(errorText(failure)));
+  };
+
+  const insertMention = (insertion: string) => {
+    if (!menu.mention) return;
+    const next = applyMention(text, menu.mention, caret, insertion);
+    setText(next.text);
+    setCaret(next.caret);
+    requestAnimationFrame(() => textarea.current?.setSelectionRange(next.caret, next.caret));
+  };
+
+  const pick = (item: MentionItem) => {
+    if (!item.id.startsWith(commandItemId(""))) return insertMention(insertionOf(item.id));
+    const name = insertionOf(item.id) as CommandName;
+    if (name === "compact") return setText("/compact ");
+    runCommand(name, "");
+  };
+
   const submit = () => {
+    const command = parseSlashCommand(text);
+    if (command && commands[command.name]) return runCommand(command.name, command.args);
     const message = text.trim();
     const sent = attachments;
     if (!canSend) return;
@@ -93,16 +135,39 @@ function ComposerForm({
       .finally(() => setStopping(false));
   };
 
+  const onMenuKey = (event: KeyboardEvent<HTMLTextAreaElement>): boolean => {
+    const action = menuKeyAction(event, menu.open);
+    if (!action) return false;
+    event.preventDefault();
+    if (action === "next") menu.move(1);
+    if (action === "previous") menu.move(-1);
+    if (action === "close") menu.close();
+    const item = menu.activeItem();
+    if (action === "pick" && item) pick(item);
+    return true;
+  };
+
   const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (onMenuKey(event)) return;
     if (event.key === "Escape" && busy) return stop();
     if (!isPlainEnter(event)) return;
     event.preventDefault();
     submit();
   };
 
+  const onChange = (event: ChangeEvent<HTMLTextAreaElement>) => {
+    setCaret(event.target.selectionStart);
+    if (pasting.current) setPastedText(event.target.value);
+    pasting.current = false;
+    setText(event.target.value);
+  };
+
   const onPaste = (event: ClipboardEvent<HTMLTextAreaElement>) => {
     const files = pastedFiles(event).filter((file) => file.type.startsWith("image/"));
-    if (files.length === 0) return;
+    if (files.length === 0) {
+      pasting.current = true;
+      return;
+    }
     event.preventDefault();
     addFiles(files);
   };
@@ -135,12 +200,27 @@ function ComposerForm({
           {error}
         </p>
       ) : null}
-      <div className="rounded-2xl border bg-card p-2 shadow-xs focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50">
+      <MentionMenu
+        open={menu.open}
+        items={menu.items}
+        activeIndex={menu.activeIndex}
+        onActiveIndexChange={menu.setActiveIndex}
+        onSelect={pick}
+        onClose={menu.close}
+        emptyText="No matches"
+        anchor={anchor}
+      />
+      <div
+        ref={setAnchor}
+        className="rounded-2xl border bg-card p-2 shadow-xs focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50"
+      >
         <AttachmentRow attachments={attachments} onRemove={remove} />
         <Textarea
+          ref={textarea}
           aria-label="Message"
           value={text}
-          onChange={(event) => setText(event.target.value)}
+          onChange={onChange}
+          onSelect={(event) => setCaret(event.currentTarget.selectionStart)}
           onKeyDown={onKeyDown}
           onPaste={onPaste}
           placeholder={busy ? "Steer the agent…" : "Message the agent…"}

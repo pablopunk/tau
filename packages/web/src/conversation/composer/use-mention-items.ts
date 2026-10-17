@@ -1,0 +1,39 @@
+import { useQuery } from "@tanstack/react-query";
+import type { MentionItem } from "@/components/ui/mention-menu";
+import { api } from "@/lib/api";
+import { useSkills } from "@/lib/queries";
+import { matchesQuery } from "./mentions";
+import { useDebounced } from "./use-debounced";
+
+const FILE_DEBOUNCE_MS = 120;
+const MAX_SKILLS = 8;
+
+export const fileItemId = (path: string) => `file:${path}`;
+export const skillItemId = (name: string) => `skill:${name}`;
+export const insertionOf = (id: string) => id.slice(id.indexOf(":") + 1);
+
+export function useMentionItems(projectId: string | null | undefined, query: string | null): MentionItem[] {
+  const debounced = useDebounced(query, FILE_DEBOUNCE_MS);
+  const skills = useSkills(projectId ?? null).data ?? [];
+  const files = useQuery({
+    queryKey: ["suggest-files", projectId, debounced],
+    queryFn: () => api.projects.suggestFiles(projectId as string, debounced as string),
+    enabled: Boolean(projectId) && debounced !== null,
+  }).data;
+  if (query === null) return [];
+  const fileItems = (files ?? []).map((file) => ({
+    id: fileItemId(file.path),
+    label: file.path,
+    group: "Files",
+  }));
+  const skillItems = skills
+    .filter((skill) => matchesQuery(skill.name, query))
+    .slice(0, MAX_SKILLS)
+    .map((skill) => ({
+      id: skillItemId(skill.name),
+      label: skill.name,
+      description: skill.description,
+      group: "Skills",
+    }));
+  return [...fileItems, ...skillItems];
+}

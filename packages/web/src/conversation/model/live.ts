@@ -27,6 +27,7 @@ export interface LiveInfo {
   readonly retry: RetryInfo | undefined;
   readonly slots: readonly ToolSlot[];
   readonly queued: readonly QueuedMessage[];
+  readonly compacting: boolean;
 }
 
 function docOf<T>(view: ConversationView, kind: string): T | undefined {
@@ -79,6 +80,7 @@ export function readLive(view: ConversationView): LiveInfo {
     streaming: live.generation?.message as unknown as AssistantMessage | undefined,
     retry: retryOf(live),
     slots: (live.tools ?? []) as readonly ToolSlot[],
+    compacting: ((live as { compactions?: unknown[] }).compactions?.length ?? 0) > 0,
     queued: (inbox?.items ?? []).filter(isQueuedMessage).map(queuedOf),
   };
 }
