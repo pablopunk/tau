@@ -1,5 +1,6 @@
 import type { GithubRepo, Project } from "@pi-everywhere/protocol";
 import { useQueryClient } from "@tanstack/react-query";
+import { PlusIcon } from "lucide-react";
 import { useState } from "react";
 import { FormError } from "@/app/FormError";
 import { useSubmit } from "@/app/use-submit";
@@ -11,8 +12,17 @@ import { UseRepoDialog } from "@/github/UseRepoDialog";
 import { api } from "@/lib/api";
 import { projectsHomeFirst } from "@/lib/new-thread-defaults";
 import { queryKeys, useGithubRepos, useGithubStatus } from "@/lib/queries";
+import { AddProjectDialog } from "@/sidebar/AddProjectDialog";
 
 const PROJECTS_GROUP = "Projects";
+const ADD_PROJECT_VALUE = "__add_project__";
+
+const addProjectOption: ComboboxOption = {
+  value: ADD_PROJECT_VALUE,
+  label: "Add project…",
+  icon: <PlusIcon />,
+  keywords: ["new", "folder", "clone", "git"],
+};
 
 const projectOption = (project: Project): ComboboxOption => ({
   value: project.id,
@@ -41,6 +51,7 @@ export function ProjectPicker({ projects, projectId, onProject, disabled }: Proj
   const queryClient = useQueryClient();
   const status = useGithubStatus();
   const repos = useGithubRepos(status.data?.state === "connected");
+  const [adding, setAdding] = useState(false);
   const [dialogRepo, setDialogRepo] = useState<GithubRepo | null>(null);
   const { run, error } = useSubmit();
 
@@ -62,6 +73,7 @@ export function ProjectPicker({ projects, projectId, onProject, disabled }: Proj
   };
 
   const onChange = (value: string) => {
+    if (value === ADD_PROJECT_VALUE) return setAdding(true);
     const repoName = parseGithubValue(value);
     if (repoName) pickRepo(repoName);
     else onProject(value);
@@ -70,6 +82,7 @@ export function ProjectPicker({ projects, projectId, onProject, disabled }: Proj
   const options = [
     ...projectsHomeFirst(projects).map(projectOption),
     ...githubOptions({ status: status.data, repos: repos.data, reposFailed: repos.isError }),
+    addProjectOption,
   ];
 
   return (
@@ -92,6 +105,12 @@ export function ProjectPicker({ projects, projectId, onProject, disabled }: Proj
         }
       />
       <FormError message={error} className="w-full" />
+      {adding && (
+        <AddProjectDialog
+          onClose={() => setAdding(false)}
+          onAdded={(project) => void selectProject(project)}
+        />
+      )}
       <UseRepoDialog
         repo={dialogRepo}
         onClose={() => setDialogRepo(null)}

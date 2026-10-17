@@ -1,5 +1,4 @@
-import { FolderPlusIcon, FoldersIcon, ListIcon, MessageSquarePlusIcon, SettingsIcon } from "lucide-react";
-import { useState } from "react";
+import { FoldersIcon, ListIcon, MessageSquarePlusIcon, SettingsIcon } from "lucide-react";
 import { useNavigate } from "react-router";
 import { useOpenConversation } from "@/activity";
 import { useOpenSettings } from "@/app/settings-dialog";
@@ -16,7 +15,6 @@ import { errorMessage } from "@/lib/error-message";
 import { newThreadPath } from "@/lib/paths";
 import type { SidebarMode } from "@/lib/preferences";
 import { useAllConversations, useProjects } from "@/lib/queries";
-import { AddProjectDialog } from "./AddProjectDialog";
 import { ProjectsView } from "./ProjectsView";
 import { ThreadsView } from "./ThreadsView";
 import { useSidebarMode } from "./use-sidebar-preferences";
@@ -27,7 +25,6 @@ const MODE_OPTIONS = [
 ] as const satisfies readonly { value: SidebarMode; label: string; icon: React.ReactNode }[];
 
 export function AppSidebar() {
-  const [adding, setAdding] = useState(false);
   const [mode, setMode] = useSidebarMode();
   const { projectId, conversationId } = useOpenConversation();
   const projects = useProjects();
@@ -42,10 +39,6 @@ export function AppSidebar() {
       <SidebarHeader className="gap-2 px-4 py-3">
         <div className="flex items-center justify-between">
           <span className="text-sm font-semibold">pi-everywhere</span>
-          <Button variant="ghost" size="sm" onClick={() => setAdding(true)}>
-            <FolderPlusIcon />
-            Add project
-          </Button>
         </div>
         <div className="flex items-center justify-between">
           <Button variant="outline" size="sm" onClick={() => navigate(newThreadPath())}>
@@ -78,7 +71,6 @@ export function AppSidebar() {
           Settings
         </Button>
       </SidebarFooter>
-      {adding && <AddProjectDialog onClose={() => setAdding(false)} />}
     </Sidebar>
   );
 }

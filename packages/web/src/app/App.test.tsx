@@ -21,6 +21,11 @@ async function renderApp({ ready }: { ready: boolean }) {
   return userEvent.setup();
 }
 
+async function openAddProject(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(await screen.findByRole("combobox", { name: "Project" }));
+  await user.click(await screen.findByRole("option", { name: /Add project/ }));
+}
+
 describe("setup", () => {
   it("takes the key, then the default model, then shows the main screen", async () => {
     const user = await renderApp({ ready: false });
@@ -61,7 +66,7 @@ describe("main screen", () => {
   it("shows the API error inline when the folder does not exist", async () => {
     const user = await renderApp({ ready: true });
 
-    await user.click(await screen.findByRole("button", { name: "Add project" }));
+    await openAddProject(user);
     await user.type(screen.getByLabelText("Folder path"), "/nope");
     await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Add project" }));
 
@@ -71,7 +76,7 @@ describe("main screen", () => {
   it("adds a project with a custom name", async () => {
     const user = await renderApp({ ready: true });
 
-    await user.click(await screen.findByRole("button", { name: "Add project" }));
+    await openAddProject(user);
     await user.type(screen.getByLabelText("Folder path"), "/Users/demo/other");
     await user.type(screen.getByLabelText(/Name/), "Side quest");
     await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Add project" }));

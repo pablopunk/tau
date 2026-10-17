@@ -1,3 +1,4 @@
+import type { Project } from "@pi-everywhere/protocol";
 import { useQueryClient } from "@tanstack/react-query";
 import { type FormEvent, useId, useState } from "react";
 import { FormError } from "@/app/FormError";
@@ -19,7 +20,13 @@ import { queryKeys, useSettings } from "@/lib/queries";
 type Mode = "folder" | "git";
 
 /** Mount it only while open so its fields reset each time. */
-export function AddProjectDialog({ onClose }: { onClose: () => void }) {
+export function AddProjectDialog({
+  onClose,
+  onAdded,
+}: {
+  onClose: () => void;
+  onAdded?: (project: Project) => void;
+}) {
   const pathId = useId();
   const urlId = useId();
   const nameId = useId();
@@ -34,14 +41,19 @@ export function AddProjectDialog({ onClose }: { onClose: () => void }) {
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
+    let created: Project | undefined;
     const added = await run(async () => {
       const trimmedName = name.trim();
       const optionalName = trimmedName ? { name: trimmedName } : {};
-      if (mode === "folder") await api.projects.add({ path: path.trim(), ...optionalName });
-      else await api.projects.clone({ url: url.trim(), ...optionalName });
+      created =
+        mode === "folder"
+          ? await api.projects.add({ path: path.trim(), ...optionalName })
+          : await api.projects.clone({ url: url.trim(), ...optionalName });
       await queryClient.invalidateQueries({ queryKey: queryKeys.projects });
     });
-    if (added) onClose();
+    if (!added) return;
+    onClose();
+    if (created) onAdded?.(created);
   };
 
   const changeMode = (next: string) => {

@@ -59,7 +59,9 @@ test.describe("MVP2 flow", () => {
   });
 
   test("clones a local bare repository and starts a thread in it", async () => {
-    await page.getByRole("button", { name: "Add project" }).click();
+    await page.getByRole("button", { name: "New thread", exact: true }).click();
+    await page.getByRole("combobox", { name: "Project" }).click();
+    await page.getByRole("option", { name: /Add project/ }).click();
     await page.getByRole("tab", { name: "Git URL" }).click();
     await page.getByLabel("Repository URL").fill(bareRepository());
     await page.getByRole("button", { name: "Clone project" }).click();

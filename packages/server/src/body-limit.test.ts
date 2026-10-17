@@ -8,41 +8,50 @@ afterEach(async () => {
 });
 
 const MiB = 1024 * 1024;
+const TIMEOUT_FOR_SERIALIZING_53_MIB_UNDER_LOAD = 30_000;
 const bigText = (mib: number) => "x".repeat(mib * MiB);
 
 describe("body limits", () => {
-  it("accepts 10 MiB on POST /conversations and rejects 43 MiB as too_large", async () => {
-    ctx = await startTestServer();
-    const url = "/api/conversations";
-    const ok = await ctx.request({
-      method: "POST",
-      url,
-      payload: { projectId: "home", text: bigText(10), requestId: "ok" },
-    });
-    expect(ok.statusCode).toBe(201);
-    const huge = await ctx.request({
-      method: "POST",
-      url,
-      payload: { projectId: "home", text: bigText(43), requestId: "big" },
-    });
-    expect(huge.statusCode).toBe(413);
-    expect(huge.json().error.code).toBe("too_large");
-  });
+  it(
+    "accepts 10 MiB on POST /conversations and rejects 43 MiB as too_large",
+    async () => {
+      ctx = await startTestServer();
+      const url = "/api/conversations";
+      const ok = await ctx.request({
+        method: "POST",
+        url,
+        payload: { projectId: "home", text: bigText(10), requestId: "ok" },
+      });
+      expect(ok.statusCode).toBe(201);
+      const huge = await ctx.request({
+        method: "POST",
+        url,
+        payload: { projectId: "home", text: bigText(43), requestId: "big" },
+      });
+      expect(huge.statusCode).toBe(413);
+      expect(huge.json().error.code).toBe("too_large");
+    },
+    TIMEOUT_FOR_SERIALIZING_53_MIB_UNDER_LOAD,
+  );
 
-  it("accepts 10 MiB on POST /conversations/:id/messages and rejects 43 MiB", async () => {
-    ctx = await startTestServer();
-    const created = await ctx.request({
-      method: "POST",
-      url: "/api/conversations",
-      payload: { projectId: "home", text: "hi", requestId: "s" },
-    });
-    const url = `/api/conversations/${created.json().id}/messages`;
-    const ok = await ctx.request({ method: "POST", url, payload: { text: bigText(10), requestId: "a" } });
-    expect(ok.statusCode).toBe(204);
-    const huge = await ctx.request({ method: "POST", url, payload: { text: bigText(43), requestId: "b" } });
-    expect(huge.statusCode).toBe(413);
-    expect(huge.json().error.code).toBe("too_large");
-  });
+  it(
+    "accepts 10 MiB on POST /conversations/:id/messages and rejects 43 MiB",
+    async () => {
+      ctx = await startTestServer();
+      const created = await ctx.request({
+        method: "POST",
+        url: "/api/conversations",
+        payload: { projectId: "home", text: "hi", requestId: "s" },
+      });
+      const url = `/api/conversations/${created.json().id}/messages`;
+      const ok = await ctx.request({ method: "POST", url, payload: { text: bigText(10), requestId: "a" } });
+      expect(ok.statusCode).toBe(204);
+      const huge = await ctx.request({ method: "POST", url, payload: { text: bigText(43), requestId: "b" } });
+      expect(huge.statusCode).toBe(413);
+      expect(huge.json().error.code).toBe("too_large");
+    },
+    TIMEOUT_FOR_SERIALIZING_53_MIB_UNDER_LOAD,
+  );
 
   it("keeps the default limit on other routes", async () => {
     ctx = await startTestServer();

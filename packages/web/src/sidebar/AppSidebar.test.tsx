@@ -154,31 +154,3 @@ describe("sidebar projects", () => {
     expect(mocked.projects.remove).toHaveBeenCalledWith("p2");
   });
 });
-
-describe("add project dialog", () => {
-  it("clones from the Git URL tab and shows the target folder", async () => {
-    mocked.projects.clone.mockResolvedValue(project({ id: "p3", kind: "git", status: "cloning" }));
-    const user = userEvent.setup();
-    renderSidebar();
-
-    await user.click(await screen.findByRole("button", { name: "Add project" }));
-    await user.click(screen.getByRole("tab", { name: "Git URL" }));
-    expect(await screen.findByText(/Clones into \/projects/)).toBeInTheDocument();
-    await user.type(screen.getByLabelText("Repository URL"), "https://example.com/a.git");
-    await user.type(screen.getByLabelText(/Name/), "Mine");
-    await user.click(screen.getByRole("button", { name: "Clone project" }));
-
-    expect(mocked.projects.clone).toHaveBeenCalledWith({ url: "https://example.com/a.git", name: "Mine" });
-  });
-
-  it("adds a folder from the Folder tab", async () => {
-    mocked.projects.add.mockResolvedValue(project({ id: "p3", kind: "folder" }));
-    const user = userEvent.setup();
-    renderSidebar();
-
-    await user.click(await screen.findByRole("button", { name: "Add project" }));
-    await user.type(screen.getByLabelText("Folder path"), "/tmp/x");
-    await user.click(screen.getByRole("button", { name: "Add project", hidden: false }));
-    expect(mocked.projects.add).toHaveBeenCalledWith({ path: "/tmp/x" });
-  });
-});
