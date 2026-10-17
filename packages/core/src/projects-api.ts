@@ -8,6 +8,12 @@ import type { ConversationStore } from "./harness/conversation-store";
 import { HOME_PROJECT_ID, type ProjectStore } from "./harness/project-store";
 import type { IconService } from "./icons/icon-service";
 import type { PresentProject } from "./project-view";
+import {
+  type RemovalHooks,
+  requireNoLostWork,
+  runConversationRemoved,
+  runProjectRemoved,
+} from "./removal-hooks";
 import { requireName } from "./require-name";
 import { resolveProjectFolder } from "./resolve-project-folder";
 
@@ -21,10 +27,11 @@ export function createProjectsApi(deps: {
   clones: CloneService;
   icons: IconService;
   present: PresentProject;
+  removalHooks: RemovalHooks;
   changes: ChangeEmitter;
   now: () => number;
 }): Core["projects"] {
-  const { projects, conversations, clones, icons, present, changes, now } = deps;
+  const { projects, conversations, clones, icons, present, removalHooks, changes, now } = deps;
   const nonHome = async (id: string) => {
     const project = await projects.require(id);
     return project.id === HOME_PROJECT_ID ? undefined : project;
@@ -77,8 +84,12 @@ export function createProjectsApi(deps: {
     async remove(id) {
       rejectHome(id, "removed");
       await projects.require(id);
+      const threads = await conversations.list(id);
+      for (const thread of threads) await requireNoLostWork(removalHooks, thread, false);
       clones.cancel(id);
       await conversations.removeAllOfProject(id);
+      for (const thread of threads) await runConversationRemoved(removalHooks, thread);
+      await runProjectRemoved(removalHooks, id);
       await projects.remove(id);
       await icons.removeCustom(id);
       announce();

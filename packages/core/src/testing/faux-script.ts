@@ -12,6 +12,8 @@ export const SCRIPT_USAGE = [
   "edit <path> <old> => <new>",
   "read <path>",
   "bash <command>",
+  "task <description>",
+  "bg <command>",
   "think",
   "fail",
   "flaky",
@@ -99,6 +101,10 @@ function scriptedReply(input: string, attempt: number, user: UserMessage | undef
       return toolCallReply("read", { path: rest });
     case "bash":
       return toolCallReply("bash", { command: rest });
+    case "task":
+      return toolCallReply("task", { description: rest, prompt: rest });
+    case "bg":
+      return toolCallReply("process_start", { command: rest });
     case "think":
       return fauxAssistantMessage([
         fauxThinking("Let me think about this for a moment. The question is simple, so the answer is too."),

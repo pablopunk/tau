@@ -5,7 +5,6 @@ import { AppError, type Core, type ModelRef, type ThinkingLevel } from "@pi-ever
 import { expandHome } from "./fs/expand-home";
 import { type CodeFolderDeps, suggestCodeFolder } from "./github/code-folder";
 import type { SettingsStore } from "./home/settings-store";
-import { notImplemented } from "./not-implemented";
 import type { ProviderService } from "./provider/provider-service";
 import { resolveProjectFolder } from "./resolve-project-folder";
 
@@ -40,12 +39,8 @@ export function createSettingsApi(deps: {
   return {
     get: () => settings.get(),
     suggestedCodeFolder: () => suggestCodeFolder(codeFolder),
-    setMessageMode: async () => {
-      throw notImplemented("settings.setMessageMode");
-    },
-    setWorkspaceDefault: async () => {
-      throw notImplemented("settings.setWorkspaceDefault");
-    },
+    setMessageMode: (mode) => settings.setMessageMode(mode),
+    setWorkspaceDefault: (mode) => settings.setWorkspaceDefault(mode),
     async setDefaultModel(ref) {
       await requireListedModel(ref);
       await settings.setDefaultModel(ref, clampForModel(ref, (await settings.get()).defaultThinkingLevel));

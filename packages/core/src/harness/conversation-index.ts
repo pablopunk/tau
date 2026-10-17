@@ -1,5 +1,5 @@
 import type { ConversationId, Cursor, Harness } from "@earendil-works/pi-durable";
-import type { ConversationSummary } from "@pi-everywhere/protocol";
+import type { ConversationSummary, ThreadWorkspace } from "@pi-everywhere/protocol";
 import {
   ConversationDoc,
   type ConversationMeta,
@@ -9,9 +9,21 @@ import {
 } from "./conversation-docs";
 import { BACKGROUND } from "./open";
 
-export const toSummary = (projectId: string, entry: IndexedConversation): ConversationSummary => ({
+export type ProjectRef = { readonly id: string; readonly path: string };
+
+export const legacyWorkspace = (projectPath: string): ThreadWorkspace => ({
+  mode: "checkout",
+  path: projectPath,
+  branch: null,
+  base: null,
+  state: "ready",
+  mergedSha: null,
+  pullRequestUrl: null,
+});
+
+export const toSummary = (project: ProjectRef, entry: IndexedConversation): ConversationSummary => ({
   id: String(entry.conversationId),
-  projectId,
+  projectId: project.id,
   title: entry.title,
   createdAt: entry.createdAt,
   updatedAt: entry.updatedAt,
@@ -21,17 +33,9 @@ export const toSummary = (projectId: string, entry: IndexedConversation): Conver
   avatarIndex: entry.conversationId,
   lastActivityAt: entry.lastRunEndedAt ?? entry.updatedAt,
   model: entry.model ?? null,
-  workspace: {
-    mode: "checkout",
-    path: "",
-    branch: null,
-    base: null,
-    state: "ready",
-    mergedSha: null,
-    pullRequestUrl: null,
-  },
-  forkOf: null,
-  parentId: null,
+  workspace: entry.workspace ?? legacyWorkspace(project.path),
+  forkOf: entry.forkOf ?? null,
+  parentId: entry.parentId ?? null,
 });
 
 export const byMostRecentlyUpdated = (a: ConversationSummary, b: ConversationSummary) =>

@@ -1,5 +1,5 @@
 import { defineDoc, defineDocFamily } from "@earendil-works/pi-durable";
-import type { ConversationStatus, ImageInput, ModelRef } from "@pi-everywhere/protocol";
+import type { ConversationStatus, ImageInput, ModelRef, ThreadWorkspace } from "@pi-everywhere/protocol";
 
 export type IndexedConversation = {
   conversationId: number;
@@ -13,6 +13,9 @@ export type IndexedConversation = {
   status?: ConversationStatus;
   lastRunEndedAt?: number;
   model?: ModelRef;
+  workspace?: ThreadWorkspace;
+  forkOf?: { conversationId: string; entryId: string };
+  parentId?: string;
 };
 
 export type TitleSource = "first-message" | "generated" | "user";

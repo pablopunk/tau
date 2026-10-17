@@ -3,6 +3,7 @@ import type { Harness } from "@earendil-works/pi-durable";
 import type { Change, Project } from "@pi-everywhere/protocol";
 import { type ChangeEmitter, createChangeEmitter } from "../change-emitter";
 import { createConversationRecovery } from "../conversation-recovery";
+import { legacyWorkspace } from "../harness/conversation-index";
 import { type ConversationStore, createConversationStore } from "../harness/conversation-store";
 import { BACKGROUND, openAgentHarness, openSqliteStorage } from "../harness/open";
 import { createStatusTracker } from "../status/status-tracker";
@@ -37,7 +38,7 @@ export async function openConversationHarness(
     models,
     beforeResume: (opened) => status.attach(opened),
   });
-  const store = createConversationStore(harness);
+  const store = createConversationStore(harness, async () => directory);
   const recovery = createConversationRecovery({ harness, conversations: store, changes });
   const project: Project = {
     id: "p1",
@@ -67,6 +68,7 @@ export const startRequest = (world: ConversationHarness, text: string, requestId
   model: FAUX_MODEL,
   thinkingLevel: "off" as const,
   input: { text, requestId },
+  workspace: legacyWorkspace(world.project.path),
   now: Date.now(),
 });
 

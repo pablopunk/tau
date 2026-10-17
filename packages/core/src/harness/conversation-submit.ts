@@ -1,4 +1,5 @@
 import type { Conversation, Harness, InputSubmissionDraft } from "@earendil-works/pi-durable";
+import { notImplemented } from "../not-implemented";
 import { BACKGROUND } from "./open";
 
 /** Admits the input unless its `requestId` was admitted before. Returns whether it was admitted now. */
@@ -14,4 +15,13 @@ export async function submitOnce(
   if (known) return false;
   await conversation.submit(draft, BACKGROUND);
   return true;
+}
+
+/** Phase 1 (F): `Submission.abort` on the queued inbox item; a delivered item answers `{ cancelled: false }`. */
+export async function cancelQueued(
+  _harness: Harness,
+  _conversation: Conversation,
+  _itemId: string,
+): Promise<{ cancelled: boolean }> {
+  throw notImplemented("conversations.cancelQueued");
 }

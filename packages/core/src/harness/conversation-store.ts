@@ -14,6 +14,8 @@ import {
   type RetryInput,
   type SendMessageInput,
   type ThinkingLevel,
+  type ThreadWorkspace,
+  type WhenBusy,
 } from "@pi-everywhere/protocol";
 import { toUserInput } from "../conversation-input";
 import { titleFromFirstMessage } from "../conversation-title";
@@ -34,12 +36,15 @@ import {
   type StartRequest,
   type StartResult,
 } from "./conversation-start";
-import { submitOnce } from "./conversation-submit";
+import { cancelQueued, submitOnce } from "./conversation-submit";
 import { createWatcherRegistry } from "./conversation-watchers";
 import { isBusy } from "./live-state";
 import { BACKGROUND } from "./open";
 
 const notFound = () => new AppError("not_found", "Conversation not found.");
+const notFoundError = (): never => {
+  throw notFound();
+};
 
 function conversationIdFrom(id: string): ConversationId | undefined {
   return /^[1-9]\d*$/.test(id) ? (Number(id) as ConversationId) : undefined;
@@ -63,6 +68,12 @@ export interface ConversationStore
   extends Pick<ConversationStarter, "resumePendingStarts" | "createPendingOnly"> {
   /** Not deleted, archived included. */
   list(projectId: string): Promise<ConversationSummary[]>;
+  /** Undefined for an unknown or deleted thread. */
+  find(id: string): Promise<ConversationSummary | undefined>;
+  /** Stores the workspace in the index entry and points the agent's cwd at `workspace.path`. */
+  setWorkspace(id: string, workspace: ThreadWorkspace): Promise<ConversationSummary>;
+  /** Withdraws one queued message; `{ cancelled: false }` once it was delivered. */
+  cancelQueued(id: string, itemId: string): Promise<{ cancelled: boolean }>;
   start(request: StartRequest): Promise<StartResult>;
   /** `not_found` for an unknown or deleted thread. */
   modelOf(id: string): Promise<ModelRef | undefined>;
@@ -73,7 +84,7 @@ export interface ConversationStore
   /** Returns the project id so the caller can announce the index change. */
   rename(id: string, title: string): Promise<string>;
   /** Admits the message (steering when busy) exactly once per `requestId`, and unarchives. */
-  send(id: string, input: SendMessageInput, now: number): Promise<SendResult>;
+  send(id: string, input: SendMessageInput, now: number, whenBusy?: WhenBusy): Promise<SendResult>;
   /** One `app.retry` submission, exactly once per `requestId`. `invalid_request` unless the thread is retryable. */
   retry(id: string, input: RetryInput, now: number): Promise<string>;
   abort(id: string): Promise<void>;
@@ -98,9 +109,12 @@ async function currentView(conversation: Conversation): Promise<ConversationView
   }
 }
 
-export function createConversationStore(harness: Harness): ConversationStore {
+export function createConversationStore(
+  harness: Harness,
+  projectPathOf: (projectId: string) => Promise<string>,
+): ConversationStore {
   const watchers = createWatcherRegistry();
-  const starter = createConversationStarter(harness);
+  const starter = createConversationStarter(harness, projectPathOf);
 
   async function known(id: string): Promise<KnownConversation> {
     const conversationId = conversationIdFrom(id);
@@ -134,11 +148,40 @@ export function createConversationStore(harness: Harness): ConversationStore {
     start: (request) => starter.start(request),
 
     async list(projectId) {
+      const project = { id: projectId, path: await projectPathOf(projectId) };
       const entries = await indexOf(harness, projectId);
       return entries
         .filter(isLive)
-        .map((entry) => toSummary(projectId, entry))
+        .map((entry) => toSummary(project, entry))
         .sort(byMostRecentlyUpdated);
+    },
+
+    async find(id) {
+      const conversationId = conversationIdFrom(id);
+      const meta = conversationId === undefined ? undefined : await readMeta(harness, conversationId);
+      if (!meta || meta.deletedAt !== undefined) return undefined;
+      const project = { id: meta.projectId, path: await projectPathOf(meta.projectId) };
+      const entry = (await indexOf(harness, meta.projectId)).find(
+        (candidate) => candidate.conversationId === conversationId && isLive(candidate),
+      );
+      return entry ? toSummary(project, entry) : undefined;
+    },
+
+    async setWorkspace(id, workspace) {
+      const { conversation, id: conversationId, projectId } = await known(id);
+      await conversation.configure({ cwd: workspace.path }, BACKGROUND);
+      await requireApplied(
+        updateLiveConversation(harness, conversationId, projectId, (_meta, entry) => {
+          entry.workspace = workspace;
+          return true;
+        }),
+      );
+      return (await this.find(id)) ?? notFoundError();
+    },
+
+    async cancelQueued(id, itemId) {
+      const { conversation } = await known(id);
+      return cancelQueued(harness, conversation, itemId);
     },
 
     async modelOf(id) {
@@ -178,13 +221,13 @@ export function createConversationStore(harness: Harness): ConversationStore {
       return projectId;
     },
 
-    async send(id, input, now) {
+    async send(id, input, now, whenBusy = "steer") {
       const { conversation, id: conversationId, projectId } = await known(id);
       const admitted = await submitOnce(harness, conversation, {
         type: "input",
         content: toUserInput(input),
         requestId: input.requestId,
-        whenBusy: "steer",
+        whenBusy,
       });
       if (!admitted) return { projectId };
       let provisionalFor: string | undefined;

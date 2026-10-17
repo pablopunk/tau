@@ -6,6 +6,7 @@ import {
   type Project,
   type SendMessageInput,
   type ThinkingLevel,
+  type ThreadWorkspace,
 } from "@pi-everywhere/protocol";
 import { toUserInput } from "../conversation-input";
 import { titleFromFirstMessage } from "../conversation-title";
@@ -13,6 +14,7 @@ import { ConversationDoc, INDEX_SEED, ProjectIndexDoc } from "./conversation-doc
 import {
   indexOf,
   isLive,
+  type ProjectRef,
   scanAppConversations,
   toSummary,
   updateLiveConversation,
@@ -25,6 +27,9 @@ export type StartRequest = {
   readonly model: ModelRef;
   readonly thinkingLevel: ThinkingLevel;
   readonly input: SendMessageInput;
+  readonly workspace: ThreadWorkspace;
+  /** Runs once the thread exists and before its first message is admitted (the "before" checkpoint). */
+  readonly beforeFirstInput?: (conversationId: string) => Promise<void>;
   readonly now: number;
 };
 
@@ -45,10 +50,13 @@ export interface ConversationStarter {
   resumePendingStarts(): Promise<string[]>;
 }
 
-export function createConversationStarter(harness: Harness): ConversationStarter {
+export function createConversationStarter(
+  harness: Harness,
+  projectPathOf: (projectId: string) => Promise<string>,
+): ConversationStarter {
   async function admitFirstInput(
     conversation: Conversation,
-    projectId: string,
+    project: ProjectRef,
     input: SendMessageInput,
     now: number | undefined,
   ): Promise<ConversationSummary> {
@@ -58,24 +66,31 @@ export function createConversationStarter(harness: Harness): ConversationStarter
       requestId: input.requestId,
       whenBusy: "steer",
     });
-    await updateLiveConversation(harness, conversation.id, projectId, (meta, entry) => {
+    await updateLiveConversation(harness, conversation.id, project.id, (meta, entry) => {
       delete meta.pendingFirstInput;
       delete entry.pendingStart;
       if (now !== undefined) entry.updatedAt = now;
       return true;
     });
-    const entry = (await indexOf(harness, projectId)).find(
+    const entry = (await indexOf(harness, project.id)).find(
       (candidate) => candidate.conversationId === Number(conversation.id) && isLive(candidate),
     );
     if (!entry) throw new AppError("not_found", "Conversation not found.");
-    return toSummary(projectId, entry);
+    return toSummary(project, entry);
   }
 
-  async function create({ project, model, thinkingLevel, input, now }: StartRequest): Promise<Conversation> {
+  async function create({
+    project,
+    model,
+    thinkingLevel,
+    input,
+    workspace,
+    now,
+  }: StartRequest): Promise<Conversation> {
     return harness.createConversation(
       {
         ownership: { kind: "ownerless" },
-        agent: { model, cwd: project.path, thinkingLevel },
+        agent: { model, cwd: workspace.path, thinkingLevel },
         init: async (tx, conversationId) => {
           const index = await tx.doc(ProjectIndexDoc, project.id, INDEX_SEED);
           const existing = index.conversations.find(
@@ -101,6 +116,7 @@ export function createConversationStarter(harness: Harness): ConversationStarter
             pendingStart: true,
             status: "running",
             model,
+            workspace,
           });
         },
       },
@@ -121,11 +137,12 @@ export function createConversationStarter(harness: Harness): ConversationStarter
       const { project, input, now } = request;
       try {
         const conversation = await create(request);
-        return { summary: await admitFirstInput(conversation, project.id, input, now), created: true };
+        await request.beforeFirstInput?.(String(conversation.id));
+        return { summary: await admitFirstInput(conversation, project, input, now), created: true };
       } catch (error) {
         if (!(error instanceof ExistingStart)) throw error;
         const conversation = await existingConversation(error.conversationId);
-        return { summary: await admitFirstInput(conversation, project.id, input, now), created: false };
+        return { summary: await admitFirstInput(conversation, project, input, now), created: false };
       }
     },
 
@@ -135,7 +152,12 @@ export function createConversationStarter(harness: Harness): ConversationStarter
         if (!meta.pendingFirstInput || meta.deletedAt !== undefined) continue;
         try {
           const conversation = await existingConversation(Number(id));
-          await admitFirstInput(conversation, meta.projectId, meta.pendingFirstInput, undefined);
+          await admitFirstInput(
+            conversation,
+            { id: meta.projectId, path: await projectPathOf(meta.projectId) },
+            meta.pendingFirstInput,
+            undefined,
+          );
           projectIds.add(meta.projectId);
         } catch (error) {
           console.error("pi-everywhere: could not resume a first message", error);

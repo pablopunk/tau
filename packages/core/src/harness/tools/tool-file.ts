@@ -1,0 +1,54 @@
+import { defineTool, type Extension, type ToolRegistration } from "@earendil-works/pi-durable";
+import type { TSchema } from "typebox";
+import type { McpService } from "../../mcp/mcp-service";
+import { notImplemented } from "../../not-implemented";
+import type { ProcessService } from "../../processes/process-service";
+
+export interface ToolServices {
+  readonly processes: ProcessService;
+  readonly mcp: McpService;
+}
+
+/** The tools are built before the services exist (the Harness needs the registry first), so they read this lazily. */
+export interface ToolServicesRef {
+  current(): ToolServices;
+  set(services: ToolServices): void;
+}
+
+export function createToolServicesRef(): ToolServicesRef {
+  let services: ToolServices | undefined;
+  return {
+    current() {
+      if (!services) throw notImplemented("tool services are not ready");
+      return services;
+    },
+    set(next) {
+      services = next;
+    },
+  };
+}
+
+/** A Phase 1 agent flips `implemented` to true; until then the registry leaves the extension out. */
+export interface ToolFile {
+  readonly implemented: boolean;
+  readonly extension: Extension;
+}
+
+export type ToolFileFactory = (services: ToolServicesRef) => ToolFile;
+
+export function unimplementedTool<TParameters extends TSchema>(
+  name: string,
+  description: string,
+  parameters: TParameters,
+  replay: "safe" | "unsafe" = "unsafe",
+): ToolRegistration<TParameters> {
+  return defineTool({
+    name,
+    description,
+    parameters,
+    replay,
+    execute: async () => {
+      throw notImplemented(`tool ${name}`);
+    },
+  });
+}

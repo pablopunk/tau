@@ -1,9 +1,15 @@
 import {
+  type McpServerConfig,
+  McpServerConfigSchema,
+  type MessageMode,
+  MessageModeSchema,
   type ModelRef,
   ModelRefSchema,
   type Settings,
   type ThinkingLevel,
   ThinkingLevelSchema,
+  type WorkspaceMode,
+  WorkspaceModeSchema,
 } from "@pi-everywhere/protocol";
 import { Type } from "typebox";
 import { Value } from "typebox/value";
@@ -16,6 +22,9 @@ type StoredSettings = {
   fastModel?: ModelRef;
   fastThinkingLevel?: ThinkingLevel;
   projectsFolder?: string;
+  messageMode?: MessageMode;
+  workspaceDefault?: WorkspaceMode;
+  mcpServers?: McpServerConfig[];
 };
 
 const parseJson = (text: string | undefined): Record<string, unknown> => {
@@ -39,6 +48,17 @@ const validLevel = (value: unknown): ThinkingLevel | undefined =>
 const validFolder = (value: unknown): string | undefined =>
   Value.Check(Type.String({ minLength: 1 }), value) ? value : undefined;
 
+const validMessageMode = (value: unknown): MessageMode | undefined =>
+  Value.Check(MessageModeSchema, value) ? value : undefined;
+
+const validWorkspaceMode = (value: unknown): WorkspaceMode | undefined =>
+  Value.Check(WorkspaceModeSchema, value) ? value : undefined;
+
+const validMcpServers = (value: unknown): McpServerConfig[] =>
+  Array.isArray(value)
+    ? value.filter((item): item is McpServerConfig => Value.Check(McpServerConfigSchema, item))
+    : [];
+
 /** Each field is validated on its own, so one bad field never discards the others. */
 function parseStored(text: string | undefined): StoredSettings {
   const raw = parseJson(text);
@@ -53,6 +73,11 @@ function parseStored(text: string | undefined): StoredSettings {
   if (defaultThinkingLevel) stored.defaultThinkingLevel = defaultThinkingLevel;
   if (fastThinkingLevel) stored.fastThinkingLevel = fastThinkingLevel;
   if (projectsFolder) stored.projectsFolder = projectsFolder;
+  const messageMode = validMessageMode(raw.messageMode);
+  const workspaceDefault = validWorkspaceMode(raw.workspaceDefault);
+  if (messageMode) stored.messageMode = messageMode;
+  if (workspaceDefault) stored.workspaceDefault = workspaceDefault;
+  if (raw.mcpServers !== undefined) stored.mcpServers = validMcpServers(raw.mcpServers);
   return stored;
 }
 
@@ -62,8 +87,8 @@ const withDefaults = (stored: StoredSettings, defaultProjectsFolder: string): Se
   fastModel: stored.fastModel ?? null,
   fastThinkingLevel: stored.fastThinkingLevel ?? null,
   projectsFolder: stored.projectsFolder ?? defaultProjectsFolder,
-  messageMode: "steer",
-  workspaceDefault: "worktree",
+  messageMode: stored.messageMode ?? "steer",
+  workspaceDefault: stored.workspaceDefault ?? "worktree",
 });
 
 export interface SettingsStore {
@@ -76,6 +101,13 @@ export interface SettingsStore {
   setFastThinkingLevel(level: ThinkingLevel | null): Promise<void>;
   /** The caller has already validated and resolved the path. */
   setProjectsFolder(path: string): Promise<void>;
+  setMessageMode(mode: MessageMode): Promise<void>;
+  setWorkspaceDefault(mode: WorkspaceMode): Promise<void>;
+  /** Servers added in Settings. The real values (env, headers) stay here and never reach `Settings`. */
+  mcpServers(): Promise<McpServerConfig[]>;
+  /** Replaces the server with the same name, or appends. */
+  saveMcpServer(config: McpServerConfig): Promise<void>;
+  removeMcpServer(name: string): Promise<void>;
 }
 
 const copyRef = (ref: ModelRef): ModelRef => ({ provider: ref.provider, modelId: ref.modelId });
@@ -111,5 +143,18 @@ export function createSettingsStore(settingsFile: string, defaultProjectsFolder:
         level ? { ...rest, fastThinkingLevel: level } : rest,
       ),
     setProjectsFolder: (path) => update((stored) => ({ ...stored, projectsFolder: path })),
+    setMessageMode: (mode) => update((stored) => ({ ...stored, messageMode: mode })),
+    setWorkspaceDefault: (mode) => update((stored) => ({ ...stored, workspaceDefault: mode })),
+    mcpServers: () => enqueue(async () => (await readStored()).mcpServers ?? []),
+    saveMcpServer: (config) =>
+      update((stored) => ({
+        ...stored,
+        mcpServers: [...(stored.mcpServers ?? []).filter((item) => item.name !== config.name), config],
+      })),
+    removeMcpServer: (name) =>
+      update((stored) => ({
+        ...stored,
+        mcpServers: (stored.mcpServers ?? []).filter((item) => item.name !== name),
+      })),
   };
 }

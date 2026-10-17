@@ -92,6 +92,7 @@ async function makeRealTarget(): Promise<ContractTarget> {
         await writeFile(path, "not a folder");
         return path;
       },
+      gitDirectory: async (name) => makeLocalRepo(join(root, "projects"), name),
       missing: () => join(root, "does-not-exist"),
       cloneUrl: () => makeBareRepository(join(root, "remote.git")),
       failingCloneUrl: () => "https://127.0.0.1:1/fail.git",

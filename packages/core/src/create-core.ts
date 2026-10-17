@@ -2,28 +2,36 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import type { Core, CreateCore } from "@pi-everywhere/protocol";
 import { createChangeEmitter } from "./change-emitter";
+import { createCheckpointService } from "./checkpoints/checkpoint-service";
 import { createConversationRecovery } from "./conversation-recovery";
 import { createConversationsApi } from "./conversations-api";
 import { suggestDirectories } from "./fs/suggest-directories";
 import { createCloneService } from "./git/clone-service";
 import { createGithubService } from "./github/github-service";
 import { createRunGh, type RunGh, resolveGhPath } from "./github/run-gh";
+import { createConversationForker } from "./harness/conversation-fork";
 import { createConversationStore } from "./harness/conversation-store";
 import { BACKGROUND, openAgentHarness, openSqliteStorage } from "./harness/open";
 import { createProjectStore } from "./harness/project-store";
+import { createAgentRegistry } from "./harness/registry";
+import { createToolServicesRef } from "./harness/tools/tool-file";
 import { openDataHome } from "./home/data-home";
 import { acquireHomeLock } from "./home/lock";
 import { createSettingsStore } from "./home/settings-store";
 import { createIconService } from "./icons/icon-service";
-import { workspaceStubs } from "./mvp5-stubs";
+import { createMcpService } from "./mcp/mcp-service";
+import { createMcpApi } from "./mcp-api";
+import { createProcessService } from "./processes/process-service";
 import { createPresentProject } from "./project-view";
 import { createProjectsApi } from "./projects-api";
 import { createProviderService, type Environment } from "./provider/provider-service";
 import { createProvidersApi } from "./providers-api";
+import type { RemovalHooks } from "./removal-hooks";
 import { createSettingsApi } from "./settings-api";
 import { createSkillsApi } from "./skills/skills-api";
 import { createStatusTracker } from "./status/status-tracker";
 import { createTitleService } from "./titles/title-service";
+import { createWorkspaceService } from "./workspaces/workspace-service";
 
 export interface CreateCoreOptions {
   /** Data home directory (`~/.pi-everywhere` by default in the CLI). */
@@ -73,7 +81,9 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
     const defaultProjectsFolder = join(home.root, "projects");
     const settings = createSettingsStore(home.settingsFile, defaultProjectsFolder);
     const status = createStatusTracker({ changes, now: deps.now });
+    const toolServices = createToolServicesRef();
     const harness = await openAgentHarness({
+      registry: createAgentRegistry(toolServices),
       storage: await openSqliteStorage(home.agentDatabase),
       models: provider.models,
       onReport: (error) => console.error("pi-everywhere: agent report", error),
@@ -84,7 +94,7 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
     });
 
     const projects = createProjectStore(harness);
-    const conversations = createConversationStore(harness);
+    const conversations = createConversationStore(harness, async (id) => (await projects.require(id)).path);
     const shared = { projects, conversations, changes, now: deps.now };
     const titles = createTitleService({ harness, models: provider.models, settings, changes });
     const icons = createIconService({ iconsDirectory: home.iconsDirectory, now: deps.now });
@@ -113,10 +123,32 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
       presentProject: present,
     });
     githubRef.current = github;
+    const workspaces = createWorkspaceService({ home: home.root, conversations });
+    const forker = createConversationForker(harness, conversations);
+    const checkpoints = createCheckpointService({ home: home.root, conversations, forker });
+    const processes = createProcessService({
+      home: home.root,
+      emitChange: (conversationId) => changes.emit({ resource: "processes", conversationId }),
+    });
+    const mcp = createMcpService({
+      settingsServers: () => settings.mcpServers(),
+      projectPathOf: async (id) => (await projects.require(id)).path,
+    });
+    toolServices.set({ processes, mcp });
+    const removalHooks: RemovalHooks = {
+      unmergedWork: (thread) => workspaces.unmergedWork(thread),
+      onConversationRemoved: [
+        (thread) => workspaces.onConversationRemoved(thread),
+        (thread) => checkpoints.onConversationRemoved(thread),
+        (thread) => processes.onConversationRemoved(thread),
+      ],
+      onProjectRemoved: [(id) => workspaces.onProjectRemoved(id)],
+    };
     const recovery = createConversationRecovery({ harness, conversations, changes });
     await status.recoverAtStartup();
     await clones.recoverAtStartup();
     await recovery.recoverAtStartup();
+    await processes.reapStaleAtStartup();
 
     let closing: Promise<void> | undefined;
     return {
@@ -135,15 +167,38 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
       },
       ...createProvidersApi(provider),
       skills: createSkillsApi({ projects }),
-      projects: createProjectsApi({ ...shared, clones, icons, present }),
-      conversations: createConversationsApi({ ...shared, provider, settings, titles, status }),
-      ...workspaceStubs,
+      projects: createProjectsApi({ ...shared, clones, icons, present, removalHooks }),
+      conversations: createConversationsApi({
+        ...shared,
+        provider,
+        settings,
+        titles,
+        status,
+        workspaces,
+        checkpoints,
+        forker,
+        removalHooks,
+      }),
+      workspaces: {
+        status: (id) => workspaces.status(id),
+        merge: (id) => workspaces.merge(id),
+        createPullRequest: (id) => workspaces.createPullRequest(id),
+        remove: (id, force) => workspaces.remove(id, force),
+      },
+      processes: {
+        list: (id) => processes.list(id),
+        logs: (id, tail) => processes.logs(id, tail),
+        stop: (id) => processes.stop(id),
+      },
+      mcp: createMcpApi({ settings, mcp, changes }),
       onChange: (listener) => changes.subscribe(listener),
       close() {
         closing ??= (async () => {
           changes.clear();
           clones.stopAll();
           try {
+            await processes.stopAll();
+            await mcp.closeAll();
             await harness.close(BACKGROUND);
           } finally {
             await lock.release();
