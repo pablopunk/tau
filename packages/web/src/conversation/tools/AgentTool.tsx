@@ -1,8 +1,9 @@
 import { Bot } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { AgentStatusBadge } from "@/sidebar/subagents/AgentStatusBadge";
-import { agentModelLabel, agentTypeLabel, isRunningChild } from "@/sidebar/subagents/agent-meta";
+import { agentTypeLabel, cardStatusOf, isRunningChild } from "@/sidebar/subagents/agent-meta";
 import { StopAgentButton } from "@/sidebar/subagents/StopAgentButton";
+import { useModelLabel } from "@/sidebar/subagents/use-model-label";
 import { argText, resultText } from "../model/tool-state";
 import { AgentOpenLink } from "./AgentOpenLink";
 import { childIdOfCall, useChildById } from "./agent-child";
@@ -13,15 +14,16 @@ import type { ToolRendererProps } from "./types";
 export function AgentTool({ state }: ToolRendererProps) {
   const childId = childIdOfCall(state);
   const child = useChildById(childId);
+  const modelLabel = useModelLabel();
   const type = child?.agentType ?? argText(state, "subagent_type");
-  const model = agentModelLabel(child?.agentModel) ?? argText(state, "model");
+  const model = modelLabel.ofRef(child?.agentModel) ?? argText(state, "model");
   const answer = resultText(state.result);
   return (
     <ToolCard
       icon={<Bot />}
       title={child?.title.trim() || "Subagent"}
       subtitle={argText(state, "description")}
-      status={state.status}
+      status={cardStatusOf(child, state.status)}
       defaultOpen
       badge={<Badge variant="secondary">{agentTypeLabel(type)}</Badge>}
     >
@@ -31,7 +33,7 @@ export function AgentTool({ state }: ToolRendererProps) {
         {child ? <AgentOpenLink child={child} /> : null}
         {childId && isRunningChild(child) ? <StopAgentButton childId={childId} /> : null}
       </div>
-      {answer ? <OutputBlock text={answer} label="Answer" /> : null}
+      {answer ? <OutputBlock text={answer} label={state.status === "error" ? "Error" : "Answer"} /> : null}
     </ToolCard>
   );
 }

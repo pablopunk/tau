@@ -11,5 +11,5 @@ const isUnseen = (conversation: ConversationSummary): boolean => {
 export function conversationDot(conversation: ConversationSummary, open: boolean): StatusDotStatus | null {
   if (conversation.status === "running") return "running";
   if (conversation.status === "error") return "error";
-  return !open && isUnseen(conversation) ? "unseen" : null;
+  return !open && !conversation.parentId && isUnseen(conversation) ? "unseen" : null;
 }

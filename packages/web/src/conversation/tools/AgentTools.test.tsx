@@ -11,11 +11,13 @@ import { AgentSendMessageTool } from "./AgentSendMessageTool";
 import { AgentTool } from "./AgentTool";
 
 const children: { current: ConversationSummary[] } = { current: [] };
+const models: { current: Record<string, unknown>[] } = { current: [] };
 const { stopAgent } = vi.hoisted(() => ({ stopAgent: vi.fn(async () => {}) }));
 
 vi.mock("@/lib/queries", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/queries")>()),
   useAllConversations: () => ({ data: children.current }),
+  useModels: () => ({ data: models.current }),
 }));
 vi.mock("@/lib/api", async (importOriginal) => {
   const original = await importOriginal<typeof import("@/lib/api")>();
@@ -53,6 +55,7 @@ const child = (overrides: Partial<ConversationSummary> = {}) =>
 describe("agent tool cards", () => {
   beforeEach(() => {
     children.current = [child()];
+    models.current = [];
     stopAgent.mockClear();
   });
 
@@ -72,6 +75,26 @@ describe("agent tool cards", () => {
     renderAt("/", <AgentTool state={stateOf("agent", {}, "", { conversationId: "kid" })} />);
     expect(screen.queryByRole("button", { name: "Stop" })).toBeNull();
     expect(screen.getByText("done")).toBeTruthy();
+  });
+
+  it("shows one status for a stopped child, taken from the child", () => {
+    children.current = [child({ agentStatus: "stopped" })];
+    renderAt("/", <AgentTool state={stateOf("agent", {}, "", { conversationId: "kid" })} />);
+    expect(screen.getByText("stopped")).toBeTruthy();
+    expect(screen.queryByText("Done")).toBeNull();
+  });
+
+  it("shows the error text of a failed agent call", () => {
+    const state = stateOf("agent", { description: "x" }, "isolation failed badly", {}, true);
+    renderAt("/", <AgentTool state={state} />);
+    expect(screen.getByText("isolation failed badly")).toBeTruthy();
+  });
+
+  it("shows the model's display name instead of its id", async () => {
+    models.current = [{ provider: "x", modelId: "model-9", name: "Nine" }];
+    renderAt("/", <AgentTool state={stateOf("agent", {}, "", { conversationId: "kid" })} />);
+    expect(screen.getByText("Nine")).toBeTruthy();
+    expect(screen.queryByText("model-9")).toBeNull();
   });
 
   it("names the child and mode in a send_message card", () => {

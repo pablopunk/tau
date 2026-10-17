@@ -3,6 +3,7 @@ import type { ModelRef } from "@pi-everywhere/protocol";
 import { type AgentType, GENERAL_PURPOSE } from "../../agents/agent-types";
 import type { SubagentServices } from "../subagent-services";
 import { isSubagentTool } from "../subagent-tool-names";
+import { FORK_INSTRUCTIONS } from "./fork-instructions";
 
 export const FORK = "fork";
 
@@ -65,6 +66,6 @@ export async function planChild(input: PlanInput): Promise<ChildPlan> {
     type: fork ? FORK : (type?.name ?? GENERAL_PURPOSE),
     model,
     tools: allowedTools(input.parent.tools, type),
-    instructions: type?.prompt || undefined,
+    instructions: fork ? FORK_INSTRUCTIONS : type?.prompt || undefined,
   };
 }

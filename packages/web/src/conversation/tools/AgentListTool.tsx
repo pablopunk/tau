@@ -1,6 +1,7 @@
 import type { AgentStatus } from "@pi-everywhere/protocol";
 import { List } from "lucide-react";
 import { AgentStatusBadge } from "@/sidebar/subagents/AgentStatusBadge";
+import { useModelLabel } from "@/sidebar/subagents/use-model-label";
 import { resultDetails } from "../model/tool-state";
 import { ToolCard } from "./ToolCard";
 import type { ToolRendererProps } from "./types";
@@ -36,6 +37,7 @@ export function listedAgents(state: ToolRendererProps["state"]): ListedAgent[] {
 
 export function AgentListTool({ state }: ToolRendererProps) {
   const agents = listedAgents(state);
+  const modelLabel = useModelLabel();
   return (
     <ToolCard icon={<List />} title="Subagents" subtitle={`${agents.length} total`} status={state.status}>
       {agents.length === 0 ? (
@@ -55,7 +57,7 @@ export function AgentListTool({ state }: ToolRendererProps) {
               <tr key={agent.id}>
                 <td className="py-1 pr-2">{agent.description || agent.id}</td>
                 <td className="py-1 pr-2">{agent.type}</td>
-                <td className="py-1 pr-2">{agent.model}</td>
+                <td className="py-1 pr-2">{modelLabel.ofKey(agent.model)}</td>
                 <td className="py-1">
                   <AgentStatusBadge status={agent.status} />
                 </td>

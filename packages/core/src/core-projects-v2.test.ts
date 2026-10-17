@@ -9,6 +9,7 @@ import { openDataHome } from "./home/data-home";
 import { createProviderService } from "./provider/provider-service";
 import { type FauxWorld, openFauxWorld } from "./test-support/faux-core";
 import { useTempDir } from "./test-support/temp-dir";
+import { makeRepo } from "./workspaces/workspace-test-support";
 
 const tempDir = useTempDir();
 let world: FauxWorld;
@@ -47,6 +48,16 @@ async function writeMvpProject(home: string, path: string) {
 }
 
 describe("app.projects v2 migration", () => {
+  it("reports a project stored as a plain folder inside a repository as a git repo", async () => {
+    await world.core.close();
+    const { repo } = await makeRepo();
+    await writeMvpProject(world.home, repo);
+    const core = await world.reopen();
+    expect(await core.projects.list()).toContainEqual(
+      expect.objectContaining({ id: "old", isGitRepo: true }),
+    );
+  });
+
   it("turns an MVP project into a ready folder project", async () => {
     await world.core.close();
     const path = await world.makeFolder("mvp");

@@ -58,7 +58,7 @@ test.describe("MVP6", () => {
     await notificationRows(page).first().getByRole("link", { name: "Open" }).click();
     const banner = page.getByText("Subagent of");
     await expect(banner).toContainText("general-purpose");
-    await expect(banner).toContainText("faux");
+    await expect(banner).toContainText(/faux/i);
     await expect(page.getByText("done", { exact: true }).first()).toBeVisible();
     await expect(messageBox(page)).toHaveCount(0);
   });

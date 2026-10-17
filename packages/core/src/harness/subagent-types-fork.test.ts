@@ -120,6 +120,19 @@ describe("fork subagents", () => {
     expect(child.agentType).toBe("fork");
   });
 
+  it("tells the fork it is a fork with the parent's history, cannot spawn and reports back", async () => {
+    const { r, child } = await forkAfterHistory();
+    const agent = await (await r.conversationOf(child.id))?.agent(BACKGROUND);
+    expect(agent?.instructions).toContain("fork of the parent");
+    expect(agent?.instructions).toContain("cannot spawn subagents");
+    expect(agent?.instructions).toContain("reported back to the parent");
+  });
+
+  it("runs in the background by default, so the call returns before the fork answers", async () => {
+    const { r, parent } = await forkAfterHistory();
+    expect(await transcript(r, parent.id)).toContain("Started subagent");
+  });
+
   it("gives the fork the parent's model and no subagent tools", async () => {
     const { r, child } = await forkAfterHistory();
     const agent = await (await r.conversationOf(child.id))?.agent(BACKGROUND);

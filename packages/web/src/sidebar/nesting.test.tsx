@@ -43,6 +43,12 @@ describe("<ThreadsView> nesting", () => {
     expect(childRow?.querySelector("[data-slot=tree-branch]")).toHaveAttribute("data-last", "true");
   });
 
+  it("clamps a child title to two lines like a parent", () => {
+    renderView();
+    expect(screen.getByText("Child thread").className).toContain("line-clamp-2");
+    expect(screen.getByText("Child thread").className).not.toContain("truncate");
+  });
+
   it("gives only the last of several children the corner", () => {
     const second = conversation({ id: "4", title: "Second child", parentId: "1" });
     renderAt(

@@ -2,6 +2,7 @@ import { homedir } from "node:os";
 import type { Harness } from "@earendil-works/pi-durable";
 import { AppError, type Project } from "@pi-everywhere/protocol";
 import { repositoryKey } from "../git/repository-key";
+import { createGitRepoProbe, type GitRepoProbe } from "../workspaces/git-repo-probe";
 import { BACKGROUND } from "./open";
 import { type ProjectRecord, ProjectsDoc } from "./projects-doc";
 
@@ -17,14 +18,17 @@ const homeProject = (): Project => ({
   isGitRepo: false,
 });
 
-const toProject = ({ id, name, path, createdAt, kind, status, gitUrl, error }: ProjectRecord): Project => ({
+const toProject = (
+  { id, name, path, createdAt, kind, status, gitUrl, error }: ProjectRecord,
+  isGitRepo: boolean,
+): Project => ({
   id,
   name,
   path,
   createdAt,
   kind,
   status,
-  isGitRepo: kind === "git",
+  isGitRepo,
   ...(gitUrl === undefined ? {} : { gitUrl }),
   ...(error === undefined ? {} : { error }),
 });
@@ -69,9 +73,14 @@ export interface ProjectStore {
   remove(id: string): Promise<void>;
 }
 
-export function createProjectStore(harness: Harness): ProjectStore {
+export function createProjectStore(
+  harness: Harness,
+  probe: GitRepoProbe = createGitRepoProbe(),
+): ProjectStore {
+  const present = async (record: ProjectRecord) =>
+    toProject(record, record.status === "ready" && (await probe.isGitRepo(record.path)));
   const stored = async () => (await harness.snapshot(ProjectsDoc, BACKGROUND))?.projects ?? [];
-  const list = async () => [homeProject(), ...(await stored()).map(toProject)];
+  const list = async () => [homeProject(), ...(await Promise.all((await stored()).map(present)))];
   const find = async (id: string) => (await list()).find((project) => project.id === id);
   return {
     list,
@@ -81,8 +90,9 @@ export function createProjectStore(harness: Harness): ProjectStore {
       if (!project) throw notFound();
       return project;
     },
-    add: (input) =>
-      harness.commit(async (tx) => {
+    add: async (input) => {
+      const found = await probe.isGitRepo(input.path);
+      return harness.commit(async (tx) => {
         const doc = await tx.doc(ProjectsDoc);
         if (input.path === homedir() || doc.projects.some((project) => project.path === input.path)) {
           throw new AppError("duplicate_project", "This folder is already a project.");
@@ -92,8 +102,9 @@ export function createProjectStore(harness: Harness): ProjectStore {
         }
         const record: ProjectRecord = { ...input, kind: "folder", status: "ready" };
         doc.projects.push(record);
-        return toProject(record);
-      }, BACKGROUND),
+        return toProject(record, found);
+      }, BACKGROUND);
+    },
     addGit: (input) =>
       harness.commit(async (tx) => {
         const doc = await tx.doc(ProjectsDoc);
@@ -103,7 +114,7 @@ export function createProjectStore(harness: Harness): ProjectStore {
         if (taken) throw duplicateProject();
         const record: ProjectRecord = { ...input, kind: "git", status: "cloning" };
         doc.projects.push(record);
-        return toProject(record);
+        return toProject(record, false);
       }, BACKGROUND),
     setCloneState: (id, update) =>
       harness.commit(async (tx) => {
