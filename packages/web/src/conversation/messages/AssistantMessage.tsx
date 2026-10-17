@@ -6,6 +6,7 @@ import { CopyButton } from "@/components/ui/copy-button";
 import type { ToolCallState } from "../model/tool-state";
 import { ToolCall } from "../tools/ToolCall";
 import { Markdown } from "./Markdown";
+import { ModelLabel } from "./ModelLabel";
 import { ErrorNotice } from "./notices";
 import { ThinkingBlock } from "./ThinkingBlock";
 
@@ -46,7 +47,12 @@ export function AssistantMessage(props: AssistantMessageProps) {
         <BlockView key={keyOf(block, index)} block={block} props={props} />
       ))}
       {message.stopReason === "error" ? <ErrorNotice message={message.errorMessage} /> : null}
-      {markdown && !props.streaming ? <CopyButton text={markdown} label="Copy answer" /> : null}
+      {markdown && !props.streaming ? (
+        <div className="flex items-center gap-2">
+          <CopyButton text={markdown} label="Copy answer" />
+          <ModelLabel message={message} />
+        </div>
+      ) : null}
       {message.stopReason === "aborted" ? <p className="text-xs text-muted-foreground">Stopped.</p> : null}
     </div>
   );
