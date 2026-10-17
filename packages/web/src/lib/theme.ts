@@ -1,4 +1,8 @@
+import { useSyncExternalStore } from "react";
 import { preferences, type Theme } from "./preferences";
+
+export const useThemePreference = (): Theme =>
+  useSyncExternalStore(preferences.subscribeTheme, preferences.getTheme);
 
 const DARK_QUERY = "(prefers-color-scheme: dark)";
 
