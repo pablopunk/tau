@@ -77,6 +77,7 @@ const handlers: Handlers = {
     core.conversations.remove(params.id, { force: query?.force === "true" }),
   configureConversation: (core, { params, body }) => core.conversations.configure(params.id, body as never),
   retryConversation: (core, { params, body }) => core.conversations.retry(params.id, body as never),
+  stopAgent: (core, { params }) => core.conversations.stopAgent(params.id),
   forkConversation: (core, { params, body }) => core.conversations.fork(params.id, body.entryId as string),
   rewindPreview: (core, { params, body }) =>
     core.conversations.rewindPreview(params.id, body.entryId as string),

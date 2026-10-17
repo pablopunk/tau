@@ -7,7 +7,7 @@ import { createFauxSetup } from "../../testing/faux-provider";
 import { legacyWorkspace } from "../conversation-index";
 import { type ConversationStore, createConversationStore } from "../conversation-store";
 import { BACKGROUND, openAgentHarness, openSqliteStorage } from "../open";
-import { createAgentRegistry } from "../registry";
+import { createAgentRegistry, LEGACY_TOOL_FILES } from "../registry";
 import { renderSubagentsSection } from "../subagents-prompt";
 import { notMyChildMessage } from "./task-child";
 
@@ -22,7 +22,7 @@ async function open() {
   harness = await openAgentHarness({
     storage: await openSqliteStorage(join(root, "agent.sqlite")),
     models: createFauxSetup().models,
-    registry: createAgentRegistry(),
+    registry: createAgentRegistry(undefined, LEGACY_TOOL_FILES),
   });
   store = createConversationStore(harness, async () => project);
   return harness;

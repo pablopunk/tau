@@ -17,6 +17,7 @@ import { createConversationsMvp5Api } from "./conversations-mvp5-api";
 import type { ConversationForker } from "./harness/conversation-fork";
 import type { ConversationStore } from "./harness/conversation-store";
 import type { ProjectStore } from "./harness/project-store";
+import { createSubagentStopper } from "./harness/subagent-stop";
 import type { SettingsStore } from "./home/settings-store";
 import type { ProviderService } from "./provider/provider-service";
 import type { RemovalHooks } from "./removal-hooks";
@@ -111,7 +112,10 @@ export function createConversationsApi(deps: {
     const summary = await conversations.find(id);
     if (!summary) return;
     const children = (await conversations.list(summary.projectId)).filter((thread) => thread.parentId === id);
-    for (const child of children) await conversations.archive(child.id, archived, now());
+    for (const child of children) {
+      if (archived) await conversations.abort(child.id);
+      await conversations.archive(child.id, archived, now());
+    }
   }
 
   async function modelOfThread(id: string): Promise<ModelRef> {
@@ -175,6 +179,11 @@ export function createConversationsApi(deps: {
       announce(await conversations.retry(id, input, now()));
     },
     watch: (id, onOps) => conversations.watch(id, onOps),
-    ...createConversationsMvp5Api({ forker: deps.forker, checkpoints, conversations }),
+    ...createConversationsMvp5Api({
+      forker: deps.forker,
+      checkpoints,
+      conversations,
+      subagents: createSubagentStopper(conversations),
+    }),
   };
 }

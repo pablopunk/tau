@@ -142,7 +142,12 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
       projectPathOf: async (id) => (await projects.require(id)).path,
       emitChange: () => changes.emit({ resource: "mcp" }),
     });
-    toolServices.set({ processes, mcp });
+    toolServices.set({
+      processes,
+      mcp,
+      connectedModels: async () =>
+        (await provider.listModels()).map(({ provider: id, modelId }) => ({ provider: id, modelId })),
+    });
     const removalHooks: RemovalHooks = {
       unmergedWork: (thread) => workspaces.unmergedWork(thread),
       onConversationRemoved: [

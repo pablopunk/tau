@@ -185,6 +185,10 @@ export class FakeConversation {
       workspace: { ...this.workspace },
       forkOf: this.forkOf && { ...this.forkOf },
       parentId: this.parentId,
+      agentType: null,
+      agentModel: null,
+      agentStatus: null,
+      background: false,
     };
   }
 

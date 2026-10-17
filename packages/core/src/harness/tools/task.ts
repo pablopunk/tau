@@ -20,38 +20,46 @@ export const TASK_DESCRIPTION =
 
 const NO_ANSWER = "The subagent finished without an answer.";
 
-export const taskToolFile: ToolFileFactory = () => {
-  const task: ToolRegistration<typeof TaskParameters> = defineTool({
-    name: "task",
-    description: TASK_DESCRIPTION,
-    parameters: TaskParameters,
-    replay: "safe",
-    executionMode: "parallel",
-    execute: async (args, api, context) => {
-      const childId = await api.commit(
-        (tx) =>
-          args.subagent === undefined
-            ? findOrCreateChild(tx, {
-                taskId: String(api.taskId),
-                parentId: api.conversationId,
-                description: args.description,
-                withoutExtension: () => extension,
-              })
-            : requireOwnChild(tx, api.conversationId, args.subagent),
-        context,
-      );
-      await api.details({ conversationId: String(childId), status: "running" }, context);
-      const child = await api.conversation(childId, context);
-      const request = { type: "input", content: args.prompt, requestId: `task:${api.taskId}` } as const;
-      const settled = await (await child?.submit(request, context))?.wait(context);
-      const answer = await api.commit((tx) => finalAnswerOf(tx, childId), context);
-      const status = settled?.status === "done" ? "done" : "unanswered";
-      return {
-        output: [{ type: "text", text: answer || NO_ANSWER }],
-        details: { conversationId: String(childId), status, continued: args.subagent !== undefined },
-      };
-    },
-  });
-  const extension: Extension = defineExtension({ name: "task", tools: [task] });
-  return { implemented: true, extension };
-};
+type Callers = NonNullable<ToolRegistration["callers"]>;
+
+export const buildTaskToolFile =
+  (callers?: Callers): ToolFileFactory =>
+  () => {
+    const task: ToolRegistration<typeof TaskParameters> = defineTool({
+      name: "task",
+      description: TASK_DESCRIPTION,
+      parameters: TaskParameters,
+      replay: "safe",
+      executionMode: "parallel",
+      ...(callers && { callers }),
+      execute: async (args, api, context) => {
+        const childId = await api.commit(
+          (tx) =>
+            args.subagent === undefined
+              ? findOrCreateChild(tx, {
+                  taskId: String(api.taskId),
+                  parentId: api.conversationId,
+                  description: args.description,
+                  withoutExtension: () => extension,
+                })
+              : requireOwnChild(tx, api.conversationId, args.subagent),
+          context,
+        );
+        await api.details({ conversationId: String(childId), status: "running" }, context);
+        const child = await api.conversation(childId, context);
+        const request = { type: "input", content: args.prompt, requestId: `task:${api.taskId}` } as const;
+        const settled = await (await child?.submit(request, context))?.wait(context);
+        const answer = await api.commit((tx) => finalAnswerOf(tx, childId), context);
+        const status = settled?.status === "done" ? "done" : "unanswered";
+        return {
+          output: [{ type: "text", text: answer || NO_ANSWER }],
+          details: { conversationId: String(childId), status, continued: args.subagent !== undefined },
+        };
+      },
+    });
+    const extension: Extension = defineExtension({ name: "task", tools: [task] });
+    return { implemented: true, extension };
+  };
+
+/** The model no longer sees `task`; a call already in flight still replays through the tools-only registration. */
+export const taskToolFile = buildTaskToolFile(["tools"]);

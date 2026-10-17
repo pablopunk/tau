@@ -17,7 +17,7 @@ export interface ThreadOpsContext {
 
 type ThreadOps = Pick<
   Core["conversations"],
-  "fork" | "rewindPreview" | "rewind" | "cancelQueued" | "checkpoints" | "checkpointDiff"
+  "fork" | "stopAgent" | "rewindPreview" | "rewind" | "cancelQueued" | "checkpoints" | "checkpointDiff"
 >;
 
 const entryIdsOf = (conversation: FakeConversation) => conversation.userEntries().map((entry) => entry.id);
@@ -48,6 +48,11 @@ export function createFakeThreadOps(ctx: ThreadOpsContext): ThreadOps {
       if (draft === undefined) throw new AppError("not_found", `Unknown entry: ${entryId}`);
       const conversation = forkAt(source, entryId, false, `Fork of ${source.title}`).summary();
       return { conversation, draft };
+    },
+    async stopAgent(id) {
+      const child = ctx.require(id);
+      if (child.parentId === null) throw new AppError("invalid_request", "Only a subagent can be stopped.");
+      await child.abort();
     },
     async cancelQueued(id, itemId) {
       return { cancelled: ctx.require(id).cancelQueued(itemId) };

@@ -105,6 +105,7 @@ export interface Api {
     fork(id: string, entryId: string): Promise<ConversationSummary>;
     rewindPreview(id: string, entryId: string): Promise<RestorePreview>;
     rewind(id: string, entryId: string): Promise<{ conversation: ConversationSummary; draft: string }>;
+    stopAgent(id: string): Promise<void>;
     cancelQueued(id: string, itemId: string): Promise<{ cancelled: boolean }>;
     checkpoints(id: string): Promise<Checkpoint[]>;
     checkpointDiff(id: string, checkpointId: string, path: string): Promise<string>;
@@ -200,6 +201,7 @@ export function createApi(transport: Transport): Api {
       fork: (id, entryId) => request("forkConversation", { params: { id }, body: { entryId } }),
       rewindPreview: (id, entryId) => request("rewindPreview", { params: { id }, body: { entryId } }),
       rewind: (id, entryId) => request("rewindConversation", { params: { id }, body: { entryId } }),
+      stopAgent: (id) => request("stopAgent", { params: { id } }),
       cancelQueued: (id, itemId) => request("cancelQueued", { params: { id, itemId } }),
       checkpoints: (id) => request("listCheckpoints", { params: { id } }),
       checkpointDiff: async (id, cid, path) =>

@@ -161,6 +161,24 @@ export const ConversationStatusSchema = Type.Union([
 ]);
 export type ConversationStatus = Type.Static<typeof ConversationStatusSchema>;
 
+export const AgentStatusSchema = Type.Union([
+  Type.Literal("running"),
+  Type.Literal("done"),
+  Type.Literal("failed"),
+  Type.Literal("stopped"),
+]);
+export type AgentStatus = Type.Static<typeof AgentStatusSchema>;
+
+export const SUBAGENT_NOTIFICATION_KIND = "app.subagent_notification";
+
+export const SubagentNotificationDataSchema = Type.Object({
+  childId: Type.String(),
+  status: Type.Union([Type.Literal("done"), Type.Literal("failed"), Type.Literal("stopped")]),
+  title: Type.String(),
+  report: Type.String(),
+});
+export type SubagentNotificationData = Type.Static<typeof SubagentNotificationDataSchema>;
+
 export const ConversationSummarySchema = Type.Object({
   id: Type.String(),
   projectId: Type.String(),
@@ -176,6 +194,10 @@ export const ConversationSummarySchema = Type.Object({
   workspace: ThreadWorkspaceSchema,
   forkOf: Type.Union([Type.Object({ conversationId: Type.String(), entryId: Type.String() }), Type.Null()]),
   parentId: Type.Union([Type.String(), Type.Null()]),
+  agentType: Type.Union([Type.String(), Type.Null()]),
+  agentModel: Type.Union([ModelRefSchema, Type.Null()]),
+  agentStatus: Type.Union([AgentStatusSchema, Type.Null()]),
+  background: Type.Boolean(),
 });
 export type ConversationSummary = Type.Static<typeof ConversationSummarySchema>;
 

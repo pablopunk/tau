@@ -20,12 +20,12 @@ export function createConversationRemoval(deps: {
       const children = summary
         ? (await conversations.list(summary.projectId)).filter((thread) => thread.parentId === id)
         : [];
-      const projectId = await conversations.remove(id, now());
-      if (projectId === undefined) return;
       for (const child of children) {
         await conversations.remove(child.id, now());
         await runConversationRemoved(hooks, child);
       }
+      const projectId = await conversations.remove(id, now());
+      if (projectId === undefined) return;
       if (summary) await runConversationRemoved(hooks, summary);
       announce(projectId);
     },

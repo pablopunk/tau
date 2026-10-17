@@ -36,6 +36,10 @@ export const toSummary = (project: ProjectRef, entry: IndexedConversation): Conv
   workspace: entry.workspace ?? legacyWorkspace(project.path),
   forkOf: entry.forkOf ?? null,
   parentId: entry.parentId ?? null,
+  agentType: entry.agentType ?? null,
+  agentModel: entry.agentModel ?? null,
+  agentStatus: entry.agentStatus ?? null,
+  background: entry.background ?? false,
 });
 
 export const byMostRecentlyUpdated = (a: ConversationSummary, b: ConversationSummary) =>

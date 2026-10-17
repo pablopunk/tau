@@ -374,6 +374,12 @@ export const routes = {
     status: 204,
     params: IdParams,
   },
+  stopAgent: {
+    method: "POST",
+    path: `${API_PREFIX}/conversations/:id/stop-agent`,
+    status: 204,
+    params: IdParams,
+  },
   forkConversation: {
     method: "POST",
     path: `${API_PREFIX}/conversations/:id/fork`,

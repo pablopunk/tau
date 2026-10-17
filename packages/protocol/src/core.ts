@@ -195,6 +195,8 @@ export interface Core {
      * when the worktree has uncommitted changes or unmerged commits, unless `force`.
      */
     remove(id: string, options?: { force?: boolean }): Promise<void>;
+    /** Stops the run of a subagent child; its status becomes `stopped`. Rejects `not_found`, `invalid_request` for a thread that is not a child. */
+    stopAgent(id: string): Promise<void>;
     /** New thread in the same checkout or worktree, with history up to and including the entry. Rejects `not_found`. */
     fork(id: string, entryId: string): Promise<ConversationSummary>;
     /** The files a rewind would change. Rejects `not_found` for an unknown thread, entry or checkpoint. */

@@ -1,10 +1,13 @@
 import { defineTool, type Extension, type ToolRegistration } from "@earendil-works/pi-durable";
+import type { ModelRef } from "@pi-everywhere/protocol";
 import type { TSchema } from "typebox";
 import type { McpService } from "../../mcp/mcp-service";
 import { notImplemented } from "../../not-implemented";
 import type { ProcessService } from "../../processes/process-service";
 
 export interface ToolServices {
+  /** Models the user has a key for; the `agent` tool lists them in its description. */
+  readonly connectedModels: () => Promise<readonly ModelRef[]>;
   readonly processes: ProcessService;
   readonly mcp: McpService;
 }

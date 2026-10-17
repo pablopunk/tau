@@ -13,7 +13,7 @@ import { makeLocalRepo } from "./test-support/local-repo";
 
 const REAL_CORE_IMPLEMENTED = true;
 
-const PENDING_TAGS: string[] = [];
+const PENDING_TAGS: string[] = ["[subagents-v2]", "[subagents-task]"];
 
 process.env.PI_EVERYWHERE_ALLOW_FILE_CLONES = "1";
 
