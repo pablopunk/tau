@@ -11,7 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
+import { PathInput } from "@/components/ui/path-input";
 import { api } from "@/lib/api";
 
 type Mode = "clone" | "folder";
@@ -92,11 +92,11 @@ function UseRepoForm({ repo, onUsed }: { repo: GithubRepo; onUsed(project: Proje
         </Button>
       </div>
       {mode === "folder" ? (
-        <Input
+        <PathInput
           aria-label="Folder path"
-          placeholder="/path/to/repo"
+          placeholder="~/path/to/repo"
           value={path}
-          onChange={(event) => setPath(event.target.value)}
+          onValueChange={setPath}
         />
       ) : null}
       <FormError message={error} />

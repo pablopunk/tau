@@ -173,6 +173,19 @@ export type UseGithubRepoInput = Type.Static<typeof UseGithubRepoInputSchema>;
 export const SuggestedCodeFolderSchema = Type.Union([Type.Object({ path: Type.String() }), Type.Null()]);
 export type SuggestedCodeFolder = Type.Static<typeof SuggestedCodeFolderSchema>;
 
+export const PathSuggestionSchema = Type.Object({
+  path: Type.String(),
+  display: Type.String(),
+  isGitRepo: Type.Boolean(),
+});
+export type PathSuggestion = Type.Static<typeof PathSuggestionSchema>;
+
+export const SuggestDirectoriesInputSchema = Type.Object({
+  prefix: Type.String(),
+  limit: Type.Optional(Type.Integer({ minimum: 1, maximum: 200 })),
+});
+export type SuggestDirectoriesInput = Type.Static<typeof SuggestDirectoriesInputSchema>;
+
 export const IconCandidateSchema = Type.Object({ name: Type.String({ minLength: 1 }) });
 export type IconCandidate = Type.Static<typeof IconCandidateSchema>;
 

@@ -3,7 +3,7 @@ import { useEffect, useId, useState } from "react";
 import { FormError } from "@/app/FormError";
 import { useSubmit } from "@/app/use-submit";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { PathInput } from "@/components/ui/path-input";
 import { api } from "@/lib/api";
 import { queryKeys, useSettings } from "@/lib/queries";
 
@@ -34,7 +34,7 @@ export function ProjectsFolderField() {
         Projects folder
       </label>
       <div className="flex gap-2">
-        <Input id={id} value={value} onChange={(event) => setValue(event.target.value)} />
+        <PathInput id={id} value={value} onValueChange={setValue} placeholder="~/projects" />
         <Button type="submit" variant="outline" disabled={pending || !value.trim() || value.trim() === saved}>
           Save
         </Button>

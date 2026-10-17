@@ -7,12 +7,14 @@ import {
   IconCandidateLinkSchema,
   ModelInfoSchema,
   ModelRefSchema,
+  PathSuggestionSchema,
   ProjectSchema,
   ProviderStatusSchema,
   RetryInputSchema,
   SendMessageInputSchema,
   SettingsSchema,
   StartConversationInputSchema,
+  SuggestDirectoriesInputSchema,
   SuggestedCodeFolderSchema,
   UseGithubRepoInputSchema,
 } from "./entities";
@@ -65,6 +67,13 @@ export const routes = {
     path: `${API_PREFIX}/settings/suggested-code-folder`,
     status: 200,
     response: SuggestedCodeFolderSchema,
+  },
+  suggestDirectories: {
+    method: "POST",
+    path: `${API_PREFIX}/fs/suggest`,
+    status: 200,
+    body: SuggestDirectoriesInputSchema,
+    response: Type.Array(PathSuggestionSchema),
   },
   getGithubStatus: {
     method: "GET",

@@ -18,6 +18,7 @@ type Input = { params: { id: string }; body: Record<string, unknown> };
 type Handlers = { [N in JsonRouteName]: (core: Core, input: Input) => Promise<unknown> };
 
 const handlers: Handlers = {
+  suggestDirectories: (core, { body }) => core.fs.suggestDirectories(body as never),
   getSettings: (core) => core.settings.get(),
   setDefaultModel: (core, { body }) => core.settings.setDefaultModel(body as never),
   getSuggestedCodeFolder: (core) => core.settings.suggestedCodeFolder(),

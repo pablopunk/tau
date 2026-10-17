@@ -3,7 +3,7 @@ import { mkdir, readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import type { Core } from "@pi-everywhere/protocol";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { createCoreWith, defaultCoreDependencies } from "./create-core";
 import { createGithubService } from "./github/github-service";
 import type { GhResult, RunGh } from "./github/run-gh";
@@ -251,6 +251,23 @@ describe("github.use", () => {
       path: matching,
     });
     expect(project).toMatchObject({ kind: "folder", path: matching });
+  });
+
+  it("expands ~ in the folder path", async () => {
+    const world = await openWorld({
+      status: connected(),
+      repos: [repo("me/target", "2026-01-01T00:00:00Z")],
+    });
+    const homeFolder = await tempDir();
+    const matching = await makeLocalRepo(homeFolder, "tilde-copy");
+    vi.stubEnv("HOME", homeFolder);
+    const project = await world.core.github.use({
+      nameWithOwner: "me/target",
+      mode: "folder",
+      path: "~/tilde-copy",
+    });
+    vi.unstubAllEnvs();
+    expect(project.path).toBe(matching);
   });
 
   it("requires a path in folder mode", async () => {

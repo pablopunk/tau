@@ -7,6 +7,7 @@ import type {
   IconCandidate,
   ModelInfo,
   ModelRef,
+  PathSuggestion,
   Project,
   ProjectIconImage,
   ProviderStatus,
@@ -14,6 +15,7 @@ import type {
   SendMessageInput,
   Settings,
   StartConversationInput,
+  SuggestDirectoriesInput,
   SuggestedCodeFolder,
   UseGithubRepoInput,
 } from "./entities";
@@ -28,6 +30,7 @@ export type {
   IconCandidate,
   ModelInfo,
   ModelRef,
+  PathSuggestion,
   Project,
   ProjectIconImage,
   ProviderStatus,
@@ -35,6 +38,7 @@ export type {
   SendMessageInput,
   Settings,
   StartConversationInput,
+  SuggestDirectoriesInput,
   SuggestedCodeFolder,
   UseGithubRepoInput,
 } from "./entities";
@@ -52,6 +56,10 @@ export interface ConversationWatcher {
  * (`openrouter`, also in faux mode); `ModelRef.provider` is the model's own provider (`faux` in faux mode).
  */
 export interface Core {
+  fs: {
+    /** Folders matching a typed path, `~` allowed; relative or empty prefixes suggest from the home folder. Never rejects: unreadable or missing folders give `[]`. */
+    suggestDirectories(input: SuggestDirectoriesInput): Promise<PathSuggestion[]>;
+  };
   settings: {
     get(): Promise<Settings>;
     /** Only affects conversations created afterwards. Rejects `no_provider` without a key, `invalid_request` for a model the provider does not list. */

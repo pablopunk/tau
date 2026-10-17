@@ -1,5 +1,5 @@
 import type { ConversationSummary } from "@pi-everywhere/protocol";
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { api } from "./api";
 
 export const queryKeys = {
@@ -12,6 +12,7 @@ export const queryKeys = {
   githubStatus: ["github", "status"] as const,
   githubRepos: ["github", "repos"] as const,
   suggestedCodeFolder: ["settings", "suggested-code-folder"] as const,
+  pathSuggestions: (prefix: string) => ["fs", "suggest", prefix] as const,
   iconCandidates: (projectId: string) => ["projects", projectId, "icon-candidates"] as const,
 };
 
@@ -53,6 +54,15 @@ export const useGithubRepos = (enabled: boolean) =>
 
 export const useSuggestedCodeFolder = () =>
   useQuery({ queryKey: queryKeys.suggestedCodeFolder, queryFn: () => api.settings.suggestedCodeFolder() });
+
+export const usePathSuggestions = (prefix: string, enabled = true) =>
+  useQuery({
+    queryKey: queryKeys.pathSuggestions(prefix),
+    queryFn: () => api.fs.suggestDirectories({ prefix }),
+    enabled,
+    placeholderData: keepPreviousData,
+    staleTime: 5_000,
+  });
 
 export const useIconCandidates = (projectId: string, enabled = true) =>
   useQuery({

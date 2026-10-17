@@ -5,12 +5,14 @@ import type {
   GithubStatus,
   ModelInfo,
   ModelRef,
+  PathSuggestion,
   Project,
   ProviderStatus,
   RetryInput,
   SendMessageInput,
   Settings,
   StartConversationInput,
+  SuggestDirectoriesInput,
   SuggestedCodeFolder,
   UseGithubRepoInput,
 } from "@pi-everywhere/protocol";
@@ -23,6 +25,9 @@ export type { LiveHandlers, LiveSocket, LiveTransport, Transport } from "./trans
 
 /** The typed REST client. Every method rejects with `AppError` (see `@pi-everywhere/protocol`). */
 export interface Api {
+  fs: {
+    suggestDirectories(input: SuggestDirectoriesInput): Promise<PathSuggestion[]>;
+  };
   settings: {
     get(): Promise<Settings>;
     setDefaultModel(ref: ModelRef): Promise<void>;
@@ -76,6 +81,9 @@ const toBase64 = (bytes: Uint8Array) => btoa(Array.from(bytes, (byte) => String.
 export function createApi(transport: Transport): Api {
   const { request } = transport;
   return {
+    fs: {
+      suggestDirectories: (input) => request("suggestDirectories", { body: input }),
+    },
     settings: {
       get: () => request("getSettings", {}),
       setDefaultModel: (ref) => request("setDefaultModel", { body: ref }),

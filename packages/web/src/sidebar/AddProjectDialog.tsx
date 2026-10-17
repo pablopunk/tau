@@ -13,6 +13,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { PathInput } from "@/components/ui/path-input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { api } from "@/lib/api";
 import { queryKeys, useSettings } from "@/lib/queries";
@@ -78,12 +79,11 @@ export function AddProjectDialog({
               <label htmlFor={pathId} className="text-sm font-medium">
                 Folder path
               </label>
-              <Input
+              <PathInput
                 id={pathId}
                 value={path}
-                onChange={(event) => setPath(event.target.value)}
-                placeholder="/Users/you/src/my-app"
-                spellCheck={false}
+                onValueChange={setPath}
+                placeholder="~/src/my-app"
                 autoFocus
                 aria-invalid={error ? true : undefined}
               />

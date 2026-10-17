@@ -5,6 +5,7 @@ import { defineImageRoute } from "./define-image-route";
 import { defineRoute } from "./define-route";
 
 export function registerRoutes(app: FastifyInstance, core: Core): void {
+  defineRoute(app, routes.suggestDirectories, ({ body }) => core.fs.suggestDirectories(body));
   defineRoute(app, routes.getSettings, () => core.settings.get());
   defineRoute(app, routes.setDefaultModel, ({ body }) => core.settings.setDefaultModel(body));
   defineRoute(app, routes.setFastModel, ({ body }) => core.settings.setFastModel(body.model));

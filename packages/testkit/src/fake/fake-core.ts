@@ -10,11 +10,20 @@ import {
 } from "@pi-everywhere/protocol";
 import { clampFakeThinkingLevel, FAKE_MODELS, FAKE_PROVIDER_ID, findFakeModel } from "./catalog";
 import { FakeConversation, type FakeInput } from "./fake-conversation";
-import { assertDirectory, baseName, FAKE_FS, type FakeFs, normalizePath } from "./fake-fs";
+import {
+  assertDirectory,
+  baseName,
+  expandFakeHome,
+  FAKE_FS,
+  FAKE_HOME_PATH,
+  type FakeFs,
+  normalizePath,
+} from "./fake-fs";
 import { cloneWouldFail, folderNameFor, repositoryKeyOf } from "./fake-git";
 import { createFakeGithub, type FakeGithubOptions } from "./fake-github";
 import { createFakeIcons } from "./fake-icons";
 import { assertImageMatchesMimeType } from "./fake-images";
+import { suggestFakeDirectories } from "./fake-suggest";
 
 export interface FakeCoreOptions {
   /** Replay speed multiplier: 1 is the recorded timing, larger is faster. Default 1. */
@@ -30,7 +39,7 @@ export interface FakeCoreOptions {
   readonly github?: FakeGithubOptions;
 }
 
-export const FAKE_HOME_PATH = "/Users/demo";
+export { FAKE_HOME_PATH };
 export const FAKE_PROJECTS_FOLDER = `${FAKE_HOME_PATH}/.pi-everywhere/projects`;
 const HOME_ID = "home";
 const FIRST_CONVERSATION_ID = 2;
@@ -143,7 +152,7 @@ export function createFakeCore(options: FakeCoreOptions = {}): Core {
   };
 
   const resolveFolder = (path: string) =>
-    normalizePath(path) === home.path ? home.path : assertDirectory(fs, path);
+    normalizePath(expandFakeHome(path)) === home.path ? home.path : assertDirectory(fs, path);
 
   const addFolderProject = (input: { path: string; name?: string; gitUrl?: string }): Project => {
     const real = normalizePath(input.path);
@@ -219,6 +228,11 @@ export function createFakeCore(options: FakeCoreOptions = {}): Core {
   }
 
   return {
+    fs: {
+      async suggestDirectories(input) {
+        return suggestFakeDirectories(fs, input);
+      },
+    },
     settings: {
       async suggestedCodeFolder() {
         return null;
@@ -240,7 +254,8 @@ export function createFakeCore(options: FakeCoreOptions = {}): Core {
         requireListedModel(ref);
         fastModel = { provider: ref.provider, modelId: ref.modelId };
       },
-      async setProjectsFolder(path) {
+      async setProjectsFolder(typedPath) {
+        const path = expandFakeHome(typedPath);
         if (!path.startsWith("/")) throw new AppError("invalid_request", "The path must be absolute.");
         if (fs[normalizePath(path)] === "file")
           throw new AppError("not_a_directory", `Not a folder: ${path}`);

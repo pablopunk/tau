@@ -1,6 +1,7 @@
 import { mkdir } from "node:fs/promises";
 import { isAbsolute } from "node:path";
 import { AppError, type Core, type ModelRef } from "@pi-everywhere/protocol";
+import { expandHome } from "./fs/expand-home";
 import { type CodeFolderDeps, suggestCodeFolder } from "./github/code-folder";
 import type { SettingsStore } from "./home/settings-store";
 import type { ProviderService } from "./provider/provider-service";
@@ -8,7 +9,8 @@ import { resolveProjectFolder } from "./resolve-project-folder";
 
 const NOT_A_FOLDER = new AppError("not_a_directory", "This path is not a folder.");
 
-async function createFolder(path: string): Promise<string> {
+async function createFolder(typedPath: string): Promise<string> {
+  const path = expandHome(typedPath);
   if (!isAbsolute(path)) throw new AppError("invalid_request", "The folder path must be absolute.");
   await mkdir(path, { recursive: true }).catch((error: NodeJS.ErrnoException) => {
     throw error.code === "EEXIST" || error.code === "ENOTDIR" ? NOT_A_FOLDER : error;

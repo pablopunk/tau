@@ -4,6 +4,7 @@ import type { Core, CreateCore } from "@pi-everywhere/protocol";
 import { createChangeEmitter } from "./change-emitter";
 import { createConversationRecovery } from "./conversation-recovery";
 import { createConversationsApi } from "./conversations-api";
+import { suggestDirectories } from "./fs/suggest-directories";
 import { createCloneService } from "./git/clone-service";
 import { createGithubService } from "./github/github-service";
 import { createRunGh, type RunGh, resolveGhPath } from "./github/run-gh";
@@ -115,6 +116,7 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
 
     let closing: Promise<void> | undefined;
     return {
+      fs: { suggestDirectories },
       settings: createSettingsApi({
         settings,
         provider,

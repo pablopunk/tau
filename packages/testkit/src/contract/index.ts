@@ -4,6 +4,7 @@ import { chatCases } from "./chat";
 import { cloneCases } from "./clone";
 import { configureCases } from "./configure";
 import { conversationCases } from "./conversations";
+import { fsCases } from "./fs";
 import { githubCases } from "./github";
 import { iconCases } from "./icons";
 import { lifecycleCases } from "./lifecycle";
@@ -32,6 +33,7 @@ export function runCoreContract(
   describe(`Core contract: ${name}`, () => {
     settingsAndProviderCases(makeTarget, test);
     projectCases(makeTarget, test);
+    fsCases(makeTarget, test);
     conversationCases(makeTarget, test);
     startCases(makeTarget, test);
     titleAndStatusCases(makeTarget, test);
