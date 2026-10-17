@@ -14,7 +14,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
-import { LABEL_SEPARATOR, rankOption } from "@/components/ui/combobox-rank"
+import { rankOption, searchValueOf } from "@/components/ui/combobox-rank"
 import { cn } from "@/lib/utils"
 
 export interface ComboboxOption {
@@ -141,7 +141,7 @@ function Combobox({
                 {items.map((option) => (
                   <CommandItem
                     key={option.value}
-                    value={[option.label, option.description, ...(option.keywords ?? [])].join(LABEL_SEPARATOR)}
+                    value={searchValueOf(option.value, [option.label, option.description, ...(option.keywords ?? [])])}
                     disabled={option.disabled}
                     onSelect={() => {
                       onChange(option.value)

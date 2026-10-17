@@ -6,7 +6,7 @@ const keyOf = (ref: ModelRef) => `${ref.provider}/${ref.modelId}`;
 const toOption = (model: ModelInfo): ComboboxOption => ({
   value: keyOf(model),
   label: model.name,
-  description: model.modelId,
+  description: keyOf(model),
   group: model.providerName,
 });
 

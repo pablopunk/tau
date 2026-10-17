@@ -22,7 +22,31 @@ describe("ModelCombobox", () => {
 
     await user.click(screen.getByRole("combobox", { name: "Model" }));
 
-    expect(await screen.findByRole("group", { name: "OpenAI" })).toHaveTextContent("gpt-x");
-    expect(screen.getByRole("group", { name: "Anthropic" })).toHaveTextContent("claude-x");
+    expect(await screen.findByRole("group", { name: "OpenAI" })).toHaveTextContent("openai/gpt-x");
+    expect(screen.getByRole("group", { name: "Anthropic" })).toHaveTextContent("anthropic/claude-x");
+  });
+
+  it("highlights only one of two same-named models from different providers", async () => {
+    Element.prototype.scrollIntoView = () => {};
+    const user = userEvent.setup();
+    const picked: string[] = [];
+    render(
+      <ModelCombobox
+        models={[model("openai", "OpenAI", "gpt-luna"), model("opencode", "OpenCode Zen", "gpt-luna")]}
+        value={null}
+        onChange={(ref) => picked.push(ref?.provider ?? "")}
+        ariaLabel="Model"
+      />,
+    );
+
+    await user.click(screen.getByRole("combobox", { name: "Model" }));
+    const [, second] = await screen.findAllByRole("option");
+    await user.hover(second as HTMLElement);
+
+    expect(
+      screen.getAllByRole("option").filter((option) => option.getAttribute("aria-selected") === "true"),
+    ).toEqual([second]);
+    await user.click(second as HTMLElement);
+    expect(picked).toEqual(["opencode"]);
   });
 });
