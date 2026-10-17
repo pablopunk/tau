@@ -1,27 +1,8 @@
-import type { ProviderInfo } from "@pi-everywhere/protocol";
 import { FormError } from "@/app/FormError";
-import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { errorMessage } from "@/lib/error-message";
 import { useProviders } from "@/lib/queries";
-
-function connectionLabel(provider: ProviderInfo): string {
-  const { connection } = provider;
-  if (!connection) return "Not connected";
-  if (connection.source === "env") return "From environment";
-  if (connection.valid === false) return "Invalid key";
-  if (connection.valid === null) return "Key not checked";
-  return connection.method === "chatgpt" ? "Connected · ChatGPT" : "Connected · key";
-}
-
-function ProviderRow({ provider }: { provider: ProviderInfo }) {
-  return (
-    <li className="flex items-center justify-between gap-3">
-      <span className="text-sm font-medium">{provider.name}</span>
-      <Badge variant={provider.connection ? "default" : "secondary"}>{connectionLabel(provider)}</Badge>
-    </li>
-  );
-}
+import { ProviderRow } from "./ProviderRow";
 
 export function ProvidersSection() {
   const providers = useProviders();

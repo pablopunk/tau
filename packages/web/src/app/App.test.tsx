@@ -30,8 +30,11 @@ describe("setup", () => {
   it("takes the key, then the default model, then shows the main screen", async () => {
     const user = await renderApp({ ready: false });
 
-    await user.type(await screen.findByLabelText("OpenRouter API key"), "sk-or-test");
-    await user.click(screen.getByRole("button", { name: "Continue" }));
+    const row = within(await screen.findByRole("listitem", { name: "OpenRouter" }));
+    await user.click(row.getByRole("button", { name: "Add key" }));
+    await user.type(row.getByLabelText("OpenRouter API key"), "sk-or-test");
+    await user.click(row.getByRole("button", { name: "Save" }));
+    await user.click(await screen.findByRole("button", { name: "Continue" }));
 
     expect(await screen.findByText(/only affects new conversations/i)).toBeInTheDocument();
     await user.click(screen.getByRole("combobox", { name: "Default model" }));
@@ -42,7 +45,7 @@ describe("setup", () => {
     expect(await screen.findByRole("heading", { name: "New thread" })).toBeInTheDocument();
   });
 
-  it("keeps Continue disabled for an empty key", async () => {
+  it("keeps Continue disabled until a provider is connected", async () => {
     await renderApp({ ready: false });
     expect(await screen.findByRole("button", { name: "Continue" })).toBeDisabled();
   });
