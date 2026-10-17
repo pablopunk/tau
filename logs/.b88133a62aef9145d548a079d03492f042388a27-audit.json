@@ -1,0 +1,15 @@
+{
+    "keep": {
+        "days": true,
+        "amount": 14
+    },
+    "auditLog": "/Users/pablopunk/src/pi-everywhere/logs/.b88133a62aef9145d548a079d03492f042388a27-audit.json",
+    "files": [
+        {
+            "date": 1792250737031,
+            "name": "/Users/pablopunk/src/pi-everywhere/logs/error-2026-10-17.log",
+            "hash": "893b560b135e876b6a4f47fdc260754202152dfad42062f0684be4ea41fa75d5"
+        }
+    ],
+    "hashType": "sha256"
+}

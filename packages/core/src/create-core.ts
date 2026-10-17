@@ -133,6 +133,7 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
     const mcp = createMcpService({
       settingsServers: () => settings.mcpServers(),
       projectPathOf: async (id) => (await projects.require(id)).path,
+      emitChange: () => changes.emit({ resource: "mcp" }),
     });
     toolServices.set({ processes, mcp });
     const removalHooks: RemovalHooks = {
