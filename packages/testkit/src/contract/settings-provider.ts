@@ -22,6 +22,8 @@ export function settingsAndProviderCases(make: MakeContractTarget, test: CaseRun
         fastModel: null,
         fastThinkingLevel: null,
         projectsFolder: expect.any(String),
+        messageMode: "steer",
+        workspaceDefault: "worktree",
       });
       expect(await hasConnectedProvider(core)).toBe(false);
       expect(await core.models.list()).toEqual([]);

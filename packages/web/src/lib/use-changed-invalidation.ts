@@ -20,6 +20,7 @@ function invalidateChange(queryClient: QueryClient, change: Change) {
     void invalidateProviders(queryClient);
     return;
   }
+  if (change.resource !== "conversations") return;
   void queryClient.invalidateQueries({ queryKey: queryKeys.conversations(change.projectId) });
   void queryClient.invalidateQueries({ queryKey: queryKeys.allConversations });
 }

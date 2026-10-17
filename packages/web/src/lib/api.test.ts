@@ -39,6 +39,8 @@ describe("http transport", () => {
       fastModel: null,
       fastThinkingLevel: null,
       projectsFolder: "/data/projects",
+      messageMode: "steer",
+      workspaceDefault: "worktree",
     };
     stubFetch(respond(200, settings));
     expect(await api.settings.get()).toEqual(settings);

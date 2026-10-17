@@ -161,7 +161,7 @@ export function createApi(transport: Transport): Api {
       send: (id, input) => request("sendMessage", { params: { id }, body: input }),
       abort: (id) => request("abortConversation", { params: { id } }),
       archive: (id, archived) => request("archiveConversation", { params: { id }, body: { archived } }),
-      remove: (id) => request("removeConversation", { params: { id } }),
+      remove: (id) => request("removeConversation", { params: { id }, query: {} }),
       configure: (id, input) => request("configureConversation", { params: { id }, body: input }),
       retry: (id, input) => request("retryConversation", { params: { id }, body: input }),
       compact: (id, input) => request("compactConversation", { params: { id }, body: input }),

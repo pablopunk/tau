@@ -12,6 +12,8 @@ const DEFAULTS = {
   fastModel: null,
   fastThinkingLevel: null,
   projectsFolder: PROJECTS,
+  messageMode: "steer",
+  workspaceDefault: "worktree",
 };
 const ref = { provider: "openrouter", modelId: "x/y" };
 

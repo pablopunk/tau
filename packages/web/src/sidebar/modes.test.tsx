@@ -50,6 +50,8 @@ beforeEach(() => {
     fastModel: null,
     fastThinkingLevel: null,
     projectsFolder: "/p",
+    messageMode: "steer",
+    workspaceDefault: "worktree",
   });
   mocked.projects.list.mockResolvedValue([project(), repo]);
   mocked.conversations.listAll.mockResolvedValue([

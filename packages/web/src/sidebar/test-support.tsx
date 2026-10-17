@@ -27,6 +27,17 @@ export const conversation = (overrides: Partial<ConversationSummary> = {}): Conv
   status: "idle",
   lastRunEndedAt: null,
   model: null,
+  workspace: {
+    mode: "checkout",
+    path: "/p",
+    branch: null,
+    base: null,
+    state: "ready",
+    mergedSha: null,
+    pullRequestUrl: null,
+  },
+  forkOf: null,
+  parentId: null,
   ...overrides,
 });
 

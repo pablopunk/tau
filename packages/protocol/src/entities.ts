@@ -31,12 +31,31 @@ export const ModelInfoSchema = Type.Object({
 });
 export type ModelInfo = Type.Static<typeof ModelInfoSchema>;
 
+export const MessageModeSchema = Type.Union([Type.Literal("steer"), Type.Literal("queue")]);
+export type MessageMode = Type.Static<typeof MessageModeSchema>;
+
+export const WorkspaceModeSchema = Type.Union([Type.Literal("worktree"), Type.Literal("checkout")]);
+export type WorkspaceMode = Type.Static<typeof WorkspaceModeSchema>;
+
+export const ThreadWorkspaceSchema = Type.Object({
+  mode: WorkspaceModeSchema,
+  path: Type.String(),
+  branch: Type.Union([Type.String(), Type.Null()]),
+  base: Type.Union([Type.String(), Type.Null()]),
+  state: Type.Union([Type.Literal("ready"), Type.Literal("merged"), Type.Literal("removed")]),
+  mergedSha: Type.Union([Type.String(), Type.Null()]),
+  pullRequestUrl: Type.Union([Type.String(), Type.Null()]),
+});
+export type ThreadWorkspace = Type.Static<typeof ThreadWorkspaceSchema>;
+
 export const SettingsSchema = Type.Object({
   defaultModel: Type.Union([ModelRefSchema, Type.Null()]),
   defaultThinkingLevel: Type.Union([ThinkingLevelSchema, Type.Null()]),
   fastModel: Type.Union([ModelRefSchema, Type.Null()]),
   fastThinkingLevel: Type.Union([ThinkingLevelSchema, Type.Null()]),
   projectsFolder: Type.String(),
+  messageMode: MessageModeSchema,
+  workspaceDefault: WorkspaceModeSchema,
 });
 export type Settings = Type.Static<typeof SettingsSchema>;
 
@@ -153,6 +172,9 @@ export const ConversationSummarySchema = Type.Object({
   avatarIndex: Type.Number(),
   lastActivityAt: Type.Number(),
   model: Type.Union([ModelRefSchema, Type.Null()]),
+  workspace: ThreadWorkspaceSchema,
+  forkOf: Type.Union([Type.Object({ conversationId: Type.String(), entryId: Type.String() }), Type.Null()]),
+  parentId: Type.Union([Type.String(), Type.Null()]),
 });
 export type ConversationSummary = Type.Static<typeof ConversationSummarySchema>;
 
@@ -160,6 +182,8 @@ export const ChangeSchema = Type.Union([
   Type.Object({ resource: Type.Literal("projects") }),
   Type.Object({ resource: Type.Literal("providers") }),
   Type.Object({ resource: Type.Literal("conversations"), projectId: Type.String() }),
+  Type.Object({ resource: Type.Literal("processes"), conversationId: Type.String() }),
+  Type.Object({ resource: Type.Literal("mcp") }),
 ]);
 export type Change = Type.Static<typeof ChangeSchema>;
 
@@ -183,7 +207,13 @@ const SendMessageFields = {
   requestId: Type.String({ minLength: 1 }),
 };
 
-export const SendMessageInputSchema = Type.Object(SendMessageFields);
+export const WhenBusySchema = Type.Union([Type.Literal("steer"), Type.Literal("followUp")]);
+export type WhenBusy = Type.Static<typeof WhenBusySchema>;
+
+export const SendMessageInputSchema = Type.Object({
+  ...SendMessageFields,
+  whenBusy: Type.Optional(WhenBusySchema),
+});
 export type SendMessageInput = Type.Static<typeof SendMessageInputSchema>;
 
 export const StartConversationInputSchema = Type.Object({
@@ -191,6 +221,7 @@ export const StartConversationInputSchema = Type.Object({
   projectId: Type.String({ minLength: 1 }),
   model: Type.Optional(ModelRefSchema),
   thinkingLevel: Type.Optional(ThinkingLevelSchema),
+  workspace: Type.Optional(WorkspaceModeSchema),
 });
 export type StartConversationInput = Type.Static<typeof StartConversationInputSchema>;
 

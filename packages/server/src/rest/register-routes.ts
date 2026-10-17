@@ -3,6 +3,7 @@ import type { FastifyInstance } from "fastify";
 import { requireCandidateName } from "./candidate-name";
 import { defineImageRoute } from "./define-image-route";
 import { defineRoute } from "./define-route";
+import { registerWorkspaceRoutes } from "./register-workspace-routes";
 
 function startLoginFor(core: Core, id: ProviderId) {
   if (id !== "openai") throw new AppError("invalid_request", "This provider has no sign-in.");
@@ -73,7 +74,9 @@ export function registerRoutes(app: FastifyInstance, core: Core): void {
   defineRoute(app, routes.archiveConversation, ({ params, body }) =>
     core.conversations.archive(params.id, body.archived),
   );
-  defineRoute(app, routes.removeConversation, ({ params }) => core.conversations.remove(params.id));
+  defineRoute(app, routes.removeConversation, ({ params, query }) =>
+    core.conversations.remove(params.id, { force: query.force === "true" }),
+  );
   defineRoute(app, routes.configureConversation, ({ params, body }) =>
     core.conversations.configure(params.id, body),
   );
@@ -81,4 +84,5 @@ export function registerRoutes(app: FastifyInstance, core: Core): void {
     core.conversations.compact(params.id, body),
   );
   defineRoute(app, routes.retryConversation, ({ params, body }) => core.conversations.retry(params.id, body));
+  registerWorkspaceRoutes(app, core);
 }

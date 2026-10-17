@@ -14,6 +14,7 @@ import { requireContent, requireImageBytesMatchTheirType, requireImagesAllowed }
 import type { ConversationStore } from "./harness/conversation-store";
 import type { ProjectStore } from "./harness/project-store";
 import type { SettingsStore } from "./home/settings-store";
+import { conversationStubs } from "./mvp5-stubs";
 import type { ProviderService } from "./provider/provider-service";
 import { requireName } from "./require-name";
 import type { StatusTracker } from "./status/status-tracker";
@@ -137,5 +138,6 @@ export function createConversationsApi(deps: {
       announce(await conversations.retry(id, input, now()));
     },
     watch: (id, onOps) => conversations.watch(id, onOps),
+    ...conversationStubs,
   };
 }

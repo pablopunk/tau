@@ -15,6 +15,7 @@ import { openDataHome } from "./home/data-home";
 import { acquireHomeLock } from "./home/lock";
 import { createSettingsStore } from "./home/settings-store";
 import { createIconService } from "./icons/icon-service";
+import { workspaceStubs } from "./mvp5-stubs";
 import { createPresentProject } from "./project-view";
 import { createProjectsApi } from "./projects-api";
 import { createProviderService, type Environment } from "./provider/provider-service";
@@ -136,6 +137,7 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
       skills: createSkillsApi({ projects }),
       projects: createProjectsApi({ ...shared, clones, icons, present }),
       conversations: createConversationsApi({ ...shared, provider, settings, titles, status }),
+      ...workspaceStubs,
       onChange: (listener) => changes.subscribe(listener),
       close() {
         closing ??= (async () => {

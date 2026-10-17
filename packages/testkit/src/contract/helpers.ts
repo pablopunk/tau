@@ -8,6 +8,7 @@ import type {
   LiveState,
   Op,
   Project,
+  WorkspaceMode,
 } from "@pi-everywhere/protocol";
 import { expect } from "vitest";
 import type { ContractTarget } from "./types";
@@ -60,6 +61,11 @@ export async function trackView(core: Core, conversationId: string): Promise<Vie
 
 export function entryKinds(view: ConversationView | null): string[] {
   return view?.entries.map((entry) => entry.kind) ?? [];
+}
+
+export function userEntryIds(view: ConversationView | null): string[] {
+  const entries = view?.entries ?? [];
+  return entries.filter((entry) => entry.model?.[0]?.role === "user").map((entry) => String(entry.id));
 }
 
 export function isRunning(view: ConversationView | null): boolean {
@@ -123,6 +129,11 @@ export async function addProject(target: ContractTarget, name = "main"): Promise
   return target.core.projects.add({ path: await target.paths.directory(name) });
 }
 
+export async function addGitProject(target: ContractTarget, name = "repo"): Promise<Project> {
+  const path = await (target.paths.gitDirectory ?? target.paths.directory)(name);
+  return target.core.projects.add({ path });
+}
+
 let requestCounter = 0;
 export const nextRequestId = () => `request-${++requestCounter}`;
 
@@ -132,6 +143,9 @@ export interface StartOptions {
   readonly images?: ImageInput[];
   readonly model?: { provider: string; modelId: string };
   readonly requestId?: string;
+  readonly workspace?: WorkspaceMode;
+  /** Start in a git project (a worktree is possible there). */
+  readonly git?: boolean;
 }
 
 /** Configures the core (unless it already is), adds a project and starts a thread. */
@@ -140,8 +154,9 @@ export async function startConversation(target: ContractTarget, options: StartOp
   if (!(await hasConnectedProvider(core))) await configure(core);
   const project = options.projectId
     ? ((await core.projects.list()).find((item) => item.id === options.projectId) as Project)
-    : await addProject(target);
+    : await (options.git ? addGitProject(target) : addProject(target));
   const conversation = await core.conversations.start({
+    workspace: options.workspace,
     projectId: project.id,
     text: options.text ?? "hello",
     images: options.images,

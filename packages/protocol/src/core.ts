@@ -8,6 +8,7 @@ import type {
   GithubStatus,
   IconCandidate,
   LoginSession,
+  MessageMode,
   ModelInfo,
   ModelRef,
   PathSuggestion,
@@ -24,7 +25,16 @@ import type {
   SuggestedCodeFolder,
   ThinkingLevel,
   UseGithubRepoInput,
+  WorkspaceMode,
 } from "./entities";
+import type {
+  Checkpoint,
+  McpServerConfig,
+  McpServerStatus,
+  ProcessInfo,
+  RestorePreview,
+  WorkspaceStatus,
+} from "./mvp5";
 import type { Op } from "./view";
 
 export type {
@@ -52,6 +62,7 @@ export type {
   SuggestDirectoriesInput,
   SuggestedCodeFolder,
   UseGithubRepoInput,
+  WorkspaceMode,
 } from "./entities";
 
 export type OpsListener = (ops: readonly Op[]) => Promise<void>;
@@ -85,6 +96,10 @@ export interface Core {
     setProjectsFolder(path: string): Promise<void>;
     /** The first existing `~/src`, `~/code`, `~/projects` or `~/dev` while the projects folder is still the default; else `null`. */
     suggestedCodeFolder(): Promise<SuggestedCodeFolder>;
+    /** Whether messages sent while the agent works steer it or queue behind it. */
+    setMessageMode(mode: MessageMode): Promise<void>;
+    /** Where new threads in git projects start. */
+    setWorkspaceDefault(mode: WorkspaceMode): Promise<void>;
   };
   github: {
     /** Cached for a minute. Never rejects for a missing or logged-out `gh`: that is a state. */
@@ -175,8 +190,23 @@ export interface Core {
     abort(id: string): Promise<void>;
     /** Never aborts a run. Rejects `not_found`. */
     archive(id: string, archived: boolean): Promise<void>;
-    /** Idempotent for an already deleted id; rejects `not_found` for an unknown one. */
-    remove(id: string): Promise<void>;
+    /**
+     * Idempotent for an already deleted id; rejects `not_found` for an unknown one. Rejects `has_unmerged_work`
+     * when the worktree has uncommitted changes or unmerged commits, unless `force`.
+     */
+    remove(id: string, options?: { force?: boolean }): Promise<void>;
+    /** New thread in the same checkout or worktree, with history up to and including the entry. Rejects `not_found`. */
+    fork(id: string, entryId: string): Promise<ConversationSummary>;
+    /** The files a rewind would change. Rejects `not_found` for an unknown thread, entry or checkpoint. */
+    rewindPreview(id: string, entryId: string): Promise<RestorePreview>;
+    /** Restores files, forks before the entry; `draft` is the message text. Rejects `thread_busy`, `not_found`. */
+    rewind(id: string, entryId: string): Promise<{ conversation: ConversationSummary; draft: string }>;
+    /** `{ cancelled: false }` when the queued item was already delivered. Rejects `not_found`. */
+    cancelQueued(id: string, itemId: string): Promise<{ cancelled: boolean }>;
+    /** In order of time. Rejects `not_found`. */
+    checkpoints(id: string): Promise<Checkpoint[]>;
+    /** Unified diff of one file; `path` is repo-relative without `..`. Rejects `not_found`, `invalid_request`. */
+    checkpointDiff(id: string, checkpointId: string, path: string): Promise<string>;
     /**
      * Changes the model and/or thinking level; applies from the next model request, also while busy. The level is
      * clamped to what the resulting model supports. Rejects `not_found`, and `invalid_request` for an unlisted
@@ -196,6 +226,31 @@ export interface Core {
      * Calls are serialized. Rejects `not_found` for an unknown or deleted conversation.
      */
     watch(id: string, onOps: OpsListener): Promise<ConversationWatcher>;
+  };
+  workspaces: {
+    /** Rejects `not_found`, and `invalid_request` for a thread without a worktree. */
+    status(conversationId: string): Promise<WorkspaceStatus>;
+    /** Rebases and fast-forwards the base. Rejects `thread_busy`, `worktree_dirty`, `merge_conflict`, `not_on_base`, `base_dirty`. */
+    merge(conversationId: string): Promise<ConversationSummary>;
+    /** Needs a connected `gh`; rejects `github_unavailable`. */
+    createPullRequest(conversationId: string): Promise<ConversationSummary>;
+    /** Rejects `has_unmerged_work` unless `force`. The thread moves to the main checkout. */
+    remove(conversationId: string, force: boolean): Promise<ConversationSummary>;
+  };
+  processes: {
+    list(conversationId: string): Promise<ProcessInfo[]>;
+    /** The last `tail` lines. Rejects `not_found`. */
+    logs(id: string, tail: number): Promise<string>;
+    /** Idempotent for a stopped process; rejects `not_found`. */
+    stop(id: string): Promise<void>;
+  };
+  mcp: {
+    /** Settings servers plus the project's `.mcp.json` servers (`null` for settings only). Never returns env or header values. */
+    servers(projectId: string | null): Promise<McpServerStatus[]>;
+    /** Adds or replaces by name. */
+    save(config: McpServerConfig): Promise<void>;
+    /** Idempotent. */
+    remove(name: string): Promise<void>;
   };
   /** Fires after a successful commit that changed the project list or one project's conversation index. */
   onChange(listener: (change: Change) => void): () => void;

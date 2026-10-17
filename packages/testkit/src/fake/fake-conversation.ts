@@ -13,12 +13,16 @@ import {
   type OpsListener,
   RETIRED_OPS,
   type ThinkingLevel,
+  type ThreadWorkspace,
   type UserMessage,
+  type WhenBusy,
 } from "@pi-everywhere/protocol";
 import { fixtures } from "../fixtures/index";
 import { fixtureForMessage, triggerOf } from "../fixtures/triggers";
 import type { Fixture } from "../fixtures/types";
 import { fixtureViews } from "../fixtures/views";
+import { FakeCheckpoints } from "./fake-checkpoints";
+import { applyEffect, effectOf, type MessageEffect, type WorktreeChanges } from "./fake-workspace";
 import {
   diffViews,
   emptyView,
@@ -41,6 +45,9 @@ export interface FakeConversationDeps {
   readonly thinkingLevel: ThinkingLevel;
   readonly speed: number;
   readonly now: () => number;
+  readonly workspace: ThreadWorkspace;
+  readonly parentId?: string;
+  readonly forkOf?: ConversationSummary["forkOf"];
   readonly onSummaryChange: (projectId: string) => void;
   /** The name the title job comes up with, or `undefined` when it fails. */
   readonly generateTitle: (text: string) => string | undefined;
@@ -63,6 +70,8 @@ interface Playback {
 }
 
 interface QueuedInput {
+  readonly id: number;
+  readonly mode: WhenBusy;
   readonly input: FakeInput;
   readonly content: UserMessage["content"];
 }
@@ -94,6 +103,11 @@ export class FakeConversation {
   updatedAt: number;
   archivedAt: number | null = null;
   lastRunEndedAt: number | null = null;
+  workspace: ThreadWorkspace;
+  readonly parentId: string | null;
+  readonly forkOf: ConversationSummary["forkOf"];
+  readonly checkpoints = new FakeCheckpoints();
+  readonly changes: WorktreeChanges = { dirtyFiles: [], unmergedCommits: 0 };
   private deleted = false;
   private failed = false;
   private titleSource: TitleSource = "first-message";
@@ -104,12 +118,16 @@ export class FakeConversation {
   private queued: QueuedInput[] = [];
   private playback: Playback | undefined;
   private nextSubmissionId = 1000;
+  private pendingEffects: MessageEffect[] = [];
 
   constructor(private readonly deps: FakeConversationDeps) {
     this.id = deps.id;
     this.projectId = deps.projectId;
     this.createdAt = deps.now();
     this.updatedAt = this.createdAt;
+    this.workspace = deps.workspace;
+    this.parentId = deps.parentId ?? null;
+    this.forkOf = deps.forkOf ?? null;
     this.view = emptyView(Number(deps.id), deps.cwd, deps.model, deps.thinkingLevel);
   }
 
@@ -164,6 +182,9 @@ export class FakeConversation {
       avatarIndex: Number(this.id),
       lastActivityAt: this.lastRunEndedAt ?? this.updatedAt,
       model: { provider: this.model.provider, modelId: this.model.modelId },
+      workspace: { ...this.workspace },
+      forkOf: this.forkOf && { ...this.forkOf },
+      parentId: this.parentId,
     };
   }
 
@@ -199,13 +220,16 @@ export class FakeConversation {
     };
   }
 
-  send(requestId: string, input: FakeInput): void {
+  send(requestId: string, input: FakeInput, mode: WhenBusy = "steer"): void {
     if (this.requestIds.has(requestId)) return;
     this.requestIds.add(requestId);
     this.archivedAt = null;
     this.updatedAt = this.deps.now();
     this.nameFromFirstMessage(input);
-    this.admit({ input, content: contentOf(input) }, undefined);
+    const effect = effectOf(input.text);
+    this.pendingEffects.push(effect);
+    this.checkpoints.record(requestId, effect, this.deps.now());
+    this.admit({ id: this.nextSubmissionId++, mode, input, content: contentOf(input) }, undefined);
   }
 
   retry(requestId: string): void {
@@ -216,7 +240,42 @@ export class FakeConversation {
     this.requestIds.add(requestId);
     this.archivedAt = null;
     this.updatedAt = this.deps.now();
-    this.admit({ input: { text: RETRY_PROMPT }, content: RETRY_PROMPT }, "app.retry");
+    this.admit(
+      { id: this.nextSubmissionId++, mode: "steer", input: { text: RETRY_PROMPT }, content: RETRY_PROMPT },
+      "app.retry",
+    );
+  }
+
+  cancelQueued(itemId: string): boolean {
+    const index = this.queued.findIndex((item) => String(item.id) === itemId);
+    if (index < 0) return false;
+    this.queued.splice(index, 1);
+    this.publish(this.view);
+    return true;
+  }
+
+  userEntries(): { id: string; text: string }[] {
+    return this.view.entries.flatMap((entry) => {
+      const message = entry.model?.[0];
+      if (message?.role !== "user") return [];
+      const text = typeof message.content === "string" ? message.content : textOfParts(message.content);
+      return [{ id: String(entry.id), text }];
+    });
+  }
+
+  historyThrough(entryId: string, inclusive: boolean): ConversationView {
+    const index = this.view.entries.findIndex((entry) => String(entry.id) === entryId);
+    if (index < 0) throw new AppError("not_found", `Unknown entry: ${entryId}`);
+    const entries = this.view.entries.slice(0, inclusive ? index + 1 : index);
+    return { ...this.view, entries } as unknown as ConversationView;
+  }
+
+  adoptHistory(view: ConversationView, source: FakeConversation): void {
+    const kept = view.entries.filter((entry) => entry.model?.[0]?.role === "user").length;
+    this.view = withoutRun({ ...view, conversation: this.view.conversation } as unknown as ConversationView);
+    this.checkpoints.copyFirst(source.checkpoints, kept);
+    this.title = this.title === "" ? source.title : this.title;
+    this.titleSource = "user";
   }
 
   async abort(): Promise<void> {
@@ -291,6 +350,8 @@ export class FakeConversation {
 
   private endRun(failed: boolean): void {
     this.failed = failed;
+    this.checkpoints.completeAll(this.deps.now());
+    for (const effect of this.pendingEffects.splice(0)) applyEffect(this.changes, effect);
     this.lastRunEndedAt = this.deps.now();
     this.touch();
   }
@@ -304,9 +365,9 @@ export class FakeConversation {
   }
 
   private queuedInbox(): InboxState["items"] {
-    return this.queued.map(({ content }, index) => ({
-      id: this.nextSubmissionId + index,
-      mode: "steer",
+    return this.queued.map(({ id, mode, content }) => ({
+      id,
+      mode,
       content,
     })) as unknown as InboxState["items"];
   }
@@ -361,13 +422,17 @@ export class FakeConversation {
     fixture: Fixture,
     base: ConversationView,
     fixtureView: ConversationView,
-    { input, content }: QueuedInput,
+    { input, content }: Pick<QueuedInput, "input" | "content">,
     entryKind: string | undefined,
   ): ConversationView {
     const substituted = substituteText(rebase(base, fixtureView), triggerOf(fixture) ?? "", input.text);
     const restyled = restyleNewUserEntries(substituted, base, { content, kind: entryKind });
     return fixture.name === "image" ? withImageCount(restyled, input.images?.length ?? 0) : restyled;
   }
+}
+
+function textOfParts(parts: Exclude<UserMessage["content"], string>): string {
+  return parts.map((part) => (part.type === "text" ? part.text : "")).join("");
 }
 
 function withImageCount(view: ConversationView, count: number): ConversationView {

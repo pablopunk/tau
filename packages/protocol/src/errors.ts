@@ -20,6 +20,12 @@ export const ERROR_CODES = [
   "remote_mismatch",
   "login_failed",
   "nothing_to_compact",
+  "thread_busy",
+  "merge_conflict",
+  "base_dirty",
+  "not_on_base",
+  "worktree_dirty",
+  "has_unmerged_work",
   "internal",
 ] as const;
 
@@ -45,6 +51,12 @@ export const ErrorCodeSchema = Type.Union([
   Type.Literal("remote_mismatch"),
   Type.Literal("login_failed"),
   Type.Literal("nothing_to_compact"),
+  Type.Literal("thread_busy"),
+  Type.Literal("merge_conflict"),
+  Type.Literal("base_dirty"),
+  Type.Literal("not_on_base"),
+  Type.Literal("worktree_dirty"),
+  Type.Literal("has_unmerged_work"),
   Type.Literal("internal"),
 ]);
 
@@ -73,6 +85,12 @@ export const ERROR_STATUS: Record<ErrorCode, number> = {
   remote_mismatch: 422,
   login_failed: 422,
   nothing_to_compact: 409,
+  thread_busy: 409,
+  merge_conflict: 409,
+  base_dirty: 409,
+  not_on_base: 409,
+  worktree_dirty: 409,
+  has_unmerged_work: 409,
   internal: 500,
 };
 

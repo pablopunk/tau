@@ -1,25 +1,32 @@
 import { describe } from "vitest";
 import { type ContractOptions, caseRunner } from "./case-runner";
 import { chatCases } from "./chat";
+import { checkpointCases } from "./checkpoints";
 import { cloneCases } from "./clone";
 import { compactCases } from "./compact";
 import { configureCases } from "./configure";
 import { conversationCases } from "./conversations";
 import { fileCases } from "./files";
+import { forkCases } from "./fork";
 import { fsCases } from "./fs";
 import { githubCases } from "./github";
 import { iconCases } from "./icons";
 import { lifecycleCases } from "./lifecycle";
 import { loginCases } from "./login";
+import { mcpCases } from "./mcp";
+import { processCases } from "./processes";
 import { projectCases } from "./projects";
 import { providerCases } from "./providers";
+import { queueCases } from "./queue";
 import { retryCases } from "./retry";
 import { settingsAndProviderCases } from "./settings-provider";
 import { sidebarDataCases } from "./sidebar-data";
 import { skillCases } from "./skills";
 import { startCases } from "./start";
+import { subagentCases } from "./subagents";
 import { titleAndStatusCases } from "./titles-status";
 import type { MakeContractTarget } from "./types";
+import { workspaceCases } from "./workspaces";
 
 export type { ContractOptions } from "./case-runner";
 export type { ContractTarget, MakeContractTarget } from "./types";
@@ -55,5 +62,12 @@ export function runCoreContract(
     compactCases(makeTarget, test);
     fileCases(makeTarget, test);
     skillCases(makeTarget, test);
+    workspaceCases(makeTarget, test);
+    checkpointCases(makeTarget, test);
+    forkCases(makeTarget, test);
+    queueCases(makeTarget, test);
+    subagentCases(makeTarget, test);
+    processCases(makeTarget, test);
+    mcpCases(makeTarget, test);
   });
 }

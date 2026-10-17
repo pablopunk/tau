@@ -62,6 +62,8 @@ const withDefaults = (stored: StoredSettings, defaultProjectsFolder: string): Se
   fastModel: stored.fastModel ?? null,
   fastThinkingLevel: stored.fastThinkingLevel ?? null,
   projectsFolder: stored.projectsFolder ?? defaultProjectsFolder,
+  messageMode: "steer",
+  workspaceDefault: "worktree",
 });
 
 export interface SettingsStore {

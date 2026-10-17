@@ -8,6 +8,7 @@ import {
   GithubStatusSchema,
   IconCandidateLinkSchema,
   LoginSessionSchema,
+  MessageModeSchema,
   ModelInfoSchema,
   ModelRefSchema,
   PathSuggestionSchema,
@@ -23,13 +24,23 @@ import {
   SuggestedCodeFolderSchema,
   ThinkingLevelSchema,
   UseGithubRepoInputSchema,
+  WorkspaceModeSchema,
 } from "./entities";
 import { ICON_BODY_LIMIT } from "./icons";
+import {
+  CheckpointSchema,
+  McpServerConfigSchema,
+  McpServerStatusSchema,
+  ProcessInfoSchema,
+  RestorePreviewSchema,
+  WorkspaceStatusSchema,
+} from "./mvp5";
 
 export const API_PREFIX = "/api";
 export const LIVE_PATH = `${API_PREFIX}/live`;
 
 export const MESSAGE_BODY_LIMIT = 42 * 1024 * 1024;
+export const PROCESS_LOG_TAIL_DEFAULT = 200;
 
 export type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
@@ -49,6 +60,19 @@ export interface RouteDef {
 const IdParams = Type.Object({ id: Type.String({ minLength: 1 }) });
 const ProviderParams = Type.Object({ id: ProviderIdSchema });
 const SessionParams = Type.Object({ sid: Type.String({ minLength: 1 }) });
+const QueueItemParams = Type.Object({
+  id: Type.String({ minLength: 1 }),
+  itemId: Type.String({ minLength: 1 }),
+});
+const CheckpointParams = Type.Object({
+  id: Type.String({ minLength: 1 }),
+  cid: Type.String({ minLength: 1 }),
+});
+const ForceQuery = Type.Object({
+  force: Type.Optional(Type.Union([Type.Literal("true"), Type.Literal("false")])),
+});
+const NameParams = Type.Object({ name: Type.String({ minLength: 1 }) });
+const EntryBody = Type.Object({ entryId: Type.String({ minLength: 1 }) });
 
 export const routes = {
   getSettings: { method: "GET", path: `${API_PREFIX}/settings`, status: 200, response: SettingsSchema },
@@ -75,6 +99,18 @@ export const routes = {
     path: `${API_PREFIX}/settings/fast-model`,
     status: 204,
     body: Type.Object({ model: Type.Union([ModelRefSchema, Type.Null()]) }),
+  },
+  setMessageMode: {
+    method: "PUT",
+    path: `${API_PREFIX}/settings/message-mode`,
+    status: 204,
+    body: Type.Object({ mode: MessageModeSchema }),
+  },
+  setWorkspaceDefault: {
+    method: "PUT",
+    path: `${API_PREFIX}/settings/workspace-default`,
+    status: 204,
+    body: Type.Object({ mode: WorkspaceModeSchema }),
   },
   setProjectsFolder: {
     method: "PUT",
@@ -309,6 +345,7 @@ export const routes = {
     path: `${API_PREFIX}/conversations/:id`,
     status: 204,
     params: IdParams,
+    query: ForceQuery,
   },
   configureConversation: {
     method: "PATCH",
@@ -336,6 +373,117 @@ export const routes = {
     path: `${API_PREFIX}/conversations/:id/abort`,
     status: 204,
     params: IdParams,
+  },
+  forkConversation: {
+    method: "POST",
+    path: `${API_PREFIX}/conversations/:id/fork`,
+    status: 201,
+    params: IdParams,
+    body: EntryBody,
+    response: ConversationSummarySchema,
+  },
+  rewindPreview: {
+    method: "POST",
+    path: `${API_PREFIX}/conversations/:id/rewind/preview`,
+    status: 200,
+    params: IdParams,
+    body: EntryBody,
+    response: RestorePreviewSchema,
+  },
+  rewindConversation: {
+    method: "POST",
+    path: `${API_PREFIX}/conversations/:id/rewind`,
+    status: 200,
+    params: IdParams,
+    body: EntryBody,
+    response: Type.Object({ conversation: ConversationSummarySchema, draft: Type.String() }),
+  },
+  cancelQueued: {
+    method: "DELETE",
+    path: `${API_PREFIX}/conversations/:id/queue/:itemId`,
+    status: 200,
+    params: QueueItemParams,
+    response: Type.Object({ cancelled: Type.Boolean() }),
+  },
+  listCheckpoints: {
+    method: "GET",
+    path: `${API_PREFIX}/conversations/:id/checkpoints`,
+    status: 200,
+    params: IdParams,
+    response: Type.Array(CheckpointSchema),
+  },
+  getCheckpointDiff: {
+    method: "GET",
+    path: `${API_PREFIX}/conversations/:id/checkpoints/:cid/diff`,
+    status: 200,
+    params: CheckpointParams,
+    query: Type.Object({ path: Type.String({ minLength: 1 }) }),
+    response: Type.Object({ diff: Type.String() }),
+  },
+  getWorkspace: {
+    method: "GET",
+    path: `${API_PREFIX}/conversations/:id/workspace`,
+    status: 200,
+    params: IdParams,
+    response: WorkspaceStatusSchema,
+  },
+  mergeWorkspace: {
+    method: "POST",
+    path: `${API_PREFIX}/conversations/:id/workspace/merge`,
+    status: 200,
+    params: IdParams,
+    response: ConversationSummarySchema,
+  },
+  createPullRequest: {
+    method: "POST",
+    path: `${API_PREFIX}/conversations/:id/workspace/pull-request`,
+    status: 200,
+    params: IdParams,
+    response: ConversationSummarySchema,
+  },
+  removeWorkspace: {
+    method: "DELETE",
+    path: `${API_PREFIX}/conversations/:id/workspace`,
+    status: 200,
+    params: IdParams,
+    query: ForceQuery,
+    response: ConversationSummarySchema,
+  },
+  listProcesses: {
+    method: "GET",
+    path: `${API_PREFIX}/conversations/:id/processes`,
+    status: 200,
+    params: IdParams,
+    response: Type.Array(ProcessInfoSchema),
+  },
+  getProcessLogs: {
+    method: "GET",
+    path: `${API_PREFIX}/processes/:id/logs`,
+    status: 200,
+    params: IdParams,
+    query: Type.Object({ tail: Type.Optional(Type.String({ pattern: "^[1-9][0-9]{0,3}$" })) }),
+    response: Type.Object({ logs: Type.String() }),
+  },
+  stopProcess: { method: "DELETE", path: `${API_PREFIX}/processes/:id`, status: 204, params: IdParams },
+  listMcpServers: {
+    method: "GET",
+    path: `${API_PREFIX}/mcp/servers`,
+    status: 200,
+    query: Type.Object({ projectId: Type.Optional(Type.String({ minLength: 1 })) }),
+    response: Type.Array(McpServerStatusSchema),
+  },
+  saveMcpServer: {
+    method: "PUT",
+    path: `${API_PREFIX}/mcp/servers/:name`,
+    status: 204,
+    params: NameParams,
+    body: McpServerConfigSchema,
+  },
+  removeMcpServer: {
+    method: "DELETE",
+    path: `${API_PREFIX}/mcp/servers/:name`,
+    status: 204,
+    params: NameParams,
   },
 } as const satisfies Record<string, RouteDef>;
 

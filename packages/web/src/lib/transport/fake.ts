@@ -8,14 +8,15 @@ import {
   iconCandidateUrl,
   isAppError,
   type JsonRouteName,
+  PROCESS_LOG_TAIL_DEFAULT,
   RETIRED_OPS,
 } from "@pi-everywhere/protocol";
 import { createFakeCore } from "@pi-everywhere/testkit";
 import type { LiveHandlers, LiveSocket, RouteRequest, RouteResponse, Transport } from "./types";
 
 type Input = {
-  params: { id: string; sid: string };
-  query: { projectId?: string };
+  params: { id: string; sid: string; itemId: string; cid: string; name: string };
+  query: { projectId?: string; path: string; tail?: string; force?: "true" | "false" };
   body: Record<string, unknown>;
 };
 
@@ -72,9 +73,34 @@ const handlers: Handlers = {
   abortConversation: (core, { params }) => core.conversations.abort(params.id),
   archiveConversation: (core, { params, body }) =>
     core.conversations.archive(params.id, body.archived as boolean),
-  removeConversation: (core, { params }) => core.conversations.remove(params.id),
+  removeConversation: (core, { params, query }) =>
+    core.conversations.remove(params.id, { force: query?.force === "true" }),
   configureConversation: (core, { params, body }) => core.conversations.configure(params.id, body as never),
   retryConversation: (core, { params, body }) => core.conversations.retry(params.id, body as never),
+  forkConversation: (core, { params, body }) => core.conversations.fork(params.id, body.entryId as string),
+  rewindPreview: (core, { params, body }) =>
+    core.conversations.rewindPreview(params.id, body.entryId as string),
+  rewindConversation: (core, { params, body }) =>
+    core.conversations.rewind(params.id, body.entryId as string),
+  cancelQueued: (core, { params }) => core.conversations.cancelQueued(params.id, params.itemId),
+  listCheckpoints: (core, { params }) => core.conversations.checkpoints(params.id),
+  getCheckpointDiff: async (core, { params, query }) => ({
+    diff: await core.conversations.checkpointDiff(params.id, params.cid, query.path),
+  }),
+  getWorkspace: (core, { params }) => core.workspaces.status(params.id),
+  mergeWorkspace: (core, { params }) => core.workspaces.merge(params.id),
+  createPullRequest: (core, { params }) => core.workspaces.createPullRequest(params.id),
+  removeWorkspace: (core, { params, query }) => core.workspaces.remove(params.id, query?.force === "true"),
+  listProcesses: (core, { params }) => core.processes.list(params.id),
+  getProcessLogs: async (core, { params, query }) => ({
+    logs: await core.processes.logs(params.id, query?.tail ? Number(query.tail) : PROCESS_LOG_TAIL_DEFAULT),
+  }),
+  stopProcess: (core, { params }) => core.processes.stop(params.id),
+  listMcpServers: (core, { query }) => core.mcp.servers(query?.projectId ?? null),
+  saveMcpServer: (core, { params, body }) => core.mcp.save({ ...body, name: params.name } as never),
+  removeMcpServer: (core, { params }) => core.mcp.remove(params.name),
+  setMessageMode: (core, { body }) => core.settings.setMessageMode(body.mode as never),
+  setWorkspaceDefault: (core, { body }) => core.settings.setWorkspaceDefault(body.mode as never),
 };
 
 function detach<T>(value: T): T {

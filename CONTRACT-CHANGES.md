@@ -94,3 +94,42 @@ Versions: `@earendil-works/pi-durable@1.3.0`, `@earendil-works/pi-ai@1.3.0` (`di
 * `components/ui/combobox.tsx` has a controlled `open` prop; `ModelThinkingPickers` opens its pickers through state, not by clicking the trigger. `NOTES-FOR-INTEGRATOR.md` is deleted.
 * e2e: `chat.spec.ts` setup clicks "Add key" and "Save" on the OpenRouter row. `mvp4.spec.ts` covers sections (desktop and phone), add and disconnect a key, ChatGPT success and a wrong address, `/compact` (two 42k-character turns), `@` and the theme after a reload.
 * Flaky tests: core and web had the default 5 s Vitest timeout while `pnpm -r` runs all packages at once. Both now set `testTimeout` and `hookTimeout` to 20 s (`packages/core/vitest.config.ts` is new).
+
+## MVP5 Phase 0a
+
+### Protocol
+
+* All schemas of MVP5.md "Contract" exist. New file `protocol/src/mvp5.ts` holds `WorkspaceStatus`, `Checkpoint`, `RestorePreview`, `ProcessInfo`, `McpServerConfig`, `McpServerStatus`. `entities.ts` has `WorkspaceMode`, `ThreadWorkspace`, `MessageMode`, `WhenBusy`, the `ConversationSummary`, `StartConversationInput`, `SendMessageInput` and `Settings` fields, and the two `Change` variants.
+* Six error codes (all 409): `thread_busy`, `merge_conflict`, `base_dirty`, `not_on_base`, `worktree_dirty`, `has_unmerged_work`.
+* Core gained `conversations.{fork,rewindPreview,rewind,cancelQueued,checkpoints,checkpointDiff}`, `remove(id, options?)`, `workspaces`, `processes`, `mcp`, `settings.{setMessageMode,setWorkspaceDefault}`.
+
+### REST (deviations from the table in MVP5.md)
+
+* Query values are strings (the server runs ajv with `coerceTypes: false`): `?force=true|false`, `?tail=<1..9999>`.
+* `DELETE /conversations/:id` also takes `?force=true` (the `remove` option). It is the same route as before.
+* Bodies: `POST .../fork`, `.../rewind/preview`, `.../rewind` take `{ entryId }`. `PUT /settings/message-mode` and `/workspace-default` take `{ mode }`.
+* Responses: fork 201 `ConversationSummary`; rewind 200 `{ conversation, draft }`; `DELETE .../queue/:itemId` 200 `{ cancelled }`; the diff route answers `{ diff }`; the logs route answers `{ logs }`; merge, pull-request and `DELETE .../workspace` answer 200 `ConversationSummary`; `DELETE /processes/:id`, `PUT` and `DELETE /mcp/servers/:name` answer 204.
+* `PUT /mcp/servers/:name`: the path name wins over `body.name`.
+* Server: `server/src/rest/register-workspace-routes.ts` (no logic). Tests: `server/src/mvp5-routes.test.ts`.
+
+### Fake core and contract
+
+* Tags: `workspaces`, `checkpoints`, `fork`, `queue`, `subagents`, `processes`, `mcp`. Files `testkit/src/contract/{workspaces,checkpoints,fork,queue,subagents,processes,mcp}.ts`.
+* `ContractTarget.paths.gitDirectory?(name)`: a folder that is a git repository with a commit. Cases start threads in it (`startConversation(target, { git: true })`); without it any folder counts. The real core target must provide it in Phase 1.
+* Faux triggers the real core's faux script must support for these cases: `write ...` and `edit ...` change a file (worktree becomes dirty); `commit ...` commits (fake only; no contract case needs it); `task <description>` makes the agent call `task` (child thread titled `<description>`, `parentId` set); `bg <command>` makes the agent call `process_start` with that command; `bash sleep 30` keeps a run busy.
+* Fake rules: every project but Home is "git" and gets a worktree at `/fake/home/.pi-everywhere/worktrees/<project>/<slug>` on `pi/<slug>`, base `main`. A fake `write`/`edit` run adds `hello.txt` to the dirty files and to the `after` checkpoint (status `A`); merge needs a clean idle worktree; remove or delete with unmerged work needs `force`; a removed worktree keeps `mode: "worktree"`, `state: "removed"` and `path` = project path. Checkpoint ids are `<requestId>:before|after`; `entryId` is the id of the thread's n-th user entry. `rewind` forks before the entry (`forkOf` set, title `Fork of ...`) and refuses with `thread_busy` while any thread with the same path runs. Queued inbox items carry `id` (the `itemId`) and `mode`. Children of a thread are archived and deleted with it. `mcp.servers(projectId)` knows only settings servers (no `.mcp.json`).
+* `settings.get()` now includes `messageMode: "steer"` and `workspaceDefault: "worktree"`; the existing "starts without a key" case checks them.
+
+### Core (minimum to compile)
+
+* `core/src/mvp5-stubs.ts`: `notImplemented` stubs for the six conversation methods, `workspaces`, `processes`, `mcp`; `settings.setMessageMode/setWorkspaceDefault` reject the same way (`settings-api.ts`).
+* `toSummary` (`harness/conversation-index.ts`) returns the legacy defaults, but with `workspace.path: ""`. 0c must fill it with the project path (it has no project at that point).
+* `home/settings-store.ts` `withDefaults` returns `messageMode: "steer"`, `workspaceDefault: "worktree"` (not stored yet; 0c adds storage).
+* `core/src/contract.test.ts` `PENDING_TAGS` lists the seven new tags. `conversations.remove(id, options)` ignores `options` in the real core.
+
+### Web (smallest type fixes)
+
+* `lib/api.ts`: `removeConversation` request gets `query: {}`.
+* `lib/transport/fake.ts`: handlers for all 18 new routes (`Input` gained `itemId`, `cid`, `name`, `path`, `tail`, `force`).
+* `lib/use-changed-invalidation.ts`: `processes` and `mcp` changes are ignored for now (they have no `projectId`).
+* Test fixtures: `sidebar/test-support.tsx` (`conversation()` has the three new fields), `sidebar/AppSidebar.test.tsx`, `sidebar/modes.test.tsx`, `lib/api.test.ts` (settings fields). Core: `home/settings-store.test.ts` defaults.

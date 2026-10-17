@@ -7,6 +7,8 @@ export interface ContractTarget {
     directory(name: string): Promise<string>;
     /** An existing regular file. */
     file(name: string): Promise<string>;
+    /** An existing folder that is a git repository with a commit. Absent when any folder counts as one. */
+    gitDirectory?(name: string): Promise<string>;
     /** A path that does not exist. */
     missing(): string;
     /** A git URL the core can clone successfully (for the real core: a local bare repository). */

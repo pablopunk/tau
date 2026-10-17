@@ -1,13 +1,17 @@
 import {
   AppError,
   type Change,
+  type ConversationSummary,
   type Core,
+  type MessageMode,
   type ModelRef,
   type Project,
   type Settings,
   type Skill,
   type StartConversationInput,
   type ThinkingLevel,
+  type ThreadWorkspace,
+  type WorkspaceMode,
 } from "@pi-everywhere/protocol";
 import { clampFakeThinkingLevel, FAKE_MODELS, findFakeModel } from "./catalog";
 import { FakeConversation, type FakeInput } from "./fake-conversation";
@@ -25,8 +29,10 @@ import { cloneWouldFail, folderNameFor, repositoryKeyOf } from "./fake-git";
 import { createFakeGithub, type FakeGithubOptions } from "./fake-github";
 import { createFakeIcons } from "./fake-icons";
 import { assertImageMatchesMimeType } from "./fake-images";
+import { createFakeMvp5 } from "./fake-mvp5";
 import { createFakeProviders } from "./fake-providers";
 import { suggestFakeDirectories } from "./fake-suggest";
+import type { SpawnParams } from "./fake-thread-ops";
 
 export interface FakeCoreOptions {
   /** Replay speed multiplier: 1 is the recorded timing, larger is faster. Default 1. */
@@ -81,6 +87,8 @@ export function createFakeCore(options: FakeCoreOptions = {}): Core {
     const info = findFakeModel(ref);
     return level && info ? clampFakeThinkingLevel(info, level) : level;
   };
+  let messageMode: MessageMode = "steer";
+  let workspaceDefault: WorkspaceMode = "worktree";
   let projectsFolder = FAKE_PROJECTS_FOLDER;
   let nextProjectId = 1;
   let nextConversationId = FIRST_CONVERSATION_ID;
@@ -211,6 +219,25 @@ export function createFakeCore(options: FakeCoreOptions = {}): Core {
     return present(project);
   };
 
+  const remoteHub = createFakeGithub({
+    options: options.github ?? {},
+    now,
+    fs,
+    projects: () => allProjects(),
+    addFolderProject,
+    cloneProject,
+  });
+
+  const mvp5 = createFakeMvp5({
+    emit,
+    now,
+    requireConversation,
+    liveConversations,
+    requireProject,
+    spawn,
+    githubConnected: async () => (await remoteHub.status()).state === "connected",
+  });
+
   async function startConversation(input: StartConversationInput) {
     const project = requireProject(input.projectId);
     if (project.status !== "ready") throw new AppError("project_not_ready", "This project is not ready.");
@@ -221,25 +248,61 @@ export function createFakeCore(options: FakeCoreOptions = {}): Core {
     const existing = startsByRequest.get(input.requestId);
     if (existing) return requireConversation(existing).summary();
     validateInput(input, model);
-    const conversation = new FakeConversation({
-      id: String(nextConversationId++),
+    const conversation = createConversation({
       projectId: project.id,
-      cwd: project.path,
+      workspace: mvp5.workspaceFor(project, input.workspace ?? workspaceDefault, input.text),
       model: { provider: model.provider, modelId: model.modelId },
       thinkingLevel: clampFakeThinkingLevel(
         info,
         input.thinkingLevel ?? defaultThinkingLevel ?? DEFAULT_THINKING_LEVEL,
       ),
+    });
+    startsByRequest.set(input.requestId, conversation.id);
+    conversation.send(input.requestId, { text: input.text, images: input.images });
+    mvp5.afterMessage(conversation, input.text);
+    return conversation.summary();
+  }
+
+  function createConversation(params: {
+    projectId: string;
+    workspace: ThreadWorkspace;
+    model: ModelRef;
+    thinkingLevel: ThinkingLevel;
+    parentId?: string;
+    forkOf?: ConversationSummary["forkOf"];
+  }): FakeConversation {
+    const conversation = new FakeConversation({
+      ...params,
+      id: String(nextConversationId++),
+      cwd: params.workspace.path,
       speed,
       now,
       onSummaryChange: (changedProjectId) => emit({ resource: "conversations", projectId: changedProjectId }),
       generateTitle,
     });
     conversations.set(conversation.id, conversation);
-    startsByRequest.set(input.requestId, conversation.id);
-    conversation.send(input.requestId, { text: input.text, images: input.images });
-    return conversation.summary();
+    return conversation;
   }
+
+  function spawn({ source, title, forkOf, parentId }: SpawnParams): FakeConversation {
+    const conversation = createConversation({
+      projectId: source.projectId,
+      workspace: { ...source.workspace },
+      model: source.model,
+      thinkingLevel: source.thinkingLevel(),
+      parentId,
+      forkOf,
+    });
+    conversation.rename(title);
+    return conversation;
+  }
+
+  const removeConversation = async (conversation: FakeConversation) => {
+    for (const child of mvp5.childrenOf(conversation)) await removeConversation(child);
+    await conversation.abort();
+    mvp5.release(conversation);
+    conversation.remove();
+  };
 
   return {
     fs: {
@@ -252,7 +315,15 @@ export function createFakeCore(options: FakeCoreOptions = {}): Core {
         return null;
       },
       async get(): Promise<Settings> {
-        return { defaultModel, defaultThinkingLevel, fastModel, fastThinkingLevel, projectsFolder };
+        return {
+          defaultModel,
+          defaultThinkingLevel,
+          fastModel,
+          fastThinkingLevel,
+          projectsFolder,
+          messageMode,
+          workspaceDefault,
+        };
       },
       async setDefaultModel(ref) {
         requireProvider();
@@ -279,6 +350,12 @@ export function createFakeCore(options: FakeCoreOptions = {}): Core {
         fastModel = { provider: ref.provider, modelId: ref.modelId };
         fastThinkingLevel = clampFor(ref, fastThinkingLevel);
       },
+      async setMessageMode(mode) {
+        messageMode = mode;
+      },
+      async setWorkspaceDefault(mode) {
+        workspaceDefault = mode;
+      },
       async setProjectsFolder(typedPath) {
         const path = expandFakeHome(typedPath);
         if (!path.startsWith("/")) throw new AppError("invalid_request", "The path must be absolute.");
@@ -295,14 +372,7 @@ export function createFakeCore(options: FakeCoreOptions = {}): Core {
         return (options.skills ?? []).map((skill) => ({ ...skill }));
       },
     },
-    github: createFakeGithub({
-      options: options.github ?? {},
-      now,
-      fs,
-      projects: () => allProjects(),
-      addFolderProject,
-      cloneProject,
-    }),
+    github: remoteHub,
     projects: {
       async list() {
         return allProjects().map(present);
@@ -354,8 +424,7 @@ export function createFakeCore(options: FakeCoreOptions = {}): Core {
         clones.delete(id);
         for (const conversation of liveConversations()) {
           if (conversation.projectId !== id) continue;
-          await conversation.abort();
-          conversation.remove();
+          await removeConversation(conversation);
         }
         projects.splice(
           projects.findIndex((project) => project.id === id),
@@ -386,22 +455,27 @@ export function createFakeCore(options: FakeCoreOptions = {}): Core {
       async send(id, input) {
         const conversation = requireConversation(id);
         validateInput(input, conversation.model);
-        conversation.send(input.requestId, { text: input.text, images: input.images });
+        const whenBusy = input.whenBusy ?? (messageMode === "queue" ? "followUp" : "steer");
+        conversation.send(input.requestId, { text: input.text, images: input.images }, whenBusy);
+        mvp5.afterMessage(conversation, input.text);
       },
       async abort(id) {
         await requireConversation(id).abort();
       },
       async archive(id, archived) {
-        requireConversation(id).archive(archived);
+        const conversation = requireConversation(id);
+        conversation.archive(archived);
+        for (const child of mvp5.childrenOf(conversation)) child.archive(archived);
       },
-      async remove(id) {
+      async remove(id, options) {
         const conversation = conversations.get(id);
         if (!conversation) throw new AppError("not_found", `Unknown conversation: ${id}`);
         if (conversation.isDeleted) return;
-        await conversation.abort();
-        conversation.remove();
+        mvp5.guardRemoval(conversation, options?.force === true);
+        await removeConversation(conversation);
         emit({ resource: "conversations", projectId: conversation.projectId });
       },
+      ...mvp5.threadOps,
       async configure(id, input) {
         const conversation = requireConversation(id);
         if (input.model === undefined && input.thinkingLevel === undefined) {
@@ -426,6 +500,9 @@ export function createFakeCore(options: FakeCoreOptions = {}): Core {
         return requireConversation(id).watch(onOps);
       },
     },
+    workspaces: mvp5.workspaces,
+    processes: mvp5.processes,
+    mcp: mvp5.mcp,
     onChange(listener) {
       listeners.add(listener);
       return () => listeners.delete(listener);
