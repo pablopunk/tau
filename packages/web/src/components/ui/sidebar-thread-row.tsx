@@ -1,5 +1,5 @@
 import * as React from "react"
-import { SidebarMenuButton, SidebarMenuItem } from "@/components/ui/sidebar"
+import { SidebarMenuButton, SidebarMenuItem, SidebarMenuSubItem } from "@/components/ui/sidebar"
 import { cn } from "@/lib/utils"
 
 interface SidebarThreadRowProps extends Omit<React.ComponentProps<"li">, "title" | "children"> {
@@ -22,6 +22,10 @@ interface SidebarThreadRowProps extends Omit<React.ComponentProps<"li">, "title"
   tooltip?: string
   /** Id for `useFlipList`. */
   flipId?: string
+  /** A one-line row without the context line, for a child thread. */
+  compact?: boolean
+  /** Tree decoration drawn over the row, e.g. a `TreeBranch`, `TreeTrunk` or `TreeToggle`. */
+  decoration?: React.ReactNode
 }
 
 const SHOW_ACTIONS = "md:group-hover/menu-item:flex md:group-focus-within/menu-item:flex md:group-data-[actions-open=true]/menu-item:flex"
@@ -67,12 +71,16 @@ function SidebarThreadRow({
   current = false,
   tooltip,
   flipId,
+  className,
+  compact = false,
+  decoration,
   ...props
 }: SidebarThreadRowProps) {
   const { avatarRef, slotRef, offset } = useProjectIconOffset(!!projectIcon && !!context)
+  const Item = compact ? SidebarMenuSubItem : SidebarMenuItem
   const content = (
     <>
-      <span ref={avatarRef} data-slot="thread-avatar" className="relative flex size-6 shrink-0 items-center justify-center">
+      <span ref={avatarRef} data-slot="thread-avatar" className={cn("relative flex shrink-0 items-center justify-center", compact ? "size-5" : "size-6")}>
         <span className={cn(MOTION, projectIcon && "group-data-[current=true]/menu-item:scale-80 group-data-[current=true]/menu-item:opacity-0")}>
           {avatar}
         </span>
@@ -100,14 +108,15 @@ function SidebarThreadRow({
             <span className={cn("truncate", MOTION, projectIcon && "group-data-[current=true]/menu-item:-translate-x-[21px]")}>{context}</span>
           </span>
         ) : null}
-        <span data-slot="thread-title" className="line-clamp-2 text-sm font-normal break-words text-foreground/80 group-data-[current=true]/menu-item:font-semibold group-data-[current=true]/menu-item:text-foreground">
+        <span data-slot="thread-title" className={cn(compact ? "truncate" : "line-clamp-2 break-words", "text-sm font-normal text-foreground/80 group-data-[current=true]/menu-item:font-semibold group-data-[current=true]/menu-item:text-foreground")}>
           {title}
         </span>
       </span>
     </>
   )
   return (
-    <SidebarMenuItem
+    <Item
+      className={cn(compact && "group/menu-item", className)}
       data-flip-id={flipId}
       data-current={current}
       data-actions-open={actionsOpen}
@@ -118,13 +127,13 @@ function SidebarThreadRow({
         isActive={current}
         size="lg"
         tooltip={tooltip}
-        className="h-auto min-h-14 gap-2 py-2 pr-14 [&>span:last-child]:overflow-visible [&>span:last-child]:whitespace-normal!"
+        className={cn("h-auto gap-2 pr-14 [&>span:last-child]:overflow-visible [&>span:last-child]:whitespace-normal!", compact ? "min-h-9 py-1" : "min-h-14 py-2")}
       >
         {React.cloneElement(link, undefined, content)}
       </SidebarMenuButton>
       <div
         data-slot="thread-aside"
-        className="pointer-events-none absolute top-2 right-2 flex h-6 items-center justify-end"
+        className={cn("pointer-events-none absolute right-2 flex h-6 items-center justify-end", compact ? "top-1.5" : "top-2")}
       >
         <span
           data-slot="thread-time"
@@ -138,7 +147,8 @@ function SidebarThreadRow({
           </div>
         ) : null}
       </div>
-    </SidebarMenuItem>
+      {decoration}
+    </Item>
   )
 }
 

@@ -19,3 +19,15 @@ export function useClosedProjects() {
   };
   return { closed, isOpen: (projectId: string) => !closed.includes(projectId), setOpen };
 }
+
+export function useCollapsedThreads() {
+  const [collapsed, setCollapsed] = useState<string[]>(() => preferences.getCollapsedThreads());
+  const toggle = (threadId: string) => {
+    const next = collapsed.includes(threadId)
+      ? collapsed.filter((id) => id !== threadId)
+      : [...collapsed, threadId];
+    preferences.setCollapsedThreads(next);
+    setCollapsed(next);
+  };
+  return { isExpanded: (threadId: string) => !collapsed.includes(threadId), toggle };
+}

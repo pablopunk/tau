@@ -10,6 +10,7 @@ const KEYS = {
   seenBaseline: `${PREFIX}seen-baseline`,
   sidebarMode: "pie-sidebar-mode",
   closedProjects: "pie-sidebar-closed-projects",
+  collapsedThreads: "pie-sidebar-collapsed-threads",
   theme: `${PREFIX}theme`,
 } as const;
 
@@ -68,6 +69,10 @@ export const preferences = {
 
   getClosedProjects: (): string[] => readJson(KEYS.closedProjects, isStringArray) ?? [],
   setClosedProjects: (ids: readonly string[]): void => writeString(KEYS.closedProjects, JSON.stringify(ids)),
+
+  getCollapsedThreads: (): string[] => readJson(KEYS.collapsedThreads, isStringArray) ?? [],
+  setCollapsedThreads: (ids: readonly string[]): void =>
+    writeString(KEYS.collapsedThreads, JSON.stringify(ids)),
 
   getTheme: (): Theme => {
     const stored = readString(KEYS.theme);

@@ -1,7 +1,8 @@
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import { SidebarProvider } from "@/components/ui/sidebar";
+import { preferences } from "@/lib/preferences";
 import { nestThreads } from "./sidebar-model";
 import { ThreadsView } from "./ThreadsView";
 import { conversation, project, renderAt } from "./test-support";
@@ -20,6 +21,7 @@ describe("nestThreads", () => {
 });
 
 describe("<ThreadsView> nesting", () => {
+  beforeEach(() => window.localStorage.clear());
   const renderView = () =>
     renderAt(
       "/",
@@ -33,16 +35,50 @@ describe("<ThreadsView> nesting", () => {
       </SidebarProvider>,
     );
 
-  it("indents the child under its parent", () => {
+  it("branches the child out of its parent", () => {
     renderView();
     const childRow = screen.getByText("Child thread").closest("li");
     expect(childRow).toHaveAttribute("data-depth", "1");
     expect(screen.getByTestId("thread-tree-1")).toContainElement(childRow);
+    expect(childRow?.querySelector("[data-slot=tree-branch]")).toHaveAttribute("data-last", "true");
   });
 
-  it("collapses the children with the parent's toggle", async () => {
+  it("gives only the last of several children the corner", () => {
+    const second = conversation({ id: "4", title: "Second child", parentId: "1" });
+    renderAt(
+      "/",
+      <SidebarProvider>
+        <ThreadsView
+          projects={[project()]}
+          conversations={[parent, child, second]}
+          activeConversationId={undefined}
+          onProjectRemoved={() => {}}
+        />
+      </SidebarProvider>,
+    );
+    const lasts = ["Child thread", "Second child"].map((title) =>
+      screen
+        .getByText(title)
+        .closest("li")
+        ?.querySelector("[data-slot=tree-branch]")
+        ?.getAttribute("data-last"),
+    );
+    expect(lasts).toEqual(["false", "true"]);
+  });
+
+  it("has no Subagents row and no project label on the child", () => {
     renderView();
-    await userEvent.click(screen.getByRole("button", { name: /Subagents \(1\)/ }));
+    expect(screen.queryByText(/Subagents/)).not.toBeInTheDocument();
+    expect(screen.getAllByText("Home")).toHaveLength(1);
+  });
+
+  it("collapses the children from the parent row and remembers it", async () => {
+    const view = renderView();
+    await userEvent.click(screen.getByRole("button", { name: "Collapse subagents of Parent thread" }));
+    expect(screen.queryByText("Child thread")).not.toBeInTheDocument();
+    expect(preferences.getCollapsedThreads()).toEqual(["1"]);
+    view.unmount();
+    renderView();
     expect(screen.queryByText("Child thread")).not.toBeInTheDocument();
   });
 });

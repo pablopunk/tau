@@ -22,6 +22,7 @@ import { RelativeTime } from "@/components/ui/relative-time";
 import { useSidebar } from "@/components/ui/sidebar";
 import { SidebarThreadRow } from "@/components/ui/sidebar-thread-row";
 import { StatusDot } from "@/components/ui/status-dot";
+import { TreeBranch, TreeToggle } from "@/components/ui/tree-branch";
 import { api } from "@/lib/api";
 import { conversationPath } from "@/lib/paths";
 import { queryKeys } from "@/lib/queries";
@@ -38,12 +39,24 @@ interface ThreadRowProps {
   showProject: boolean;
   /** 1 for a subagent thread shown under its parent. */
   depth?: number;
+  /** Only for a child: it is the last of its siblings. */
+  last?: boolean;
+  /** Only for a parent with children. */
+  branches?: { expanded: boolean };
 }
 
 const tooltipOf = (title: string, project: Project | undefined, conversation: ConversationSummary) =>
   [title, project?.name, conversation.model?.modelId, conversation.status].filter(Boolean).join(" · ");
 
-export function ThreadRow({ conversation, project, active, showProject, depth = 0 }: ThreadRowProps) {
+export function ThreadRow({
+  conversation,
+  project,
+  active,
+  showProject,
+  depth = 0,
+  last = false,
+  branches,
+}: ThreadRowProps) {
   const [dialog, setDialog] = useState<"rename" | "delete" | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const title = conversation.title.trim() || "New thread";
@@ -86,6 +99,16 @@ export function ThreadRow({ conversation, project, active, showProject, depth = 
     ) : null;
   const ArchiveToggleIcon = archived ? ArchiveRestoreIcon : ArchiveIcon;
 
+  const decoration =
+    depth > 0 ? (
+      <TreeBranch last={last} />
+    ) : branches ? (
+      <TreeToggle
+        expanded={branches.expanded}
+        aria-label={`${branches.expanded ? "Collapse" : "Expand"} subagents of ${title}`}
+      />
+    ) : undefined;
+
   return (
     <>
       <ContextMenu>
@@ -93,7 +116,8 @@ export function ThreadRow({ conversation, project, active, showProject, depth = 
           <SidebarThreadRow
             actionsOpen={menuOpen}
             data-depth={depth}
-            className={depth > 0 ? "pl-4" : undefined}
+            compact={depth > 0}
+            decoration={decoration}
             flipId={conversation.id}
             current={active}
             title={title}
@@ -107,12 +131,13 @@ export function ThreadRow({ conversation, project, active, showProject, depth = 
             }
             avatar={
               <BotAvatar
+                size={depth > 0 ? 20 : 24}
                 avatarIndex={conversation.avatarIndex}
                 working={conversation.status === "running"}
                 badge={dot && dot !== "running" ? <StatusDot status={dot} /> : undefined}
               />
             }
-            context={showProject ? project?.name : undefined}
+            context={showProject && depth === 0 ? project?.name : undefined}
             projectIcon={projectIcon(17)}
             time={<RelativeTime at={conversation.lastActivityAt} />}
             actions={
