@@ -1,3 +1,4 @@
+import { dirname, join } from "node:path";
 import type { Models } from "@earendil-works/pi-ai/models";
 import {
   AppError,
@@ -43,6 +44,11 @@ export function createProviderService(options: ProviderServiceOptions): Provider
     : createRealModels(credentials, options.env);
   const connections = createConnectionReader({ credentials, models, faux: options.faux });
   const lister = createModelLister({ models, connections, faux: options.faux });
+  const logins = createLoginSessions({
+    models,
+    changes: options.changes,
+    deviceIdFile: join(dirname(options.credentialsFile), "device-id"),
+  });
 
   const infoOf = async (entry: ProviderEntry): Promise<ProviderInfo> => ({
     id: entry.id,
@@ -84,7 +90,7 @@ export function createProviderService(options: ProviderServiceOptions): Provider
 
   return {
     models,
-    logins: createLoginSessions(),
+    logins,
     async isConfigured() {
       for (const entry of PROVIDERS) if (await connections.read(entry)) return true;
       return false;
