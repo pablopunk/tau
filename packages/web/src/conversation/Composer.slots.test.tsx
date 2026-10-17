@@ -22,6 +22,17 @@ describe("<Composer> slots", () => {
     expect(box).not.toContainElement(screen.getByText("panel"));
   });
 
+  it("words the busy placeholder as Queue in queue mode", () => {
+    expect(setup({ busy: true, whenBusy: "followUp" }).input).toHaveAttribute(
+      "placeholder",
+      "Queue a message…",
+    );
+  });
+
+  it("words the busy placeholder as Steer in steer mode", () => {
+    expect(setup({ busy: true, whenBusy: "steer" }).input).toHaveAttribute("placeholder", "Steer the agent…");
+  });
+
   it("sends with the default mode on Enter and the other one on Alt+Enter while busy", async () => {
     const { onSend, input } = setup({ busy: true, whenBusy: "followUp" });
     await userEvent.type(input, "one{Enter}");

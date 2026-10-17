@@ -33,3 +33,10 @@ export function urlsOf(args: Record<string, unknown> | undefined): string {
   if (Array.isArray(list)) return list.filter((item) => typeof item === "string").join(", ");
   return typeof args?.url === "string" ? args.url : "";
 }
+
+const SOURCES_DIVIDER = /\n*---\n+\*\*Sources:\*\*[\s\S]*$/;
+const TRAILING_NOTES = /\n---\n[\s\S]*$/;
+
+export function answerOf(text: string): string {
+  return text.replace(SOURCES_DIVIDER, "").replace(TRAILING_NOTES, "").trim();
+}

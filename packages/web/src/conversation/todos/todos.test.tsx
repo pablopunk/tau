@@ -9,7 +9,9 @@ import { conversation } from "@/sidebar/test-support";
 import type { ToolCallState } from "../model/tool-state";
 import { TaskTool } from "../tools/TaskTool";
 import { TodoTool } from "../tools/TodoTool";
+import { LatestTodoCallProvider } from "./latest-todo-call";
 import { TodoPanel } from "./TodoPanel";
+import { latestTodoCallId } from "./todo-items";
 
 vi.mock("@/lib/api", () => ({ api: { conversations: { listAll: vi.fn(async () => []) } } }));
 
@@ -72,6 +74,23 @@ describe("<TodoTool>", () => {
     render(<TodoTool state={callState("todo_write", { todos: TODOS })} />);
     expect(screen.getByText("Ship it")).toBeInTheDocument();
     expect(screen.getByText("0/2 done")).toBeInTheDocument();
+  });
+});
+
+describe("<TodoTool> history", () => {
+  it("collapses an earlier todo_write to an Updated todos row", () => {
+    render(
+      <LatestTodoCallProvider value="newer">
+        <TodoTool state={callState("todo_write", { todos: TODOS })} />
+      </LatestTodoCallProvider>,
+    );
+    expect(screen.getByText("Updated todos")).toBeInTheDocument();
+    expect(screen.queryByText("Ship it")).not.toBeInTheDocument();
+  });
+
+  it("finds the newest todo_write call id", () => {
+    expect(latestTodoCallId(viewWith(TODOS))).toBe("t");
+    expect(latestTodoCallId(viewWith(undefined))).toBeUndefined();
   });
 });
 

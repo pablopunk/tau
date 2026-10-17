@@ -24,7 +24,7 @@ export const doneCount = (todos: readonly TodoItem[]) =>
 export const isFinished = (todos: readonly TodoItem[]) =>
   todos.length === 0 || doneCount(todos) === todos.length;
 
-type ToolCallBlock = { type?: string; name?: string; arguments?: { todos?: unknown } };
+type ToolCallBlock = { type?: string; id?: string; name?: string; arguments?: { todos?: unknown } };
 
 const todoCallsOf = (entry: ConversationView["entries"][number]): ToolCallBlock[] => {
   const content = (entry.model?.[0] as { content?: unknown } | undefined)?.content;
@@ -40,4 +40,13 @@ export function latestTodos(view: ConversationView): TodoItem[] {
     if (call) return parseTodos(call.arguments?.todos);
   }
   return [];
+}
+
+export function latestTodoCallId(view: ConversationView): string | undefined {
+  for (let index = view.entries.length - 1; index >= 0; index--) {
+    const entry = view.entries[index];
+    const call = entry ? todoCallsOf(entry).at(-1) : undefined;
+    if (call) return call.id;
+  }
+  return undefined;
 }

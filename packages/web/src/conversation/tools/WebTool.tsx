@@ -1,11 +1,20 @@
 import { FileDown, Search } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Markdown } from "../messages/Markdown";
 import { resultText } from "../model/tool-state";
 import { GenericTool } from "./GenericTool";
 import { OutputBlock } from "./OutputBlock";
 import { ToolCard } from "./ToolCard";
 import type { ToolRendererProps } from "./types";
-import { hostOf, parseWebResults, queriesOf, sizeLabel, urlsOf, type WebResult } from "./web-results";
+import {
+  answerOf,
+  hostOf,
+  parseWebResults,
+  queriesOf,
+  sizeLabel,
+  urlsOf,
+  type WebResult,
+} from "./web-results";
 
 const outputOf = (state: ToolRendererProps["state"]) =>
   state.result ? resultText(state.result) : (state.slot?.output ?? "");
@@ -33,6 +42,7 @@ function ResultList({ results }: { results: readonly WebResult[] }) {
 function SearchCard({ state }: ToolRendererProps) {
   const text = outputOf(state);
   const results = parseWebResults(text);
+  const answer = answerOf(text);
   return (
     <ToolCard
       icon={<Search />}
@@ -42,7 +52,7 @@ function SearchCard({ state }: ToolRendererProps) {
       badge={results.length ? <Badge variant="secondary">{results.length} results</Badge> : null}
     >
       {results.length ? <ResultList results={results} /> : null}
-      {text ? <OutputBlock text={text} label="Search answer" /> : null}
+      {answer ? <Markdown className="text-sm">{answer}</Markdown> : null}
     </ToolCard>
   );
 }

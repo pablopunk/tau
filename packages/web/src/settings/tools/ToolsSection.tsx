@@ -49,7 +49,10 @@ export function ToolsSection() {
 
   return (
     <div className="flex flex-col gap-6">
-      <FieldDescription>{WEB_NOTE}</FieldDescription>
+      <section className="flex flex-col gap-2">
+        <h3 className="text-sm font-medium">Web search</h3>
+        <FieldDescription>{WEB_NOTE}</FieldDescription>
+      </section>
       <div className="flex flex-col gap-2">
         <div className="flex items-center justify-between gap-2">
           <h3 className="text-sm font-medium">MCP servers</h3>

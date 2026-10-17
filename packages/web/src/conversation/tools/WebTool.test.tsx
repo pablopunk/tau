@@ -42,6 +42,14 @@ describe("web tool cards", () => {
     );
   });
 
+  it("renders the search answer as markdown, not raw text", async () => {
+    const text = "### Heading\n\n**bold** claim\n\n---\n\n**Sources:**\n1. A\n   https://a.dev/x";
+    render(<WebTool state={stateOf("web_search", { query: "q" }, text)} />);
+    await userEvent.click(screen.getByRole("button", { name: /Web search/ }));
+    expect(screen.queryByText(/\*\*/)).toBeNull();
+    expect(screen.getByText("bold").tagName).toBe("STRONG");
+  });
+
   it("shows the url and size for fetch_content", () => {
     render(<WebTool state={stateOf("fetch_content", { url: "https://example.com/a" }, "x".repeat(2500))} />);
     expect(screen.getByText("https://example.com/a")).toBeTruthy();

@@ -59,6 +59,9 @@ function isPlainEnter(event: KeyboardEvent<HTMLTextAreaElement>): boolean {
   return event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing;
 }
 
+const placeholderOf = (busy: boolean, mode: WhenBusy = "steer") =>
+  !busy ? "Message the agent…" : mode === "followUp" ? "Queue a message…" : "Steer the agent…";
+
 const otherMode = (mode: WhenBusy = "steer"): WhenBusy => (mode === "steer" ? "followUp" : "steer");
 
 function pastedFiles(event: ClipboardEvent): File[] {
@@ -240,7 +243,7 @@ function ComposerForm({
           onSelect={(event) => setCaret(event.currentTarget.selectionStart)}
           onKeyDown={onKeyDown}
           onPaste={onPaste}
-          placeholder={busy ? "Steer the agent…" : "Message the agent…"}
+          placeholder={placeholderOf(busy, whenBusy)}
           rows={1}
           className="max-h-48 min-h-9 resize-none border-0 bg-transparent px-2 py-1.5 shadow-none focus-visible:ring-0 dark:bg-transparent"
         />

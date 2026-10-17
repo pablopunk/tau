@@ -9,6 +9,7 @@ import type {
 import { AppError, type ConversationSummary } from "@pi-everywhere/protocol";
 import { ConversationDoc, INDEX_SEED, ProjectIndexDoc } from "./conversation-docs";
 import type { ConversationStore } from "./conversation-store";
+import { forkedWorkspace } from "./forked-workspace";
 import { BACKGROUND } from "./open";
 
 export interface ForkOptions {
@@ -126,7 +127,7 @@ export function createConversationForker(
             createdAt: now,
             updatedAt: now,
             status: "idle",
-            workspace: parent.workspace,
+            workspace: forkedWorkspace(parent.workspace),
             forkOf: { conversationId, entryId },
             ...(parent.model && { model: parent.model }),
           });

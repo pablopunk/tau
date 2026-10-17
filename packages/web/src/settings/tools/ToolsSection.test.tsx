@@ -34,6 +34,7 @@ describe("ToolsSection", () => {
   it("says web search needs no keys", async () => {
     renderSection();
     expect(await screen.findByText(/work out of the box/)).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Web search" })).toBeTruthy();
   });
 
   it("adds a command server and lists it, then removes it", async () => {

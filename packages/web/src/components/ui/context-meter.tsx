@@ -13,7 +13,6 @@ const SIZE = 16
 const STROKE = 2
 const RADIUS = (SIZE - STROKE) / 2
 const MIN_ROUND_PERCENT = 5
-const SHOW_PERCENT_FROM = 50
 const CIRCUMFERENCE = 2 * Math.PI * RADIUS
 
 function percentOf(used: number, total: number) {
@@ -28,7 +27,7 @@ function progressColor(percent: number) {
 
 /** A small ring showing how much of a budget is used; turns warning at 80% and destructive at 95%. */
 function ContextMeter({ used, total, label, className }: ContextMeterProps) {
-  if (total <= 0) return null
+  if (total <= 0 || used <= 0) return null
   const percent = percentOf(used, total)
   const text = label ?? `${Math.round(percent)}%`
   return (
@@ -58,7 +57,7 @@ function ContextMeter({ used, total, label, className }: ContextMeterProps) {
               strokeDashoffset={CIRCUMFERENCE * (1 - percent / 100)}
             />
           </svg>
-          {percent >= SHOW_PERCENT_FROM ? <span>{Math.round(percent)}%</span> : null}
+          <span>{Math.round(percent)}%</span>
         </span>
       </TooltipTrigger>
       <TooltipContent>{text}</TooltipContent>
