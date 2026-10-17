@@ -64,6 +64,13 @@ describe("message actions", () => {
     expect(await screen.findByTestId("location")).toHaveTextContent("/p/p1/c/9");
   });
 
+  it("calls rewinding the first message Rewind to start", async () => {
+    conversations.rewindPreview.mockResolvedValue({ checkpointId: "r:before", changes: [] });
+    renderWithApp(<MessageMenu entry={{ ...userEntry, startsConversation: true }} />);
+    await pickAction("Rewind to start");
+    expect(await screen.findByText("Rewind to start?")).toBeInTheDocument();
+  });
+
   it("lists what a rewind changes and warns about ignored files before asking", async () => {
     conversations.rewindPreview.mockResolvedValue({
       checkpointId: "r:before",

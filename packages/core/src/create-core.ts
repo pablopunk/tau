@@ -123,9 +123,16 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
       presentProject: present,
     });
     githubRef.current = github;
-    const workspaces = createWorkspaceService({ home: home.root, conversations });
+    const workspaces = createWorkspaceService({
+      home: home.root,
+      conversations,
+      runGh: deps.runGh,
+      announce: (projectId) => changes.emit({ resource: "conversations", projectId }),
+    });
     const forker = createConversationForker(harness, conversations);
     const checkpoints = createCheckpointService({ home: home.root, conversations, forker });
+    status.onRunEnded((id) => checkpoints.snapshotAfter(id, ""));
+    forker.onForked(async (fork) => changes.emit({ resource: "conversations", projectId: fork.projectId }));
     const processes = createProcessService({
       home: home.root,
       emitChange: (conversationId) => changes.emit({ resource: "processes", conversationId }),
@@ -199,6 +206,7 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
           clones.stopAll();
           try {
             await processes.stopAll();
+            await status.settled();
             await mcp.closeAll();
             await harness.close(BACKGROUND);
             await github.settled();

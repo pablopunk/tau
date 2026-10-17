@@ -17,7 +17,7 @@ const settings = (workspaceDefault: "worktree" | "checkout") =>
 beforeEach(() => {
   vi.resetAllMocks();
   mocked.projects.list.mockResolvedValue([
-    project({ id: "g", kind: "git" }),
+    project({ id: "g", kind: "folder", isGitRepo: true }),
     project({ id: "f", kind: "folder" }),
   ]);
   mocked.settings.get.mockResolvedValue(settings("worktree"));

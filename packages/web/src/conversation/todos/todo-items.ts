@@ -1,11 +1,11 @@
+import type { ConversationView } from "@pi-everywhere/protocol";
+
 export type TodoStatus = "pending" | "in_progress" | "completed";
 
 export interface TodoItem {
   readonly content: string;
   readonly status: TodoStatus;
 }
-
-export const TODOS_DOC_KIND = "pi-everywhere.todos";
 
 const STATUSES: readonly string[] = ["pending", "in_progress", "completed"];
 
@@ -23,3 +23,21 @@ export const doneCount = (todos: readonly TodoItem[]) =>
 
 export const isFinished = (todos: readonly TodoItem[]) =>
   todos.length === 0 || doneCount(todos) === todos.length;
+
+type ToolCallBlock = { type?: string; name?: string; arguments?: { todos?: unknown } };
+
+const todoCallsOf = (entry: ConversationView["entries"][number]): ToolCallBlock[] => {
+  const content = (entry.model?.[0] as { content?: unknown } | undefined)?.content;
+  if (entry.kind !== "pi.assistant" || !Array.isArray(content)) return [];
+  return content.filter((block: ToolCallBlock) => block.type === "toolCall" && block.name === "todo_write");
+};
+
+/** The view carries only built-in documents, so the list is the arguments of the newest `todo_write` call. */
+export function latestTodos(view: ConversationView): TodoItem[] {
+  for (let index = view.entries.length - 1; index >= 0; index--) {
+    const entry = view.entries[index];
+    const call = entry ? todoCallsOf(entry).at(-1) : undefined;
+    if (call) return parseTodos(call.arguments?.todos);
+  }
+  return [];
+}

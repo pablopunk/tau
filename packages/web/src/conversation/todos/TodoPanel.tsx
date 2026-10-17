@@ -2,10 +2,10 @@ import type { ConversationView } from "@pi-everywhere/protocol";
 import { ChevronRight, ListChecks } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { TodoList } from "./TodoList";
-import { doneCount, isFinished, parseTodos, TODOS_DOC_KIND } from "./todo-items";
+import { doneCount, isFinished, latestTodos } from "./todo-items";
 
 export function TodoPanel({ view }: { conversationId: string; view: ConversationView }) {
-  const todos = parseTodos(view.docs[TODOS_DOC_KIND]?.todos);
+  const todos = latestTodos(view);
   if (isFinished(todos)) return null;
   return (
     <Collapsible

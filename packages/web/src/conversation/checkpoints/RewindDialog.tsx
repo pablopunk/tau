@@ -67,7 +67,7 @@ export function RewindDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Rewind to here?</DialogTitle>
+          <DialogTitle>{entry.startsConversation ? "Rewind to start?" : "Rewind to here?"}</DialogTitle>
           <DialogDescription>
             Files go back to how they were before this message. A new thread opens with the conversation up to
             this point, and the message waits in its composer.

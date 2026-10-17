@@ -12,6 +12,7 @@ import type { ConversationStore } from "../harness/conversation-store";
 import { createKeyedLock } from "./keyed-lock";
 import { openPullRequest, requireGithubConnected } from "./pull-request";
 import { inWorktree } from "./repo-facts";
+import { otherThreadsUsingWorktree } from "./shared-worktree";
 import { createWorktreeWorkspace } from "./worktree-create";
 import {
   describeUnmergedWork,
@@ -86,7 +87,11 @@ export function createWorkspaceService({
     return update(thread, { state: "removed", path: inWorktree(facts.mainRoot, facts.subpath) });
   }
 
+  const isSharedWithOthers = async (thread: ConversationSummary) =>
+    (await otherThreadsUsingWorktree(conversations, thread)).length > 0;
+
   async function discardWorktreeOf(thread: ConversationSummary): Promise<void> {
+    if (await isSharedWithOthers(thread)) return;
     const facts = hasLiveWorktree(thread) ? await worktreeFactsIfPresent(thread) : undefined;
     if (facts) {
       await lock.run(facts.mainRoot, () => removeWorktreeAndBranch(facts, true));
@@ -133,6 +138,9 @@ export function createWorkspaceService({
       const { facts } = await liveWorktreeOf(id);
       requireIdle(thread);
       return lock.run(facts.mainRoot, async () => {
+        if (await isSharedWithOthers(thread)) {
+          return update(thread, { state: "removed", path: inWorktree(facts.mainRoot, facts.subpath) });
+        }
         const lost = await describeUnmergedWork(thread);
         if (lost.length > 0 && !force) {
           throw new AppError("has_unmerged_work", `This worktree has unmerged work: ${lost.join(", ")}`);
@@ -141,7 +149,9 @@ export function createWorkspaceService({
       });
     },
 
-    unmergedWork: describeUnmergedWork,
+    async unmergedWork(thread) {
+      return (await isSharedWithOthers(thread)) ? [] : describeUnmergedWork(thread);
+    },
     onConversationRemoved: discardWorktreeOf,
 
     async onProjectRemoved(projectId) {

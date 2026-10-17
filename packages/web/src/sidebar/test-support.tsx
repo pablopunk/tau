@@ -12,6 +12,7 @@ export const project = (overrides: Partial<Project> = {}): Project => ({
   createdAt: 1,
   kind: "home",
   status: "ready",
+  isGitRepo: false,
   ...overrides,
 });
 

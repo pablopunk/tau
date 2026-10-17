@@ -61,6 +61,7 @@ describe("app.projects v2 migration", () => {
         createdAt: 7,
         kind: "folder",
         status: "ready",
+        isGitRepo: false,
         iconUrl: "/api/projects/old/icon?v=auto",
       },
     ]);

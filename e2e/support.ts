@@ -58,6 +58,15 @@ function createWithCopyRepository(root: string) {
   return bare;
 }
 
+function createDemoRepository(root: string) {
+  const repo = join(root, "demo-repo");
+  mkdirSync(repo);
+  git(repo, "init", "-q", "-b", "main");
+  writeFileSync(join(repo, "README.md"), "# demo\n");
+  git(repo, "add", ".");
+  git(repo, "commit", "-q", "-m", "first");
+}
+
 /** Playwright loads the config in every worker, so the temp root is created once and shared through the environment. */
 export function e2eRoot(): string {
   const existing = process.env[ROOT_VARIABLE];
@@ -65,6 +74,7 @@ export function e2eRoot(): string {
   const root = realpathSync(mkdtempSync(join(tmpdir(), "pi-everywhere-e2e-")));
   mkdirSync(join(root, "home"));
   createBareRepository(join(root, "remote.git"), join(root, "scratch"));
+  createDemoRepository(root);
   const withoutCopy = join(root, "without-copy.git");
   createBareRepository(withoutCopy, join(root, "scratch-without-copy"));
   installFakeGh(join(root, "gh"), {
@@ -78,6 +88,7 @@ export function e2eRoot(): string {
 /** The user's HOME: the Home project folder, where the agent writes files. */
 export const homeDir = () => join(e2eRoot(), "home");
 export const stateDir = () => join(e2eRoot(), "state");
+export const demoRepository = () => join(e2eRoot(), "demo-repo");
 export const bareRepository = () => join(e2eRoot(), "remote.git");
 export const projectsDir = () => join(stateDir(), "projects");
 export const tokenFile = () => join(stateDir(), "token");

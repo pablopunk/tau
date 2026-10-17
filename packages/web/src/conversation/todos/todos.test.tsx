@@ -18,8 +18,19 @@ const TODOS = [
   { content: "Ship it", status: "pending" },
 ];
 
+const todoEntry = (id: number, todos: unknown) => ({
+  id,
+  kind: "pi.assistant",
+  model: [
+    { role: "assistant", content: [{ type: "toolCall", id: "t", name: "todo_write", arguments: { todos } }] },
+  ],
+});
+
 const viewWith = (todos: unknown): ConversationView =>
-  ({ docs: todos === undefined ? {} : { "pi-everywhere.todos": { todos } } }) as unknown as ConversationView;
+  ({
+    entries:
+      todos === undefined ? [] : [todoEntry(1, [{ content: "old", status: "pending" }]), todoEntry(2, todos)],
+  }) as unknown as ConversationView;
 
 function callState(name: string, args: Record<string, unknown>, details?: unknown): ToolCallState {
   return {

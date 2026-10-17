@@ -36,6 +36,7 @@ export const projectAt = (path: string, kind: Project["kind"] = "git"): Project 
   createdAt: 0,
   kind,
   status: "ready",
+  isGitRepo: kind === "git",
 });
 
 export async function commitFile(cwd: string, name: string, content: string) {

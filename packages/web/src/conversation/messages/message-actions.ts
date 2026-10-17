@@ -6,6 +6,7 @@ export interface MessageEntry {
   entryId: string;
   role: "user" | "assistant";
   text: string;
+  startsConversation?: boolean;
 }
 
 export interface MessageAction {

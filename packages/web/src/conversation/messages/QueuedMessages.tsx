@@ -3,8 +3,8 @@ import { QueuedItemActions } from "../queue/QueuedItemActions";
 import { UserMessage } from "./UserMessage";
 
 const MODE_LABELS: Record<QueuedMessage["mode"], string> = {
-  steer: "Queued, will steer the agent",
-  followUp: "Queued, will send when the agent is done",
+  steer: "Will steer the agent",
+  followUp: "Will send when the agent is done",
 };
 
 export function QueuedMessages({

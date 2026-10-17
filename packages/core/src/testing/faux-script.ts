@@ -14,6 +14,7 @@ export const SCRIPT_USAGE = [
   "bash <command>",
   "task <description>",
   "bg <command>",
+  "todo <first> | <second> | ...",
   "think",
   "fail",
   "flaky",
@@ -49,6 +50,13 @@ function toolCallReply(name: string, args: Record<string, unknown>): Reply {
   return fauxAssistantMessage([fauxText(`Running ${name}.`), fauxToolCall(name, args as never)], {
     stopReason: "toolUse",
   });
+}
+
+function todoArguments(rest: string) {
+  const items = rest.split("|").map((item) => item.trim());
+  return {
+    todos: items.map((content, index) => ({ content, status: index === 0 ? "in_progress" : "pending" })),
+  };
 }
 
 function slowTextReply(input: string): Reply {
@@ -105,6 +113,8 @@ function scriptedReply(input: string, attempt: number, user: UserMessage | undef
       return toolCallReply("task", { description: rest, prompt: rest });
     case "bg":
       return toolCallReply("process_start", { command: rest });
+    case "todo":
+      return toolCallReply("todo_write", todoArguments(rest));
     case "think":
       return fauxAssistantMessage([
         fauxThinking("Let me think about this for a moment. The question is simple, so the answer is too."),

@@ -23,6 +23,7 @@ const project = {
   createdAt: 1,
   kind: "folder",
   status: "ready",
+  isGitRepo: false,
 } as const;
 
 const renderDialog = (onClose = vi.fn()) => {

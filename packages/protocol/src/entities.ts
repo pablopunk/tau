@@ -148,6 +148,7 @@ export const ProjectSchema = Type.Object({
   kind: ProjectKindSchema,
   gitUrl: Type.Optional(Type.String()),
   status: ProjectStatusSchema,
+  isGitRepo: Type.Boolean(),
   error: Type.Optional(Type.String()),
   iconUrl: Type.Optional(Type.Union([Type.String(), Type.Null()])),
 });

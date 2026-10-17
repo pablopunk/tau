@@ -20,6 +20,7 @@ async function setup() {
     createdAt: 0,
     kind: "folder",
     status: "ready",
+    isGitRepo: false,
   };
   const put = async (name: string, content = "x") => {
     const path = join(project, name);

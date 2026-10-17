@@ -54,6 +54,7 @@ const project = (id: string, extra: Partial<Project> = {}): Project => ({
   createdAt: 0,
   kind: "git",
   status: "ready",
+  isGitRepo: true,
   ...extra,
 });
 

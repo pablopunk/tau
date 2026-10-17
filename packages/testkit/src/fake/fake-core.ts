@@ -73,6 +73,7 @@ export function createFakeCore(options: FakeCoreOptions = {}): Core {
     createdAt: 0,
     kind: "home",
     status: "ready",
+    isGitRepo: false,
   };
   const projects: Project[] = [];
   const clones = new Map<string, ReturnType<typeof setTimeout>>();
@@ -188,6 +189,7 @@ export function createFakeCore(options: FakeCoreOptions = {}): Core {
       createdAt: now(),
       kind: "folder",
       status: "ready",
+      isGitRepo: true,
       ...(input.gitUrl ? { gitUrl: input.gitUrl } : {}),
     };
     projects.push(project);
@@ -212,6 +214,7 @@ export function createFakeCore(options: FakeCoreOptions = {}): Core {
       kind: "git",
       gitUrl: url,
       status: "cloning",
+      isGitRepo: true,
     };
     projects.push(project);
     scheduleClone(project);

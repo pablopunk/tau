@@ -49,7 +49,15 @@ async function untilInboxEmpty(id: string) {
 
 async function startBusyThread() {
   const { summary } = await store.start({
-    project: { id: "p1", name: "main", path: project, createdAt: 0, kind: "folder", status: "ready" },
+    project: {
+      id: "p1",
+      name: "main",
+      path: project,
+      createdAt: 0,
+      kind: "folder",
+      status: "ready",
+      isGitRepo: false,
+    },
     model: FAUX,
     thinkingLevel: "off",
     input: { text: "bash sleep 1", requestId: "r1" },

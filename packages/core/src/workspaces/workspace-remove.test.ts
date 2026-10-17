@@ -117,3 +117,35 @@ describe("workspaces.createPullRequest", () => {
     expect(await git(bare, "branch", "--list", thread.workspace.branch ?? "")).toContain("pi/");
   });
 });
+
+describe("workspaces.remove with a shared worktree", () => {
+  async function sharedPair() {
+    const context = await setUp();
+    const first = await context.startThread();
+    const second = context.add({ ...first.workspace });
+    await writeFile(join(first.workspace.path, "dirty.txt"), "x");
+    return { ...context, first, second };
+  }
+
+  test("detaches the thread and keeps the worktree while another thread uses it", async () => {
+    const { service, first, second, repo } = await sharedPair();
+    const detached = await service.remove(first.id, false);
+    expect(detached.workspace).toMatchObject({ state: "removed", path: repo });
+    expect(await exists(first.workspace.path)).toBe(true);
+    expect((await service.status(second.id)).dirtyFiles).toEqual(["dirty.txt"]);
+  });
+
+  test("deleting one of two threads keeps the worktree without asking", async () => {
+    const { service, first } = await sharedPair();
+    expect(await service.unmergedWork(first)).toEqual([]);
+    await service.onConversationRemoved(first);
+    expect(await exists(first.workspace.path)).toBe(true);
+  });
+
+  test("removes the worktree once the last thread leaves", async () => {
+    const { service, first, second } = await sharedPair();
+    await service.remove(first.id, false);
+    await service.remove(second.id, true);
+    expect(await exists(first.workspace.path)).toBe(false);
+  });
+});

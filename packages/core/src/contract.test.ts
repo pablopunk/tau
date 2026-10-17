@@ -13,7 +13,7 @@ import { makeLocalRepo } from "./test-support/local-repo";
 
 const REAL_CORE_IMPLEMENTED = true;
 
-const PENDING_TAGS: string[] = ["workspaces"];
+const PENDING_TAGS: string[] = [];
 
 process.env.PI_EVERYWHERE_ALLOW_FILE_CLONES = "1";
 
@@ -84,7 +84,15 @@ async function makeRealTarget(): Promise<ContractTarget> {
         await writeFile(path, "not a folder");
         return path;
       },
-      gitDirectory: async (name) => makeLocalRepo(join(root, "projects"), name),
+      gitDirectory: async (name) => {
+        const repo = await makeLocalRepo(join(root, "projects"), name);
+        const origin = await makeBareRepository(join(root, "origins", `${name}.git`));
+        const url = `https://github.com/me/${name}.git`;
+        const run = promisify(execFile);
+        await run("git", ["-C", repo, "remote", "add", "origin", url]);
+        await run("git", ["-C", repo, "config", `url.${origin}.pushInsteadOf`, url]);
+        return repo;
+      },
       missing: () => join(root, "does-not-exist"),
       cloneUrl: () => makeBareRepository(join(root, "remote.git")),
       failingCloneUrl: () => "https://127.0.0.1:1/fail.git",

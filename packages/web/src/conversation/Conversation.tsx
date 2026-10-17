@@ -12,6 +12,8 @@ import { Composer } from "./Composer";
 import { useThreadCommands } from "./composer/use-thread-commands";
 import { imagesAllowedFor } from "./model/agent";
 import { readLive } from "./model/live";
+import { BusyModeHint } from "./queue/BusyModeHint";
+import { whenBusyOf } from "./queue/queued-mode";
 import { ThreadHeader } from "./ThreadHeader";
 import { ThreadToolbar } from "./ThreadToolbar";
 import { Transcript } from "./Transcript";
@@ -71,7 +73,7 @@ function ConversationPanel({ id }: ConversationProps) {
   const view = state.status === "ready" ? state.view : undefined;
   const busy = state.status === "ready" && readLive(state.view).busy;
   const messageMode = useSettings().data?.messageMode;
-  const whenBusy = messageMode ? (messageMode === "queue" ? "followUp" : "steer") : undefined;
+  const whenBusy = messageMode ? whenBusyOf(messageMode) : undefined;
   const parentId = summary?.parentId ?? null;
   return (
     <div data-testid="conversation" className="relative flex h-full min-h-0 flex-col bg-background">
@@ -101,6 +103,7 @@ function ConversationPanel({ id }: ConversationProps) {
             imagesAllowed={imagesAllowedFor(view, models)}
             busy={busy}
             whenBusy={whenBusy}
+            footer={<BusyModeHint busy={busy} />}
             abovePanel={view ? <TodoPanel conversationId={id} view={view} /> : undefined}
             toolbar={view ? <ThreadToolbar id={id} view={view} pickers={pickers} /> : undefined}
             commands={thread.commands}

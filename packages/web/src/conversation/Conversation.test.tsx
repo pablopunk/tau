@@ -197,7 +197,7 @@ describe("<Conversation> errors, retries and the inbox", () => {
     const { unmount } = renderView(queued);
     const list = screen.getByRole("list", { name: "Queued messages" });
     expect(within(list).getByText("write steered.txt steered")).toBeInTheDocument();
-    expect(within(list).getByText(/will steer the agent/)).toBeInTheDocument();
+    expect(within(list).getByText(/Will steer the agent/)).toBeInTheDocument();
     unmount();
     renderView(endOf("steer"));
     expect(screen.queryByRole("list", { name: "Queued messages" })).not.toBeInTheDocument();

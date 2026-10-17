@@ -14,6 +14,7 @@ const homeProject = (): Project => ({
   createdAt: 0,
   kind: "home",
   status: "ready",
+  isGitRepo: false,
 });
 
 const toProject = ({ id, name, path, createdAt, kind, status, gitUrl, error }: ProjectRecord): Project => ({
@@ -23,6 +24,7 @@ const toProject = ({ id, name, path, createdAt, kind, status, gitUrl, error }: P
   createdAt,
   kind,
   status,
+  isGitRepo: kind === "git",
   ...(gitUrl === undefined ? {} : { gitUrl }),
   ...(error === undefined ? {} : { error }),
 });

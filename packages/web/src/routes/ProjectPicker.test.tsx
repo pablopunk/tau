@@ -22,6 +22,7 @@ const project = (id: string, extra: Partial<Project> = {}): Project => ({
   createdAt: 0,
   kind: "folder",
   status: "ready",
+  isGitRepo: false,
   ...extra,
 });
 

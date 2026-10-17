@@ -47,6 +47,7 @@ export async function openConversationHarness(
     createdAt: 0,
     kind: "folder",
     status: "ready",
+    isGitRepo: false,
   };
   return {
     harness,

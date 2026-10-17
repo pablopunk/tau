@@ -21,7 +21,7 @@ export function useCheckpointActions(entry: MessageEntry): MessageActions {
   if (isUserMessage) {
     actions.push({
       id: "rewind",
-      label: "Rewind to here",
+      label: entry.startsConversation ? "Rewind to start" : "Rewind to here",
       destructive: true,
       onSelect: () => setRewindOpen(true),
     });

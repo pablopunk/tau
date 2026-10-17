@@ -145,9 +145,9 @@ export function createCheckpointService(deps: CheckpointDeps): CheckpointService
       }).catch(never("take a checkpoint")),
 
     snapshotAfter: (conversationId) =>
-      underLock(conversationId, () => recorder.recordAfters(conversationId)).catch(
-        never("take a checkpoint"),
-      ),
+      underLock(conversationId, async () => {
+        if (await conversations.find(conversationId)) await recorder.recordAfters(conversationId);
+      }).catch(never("take a checkpoint")),
 
     async list(conversationId) {
       await requireThread(conversationId);
@@ -187,10 +187,13 @@ export function createCheckpointService(deps: CheckpointDeps): CheckpointService
       return { conversation, draft };
     },
 
-    async onConversationRemoved(conversation) {
-      const doc = await store.read(conversation.id).catch(() => undefined);
-      if (doc?.gitDir) await deleteRefsOf(doc.gitDir, conversation.id).catch(never("delete checkpoint refs"));
-      await deleteIndexFile(home, conversation.id);
-    },
+    onConversationRemoved: (conversation) =>
+      underLock(conversation.id, async () => {
+        const doc = await store.read(conversation.id).catch(() => undefined);
+        if (doc?.gitDir) {
+          await deleteRefsOf(doc.gitDir, conversation.id).catch(never("delete checkpoint refs"));
+        }
+        await deleteIndexFile(home, conversation.id);
+      }),
   };
 }

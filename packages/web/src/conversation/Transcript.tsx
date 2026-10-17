@@ -5,6 +5,8 @@ import type {
 } from "@pi-everywhere/protocol";
 import { isRetryable } from "@pi-everywhere/protocol";
 import { Loader2 } from "lucide-react";
+import { Fragment } from "react";
+import { TurnChanges } from "./checkpoints/TurnChanges";
 import { AssistantMessage, markdownOf } from "./messages/AssistantMessage";
 import { CompactedDivider, CompactingNotice, RetriedDivider, RetryNotice } from "./messages/notices";
 import { QueuedMessages } from "./messages/QueuedMessages";
@@ -19,6 +21,22 @@ function hasVisibleContent(message: AssistantMessageData | undefined): message i
     message?.content.some((block) => (block.type === "text" ? block.text : block.type === "thinking")) ??
     false
   );
+}
+
+type Item = ReturnType<typeof buildTranscript>["items"][number];
+
+function firstMessageEntryId(items: readonly Item[]): string | undefined {
+  const first = items[0];
+  return first?.kind === "user" ? first.entryId : undefined;
+}
+
+function endsTurn(items: readonly Item[], index: number): string | undefined {
+  if (items[index + 1]?.kind === "assistant") return undefined;
+  for (let i = index; i >= 0; i--) {
+    const item = items[i];
+    if (item?.kind === "user") return item.entryId;
+  }
+  return undefined;
 }
 
 function EmptyTranscript() {
@@ -52,9 +70,12 @@ export function Transcript({
   onRetry(requestId: string): Promise<void>;
   conversationId?: string;
 }) {
-  const entryOf = (entryId: string, role: "user" | "assistant", text: string) =>
-    conversationId ? { conversationId, entryId, role, text } : undefined;
   const { items, results } = buildTranscript(view);
+  const firstEntryId = firstMessageEntryId(items);
+  const entryOf = (entryId: string, role: "user" | "assistant", text: string) =>
+    conversationId
+      ? { conversationId, entryId, role, text, startsConversation: entryId === firstEntryId }
+      : undefined;
   const live = readLive(view);
   const resolveTool = (call: ToolCall) =>
     resolveToolCall(call, { results, slots: live.slots, busy: live.busy });
@@ -62,7 +83,7 @@ export function Transcript({
     return <EmptyTranscript />;
   return (
     <div className="space-y-5">
-      {items.map((item) => {
+      {items.map((item, index) => {
         if (item.kind === "compaction") return <CompactedDivider key={item.key} />;
         if (item.kind === "retry") return <RetriedDivider key={item.key} />;
         if (item.kind === "user")
@@ -74,13 +95,18 @@ export function Transcript({
               entry={entryOf(item.entryId, "user", item.text)}
             />
           );
+        const turnEntryId = endsTurn(items, index);
         return (
-          <AssistantMessage
-            key={item.key}
-            message={item.message}
-            resolveTool={resolveTool}
-            entry={entryOf(item.entryId, "assistant", markdownOf(item.message))}
-          />
+          <Fragment key={item.key}>
+            <AssistantMessage
+              message={item.message}
+              resolveTool={resolveTool}
+              entry={entryOf(item.entryId, "assistant", markdownOf(item.message))}
+            />
+            {conversationId && turnEntryId ? (
+              <TurnChanges conversationId={conversationId} entryId={turnEntryId} />
+            ) : null}
+          </Fragment>
         );
       })}
       {hasVisibleContent(live.streaming) ? (

@@ -22,6 +22,8 @@ export interface StatusTracker {
   recoverAtStartup(): Promise<void>;
   /** Called after a thread's run ended and its status was recorded. Listener errors are logged, never thrown. */
   onRunEnded(listener: (conversationId: string) => Promise<void>): void;
+  /** Resolves once every status write and run-end listener queued so far has finished. */
+  settled(): Promise<void>;
 }
 
 type RunState = { busy: boolean; runEnded: boolean };
@@ -107,6 +109,7 @@ export function createStatusTracker(deps: StatusTrackerDeps): StatusTracker {
     onRunEnded(listener) {
       runEndedListeners.push(listener);
     },
+    settled: () => enqueue(async () => undefined),
     async recoverAtStartup() {
       await seedFromStorage(harnessOrThrow());
       await enqueue(async () => undefined);

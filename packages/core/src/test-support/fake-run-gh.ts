@@ -55,6 +55,7 @@ export function runGhFromConfig(config: () => FakeGhConfig): RecordingRunGh {
   return recordingRunGh((args) => {
     if (sameArgs(GH_STATUS_ARGV, args)) return statusReply(config().status);
     if (sameArgs(GH_REPOS_ARGV, args)) return ghOk(JSON.stringify(config().repos));
+    if (args[0] === "pr" && args[1] === "create") return ghOk("https://github.com/fake/repo/pull/1\n");
     return ghFailure("fake gh: unexpected arguments", 2);
   });
 }

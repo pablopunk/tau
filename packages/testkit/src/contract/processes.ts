@@ -13,7 +13,7 @@ export function processCases(make: MakeContractTarget, test: CaseRunner): void {
 
     async function threadWithProcess() {
       const { core } = target;
-      const started = await startConversation(target, { text: "bg node server.js" });
+      const started = await startConversation(target, { text: "bg sleep 60" });
       await waitFor(
         async () => (await core.processes.list(started.conversation.id)).length === 1,
         "the process",
@@ -26,7 +26,7 @@ export function processCases(make: MakeContractTarget, test: CaseRunner): void {
       const { conversation, info } = await threadWithProcess();
       expect(info).toMatchObject({
         conversationId: conversation.id,
-        command: "node server.js",
+        command: "sleep 60",
         state: "running",
         exitCode: null,
         startedAt: expect.any(Number),
