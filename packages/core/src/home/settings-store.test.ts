@@ -6,7 +6,13 @@ import { createSettingsStore } from "./settings-store";
 
 const tempDir = useTempDir();
 const PROJECTS = "/data/projects";
-const DEFAULTS = { defaultModel: null, fastModel: null, projectsFolder: PROJECTS };
+const DEFAULTS = {
+  defaultModel: null,
+  defaultThinkingLevel: null,
+  fastModel: null,
+  fastThinkingLevel: null,
+  projectsFolder: PROJECTS,
+};
 const ref = { provider: "openrouter", modelId: "x/y" };
 
 describe("settings store", () => {
@@ -17,7 +23,7 @@ describe("settings store", () => {
 
   it("persists the default model in a 0600 file", async () => {
     const path = join(await tempDir(), "settings.json");
-    await createSettingsStore(path, PROJECTS).setDefaultModel(ref);
+    await createSettingsStore(path, PROJECTS).setDefaultModel(ref, null);
     expect(await createSettingsStore(path, PROJECTS).get()).toEqual({ ...DEFAULTS, defaultModel: ref });
     expect((await stat(path)).mode & 0o777).toBe(0o600);
     expect(JSON.parse(await readFile(path, "utf8"))).toEqual({ defaultModel: ref });
@@ -43,15 +49,40 @@ describe("settings store", () => {
     const path = join(await tempDir(), "settings.json");
     const store = createSettingsStore(path, PROJECTS);
     const fast = { provider: "openrouter", modelId: "fast/one" };
-    await store.setDefaultModel(ref);
-    await store.setFastModel(fast);
+    await store.setDefaultModel(ref, null);
+    await store.setFastModel(fast, null);
     await store.setProjectsFolder("/elsewhere");
-    expect(await store.get()).toEqual({ defaultModel: ref, fastModel: fast, projectsFolder: "/elsewhere" });
-    await store.setFastModel(null);
+    expect(await store.get()).toEqual({
+      ...DEFAULTS,
+      defaultModel: ref,
+      fastModel: fast,
+      projectsFolder: "/elsewhere",
+    });
+    await store.setFastModel(null, null);
     expect(JSON.parse(await readFile(path, "utf8"))).toEqual({
       defaultModel: ref,
       projectsFolder: "/elsewhere",
     });
+  });
+
+  it("stores a thinking level with each model and clears the fast one with its model", async () => {
+    const path = join(await tempDir(), "settings.json");
+    const store = createSettingsStore(path, PROJECTS);
+    await store.setDefaultModel(ref, "high");
+    await store.setFastModel(ref, "low");
+    expect(await createSettingsStore(path, PROJECTS).get()).toMatchObject({
+      defaultThinkingLevel: "high",
+      fastThinkingLevel: "low",
+    });
+    await store.setDefaultThinkingLevel(null);
+    await store.setFastModel(null, null);
+    expect(JSON.parse(await readFile(path, "utf8"))).toEqual({ defaultModel: ref });
+  });
+
+  it("loads a file without thinking levels as null and drops an invalid level", async () => {
+    const path = join(await tempDir(), "settings.json");
+    await writeFile(path, JSON.stringify({ defaultModel: ref, defaultThinkingLevel: "bogus" }));
+    expect(await createSettingsStore(path, PROJECTS).get()).toEqual({ ...DEFAULTS, defaultModel: ref });
   });
 
   it("falls back to the defaults for a corrupt file", async () => {

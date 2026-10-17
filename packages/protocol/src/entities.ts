@@ -33,7 +33,9 @@ export type ModelInfo = Type.Static<typeof ModelInfoSchema>;
 
 export const SettingsSchema = Type.Object({
   defaultModel: Type.Union([ModelRefSchema, Type.Null()]),
+  defaultThinkingLevel: Type.Union([ThinkingLevelSchema, Type.Null()]),
   fastModel: Type.Union([ModelRefSchema, Type.Null()]),
+  fastThinkingLevel: Type.Union([ThinkingLevelSchema, Type.Null()]),
   projectsFolder: Type.String(),
 });
 export type Settings = Type.Static<typeof SettingsSchema>;

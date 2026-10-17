@@ -1,6 +1,9 @@
 import { afterEach, beforeEach, describe, expect } from "vitest";
 import type { CaseRunner } from "./case-runner";
-import { FAST_MODEL, hasConnectedProvider, rejectsWithCode } from "./helpers";
+import { FAST_MODEL, hasConnectedProvider, rejectsWithCode, SECOND_MODEL } from "./helpers";
+
+const REASONING_MODEL = { provider: "faux", modelId: "faux-1" };
+
 import type { ContractTarget, MakeContractTarget } from "./types";
 
 export function settingsAndProviderCases(make: MakeContractTarget, test: CaseRunner): void {
@@ -15,7 +18,9 @@ export function settingsAndProviderCases(make: MakeContractTarget, test: CaseRun
       const { core } = target;
       expect(await core.settings.get()).toEqual({
         defaultModel: null,
+        defaultThinkingLevel: null,
         fastModel: null,
+        fastThinkingLevel: null,
         projectsFolder: expect.any(String),
       });
       expect(await hasConnectedProvider(core)).toBe(false);
@@ -65,6 +70,36 @@ export function settingsAndProviderCases(make: MakeContractTarget, test: CaseRun
         core.settings.setFastModel({ provider: "nope", modelId: "nothing" }),
         "invalid_request",
       );
+    });
+
+    test("[settings] stores thinking levels, keeps or clamps them on a model change", async () => {
+      const { core } = target;
+      await core.providers.setApiKey("openrouter", "sk-contract-test");
+      await rejectsWithCode(core.settings.setDefaultThinkingLevel("high"), "no_default_model");
+      await core.settings.setDefaultModel(REASONING_MODEL);
+      await core.settings.setDefaultThinkingLevel("high");
+      await core.settings.setFastModel(REASONING_MODEL);
+      await core.settings.setFastThinkingLevel("low");
+      expect(await core.settings.get()).toMatchObject({
+        defaultThinkingLevel: "high",
+        fastThinkingLevel: "low",
+      });
+      await core.settings.setDefaultModel(SECOND_MODEL);
+      await core.settings.setFastModel(SECOND_MODEL);
+      expect(await core.settings.get()).toMatchObject({
+        defaultThinkingLevel: "off",
+        fastThinkingLevel: "off",
+      });
+      await core.settings.setDefaultModel(REASONING_MODEL);
+      await core.settings.setDefaultThinkingLevel("medium");
+      await core.settings.setDefaultModel(REASONING_MODEL);
+      expect((await core.settings.get()).defaultThinkingLevel).toBe("medium");
+      await core.settings.setDefaultThinkingLevel(null);
+      await core.settings.setFastModel(null);
+      expect(await core.settings.get()).toMatchObject({
+        defaultThinkingLevel: null,
+        fastThinkingLevel: null,
+      });
     });
 
     test("[settings] stores the projects folder and rejects a relative path or a file", async () => {

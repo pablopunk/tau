@@ -7,6 +7,7 @@ import {
   type ModelRef,
   type SendMessageInput,
   type StartConversationInput,
+  type ThinkingLevel,
 } from "@pi-everywhere/protocol";
 import type { ChangeEmitter } from "./change-emitter";
 import { requireContent, requireImageBytesMatchTheirType, requireImagesAllowed } from "./conversation-input";
@@ -18,7 +19,7 @@ import { requireName } from "./require-name";
 import type { StatusTracker } from "./status/status-tracker";
 import type { TitleService } from "./titles/title-service";
 
-const DEFAULT_THINKING_LEVEL = "medium";
+const FALLBACK_THINKING_LEVEL = "medium";
 
 export function createConversationsApi(deps: {
   conversations: ConversationStore;
@@ -36,6 +37,10 @@ export function createConversationsApi(deps: {
 
   const nameTheThread = (id: string, text: string) => void titles.generateFor(id, text);
   const lookUp = (ref: ModelRef) => provider.models.getModel(ref.provider, ref.modelId);
+
+  async function defaultLevel(): Promise<ThinkingLevel> {
+    return (await settings.get()).defaultThinkingLevel ?? FALLBACK_THINKING_LEVEL;
+  }
 
   async function chooseModel(requested: ModelRef | undefined): Promise<ModelRef> {
     if (!(await provider.isConfigured())) throw new AppError("no_provider", "Connect a provider first.");
@@ -57,7 +62,7 @@ export function createConversationsApi(deps: {
     const model = lookUp(ref);
     if (!model) throw new AppError("invalid_request", "This model is not available.");
     validateMessage(input, ref);
-    const thinkingLevel = clampThinkingLevel(model, input.thinkingLevel ?? DEFAULT_THINKING_LEVEL);
+    const thinkingLevel = clampThinkingLevel(model, input.thinkingLevel ?? (await defaultLevel()));
     const { summary, created } = await conversations.start({
       project,
       model: { provider: ref.provider, modelId: ref.modelId },

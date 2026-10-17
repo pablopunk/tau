@@ -22,6 +22,7 @@ import type {
   StartConversationInput,
   SuggestDirectoriesInput,
   SuggestedCodeFolder,
+  ThinkingLevel,
   UseGithubRepoInput,
 } from "./entities";
 import type { Op } from "./view";
@@ -76,6 +77,10 @@ export interface Core {
     setDefaultModel(ref: ModelRef): Promise<void>;
     /** `null` means "same as the thread". Rejects `invalid_request` for a model the provider does not list. */
     setFastModel(ref: ModelRef | null): Promise<void>;
+    /** `null` means the model's own default. Clamped to the default model; rejects `no_default_model` without one. */
+    setDefaultThinkingLevel(level: ThinkingLevel | null): Promise<void>;
+    /** `null` means the model's own default. Clamped to the fast model; rejects `invalid_request` without one. */
+    setFastThinkingLevel(level: ThinkingLevel | null): Promise<void>;
     /** Absolute path; created when missing and stored as its real path. Rejects `not_a_directory`. */
     setProjectsFolder(path: string): Promise<void>;
     /** The first existing `~/src`, `~/code`, `~/projects` or `~/dev` while the projects folder is still the default; else `null`. */

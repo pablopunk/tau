@@ -1,6 +1,7 @@
 import { mkdir } from "node:fs/promises";
 import { isAbsolute } from "node:path";
-import { AppError, type Core, type ModelRef } from "@pi-everywhere/protocol";
+import { clampThinkingLevel } from "@earendil-works/pi-ai/models";
+import { AppError, type Core, type ModelRef, type ThinkingLevel } from "@pi-everywhere/protocol";
 import { expandHome } from "./fs/expand-home";
 import { type CodeFolderDeps, suggestCodeFolder } from "./github/code-folder";
 import type { SettingsStore } from "./home/settings-store";
@@ -31,16 +32,30 @@ export function createSettingsApi(deps: {
       throw new AppError("invalid_request", "This model is not available from your connected providers.");
     }
   };
+  const clampForModel = (ref: ModelRef, level: ThinkingLevel | null): ThinkingLevel | null => {
+    const model = provider.models.getModel(ref.provider, ref.modelId);
+    return level !== null && model ? clampThinkingLevel(model, level) : level;
+  };
   return {
     get: () => settings.get(),
     suggestedCodeFolder: () => suggestCodeFolder(codeFolder),
     async setDefaultModel(ref) {
       await requireListedModel(ref);
-      await settings.setDefaultModel(ref);
+      await settings.setDefaultModel(ref, clampForModel(ref, (await settings.get()).defaultThinkingLevel));
+    },
+    async setDefaultThinkingLevel(level) {
+      const { defaultModel } = await settings.get();
+      if (!defaultModel) throw new AppError("no_default_model", "Choose a default model first.");
+      await settings.setDefaultThinkingLevel(clampForModel(defaultModel, level));
     },
     async setFastModel(ref) {
       if (ref !== null) await requireListedModel(ref);
-      await settings.setFastModel(ref);
+      await settings.setFastModel(ref, ref && clampForModel(ref, (await settings.get()).fastThinkingLevel));
+    },
+    async setFastThinkingLevel(level) {
+      const { fastModel } = await settings.get();
+      if (!fastModel) throw new AppError("invalid_request", "Choose a fast model first.");
+      await settings.setFastThinkingLevel(clampForModel(fastModel, level));
     },
     async setProjectsFolder(path) {
       await settings.setProjectsFolder(await createFolder(path));

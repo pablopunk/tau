@@ -19,6 +19,7 @@ import type {
   StartConversationInput,
   SuggestDirectoriesInput,
   SuggestedCodeFolder,
+  ThinkingLevel,
   UseGithubRepoInput,
 } from "@pi-everywhere/protocol";
 import { fillPath, routes } from "@pi-everywhere/protocol";
@@ -39,6 +40,8 @@ export interface Api {
     get(): Promise<Settings>;
     setDefaultModel(ref: ModelRef): Promise<void>;
     setFastModel(ref: ModelRef | null): Promise<void>;
+    setDefaultThinkingLevel(level: ThinkingLevel | null): Promise<void>;
+    setFastThinkingLevel(level: ThinkingLevel | null): Promise<void>;
     setProjectsFolder(path: string): Promise<void>;
     suggestedCodeFolder(): Promise<SuggestedCodeFolder>;
   };
@@ -109,6 +112,8 @@ export function createApi(transport: Transport): Api {
       get: () => request("getSettings", {}),
       setDefaultModel: (ref) => request("setDefaultModel", { body: ref }),
       setFastModel: (ref) => request("setFastModel", { body: { model: ref } }),
+      setDefaultThinkingLevel: (level) => request("setDefaultThinking", { body: { thinkingLevel: level } }),
+      setFastThinkingLevel: (level) => request("setFastThinking", { body: { thinkingLevel: level } }),
       setProjectsFolder: (path) => request("setProjectsFolder", { body: { path } }),
       suggestedCodeFolder: () => request("getSuggestedCodeFolder", {}),
     },

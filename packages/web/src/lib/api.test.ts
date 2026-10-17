@@ -33,7 +33,13 @@ describe("http transport", () => {
   });
 
   it("returns the validated response body", async () => {
-    const settings = { defaultModel: null, fastModel: null, projectsFolder: "/data/projects" };
+    const settings = {
+      defaultModel: null,
+      defaultThinkingLevel: null,
+      fastModel: null,
+      fastThinkingLevel: null,
+      projectsFolder: "/data/projects",
+    };
     stubFetch(respond(200, settings));
     expect(await api.settings.get()).toEqual(settings);
   });

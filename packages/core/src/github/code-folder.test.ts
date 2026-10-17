@@ -8,7 +8,15 @@ import { suggestCodeFolder } from "./code-folder";
 const tempDir = useTempDir();
 
 const settingsWith = (projectsFolder: string) =>
-  ({ get: async () => ({ defaultModel: null, fastModel: null, projectsFolder }) }) as SettingsStore;
+  ({
+    get: async () => ({
+      defaultModel: null,
+      defaultThinkingLevel: null,
+      fastModel: null,
+      fastThinkingLevel: null,
+      projectsFolder,
+    }),
+  }) as SettingsStore;
 
 async function suggest(projectsFolder: string, folders: string[]) {
   const homeDirectory = await tempDir();

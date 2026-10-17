@@ -13,6 +13,12 @@ export function registerRoutes(app: FastifyInstance, core: Core): void {
   defineRoute(app, routes.suggestDirectories, ({ body }) => core.fs.suggestDirectories(body));
   defineRoute(app, routes.getSettings, () => core.settings.get());
   defineRoute(app, routes.setDefaultModel, ({ body }) => core.settings.setDefaultModel(body));
+  defineRoute(app, routes.setDefaultThinking, ({ body }) =>
+    core.settings.setDefaultThinkingLevel(body.thinkingLevel),
+  );
+  defineRoute(app, routes.setFastThinking, ({ body }) =>
+    core.settings.setFastThinkingLevel(body.thinkingLevel),
+  );
   defineRoute(app, routes.setFastModel, ({ body }) => core.settings.setFastModel(body.model));
   defineRoute(app, routes.setProjectsFolder, ({ body }) => core.settings.setProjectsFolder(body.path));
   defineRoute(app, routes.getSuggestedCodeFolder, () => core.settings.suggestedCodeFolder());

@@ -40,7 +40,13 @@ beforeEach(() => {
   vi.resetAllMocks();
   window.localStorage.clear();
   preferences.setSidebarMode("projects");
-  mocked.settings.get.mockResolvedValue({ defaultModel: null, fastModel: null, projectsFolder: "/projects" });
+  mocked.settings.get.mockResolvedValue({
+    defaultModel: null,
+    defaultThinkingLevel: null,
+    fastModel: null,
+    fastThinkingLevel: null,
+    projectsFolder: "/projects",
+  });
   mocked.projects.list.mockResolvedValue([project()]);
   mocked.conversations.listAll.mockResolvedValue([]);
 });

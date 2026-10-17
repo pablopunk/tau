@@ -54,6 +54,8 @@ const handlers: Handlers = {
   suggestProjectFiles: (core, { params, body }) =>
     core.projects.suggestFiles(params.id, body.query as string),
   compactConversation: (core, { params, body }) => core.conversations.compact(params.id, body as never),
+  setDefaultThinking: (core, { body }) => core.settings.setDefaultThinkingLevel(body.thinkingLevel as never),
+  setFastThinking: (core, { body }) => core.settings.setFastThinkingLevel(body.thinkingLevel as never),
   setFastModel: (core, { body }) => core.settings.setFastModel(body.model as never),
   setProjectsFolder: (core, { body }) => core.settings.setProjectsFolder(body.path as string),
   cloneProject: (core, { body }) => core.projects.clone(body as never),

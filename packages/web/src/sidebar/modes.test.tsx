@@ -44,7 +44,13 @@ const stubReducedMotion = (reduce: boolean) =>
 beforeEach(() => {
   vi.resetAllMocks();
   window.localStorage.clear();
-  mocked.settings.get.mockResolvedValue({ defaultModel: null, fastModel: null, projectsFolder: "/p" });
+  mocked.settings.get.mockResolvedValue({
+    defaultModel: null,
+    defaultThinkingLevel: null,
+    fastModel: null,
+    fastThinkingLevel: null,
+    projectsFolder: "/p",
+  });
   mocked.projects.list.mockResolvedValue([project(), repo]);
   mocked.conversations.listAll.mockResolvedValue([
     conversation({ id: "a", title: "Alpha", lastActivityAt: 10 }),

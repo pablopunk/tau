@@ -76,6 +76,31 @@ describe("title job", () => {
     expect(getModel).toHaveBeenCalledWith(FAUX_MODEL.provider, FAUX_MODEL.modelId);
   });
 
+  it("passes the fast thinking level as reasoning, clamped to the model", async () => {
+    const complete = vi.fn(async (..._args: unknown[]) => answer("Named"));
+    const model = { id: "fast", provider: "faux", reasoning: true };
+    const service = createTitleService({
+      harness: world.harness,
+      models: { getModel: () => model, completeSimple: complete } as unknown as Models,
+      settings: { get: async () => ({ fastModel: FAUX_MODEL, fastThinkingLevel: "low" }) } as never,
+      changes: createChangeEmitter(),
+    });
+    await service.generateFor(String(conversationId), "x");
+    expect(complete.mock.calls[0]?.[2]).toMatchObject({ reasoning: "low" });
+  });
+
+  it("sends no reasoning when the fast thinking level is null", async () => {
+    const complete = vi.fn(async (..._args: unknown[]) => answer("Named"));
+    const service = createTitleService({
+      harness: world.harness,
+      models: { getModel: () => ({ id: "fast" }), completeSimple: complete } as unknown as Models,
+      settings: { get: async () => ({ fastModel: FAUX_MODEL, fastThinkingLevel: null }) } as never,
+      changes: createChangeEmitter(),
+    });
+    await service.generateFor(String(conversationId), "x");
+    expect(complete.mock.calls[0]?.[2]).not.toHaveProperty("reasoning");
+  });
+
   it("keeps the provisional title when the model fails, aborts or says nothing", async () => {
     for (const reply of [answer("", "error"), answer("x", "aborted"), answer("   ")]) {
       await serviceWith(async () => reply).service.generateFor(String(conversationId), "x");

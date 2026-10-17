@@ -21,7 +21,13 @@ vi.mock("@/lib/api", () => ({
     projects: { add: mocks.add, list: async () => [] },
     github: { use: mocks.use },
     settings: {
-      get: async () => ({ defaultModel: null, fastModel: null, projectsFolder: "/data/projects" }),
+      get: async () => ({
+        defaultModel: null,
+        defaultThinkingLevel: null,
+        fastModel: null,
+        fastThinkingLevel: null,
+        projectsFolder: "/data/projects",
+      }),
       setProjectsFolder: mocks.setProjectsFolder,
     },
   },

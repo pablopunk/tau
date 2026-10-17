@@ -21,6 +21,7 @@ import {
   StartConversationInputSchema,
   SuggestDirectoriesInputSchema,
   SuggestedCodeFolderSchema,
+  ThinkingLevelSchema,
   UseGithubRepoInputSchema,
 } from "./entities";
 import { ICON_BODY_LIMIT } from "./icons";
@@ -56,6 +57,18 @@ export const routes = {
     path: `${API_PREFIX}/settings/default-model`,
     status: 204,
     body: ModelRefSchema,
+  },
+  setDefaultThinking: {
+    method: "PUT",
+    path: `${API_PREFIX}/settings/default-thinking`,
+    status: 204,
+    body: Type.Object({ thinkingLevel: Type.Union([ThinkingLevelSchema, Type.Null()]) }),
+  },
+  setFastThinking: {
+    method: "PUT",
+    path: `${API_PREFIX}/settings/fast-thinking`,
+    status: 204,
+    body: Type.Object({ thinkingLevel: Type.Union([ThinkingLevelSchema, Type.Null()]) }),
   },
   setFastModel: {
     method: "PUT",

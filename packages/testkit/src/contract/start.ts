@@ -50,6 +50,23 @@ export function startCases(make: MakeContractTarget, test: CaseRunner): void {
       await tracker.stop();
     });
 
+    test("[start] uses the default thinking level when none is given", async () => {
+      const { core } = target;
+      await configure(core);
+      await core.settings.setDefaultModel({ provider: "faux", modelId: "faux-1" });
+      await core.settings.setDefaultThinkingLevel("low");
+      const project = await addProject(target);
+      const started = await core.conversations.start({
+        projectId: project.id,
+        text: "hello",
+        requestId: nextRequestId(),
+      });
+      const tracker = await trackView(core, started.id);
+      const doc = agentDoc(tracker.view());
+      await tracker.stop();
+      expect(doc).toMatchObject({ thinkingLevel: "low" });
+    });
+
     test("[start] creates no thread when the start is rejected", async () => {
       const { core } = target;
       await configure(core);

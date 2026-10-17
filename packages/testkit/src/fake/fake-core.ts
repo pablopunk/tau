@@ -7,6 +7,7 @@ import {
   type Settings,
   type Skill,
   type StartConversationInput,
+  type ThinkingLevel,
 } from "@pi-everywhere/protocol";
 import { clampFakeThinkingLevel, FAKE_MODELS, findFakeModel } from "./catalog";
 import { FakeConversation, type FakeInput } from "./fake-conversation";
@@ -73,7 +74,13 @@ export function createFakeCore(options: FakeCoreOptions = {}): Core {
   const icons = createFakeIcons();
   const startsByRequest = new Map<string, string>();
   let defaultModel: ModelRef | null = options.configured ? modelRef(0) : null;
+  let defaultThinkingLevel: ThinkingLevel | null = null;
   let fastModel: ModelRef | null = null;
+  let fastThinkingLevel: ThinkingLevel | null = null;
+  const clampFor = (ref: ModelRef, level: ThinkingLevel | null) => {
+    const info = findFakeModel(ref);
+    return level && info ? clampFakeThinkingLevel(info, level) : level;
+  };
   let projectsFolder = FAKE_PROJECTS_FOLDER;
   let nextProjectId = 1;
   let nextConversationId = FIRST_CONVERSATION_ID;
@@ -219,7 +226,10 @@ export function createFakeCore(options: FakeCoreOptions = {}): Core {
       projectId: project.id,
       cwd: project.path,
       model: { provider: model.provider, modelId: model.modelId },
-      thinkingLevel: clampFakeThinkingLevel(info, input.thinkingLevel ?? DEFAULT_THINKING_LEVEL),
+      thinkingLevel: clampFakeThinkingLevel(
+        info,
+        input.thinkingLevel ?? defaultThinkingLevel ?? DEFAULT_THINKING_LEVEL,
+      ),
       speed,
       now,
       onSummaryChange: (changedProjectId) => emit({ resource: "conversations", projectId: changedProjectId }),
@@ -242,21 +252,32 @@ export function createFakeCore(options: FakeCoreOptions = {}): Core {
         return null;
       },
       async get(): Promise<Settings> {
-        return { defaultModel, fastModel, projectsFolder };
+        return { defaultModel, defaultThinkingLevel, fastModel, fastThinkingLevel, projectsFolder };
       },
       async setDefaultModel(ref) {
         requireProvider();
         requireListedModel(ref);
         defaultModel = { provider: ref.provider, modelId: ref.modelId };
+        defaultThinkingLevel = clampFor(ref, defaultThinkingLevel);
+      },
+      async setDefaultThinkingLevel(level) {
+        if (!defaultModel) throw new AppError("no_default_model", "Choose a default model first.");
+        defaultThinkingLevel = clampFor(defaultModel, level);
+      },
+      async setFastThinkingLevel(level) {
+        if (!fastModel) throw new AppError("invalid_request", "Choose a fast model first.");
+        fastThinkingLevel = clampFor(fastModel, level);
       },
       async setFastModel(ref) {
         if (ref === null) {
           fastModel = null;
+          fastThinkingLevel = null;
           return;
         }
         requireProvider();
         requireListedModel(ref);
         fastModel = { provider: ref.provider, modelId: ref.modelId };
+        fastThinkingLevel = clampFor(ref, fastThinkingLevel);
       },
       async setProjectsFolder(typedPath) {
         const path = expandFakeHome(typedPath);

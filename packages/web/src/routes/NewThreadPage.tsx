@@ -40,7 +40,10 @@ export function NewThreadPage() {
   const projectId = pickProjectId(projects.data, wantedProject);
   const lastModel = chosenModel ?? preferences.getLastModel();
   const model = pickModel(models.data, lastModel, settings.data.defaultModel);
-  const level = pickThinkingLevel(model, chosenLevel ?? preferences.getLastThinkingLevel());
+  const level = pickThinkingLevel(
+    model,
+    chosenLevel ?? settings.data.defaultThinkingLevel ?? preferences.getLastThinkingLevel(),
+  );
   const levels = findModel(models.data, model ?? null)?.thinkingLevels ?? ["off"];
 
   const cloning = projects.data.find((project) => project.id === projectId)?.status === "cloning";

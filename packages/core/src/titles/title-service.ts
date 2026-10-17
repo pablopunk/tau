@@ -1,4 +1,4 @@
-import type { Models } from "@earendil-works/pi-ai/models";
+import { clampThinkingLevel, type Models } from "@earendil-works/pi-ai/models";
 import type { ConversationId, Harness } from "@earendil-works/pi-durable";
 import type { ModelRef } from "@pi-everywhere/protocol";
 import type { ChangeEmitter } from "../change-emitter";
@@ -33,21 +33,28 @@ export function createTitleService(deps: TitleServiceDeps): TitleService {
   }
 
   async function generateTitle(id: ConversationId, text: string): Promise<string> {
-    const { fastModel } = await settings.get();
+    const { fastModel, fastThinkingLevel } = await settings.get();
     const candidates = [fastModel, await threadModel(id)].filter(
       (ref): ref is ModelRef => ref !== null && ref !== undefined,
     );
-    const model = candidates
-      .map((ref) => models.getModel(ref.provider, ref.modelId))
-      .find((found) => found !== undefined);
-    if (!model) throw new Error("No model is available to write a title.");
+    const chosen = candidates
+      .map((ref) => ({ ref, model: models.getModel(ref.provider, ref.modelId) }))
+      .find((found) => found.model !== undefined);
+    if (!chosen?.model) throw new Error("No model is available to write a title.");
+    const { model } = chosen;
+    const usesFastModel = chosen.ref === fastModel;
+    const reasoning =
+      usesFastModel && fastThinkingLevel ? clampThinkingLevel(model, fastThinkingLevel) : undefined;
     const answer = await models.completeSimple(
       model,
       {
         systemPrompt: TITLE_PROMPT,
         messages: [{ role: "user", content: text.slice(0, MAX_REQUEST_CHARS), timestamp: Date.now() }],
       },
-      { signal: AbortSignal.timeout(deps.timeoutMs ?? TITLE_TIMEOUT_MS) },
+      {
+        signal: AbortSignal.timeout(deps.timeoutMs ?? TITLE_TIMEOUT_MS),
+        ...(reasoning && reasoning !== "off" && { reasoning }),
+      },
     );
     if (answer.stopReason === "error" || answer.stopReason === "aborted") {
       throw new Error(answer.errorMessage ?? `The title request ended with ${answer.stopReason}.`);

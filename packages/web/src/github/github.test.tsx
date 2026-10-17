@@ -161,7 +161,13 @@ describe("settings", () => {
 
   it("hides the suggestion when there is none", async () => {
     mocks.suggested.mockResolvedValue(null);
-    mocks.settings.mockResolvedValue({ defaultModel: null, fastModel: null, projectsFolder: "" });
+    mocks.settings.mockResolvedValue({
+      defaultModel: null,
+      defaultThinkingLevel: null,
+      fastModel: null,
+      fastThinkingLevel: null,
+      projectsFolder: "",
+    });
     wrap(<CodeFolderSuggestion />);
     await vi.waitFor(() => expect(mocks.suggested).toHaveBeenCalled());
     expect(screen.queryByRole("button")).toBeNull();
