@@ -1,13 +1,24 @@
-import { defineExtension } from "@earendil-works/pi-durable";
+import { defineExtension, defineTool } from "@earendil-works/pi-durable";
 import { Type } from "typebox";
-import { type ToolFileFactory, unimplementedTool } from "./tool-file";
+import type { ToolFileFactory } from "./tool-file";
 
 export const ProcessStopParameters = Type.Object({ id: Type.String() });
 
-export const processStopToolFile: ToolFileFactory = () => ({
-  implemented: false,
+export const processStopToolFile: ToolFileFactory = (services) => ({
+  implemented: true,
   extension: defineExtension({
     name: "process-stop",
-    tools: [unimplementedTool("process_stop", "Stop a background process.", ProcessStopParameters)],
+    tools: [
+      defineTool({
+        name: "process_stop",
+        description: "Stop a background process.",
+        parameters: ProcessStopParameters,
+        replay: "safe",
+        execute: async ({ id }) => {
+          await services.current().processes.stop(id);
+          return { output: [{ type: "text", text: `Stopped ${id}.` }] };
+        },
+      }),
+    ],
   }),
 });

@@ -13,7 +13,7 @@ import { makeLocalRepo } from "./test-support/local-repo";
 
 const REAL_CORE_IMPLEMENTED = true;
 
-const PENDING_TAGS: string[] = ["workspaces", "checkpoints", "fork", "subagents", "processes", "mcp"];
+const PENDING_TAGS: string[] = ["workspaces", "checkpoints", "fork", "mcp"];
 
 process.env.PI_EVERYWHERE_ALLOW_FILE_CLONES = "1";
 

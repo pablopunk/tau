@@ -1,0 +1,3 @@
+- `core/src/contract.test.ts` (not mine): removed `"processes"` from `PENDING_TAGS`. Keep that edit.
+- Contract case `bg node server.js` runs a real `node server.js` in the thread folder; with no such file it exits within ms, so `state: "running"` is a race. One full-suite run flaked once (not reproduced in 3 reruns). Fix in testkit: make the faux `bg` command long-lived, or have the contract case use `bg sleep 60`.
+- `web/src/lib/queries.ts` `useProcessLogs` has no polling; the sheet uses `processes/use-live-process-logs.ts` instead (same query key family).
