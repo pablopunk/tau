@@ -33,6 +33,8 @@ export type GithubService = Core["github"] & {
   extraGitConfig(url: string): string[];
   /** The code folder changed: forget the local-copy scan and tell the web to refetch repos. */
   invalidateScan(): void;
+  /** Resolves once the startup `gh` probe has exited, so nothing writes to the home folder afterwards. */
+  settled(): Promise<void>;
 };
 
 function createStatusCache(deps: GithubServiceDeps) {
@@ -80,7 +82,10 @@ export function createGithubService(deps: GithubServiceDeps): GithubService {
     return useRepo(input, repo, scan);
   };
 
-  void status();
+  const startupProbe = status().then(
+    () => undefined,
+    () => undefined,
+  );
 
   return {
     status,
@@ -102,6 +107,7 @@ export function createGithubService(deps: GithubServiceDeps): GithubService {
       source.invalidate();
       deps.changes.emit({ resource: "projects" });
     },
+    settled: () => startupProbe,
     extraGitConfig: (url) => credentialHelperArgs(url, ghPath, isConnected()),
   };
 }

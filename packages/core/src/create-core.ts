@@ -200,6 +200,7 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
             await processes.stopAll();
             await mcp.closeAll();
             await harness.close(BACKGROUND);
+            await github.settled();
           } finally {
             await lock.release();
           }
