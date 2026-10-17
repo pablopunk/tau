@@ -16,7 +16,11 @@ In:
 5. **`isolation: "worktree"`**: the child gets its own worktree (MVP5 workspaces).
 6. **UI**: agent card states, Stop on the card and child page, notification rows in the parent transcript, type label in the sidebar.
 
-Out: nested subagents, the user chatting with a child directly, agent-type editing UI, hooks.
+7. **Fork subagents** (user request): `subagent_type: "fork"` starts a child that inherits the parent's whole conversation (Pi Durable `fork`) instead of a fresh context; the prompt is its next message.
+8. **`merge_agent`** (user request): merges a worktree child's committed work into the parent's checkout, reusing MVP5's merge flow.
+9. **Model choice by the agent** (user request): the parent picks any connected provider/model for a subagent, default = the parent's model. The connected models are listed to the agent so it can follow what the user said in the chat ("use DeepSeek for the workers").
+
+Out: nested subagents, the user chatting with a child directly, agent-type editing UI, hooks. Later (not this milestone): model tiers in Settings → Models ("smart" for the parent, "worker" for subagents), kept out now to avoid clutter.
 
 ## Design basis: pi-durable example 23
 
@@ -32,7 +36,10 @@ send_message({ to: string, message: string, mode?: "steer" | "followUp" /* defau
   → delivers to that child (only this thread's children, via requireOwnChild); its next answer arrives as a notification.
 stop_agent({ id: string })   → aborts the child's run; a "stopped" notification follows.
 list_agents()                → this thread's children: id, description, type, model, status, last activity, worktree path.
+merge_agent({ id: string })  → merges a worktree child's branch into the parent's checkout (rebase + ff-only, as MVP5 "Merge into base"); refuses while the child runs; conflicts → tool error telling the agent to send_message the child to rebase and resolve.
 ```
+- **Fork**: `subagent_type: "fork"` → `parent.fork(lastEntry, ...)` owned by a background anchor (same reporter flow); the child keeps the parent's model unless `model` is given; tools minus subagent tools; can combine with `isolation: "worktree"`.
+- **Models for subagents**: the `agent` tool description and the subagents prompt section list the connected models (`provider/modelId — name`, capped at 40, the parent's provider first) and say: default is the parent's model; pick another when the user asked for one in this conversation. `list_agents` shows each child's model.
 - Descriptions follow Claude Code's wording: a subagent does not see the parent's chat, so prompts must be self-contained; wait for notifications instead of polling; never invent a result.
 - `agent` is `replay: "unsafe"` and idempotent per tool call through the registry doc keyed by `toolCallId`.
 
@@ -81,7 +88,7 @@ Pins (a)–(e) plus (f) crash between the `agent` commit and its return creates 
 ### Phase 1 (3 agents)
 | Agent | Owns |
 |---|---|
-| A tools + anchor/reporter | `core/src/harness/tools/{agent,send-message,stop-agent,list-agents}*`, `core/src/harness/subagent*` (incl. `subagents-prompt.ts`), `core/src/harness/tools/task*` (legacy) |
+| A tools + anchor/reporter + fork + merge | `core/src/harness/tools/{agent,send-message,stop-agent,list-agents,merge-agent}*`, `core/src/harness/subagent*` (incl. `subagents-prompt.ts`), `core/src/harness/tools/task*` (legacy) |
 | B agent types + models + isolation | `core/src/agents/**` |
 | C web | `web/src/conversation/tools/AgentTool*`, `web/src/conversation/notifications/**`, `web/src/sidebar/subagents/**`, child page header, `web/src/lib/**` additions for stop-agent |
 

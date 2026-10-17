@@ -69,6 +69,14 @@ What the work plugins (`~/src/maze/claude-plugins`, 27 plugins) actually need:
   - `claude -p` / `claude --resume`: headless runs.
   - Pi Durable fits this well: background tasks, timers that survive restarts, and "any client can queue a message" are built in. We need one API ("send a message to conversation X") that the hub exposes to tools, CLIs, and other conversations.
 
+### MCP and claude.ai connectors (exploration)
+- Regular MCP servers (stdio or HTTP, from `.mcp.json`) are easy: the hub runs them as tools.
+- claude.ai connectors go through an Anthropic-hosted proxy with Claude Code's own OAuth token. We want to reuse the Claude Code session, auth and connectors. Options, none chosen yet:
+  - **Reverse engineer the proxy**: find how Claude Code lists connectors and calls them, then replay it with the token. Likely doable, but it is the same token reuse Anthropic does not allow outside Claude Code (rejected for model calls above), so it risks the account.
+  - **Drive the real interactive `claude` in a PTY on the hub**: reuses session, auth, connectors and hooks natively; read the transcript files in `~/.claude/projects` to render the chat. Cost: those conversations run on Claude Code, not Pi Durable (no durable timers, `submit()` or forks for them).
+  - **Each service's own MCP endpoint with our own OAuth** (Linear, Notion, Figma, Slack, Datadog): no Anthropic involved. Covers only services with a public endpoint.
+  - **Not used**: `claude -p` / Agent SDK. It may bill at API rates (to verify); this would also hit the "Claude Code as a provider" idea in the setup checklist.
+
 ### First run (setup checklist)
 The first screen is a checklist of what the user must do before the app works:
 1. **Projects folder**: a default hidden folder that touches none of the user's folders (e.g. `~/.pi-everywhere/projects`), or a custom folder they choose. It also holds the worktrees of the threads.
