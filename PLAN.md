@@ -128,6 +128,10 @@ Out of the MVP: tunnels, pairing, remote runtimes, terminals, other providers, f
 3. Pairing + Cloudflare Tunnel.
 4. Then: remote runtime (pi-env over the WebSocket bridge), built-in terminal, setup checklist, more providers, Claude Code extension.
 
+## Later
+- **Model tiers** in Settings → Models: "smart" (the main thread) and "worker" (subagents), so the parent picks workers without being told in the chat. Keep the Models section uncluttered when adding it.
+- **Chat with a subagent directly**: open the child thread's composer instead of going through the parent.
+
 ## Open questions
 - How to use the work Claude subscription through Pi.
 - Projects with no git remote (local-only folders).
