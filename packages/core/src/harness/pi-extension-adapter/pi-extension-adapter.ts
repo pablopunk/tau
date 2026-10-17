@@ -1,12 +1,14 @@
+/// <reference path="./pi-web-access.d.ts" />
 import { defineExtension } from "@earendil-works/pi-durable";
+import piWebAccess from "pi-web-access/dist/index.js";
 import type { ToolFileFactory } from "../tools/tool-file";
+import { collectExtensionTools } from "./fake-extension-api";
+import { toToolRegistration } from "./tool-conversion";
 
-/**
- * Phase 1 (D): a fake pi-coding-agent `ExtensionAPI` whose `registerTool` turns each tool into a Pi Durable
- * `ToolRegistration`, and the default export of `pi-web-access` loaded through it. The pin test
- * (`pi-web-access.pin.test.ts`) proves the idea; the tools become one extension named `pi-web-access`.
- */
 export const piWebAccessToolFile: ToolFileFactory = () => ({
-  implemented: false,
-  extension: defineExtension({ name: "pi-web-access", tools: [] }),
+  implemented: true,
+  extension: defineExtension({
+    name: "pi-web-access",
+    tools: collectExtensionTools(piWebAccess).map(toToolRegistration),
+  }),
 });
