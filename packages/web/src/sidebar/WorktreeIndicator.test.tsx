@@ -1,4 +1,4 @@
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "@/lib/api";
 import { conversation, renderAt } from "@/sidebar/test-support";
@@ -35,60 +35,77 @@ const status = {
   reason: null,
 };
 
+const cleanStatus = { ...status, ahead: 0, unmergedCommits: 0, behind: 0, dirtyFiles: [] };
+
 beforeEach(() => {
   vi.resetAllMocks();
-  mocked.conversations.listAll.mockResolvedValue([worktreeThread]);
   mocked.workspaces.status.mockResolvedValue(status);
 });
 
 describe("WorktreeIndicator", () => {
-  it("mirrors ahead, behind and dirty counts like the top-bar chip", async () => {
+  it("shows ahead, behind and dirty as icons and numbers, never words", async () => {
     renderAt("/", <WorktreeIndicator conversation={worktreeThread} />);
-    expect(await screen.findByText(/↑2/)).toBeTruthy();
-    expect(screen.getByText(/↓1/)).toBeTruthy();
-    expect(screen.getByText(/1 uncommitted/)).toBeTruthy();
+    const indicator = await screen.findByRole("img", {
+      name: "pi/fix → main · 2 ahead · 1 behind · 1 uncommitted",
+    });
+    expect(within(indicator).getByText("↑2")).toBeTruthy();
+    expect(within(indicator).getByText("↓1")).toBeTruthy();
+    expect(within(indicator).getByText("1")).toBeTruthy();
+    expect(indicator.querySelector(".lucide-pencil")).toBeTruthy();
+    expect(within(indicator).queryByText(/uncommitted|merged|pi\/fix/)).toBeNull();
   });
 
-  it("says clean instead of zero counts when the worktree has nothing to merge", async () => {
-    mocked.workspaces.status.mockResolvedValue({
-      ...status,
-      ahead: 0,
-      unmergedCommits: 0,
-      behind: 0,
-      dirtyFiles: [],
-    });
+  it("shows only a muted branch icon for a clean worktree", async () => {
+    mocked.workspaces.status.mockResolvedValue(cleanStatus);
     renderAt("/", <WorktreeIndicator conversation={worktreeThread} />);
-    expect(await screen.findByLabelText("pi/fix → main · clean")).toBeTruthy();
+    const indicator = await screen.findByRole("img", { name: "pi/fix → main · clean" });
+    expect(indicator.querySelector(".lucide-git-branch")).toBeTruthy();
+    expect(indicator.textContent).toBe("");
   });
 
-  it("shows merged when the stored state is merged and the worktree is clean", async () => {
-    mocked.workspaces.status.mockResolvedValue({
-      ...status,
-      ahead: 0,
-      unmergedCommits: 0,
-      behind: 0,
-      dirtyFiles: [],
-    });
+  it("uses a green merge icon without text after merging", async () => {
+    mocked.workspaces.status.mockResolvedValue(cleanStatus);
+    renderAt(
+      "/",
+      <WorktreeIndicator
+        conversation={{ ...worktreeThread, workspace: { ...worktreeThread.workspace, state: "merged" } }}
+      />,
+    );
+    const indicator = await screen.findByRole("img", { name: "pi/fix → main · merged" });
+    expect(indicator.querySelector(".lucide-git-merge")).toBeTruthy();
+    expect(indicator.textContent).toBe("");
+  });
+
+  it("returns to an amber branch and marks new work after a merge", async () => {
+    mocked.workspaces.status.mockResolvedValue({ ...cleanStatus, dirtyFiles: ["new.ts"] });
+    renderAt(
+      "/",
+      <WorktreeIndicator
+        conversation={{ ...worktreeThread, workspace: { ...worktreeThread.workspace, state: "merged" } }}
+      />,
+    );
+    const indicator = await screen.findByRole("img", { name: "pi/fix → main · 1 uncommitted" });
+    expect(indicator.querySelector(".lucide-git-branch")).toBeTruthy();
+    expect(indicator.querySelector(".lucide-pencil")).toBeTruthy();
+    expect(indicator.textContent).toBe("1");
+  });
+
+  it("uses icons for an archived warning without a status query", async () => {
     renderAt(
       "/",
       <WorktreeIndicator
         conversation={{
           ...worktreeThread,
-          workspace: { ...worktreeThread.workspace, state: "merged" },
+          unmergedWarning: "Uncommitted changes and unmerged commits in pi/fix",
         }}
       />,
     );
-    expect(await screen.findByText("merged")).toBeTruthy();
-  });
-
-  it("shows the archived warning without a status query", async () => {
-    renderAt(
-      "/",
-      <WorktreeIndicator
-        conversation={{ ...worktreeThread, unmergedWarning: "Uncommitted changes in pi/fix" }}
-      />,
-    );
-    expect(await screen.findByLabelText("Uncommitted changes in pi/fix")).toBeTruthy();
+    const indicator = screen.getByRole("img", {
+      name: "Uncommitted changes and unmerged commits in pi/fix",
+    });
+    expect(indicator.querySelector(".lucide-pencil")).toBeTruthy();
+    expect(indicator.querySelector(".lucide-arrow-up")).toBeTruthy();
+    expect(indicator.textContent).toBe("");
     await waitFor(() => expect(mocked.workspaces.status).not.toHaveBeenCalled());
   });
 
@@ -99,10 +116,7 @@ describe("WorktreeIndicator", () => {
     const removed = renderAt(
       "/",
       <WorktreeIndicator
-        conversation={{
-          ...worktreeThread,
-          workspace: { ...worktreeThread.workspace, state: "removed" },
-        }}
+        conversation={{ ...worktreeThread, workspace: { ...worktreeThread.workspace, state: "removed" } }}
       />,
     );
     await waitFor(() => expect(mocked.workspaces.status).not.toHaveBeenCalled());
