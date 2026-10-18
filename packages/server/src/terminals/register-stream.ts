@@ -5,7 +5,7 @@ import { TerminalStream } from "./stream-connection";
 
 export function registerTerminalStream(app: FastifyInstance, core: Core, sockets: DeviceSockets): void {
   app.get<{ Params: { id: string } }>(TERMINAL_STREAM_PATH, { websocket: true }, (socket, request) => {
-    sockets.add(request.deviceId, socket);
+    if (!sockets.add(request.deviceId, socket)) return;
     new TerminalStream(socket, core, request.params.id, (error) => request.log.error(error));
   });
 }
