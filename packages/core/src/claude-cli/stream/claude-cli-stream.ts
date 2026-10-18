@@ -9,8 +9,16 @@ import {
 import type { ClaudeCliClock } from "../clock";
 import type { PlanUsage } from "../plan-usage";
 import type { ClaudeSdkLoader } from "../sdk-types";
+import { createBinding } from "./binding";
+import { type CallContext, readCallContext } from "./call-context";
+import { choosePath } from "./choose-path";
+import { neutralText, THREAD_CLOSED_TEXT } from "./errors";
+import { emptyAssistantMessage, finalEvent } from "./finish";
+import { cancelIdle, closeQuery } from "./lifecycle";
+import { runBound } from "./run-bound";
+import { runOneShot } from "./run-one-shot";
+import { createRuntime, type Runtime } from "./runtime";
 
-/** Owner B. Frozen signature; the body is a placeholder that ends every stream with an error. */
 export interface ClaudeCliStreamDeps {
   readonly sdk: ClaudeSdkLoader;
   readonly planUsage: PlanUsage;
@@ -37,35 +45,74 @@ export interface ClaudeCliStreamer {
   processCount(): number;
 }
 
-const NOT_BUILT_YET = "The Claude CLI adapter is not built yet.";
+const messageOf = (error: unknown): string => (error instanceof Error ? error.message : String(error));
 
-export function createClaudeCliStream(_deps: ClaudeCliStreamDeps): ClaudeCliStreamer {
+async function runCall(
+  rt: Runtime,
+  call: CallContext,
+  stream: AssistantMessageEventStream,
+  sequence: number,
+): Promise<void> {
+  const message = emptyAssistantMessage(call.model, rt.deps.clock.now());
+  if (call.signal?.aborted) {
+    stream.push(finalEvent(message, { kind: "aborted" }, null));
+    return;
+  }
+  const existing = call.sessionId ? rt.bindings.get(call.sessionId) : undefined;
+  await existing?.settling;
+  const plan = choosePath({
+    hasTools: call.tools.length > 0,
+    binding: existing,
+    entries: call.entries,
+    hashes: call.hashes,
+    effort: call.effort,
+  });
+  if (plan.kind === "oneShot") return runOneShot(rt, call, message, stream, sequence);
+  const id = call.sessionId ?? `anonymous-${sequence}`;
+  const binding = existing ?? createBinding(id, call.modelValue);
+  rt.bindings.set(id, binding);
+  return runBound(rt, binding, plan, call, message, stream);
+}
+
+async function deleteCreatedSessions(rt: Runtime, sessions: ReadonlySet<string>): Promise<void> {
+  if (sessions.size === 0) return;
+  const port = await rt.port().catch(() => null);
+  await Promise.all([...sessions].map((id) => port?.deleteSession(id).catch(() => undefined)));
+}
+
+export function createClaudeCliStream(deps: ClaudeCliStreamDeps): ClaudeCliStreamer {
+  const rt = createRuntime(deps);
+  let sequence = 0;
   return {
-    streamSimple(model) {
+    streamSimple(model, context, options) {
       const stream = createAssistantMessageEventStream();
-      const message = {
-        role: "assistant" as const,
-        content: [],
-        api: model.api,
-        provider: model.provider,
-        model: model.id,
-        usage: {
-          input: 0,
-          output: 0,
-          cacheRead: 0,
-          cacheWrite: 0,
-          totalTokens: 0,
-          cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
-        },
-        stopReason: "error" as const,
-        errorMessage: NOT_BUILT_YET,
-        timestamp: Date.now(),
-      };
-      queueMicrotask(() => stream.push({ type: "error", reason: "error", error: message }));
+      sequence += 1;
+      const call = readCallContext(model, context, options);
+      runCall(rt, call, stream, sequence).catch((error: unknown) => {
+        const message = emptyAssistantMessage(model, deps.clock.now());
+        const failed = { kind: "failed", text: neutralText(messageOf(error)), failure: "other" } as const;
+        stream.push(finalEvent(message, failed, null));
+      });
       return stream;
     },
-    closeThread: async () => undefined,
-    closeAll: async () => undefined,
-    processCount: () => 0,
+    async closeThread(piSessionId) {
+      const binding = rt.bindings.get(piSessionId);
+      if (!binding) return;
+      rt.bindings.delete(piSessionId);
+      cancelIdle(binding);
+      binding.listener?.fail(THREAD_CLOSED_TEXT);
+      closeQuery(rt, binding);
+      await deleteCreatedSessions(rt, binding.created);
+      binding.created.clear();
+    },
+    async closeAll() {
+      for (const binding of [...rt.live]) {
+        cancelIdle(binding);
+        binding.listener?.fail(THREAD_CLOSED_TEXT);
+        closeQuery(rt, binding);
+      }
+      for (const binding of rt.bindings.values()) cancelIdle(binding);
+    },
+    processCount: () => rt.live.size,
   };
 }
