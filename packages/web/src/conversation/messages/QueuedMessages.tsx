@@ -1,4 +1,5 @@
-import type { QueuedMessage } from "@tau/protocol";
+import { isNotificationText, type QueuedMessage } from "@tau/protocol";
+import { QueuedNotificationRow } from "../notifications/QueuedNotificationRow";
 import { QueuedItemActions } from "../queue/QueuedItemActions";
 import { UserMessage } from "./UserMessage";
 
@@ -19,7 +20,11 @@ export function QueuedMessages({
     <ul aria-label="Queued messages" className="space-y-2">
       {items.map((item) => (
         <li key={item.id} className="space-y-1">
-          <UserMessage text={item.text} images={item.images} pending />
+          {isNotificationText(item.text) ? (
+            <QueuedNotificationRow text={item.text} />
+          ) : (
+            <UserMessage text={item.text} images={item.images} pending />
+          )}
           <div className="flex items-center justify-end gap-2">
             <p className="text-xs text-muted-foreground">{MODE_LABELS[item.mode]}</p>
             {conversationId ? <QueuedItemActions conversationId={conversationId} item={item} /> : null}
