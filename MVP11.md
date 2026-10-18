@@ -1,6 +1,6 @@
 # MVP11 plan: thread panes, starting with a terminal
 
-Status: DRAFT v2 (review round 1 applied; round 2 pending). Builds on PLAN.md "Later → Thread panes" and "Built-in terminal".
+Status: DRAFT v3 (review rounds 1 and 2 applied; round 3 pending). Builds on PLAN.md "Later → Thread panes" and "Built-in terminal".
 
 ## Goal
 
@@ -57,7 +57,18 @@ Out (later plans): agent tools that open, write to or read panes; other pane kin
 - Mobile (<760 px): the strip shows tabs ("Chat", "Terminal 1", …); one is visible. Touch typing works; the key bar is out of scope.
 - Fake mode (`VITE_FAKE=1`): the fake transport answers the routes and the stream with a scripted echo shell, so web tests and screenshots work without a backend.
 
-### Folder, hooks, packaging (round 1 findings)
+### Round 2 changes (these override anything above that disagrees)
+
+- **URL consumers**: `activity/use-open-conversation.ts:4` uses `useMatch("/p/:projectId/c/:conversationId")` with `end: true`; it would return `null` on a terminal URL and break `AppSidebar.tsx:32`, `MarkSeenWhileOpen.tsx:7`, `ToolsSection.tsx:43` and `use-setting-entries.ts:8`. Phase 0 changes the pattern to `…/:conversationId/*` there and in `MainLayout.tsx`, adds `terminalPath()` to `lib/paths.ts`, and adds a test that every consumer still gets the ids on a terminal URL. (`sidebar-model.ts:52` is prefix-only and stays.)
+- **Close hooks, corrected**: no new `before*` kind. `conversation-removal.ts` runs `conversations.remove`, then the `onConversationRemoved` array; the worktree is discarded inside that array (`create-core.ts:244`). The terminal service registers **first** in the array (it also handles children, as `process-service.ts` does), and `projects-api.ts:95` runs it before `workspaces.onProjectRemoved`. `archived-cleanup` and delete-archived go through `removal.remove` (`archived-cleanup.ts:74`): covered. **Archive** runs no hook today and does not delete the worktree: `closeAllOf` is called directly from `archiveChildren`/archive in `conversations-api.ts:121` (one named call site, injected port). **`workspaces.remove`** (`workspace-service.ts:135-148`) is not a hook path: it receives the terminal service as an injected dependency and calls `closeAllOf` first. The fatal path is dropped from the hook list: `onFatal` exits at once (`create-core.ts:82,120`), so pin (g) is the guarantee.
+- **Env, corrected**: the shell gets an **allow-list**, not a deny regex: `PATH` (with `$TAU_HOME/bin` prepended as in `coding-tools.ts:17-19`, so `tau` works), `HOME`, `USER`, `LOGNAME`, `SHELL`, `LANG`, `LC_*`, `TERM`, `COLORTERM`, `TMPDIR`, `SSH_AUTH_SOCK`, `EDITOR`, `VISUAL`, `TAU_HOME`, `TAU_THREAD_ID`. Anything else is dropped (documented loss: custom variables; a later setting can extend the list).
+- **Replay and repaint, corrected**: on attach the service sends `ESC c`, then the ring in chunks of at most 64 KB, then forces a repaint by resizing the PTY to (rows, cols+1) and back to (rows, cols) (a same-size resize may not raise `SIGWINCH`). Two clients: the **first attached client** owns the size until it detaches; later clients are read-only for size (letterboxed). Pin (i): a real `vim` and `top` survive a reload with the same size.
+- **Packaging, corrected**: `packageRoot` is `new URL("..", import.meta.url)` (`ssh.js:25`), valid only while `pi-env` stays external in `node_modules`. `pi-env` is a direct dependency of `packages/cli` and `neverBundle` in `tsdown.config.ts:11`. "Unavailable" is decided by `existsSync(localDaemon())` inside a try/catch (`localDaemon()` throws on unknown platforms and does not check the file). Pin (b) runs the real built `dist/bin.js`; an e2e asserts the daemon file exists.
+- **Core implementers**: the real core, `faux-core.ts` and testkit `createFakeCore` all get `terminals`. In web, `lib/transport/fake.ts` has a `Handlers` map keyed by `JsonRouteName` (`fake.ts:23`) that needs the new routes, and the stream is not a JSON route, so the `Transport` type gets a `openStream(path)` member (Phase 0).
+- **Ownership**: Phase 0 owns every seam file: `rest.ts`, `commands.ts`, `core.ts`, `register-routes.ts`, `create-core.ts`, `removal-hooks.ts` and the hook call sites, `conversations-api.ts`, `workspace-service.ts`, `projects-api.ts`, `lib/transport/fake.ts` and the transport type, `lib/paths.ts`, `use-open-conversation.ts` and its consumers' tests, `MainLayout.tsx`, `tsdown.config.ts`, `package.json` files, the Biome `noRestrictedImports` override, `contract.test.ts`. Agents A–D fill only their own folders. The `cli` agent (D) is dropped: the commands are table rows, done in Phase 0.
+- **Guard citation**: `packages/server/src/security/guard.ts:24` and `:73` is the right path (a round 2 note had the wrong directory).
+
+### Folder, hooks, packaging (round 1 findings; superseded where round 2 above says so)
 
 - **`cwdOf`** does not exist; write it in `core/src/terminals/cwd-of.ts` over `workspace-service.ts` (`threadOf`): a thread with a worktree uses `workspace.path`; checkout mode and legacy threads use the project folder (`legacyWorkspace(project.path)`); `workspace.state === "removed"` or a missing folder rejects `invalid_request`.
 - **Close hooks**: add `beforeConversationRemoved` and `beforeProjectRemoved` to `RemovalHooks` (`removal-hooks.ts`), run **before** the worktree is deleted. Paths to cover and test: archive (including `archiveChildren`, `conversations-api.ts:121`), delete, delete-archived, `archived-cleanup`, `workspaces.remove`, project remove, `core.close()` (`create-core.ts:330`), and the fatal path (`harness.closed` → `onFatal`, `create-core.ts:119`).
@@ -76,16 +87,16 @@ Out (later plans): agent tools that open, write to or read panes; other pane kin
 - (e) Environment filter: with `inheritEnv: false` and the explicit copy, `printenv | grep -i 'TAU_\|TOKEN'` shows only `TAU_HOME` and `TAU_THREAD_ID`; `PATH`, `HOME`, `SHELL`, `LANG` are present so the shell works.
 - (f) A 5 MB flood (`yes | head -c 5000000`) with a stalled client: the client is closed with 1013, memory stays bounded by the ring plus one socket buffer, and other sockets keep working. Also pin that `onData` chunk sizes allow a chunk-boundary ring.
 - (g) Killing the tau process (SIGKILL) leaves no shell or daemon behind (check `ps`). If it does, add a parent-pid watchdog fallback before going on.
+- (i) A real `vim` and `top` survive a reload with the repaint trick, at the same size.
 - (h) `cwdOf` for: a thread with a worktree, a thread on the main checkout, a legacy thread, a thread whose worktree state is `removed`, a thread whose folder was deleted by hand.
 
 ## Phases and owners
 
-0. **Foundation** (one agent): pins (b)–(h), dependency, protocol (`terminals`, stream frames, routes in `rest.ts`, command in `commands.ts` with the coverage test, `Change`), `Core.terminals` interface, fake core + contract tag (pending), `terminal-daemon.ts` port with a fake, stubs for each owner. Done when `check`, `test`, `build` pass.
+0. **Foundation** (one agent): pins (b)–(i), dependency, protocol (`terminals`, stream frames, routes in `rest.ts`, command in `commands.ts` with the coverage test, `Change`), `Core.terminals` interface, fake core + contract tag (pending), `terminal-daemon.ts` port with a fake, stubs for each owner. Done when `check`, `test`, `build` pass.
 1. **Parallel** (worktrees; the orchestrator commits their work):
    - **A: Core** owns `core/src/terminals/**` and `core/src/harness/terminal-daemon.ts` (service, ring buffer, lifecycle, `cwdOf`, close hooks).
    - **B: Server** owns `server/src/rest/register-terminal-routes.ts` and `server/src/terminals/**` (stream socket, backpressure, close codes).
    - **C: Web** owns `web/src/panes/**`, the new `components/ui` parts, the route, and the fake transport additions.
-   - **D: CLI** owns the two commands' handlers if `packages/cli` needs any beyond the command table.
 2. **Integration** (one agent): applies notes, wires `create-core.ts` and `create-server.ts`, thread archive/delete hooks, e2e (open a terminal, type `echo hi`, see the output, reload and see it again, close, thread delete kills it), runs `check` and `test` after each merge.
 3. **Verify for real**: build, run on a scratch home and port (never the user's real tau home or port), open the app in a browser, open a terminal in a worktree thread, run `pwd`, `ls`, `vim`, `top`, resize the window, reload, open a second tab, close the terminal, archive the thread. Light and dark theme, phone width. The user then checks it on their own server.
 
