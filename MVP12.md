@@ -1,6 +1,6 @@
 # MVP12 plan: tau reachable from anywhere (the server everywhere)
 
-Status: DRAFT v1 (scope talk with the user, then review rounds). Builds on PLAN.md "Hub + runtimes", "OpenTunnel" and "Pairing", and on MVP7 (the durable user service). Evidence so far: `@opentunnel/client` 0.5.2 and the `opentunnel` CLI README (unpacked in `/tmp/ot-inspect`), the current guard `packages/server/src/security/guard.ts`.
+Status: DRAFT v2 (scope agreed; review rounds pending). Builds on PLAN.md "Hub + runtimes", "OpenTunnel" and "Pairing", and on MVP7 (the durable user service). Evidence so far: `@opentunnel/client` 0.5.2 and the `opentunnel` CLI README (unpacked in `/tmp/ot-inspect`), the current guard `packages/server/src/security/guard.ts`.
 
 ## Goal
 
@@ -109,9 +109,9 @@ Out (later plans): **multi-server threads and runtimes** (PLAN.md hub + runtimes
 - **NixOS / odd hosts**: the user service uses the user manager with linger; verify on the real homelab (the user does this).
 - **Mac host sleep** kills the tunnel; a note, not a fix.
 
-## Questions for the user
+## Decisions (agreed with the user)
 
-1. Multi-server threads and runtimes are **out** of this plan (see Out): the hub first, runtimes next. OK?
-2. Pairing code alone is the approval (no extra "approve on the host" click)? Default: yes, with an optional later setting.
-3. A linked device gets full power (terminals included), no scopes now. OK?
-4. First host to test: your homelab (Linux, systemd) or your Mac?
+1. Multi-server threads and runtimes are **out** of this plan (my call, the user asked me to decide): the hub first, runtimes next as one more device kind on the same pairing flow.
+2. The pairing code alone is the approval (no "approve on the host" click).
+3. A linked device gets **full power** (terminals and agents included), no scopes. The link dialog says so in plain words.
+4. First host to test: the user's Mac (this machine), with a scratch home and a random port for agent runs. The user links their own phone from their own tau.
