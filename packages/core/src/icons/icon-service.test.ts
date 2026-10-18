@@ -114,8 +114,10 @@ describe("icon discovery", () => {
 
   it("keeps all apps when packages are added and caps each container at 32", async () => {
     const s = await setup();
-    for (let i = 0; i < 32; i++) await s.put(`apps/a-${String(i).padStart(2, "0")}/public/favicon.ico`, `a${i}`);
-    for (let i = 0; i < 6; i++) await s.put(`packages/p-${String(i).padStart(2, "0")}/public/favicon.ico`, `p${i}`);
+    for (let i = 0; i < 32; i++)
+      await s.put(`apps/a-${String(i).padStart(2, "0")}/public/favicon.ico`, `a${i}`);
+    for (let i = 0; i < 6; i++)
+      await s.put(`packages/p-${String(i).padStart(2, "0")}/public/favicon.ico`, `p${i}`);
     const names = await s.names();
     expect(names).toHaveLength(12);
     expect(names).toContain("apps/a-00/public/favicon.ico");
