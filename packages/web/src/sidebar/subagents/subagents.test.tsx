@@ -11,7 +11,8 @@ const reviewer = conversation({
   agentModel: { provider: "x", modelId: "m-1" },
   agentStatus: "running",
 });
-const all = [conversation({ id: "1", title: "Parent" }), reviewer];
+const rerunAfterStop = conversation({ id: "3", parentId: "1", agentStatus: "stopped", status: "running" });
+const all = [conversation({ id: "1", title: "Parent" }), reviewer, rerunAfterStop];
 
 vi.mock("@/lib/queries", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/queries")>()),
@@ -24,6 +25,11 @@ describe("subagent header and sidebar label", () => {
     expect(screen.getByText(/reviewer/)).toBeTruthy();
     expect(screen.getByText(/m-1/)).toBeTruthy();
     expect(screen.getByText("running")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Stop" })).toBeTruthy();
+  });
+
+  it("offers Stop while the child runs again after an earlier stop", () => {
+    renderAt("/", <SubagentBanner parentId="1" childId="3" />);
     expect(screen.getByRole("button", { name: "Stop" })).toBeTruthy();
   });
 

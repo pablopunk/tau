@@ -55,7 +55,7 @@ function Body({
 }: {
   id: string;
   state: ConversationViewState;
-  onRetry(requestId: string): Promise<void>;
+  onRetry?: (requestId: string) => Promise<void>;
 }) {
   if (state.status === "loading") return <LoadingTranscript />;
   if (state.status === "gone") return <DeletedThread />;
@@ -82,7 +82,7 @@ function ConversationPanel({ id }: ConversationProps) {
       <div ref={scrollRef} onScroll={onScroll} className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
         <div ref={contentRef} className="mx-auto w-full max-w-3xl px-4 py-6">
           <section aria-label="Conversation" aria-live="polite" aria-relevant="additions">
-            <Body id={id} state={state} onRetry={actions.retry} />
+            <Body id={id} state={state} onRetry={parentId ? undefined : actions.retry} />
           </section>
         </div>
       </div>

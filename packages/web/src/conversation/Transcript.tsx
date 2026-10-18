@@ -70,7 +70,7 @@ export function Transcript({
   conversationId,
 }: {
   view: ConversationView;
-  onRetry(requestId: string): Promise<void>;
+  onRetry?: (requestId: string) => Promise<void>;
   conversationId?: string;
 }) {
   const { items, results } = buildTranscript(view);
@@ -121,7 +121,7 @@ export function Transcript({
         {live.compacting ? <CompactingNotice /> : null}
         {live.retry ? <RetryNotice retry={live.retry} /> : null}
         {isIdleWhileBusy(live) ? <WorkingIndicator /> : null}
-        {isRetryable(view) ? <RetryButton onRetry={onRetry} /> : null}
+        {onRetry && isRetryable(view) ? <RetryButton onRetry={onRetry} /> : null}
         <QueuedMessages items={live.queued} conversationId={conversationId} />
       </div>
     </LatestTodoCallProvider>

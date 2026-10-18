@@ -9,7 +9,7 @@ export const isSpecialType = (agentType: string | null | undefined): agentType i
   !!agentType && agentType !== GENERAL_PURPOSE;
 
 export const isRunningChild = (child: ConversationSummary | undefined): boolean =>
-  child?.agentStatus === "running";
+  child?.status === "running" || child?.agentStatus === "running";
 
 const CARD_STATUS_OF_AGENT: Record<AgentStatus, ToolStatus> = {
   running: "running",
