@@ -1,8 +1,9 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "@/lib/api";
 import { Composer } from "./Composer";
+import { restoreToComposer } from "./composer/restore";
 import { ComposerTestWrapper } from "./composer/test-wrapper";
 import { endOf, renderView, viewWhere } from "./test-utils";
 
@@ -32,6 +33,13 @@ describe("<Composer>", () => {
     const box = screen.getByLabelText("Message").parentElement;
     expect(box).toContainElement(screen.getByText("tool"));
     expect(box).not.toContainElement(screen.getByText("foot"));
+  });
+
+  it("shows a restored message above what is already typed", async () => {
+    const { input } = setup({ target: "c1" });
+    await userEvent.type(input, "typing now");
+    act(() => restoreToComposer("c1", { text: "cancelled", images: [] }));
+    await waitFor(() => expect(input).toHaveValue("cancelled\n\ntyping now"));
   });
 
   it("sends on Enter, trims the text and clears the input", async () => {
