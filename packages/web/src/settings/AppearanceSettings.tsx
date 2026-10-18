@@ -2,6 +2,7 @@ import { MonitorIcon, MoonIcon, SunIcon } from "lucide-react";
 import { useSyncExternalStore } from "react";
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { SegmentedControl, type SegmentedOption } from "@/components/ui/segmented-control";
+import { SettingRow } from "@/components/ui/settings-layout";
 import { preferences, type Theme } from "@/lib/preferences";
 
 const THEME_OPTIONS: readonly SegmentedOption<Theme>[] = [
@@ -17,17 +18,19 @@ const useTheme = () => useSyncExternalStore(preferences.subscribeTheme, preferen
 export function AppearanceSettings() {
   const theme = useTheme();
   return (
-    <Field>
-      <div className="flex items-center justify-between gap-3">
-        <FieldLabel>Appearance</FieldLabel>
-        <SegmentedControl
-          aria-label="Theme"
-          value={theme}
-          onChange={preferences.setTheme}
-          options={THEME_OPTIONS}
-        />
-      </div>
-      {theme === "system" && <FieldDescription>{SYSTEM_CAPTION}</FieldDescription>}
-    </Field>
+    <SettingRow id="appearance">
+      <Field>
+        <div className="flex items-center justify-between gap-3">
+          <FieldLabel>Appearance</FieldLabel>
+          <SegmentedControl
+            aria-label="Theme"
+            value={theme}
+            onChange={preferences.setTheme}
+            options={THEME_OPTIONS}
+          />
+        </div>
+        {theme === "system" && <FieldDescription>{SYSTEM_CAPTION}</FieldDescription>}
+      </Field>
+    </SettingRow>
   );
 }

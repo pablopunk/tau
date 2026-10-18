@@ -1,10 +1,12 @@
 import type { ModelInfo, ModelRef, ThinkingLevel } from "@tau/protocol";
 import { useId } from "react";
 import { ThinkingCombobox } from "@/components/ThinkingCombobox";
+import { SettingRow } from "@/components/ui/settings-layout";
 import { findModel } from "@/lib/new-thread-defaults";
 import { ModelCombobox } from "@/setup/ModelCombobox";
 
 interface ModelSettingProps {
+  settingId: string;
   label: string;
   models: ModelInfo[];
   model: ModelRef | null;
@@ -19,7 +21,7 @@ export function ModelSetting(props: ModelSettingProps) {
   const id = useId();
   const levels = findModel(props.models, props.model)?.thinkingLevels ?? ["off"];
   return (
-    <>
+    <SettingRow id={props.settingId} className="flex flex-col gap-2">
       <label htmlFor={id} className="text-sm font-medium">
         {props.label}
       </label>
@@ -35,6 +37,6 @@ export function ModelSetting(props: ModelSettingProps) {
         />
         <ThinkingCombobox levels={levels} value={props.level} onChange={props.onLevel} className="sm:w-40" />
       </div>
-    </>
+    </SettingRow>
   );
 }

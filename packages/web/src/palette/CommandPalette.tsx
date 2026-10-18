@@ -15,9 +15,11 @@ import { conversationPath, newThreadPath } from "@/lib/paths";
 import { useAllConversations, useProjects } from "@/lib/queries";
 import { SETTINGS_SECTIONS } from "@/settings/sections";
 import { SettingsItem } from "./SettingsItem";
+import { SettingsSearchGroup } from "./SettingsSearchGroup";
 
 export function CommandPalette() {
   const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
   const navigate = useNavigate();
   const { projectId } = useOpenConversation();
   const conversations = useAllConversations().data ?? [];
@@ -27,13 +29,18 @@ export function CommandPalette() {
 
   const run = (action: () => void) => () => {
     setOpen(false);
+    setSearch("");
     action();
   };
 
   return (
     <CommandDialog open={open} onOpenChange={setOpen} title="Command palette">
       <Command>
-        <CommandInput placeholder="Search threads, projects, actions" />
+        <CommandInput
+          value={search}
+          onValueChange={setSearch}
+          placeholder="Search threads, projects, actions, settings"
+        />
         <CommandList>
           <CommandEmpty>No results.</CommandEmpty>
           <CommandGroup heading="Actions">
@@ -42,6 +49,7 @@ export function CommandPalette() {
               <SettingsItem key={section.id} section={section} run={run} />
             ))}
           </CommandGroup>
+          <SettingsSearchGroup search={search} run={run} />
           <CommandGroup heading="Projects">
             {projects.map((project) => (
               <CommandItem

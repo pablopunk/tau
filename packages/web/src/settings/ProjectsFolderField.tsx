@@ -4,6 +4,7 @@ import { FormError } from "@/app/FormError";
 import { useSubmit } from "@/app/use-submit";
 import { Button } from "@/components/ui/button";
 import { PathInput } from "@/components/ui/path-input";
+import { SettingRow } from "@/components/ui/settings-layout";
 import { api } from "@/lib/api";
 import { queryKeys, useSettings } from "@/lib/queries";
 
@@ -23,27 +24,33 @@ export function ProjectsFolderField() {
     });
 
   return (
-    <form
-      className="flex flex-col gap-2"
-      onSubmit={(event) => {
-        event.preventDefault();
-        void save();
-      }}
-    >
-      <label htmlFor={id} className="text-sm font-medium">
-        Projects folder
-      </label>
-      <div className="flex gap-2">
-        <PathInput id={id} value={value} onValueChange={setValue} placeholder="~/projects" />
-        <Button type="submit" variant="outline" disabled={pending || !value.trim() || value.trim() === saved}>
-          Save
-        </Button>
-      </div>
-      <p className="text-sm text-muted-foreground">
-        Cloned repositories live here. If this folder is inside the tau data home, deleting the data home
-        deletes them too.
-      </p>
-      <FormError message={error} />
-    </form>
+    <SettingRow id="projects-folder" asChild>
+      <form
+        className="flex flex-col gap-2"
+        onSubmit={(event) => {
+          event.preventDefault();
+          void save();
+        }}
+      >
+        <label htmlFor={id} className="text-sm font-medium">
+          Projects folder
+        </label>
+        <div className="flex gap-2">
+          <PathInput id={id} value={value} onValueChange={setValue} placeholder="~/projects" />
+          <Button
+            type="submit"
+            variant="outline"
+            disabled={pending || !value.trim() || value.trim() === saved}
+          >
+            Save
+          </Button>
+        </div>
+        <p className="text-sm text-muted-foreground">
+          Cloned repositories live here. If this folder is inside the tau data home, deleting the data home
+          deletes them too.
+        </p>
+        <FormError message={error} />
+      </form>
+    </SettingRow>
   );
 }

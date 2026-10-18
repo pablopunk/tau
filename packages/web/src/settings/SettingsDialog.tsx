@@ -1,50 +1,88 @@
-import type { ReactNode } from "react";
+import { useRef, useState } from "react";
+import { Command } from "@/components/ui/command";
 import { Dialog } from "@/components/ui/dialog";
 import { SettingsDialogContent, SettingsLayout } from "@/components/ui/settings-layout";
-import { CodeFolderSuggestion } from "@/github/CodeFolderSuggestion";
-import { GithubSettingsRow } from "@/github/GithubSettingsRow";
-import { AgentSection } from "./agent/AgentSection";
-import { GeneralSection } from "./GeneralSection";
-import { ProjectsFolderField } from "./ProjectsFolderField";
-import { ProvidersSection } from "./ProvidersSection";
-import { SettingsModels } from "./SettingsModels";
+import { SettingsSearchField, SettingsSearchResults } from "./SettingsSearch";
+import { SECTION_BODIES } from "./section-bodies";
 import { SETTINGS_SECTIONS, type SettingsSectionId } from "./sections";
-import { ToolsSection } from "./tools/ToolsSection";
-
-const sectionBodies: Record<SettingsSectionId, () => ReactNode> = {
-  general: () => <GeneralSection />,
-  providers: () => <ProvidersSection />,
-  models: () => <SettingsModels />,
-  projects: () => (
-    <>
-      <ProjectsFolderField />
-      <CodeFolderSuggestion />
-    </>
-  ),
-  github: () => <GithubSettingsRow />,
-  agent: () => <AgentSection />,
-  tools: () => <ToolsSection />,
-};
+import { type SettingEntry, settingTarget } from "./settings-index";
+import { useRevealSetting } from "./use-reveal-setting";
+import { useSettingEntries } from "./use-setting-entries";
 
 interface SettingsDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   section: SettingsSectionId;
   onSectionChange: (section: SettingsSectionId) => void;
+  /** The `data-setting-id` to scroll to and flash, from the URL. */
+  setting?: string | null;
+  onSettingOpen?: (section: SettingsSectionId, setting: string) => void;
 }
 
-export function SettingsDialog({ open, onOpenChange, section, onSectionChange }: SettingsDialogProps) {
+interface BodyProps extends SettingsDialogProps {
+  query: string;
+  onQueryChange: (query: string) => void;
+}
+
+function SettingsDialogBody({
+  section,
+  onSectionChange,
+  setting = null,
+  onSettingOpen,
+  query,
+  onQueryChange,
+}: BodyProps) {
+  const [nonce, setNonce] = useState(0);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const entries = useSettingEntries();
+  const searching = query.trim() !== "";
+  useRevealSetting(searching ? null : setting, nonce, section);
+
+  const openEntry = (entry: SettingEntry) => {
+    onSettingOpen?.(entry.section, settingTarget(entry));
+    onQueryChange("");
+    setNonce((current) => current + 1);
+  };
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <SettingsDialogContent aria-describedby={undefined}>
-        <SettingsLayout
-          title="Settings"
-          sections={SETTINGS_SECTIONS}
-          active={section}
-          onActiveChange={(id) => onSectionChange(id as SettingsSectionId)}
-        >
-          {sectionBodies[section]()}
-        </SettingsLayout>
+    <Command shouldFilter={false} loop className="rounded-none! bg-transparent p-0">
+      <SettingsLayout
+        title="Settings"
+        sections={SETTINGS_SECTIONS}
+        active={section}
+        onActiveChange={(id) => {
+          onQueryChange("");
+          onSectionChange(id as SettingsSectionId);
+        }}
+        sectionRequest={nonce}
+        search={<SettingsSearchField inputRef={inputRef} query={query} onQueryChange={onQueryChange} />}
+        results={
+          searching ? <SettingsSearchResults query={query} entries={entries} onOpen={openEntry} /> : null
+        }
+      >
+        {SECTION_BODIES[section]()}
+      </SettingsLayout>
+    </Command>
+  );
+}
+
+export function SettingsDialog(props: SettingsDialogProps) {
+  const [query, setQuery] = useState("");
+  const changeOpen = (open: boolean) => {
+    if (!open) setQuery("");
+    props.onOpenChange(open);
+  };
+  return (
+    <Dialog open={props.open} onOpenChange={changeOpen}>
+      <SettingsDialogContent
+        aria-describedby={undefined}
+        onEscapeKeyDown={(event) => {
+          if (query === "") return;
+          event.preventDefault();
+          setQuery("");
+        }}
+      >
+        <SettingsDialogBody {...props} query={query} onQueryChange={setQuery} />
       </SettingsDialogContent>
     </Dialog>
   );

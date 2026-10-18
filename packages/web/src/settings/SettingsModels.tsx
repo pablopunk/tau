@@ -25,6 +25,7 @@ export function SettingsModels() {
   return (
     <div className="flex flex-col gap-3">
       <ModelSetting
+        settingId="default-model"
         label="Default model"
         models={models.data}
         model={settings.data?.defaultModel ?? null}
@@ -33,6 +34,7 @@ export function SettingsModels() {
         onLevel={(level) => save(() => api.settings.setDefaultThinkingLevel(level))}
       />
       <ModelSetting
+        settingId="fast-model"
         label="Fast model"
         models={models.data}
         model={settings.data?.fastModel ?? null}

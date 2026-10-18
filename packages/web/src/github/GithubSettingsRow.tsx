@@ -1,5 +1,6 @@
 import type { GithubStatus } from "@tau/protocol";
 import { FormError } from "@/app/FormError";
+import { SettingRow } from "@/components/ui/settings-layout";
 import { Skeleton } from "@/components/ui/skeleton";
 import { errorMessage } from "@/lib/error-message";
 import { useGithubStatus } from "@/lib/queries";
@@ -22,9 +23,9 @@ export function GithubSettingsRow() {
   if (status.isError) return <FormError message={errorMessage(status.error)} />;
   if (!status.data) return <Skeleton className="h-9 w-full" />;
   return (
-    <div className="flex flex-col gap-1">
+    <SettingRow id="github-status" className="flex flex-col gap-1">
       <p className="text-sm font-medium">GitHub: {HEADINGS[status.data.state]}</p>
       <p className="text-sm text-muted-foreground">{detail(status.data)}</p>
-    </div>
+    </SettingRow>
   );
 }

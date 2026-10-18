@@ -4,6 +4,7 @@ import { FormError } from "@/app/FormError";
 import { useSubmit } from "@/app/use-submit";
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { SegmentedControl, type SegmentedOption } from "@/components/ui/segmented-control";
+import { SettingRow } from "@/components/ui/settings-layout";
 import { Skeleton } from "@/components/ui/skeleton";
 import { api } from "@/lib/api";
 import { queryKeys, useSettings } from "@/lib/queries";
@@ -39,31 +40,35 @@ export function AgentSection() {
 
   return (
     <div className="flex flex-col gap-4">
-      <Field>
-        <div className="flex items-center justify-between gap-3">
-          <FieldLabel>{MESSAGE_MODE_LABEL}</FieldLabel>
-          <SegmentedControl
-            aria-label={MESSAGE_MODE_LABEL}
-            value={settings.data.messageMode}
-            options={MESSAGE_MODES}
-            onChange={(mode) => save(() => api.settings.setMessageMode(mode))}
-          />
-        </div>
-        <FieldDescription>
-          Steer lands at the next tool step. Queue waits for the final answer.
-        </FieldDescription>
-      </Field>
-      <Field>
-        <div className="flex items-center justify-between gap-3">
-          <FieldLabel>{WORKSPACE_LABEL}</FieldLabel>
-          <SegmentedControl
-            aria-label={WORKSPACE_LABEL}
-            value={settings.data.workspaceDefault}
-            options={WORKSPACE_MODES}
-            onChange={(mode) => save(() => api.settings.setWorkspaceDefault(mode))}
-          />
-        </div>
-      </Field>
+      <SettingRow id="message-mode">
+        <Field>
+          <div className="flex items-center justify-between gap-3">
+            <FieldLabel>{MESSAGE_MODE_LABEL}</FieldLabel>
+            <SegmentedControl
+              aria-label={MESSAGE_MODE_LABEL}
+              value={settings.data.messageMode}
+              options={MESSAGE_MODES}
+              onChange={(mode) => save(() => api.settings.setMessageMode(mode))}
+            />
+          </div>
+          <FieldDescription>
+            Steer lands at the next tool step. Queue waits for the final answer.
+          </FieldDescription>
+        </Field>
+      </SettingRow>
+      <SettingRow id="workspace-default">
+        <Field>
+          <div className="flex items-center justify-between gap-3">
+            <FieldLabel>{WORKSPACE_LABEL}</FieldLabel>
+            <SegmentedControl
+              aria-label={WORKSPACE_LABEL}
+              value={settings.data.workspaceDefault}
+              options={WORKSPACE_MODES}
+              onChange={(mode) => save(() => api.settings.setWorkspaceDefault(mode))}
+            />
+          </div>
+        </Field>
+      </SettingRow>
       <FormError message={error} />
     </div>
   );

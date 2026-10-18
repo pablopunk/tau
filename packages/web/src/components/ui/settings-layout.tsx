@@ -1,5 +1,6 @@
 import * as React from "react"
 import { ChevronLeftIcon } from "lucide-react"
+import { Slot } from "radix-ui"
 import { cn } from "@/lib/utils"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { Button } from "@/components/ui/button"
@@ -28,7 +29,35 @@ interface SettingsLayoutProps {
   title: string
   /** Forces the layout instead of following the `md` breakpoint. */
   mobile?: boolean
+  /** A search field shown above the section list. */
+  search?: React.ReactNode
+  /** Replaces the section body (and on mobile the section list) while set, for search results. */
+  results?: React.ReactNode
+  /** Changes whenever the caller wants the section body shown, so the mobile layout leaves its list. */
+  sectionRequest?: number
   children: React.ReactNode
+}
+
+/** Marks one setting so search can find, scroll to and flash it. Use `asChild` to mark an existing element. */
+function SettingRow({
+  id,
+  asChild,
+  className,
+  ...props
+}: React.ComponentProps<"div"> & { id: string; asChild?: boolean }) {
+  const Comp = asChild ? Slot.Root : "div"
+  return (
+    <Comp
+      data-slot="setting-row"
+      data-setting-id={id}
+      className={cn(
+        !asChild && "-mx-2 -my-1.5 px-2 py-1.5",
+        "scroll-mt-4 rounded-lg transition-colors duration-700 data-[highlighted]:bg-accent data-[highlighted]:ring-2 data-[highlighted]:ring-ring/40 motion-reduce:transition-none",
+        className
+      )}
+      {...props}
+    />
+  )
 }
 
 function SettingsDialogContent({ className, ...props }: React.ComponentProps<typeof DialogContent>) {
@@ -70,11 +99,12 @@ function SectionScroller({ children }: { children: React.ReactNode }) {
   )
 }
 
-function DesktopSettings({ sections, active, onActiveChange, title, children }: SettingsLayoutProps) {
+function DesktopSettings({ sections, active, onActiveChange, title, search, results, children }: SettingsLayoutProps) {
   return (
     <SidebarProvider className="h-full min-h-0 w-full">
       <Sidebar collapsible="none" className="w-48 shrink-0 p-2">
         <SidebarContent>
+          {search}
           <SidebarGroup className="p-0">
             <SectionNav sections={sections} active={active} onPick={onActiveChange} />
           </SidebarGroup>
@@ -82,14 +112,17 @@ function DesktopSettings({ sections, active, onActiveChange, title, children }: 
       </Sidebar>
       <div className="flex min-w-0 flex-1 flex-col">
         <DialogTitle className="px-6 pt-5 text-base font-medium">{title}</DialogTitle>
-        <SectionScroller>{children}</SectionScroller>
+        <SectionScroller>{results ?? children}</SectionScroller>
       </div>
     </SidebarProvider>
   )
 }
 
-function MobileSettings({ sections, active, onActiveChange, title, children }: SettingsLayoutProps) {
+function MobileSettings({ sections, active, onActiveChange, title, search, results, sectionRequest, children }: SettingsLayoutProps) {
   const [showSection, setShowSection] = React.useState(false)
+  React.useEffect(() => {
+    if (sectionRequest) setShowSection(true)
+  }, [sectionRequest])
   const activeLabel = sections.find((section) => section.id === active)?.label ?? title
   const pick = (id: string) => {
     onActiveChange(id)
@@ -108,9 +141,16 @@ function MobileSettings({ sections, active, onActiveChange, title, children }: S
       {showSection ? (
         <SectionScroller>{children}</SectionScroller>
       ) : (
-        <div className="p-2">
-          <SectionNav sections={sections} active={active} onPick={pick} />
-        </div>
+        <>
+          {search}
+          {results ? (
+            <SectionScroller>{results}</SectionScroller>
+          ) : (
+            <div className="p-2">
+              <SectionNav sections={sections} active={active} onPick={pick} />
+            </div>
+          )}
+        </>
       )}
     </SidebarProvider>
   )
@@ -122,5 +162,5 @@ function SettingsLayout({ mobile, ...props }: SettingsLayoutProps) {
   return (mobile ?? isMobile) ? <MobileSettings {...props} /> : <DesktopSettings {...props} />
 }
 
-export { SettingsDialogContent, SettingsLayout }
+export { SettingRow, SettingsDialogContent, SettingsLayout }
 export type { SettingsLayoutProps, SettingsSection }

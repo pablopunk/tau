@@ -4,6 +4,7 @@ import { useOpenConversation } from "@/activity/use-open-conversation";
 import { FormError } from "@/app/FormError";
 import { Button } from "@/components/ui/button";
 import { FieldDescription } from "@/components/ui/field";
+import { SettingRow } from "@/components/ui/settings-layout";
 import { Skeleton } from "@/components/ui/skeleton";
 import { errorMessage } from "@/lib/error-message";
 import { useMcpServers } from "@/lib/queries";
@@ -49,11 +50,13 @@ export function ToolsSection() {
 
   return (
     <div className="flex flex-col gap-6">
-      <section className="flex flex-col gap-2">
-        <h3 className="text-sm font-medium">Web search</h3>
-        <FieldDescription>{WEB_NOTE}</FieldDescription>
-      </section>
-      <div className="flex flex-col gap-2">
+      <SettingRow id="web-search" asChild>
+        <section className="flex flex-col gap-2">
+          <h3 className="text-sm font-medium">Web search</h3>
+          <FieldDescription>{WEB_NOTE}</FieldDescription>
+        </section>
+      </SettingRow>
+      <SettingRow id="mcp-servers" className="flex flex-col gap-2">
         <div className="flex items-center justify-between gap-2">
           <h3 className="text-sm font-medium">MCP servers</h3>
           <Button variant="outline" size="sm" onClick={() => setDialog({ editing: null })}>
@@ -62,7 +65,7 @@ export function ToolsSection() {
         </div>
         <FieldDescription>{MCP_NOTE}</FieldDescription>
         {mine.length === 0 ? <FieldDescription>No servers added yet.</FieldDescription> : null}
-      </div>
+      </SettingRow>
       <ServerList title="Your servers" servers={mine} onEdit={(name) => setDialog({ editing: name })} />
       <ServerList title="From this project's .mcp.json" servers={fromProject} />
       {dialog ? <McpServerDialog editing={dialog.editing} onClose={() => setDialog(null)} /> : null}

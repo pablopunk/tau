@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
+import { SettingRow } from "@/components/ui/settings-layout";
 import { Switch } from "@/components/ui/switch";
 import { preferences } from "@/lib/preferences";
 import { notificationsGranted, notificationsSupported } from "./notification-support";
@@ -20,19 +21,21 @@ export function NotificationSettings() {
   };
 
   return (
-    <Field>
-      <div className="flex items-center justify-between gap-3">
-        <FieldLabel htmlFor="notifications-switch">Notifications</FieldLabel>
-        <Switch
-          id="notifications-switch"
-          checked={enabled}
-          disabled={!notificationsSupported()}
-          onCheckedChange={change}
-        />
-      </div>
-      <FieldDescription>
-        {denied ? DENIED_HINT : "Notify me when a run ends and this page is hidden."}
-      </FieldDescription>
-    </Field>
+    <SettingRow id="notifications">
+      <Field>
+        <div className="flex items-center justify-between gap-3">
+          <FieldLabel htmlFor="notifications-switch">Notifications</FieldLabel>
+          <Switch
+            id="notifications-switch"
+            checked={enabled}
+            disabled={!notificationsSupported()}
+            onCheckedChange={change}
+          />
+        </div>
+        <FieldDescription>
+          {denied ? DENIED_HINT : "Notify me when a run ends and this page is hidden."}
+        </FieldDescription>
+      </Field>
+    </SettingRow>
   );
 }
