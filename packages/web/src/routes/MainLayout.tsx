@@ -1,19 +1,23 @@
-import { Route, Routes, useParams } from "react-router";
+import { Route, Routes, useMatch, useParams } from "react-router";
 import { MarkSeenWhileOpen } from "@/activity";
 import { SidebarInset, SidebarProvider, SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
 import { Conversation } from "@/conversation";
 import { preferences } from "@/lib/preferences";
 import { NotificationWatcher } from "@/notifications";
 import { CommandPalette, GlobalShortcuts } from "@/palette";
+import { ThreadPanes } from "@/panes";
 import { AppSidebar } from "@/sidebar/AppSidebar";
 import { NewThreadPage } from "./NewThreadPage";
 
 function ConversationRoute() {
-  const { conversationId } = useParams();
-  if (!conversationId) return <NewThreadPage />;
-  return <Conversation key={conversationId} id={conversationId} />;
-  // Seam for thread panes (owner C): read `terminalId` from a nested `<Routes><Route path="terminal/:terminalId" /></Routes>`
-  // and render `<ThreadPanes>` around the Conversation. The Conversation keeps its key so it never remounts.
+  const { projectId, conversationId } = useParams();
+  const terminalId = useMatch("/p/:projectId/c/:conversationId/terminal/:terminalId")?.params.terminalId;
+  if (!projectId || !conversationId) return <NewThreadPage />;
+  return (
+    <ThreadPanes projectId={projectId} conversationId={conversationId} terminalId={terminalId}>
+      <Conversation key={conversationId} id={conversationId} />
+    </ThreadPanes>
+  );
 }
 
 function MainHeader() {

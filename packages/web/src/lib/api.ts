@@ -293,4 +293,6 @@ export function createDefaultTransport(): Transport {
 }
 
 /** The app's client: real over HTTP + WebSocket, or the in-browser fake when built with `VITE_FAKE=1`. */
-export const api: Api = createApi(createDefaultTransport());
+/** The one shared transport; `panes/terminal-api.ts` uses it for terminals and streams. */
+export const transport: Transport = createDefaultTransport();
+export const api: Api = createApi(transport);
