@@ -1,6 +1,6 @@
 # MVP10 plan: Claude connectors in Claude CLI threads
 
-Status: DRAFT v4 (review rounds 1–3 applied). Builds on MVP9 (Claude CLI provider, architecture A) and the spike `scratchpad/connectors-spike/notes.md` (CLI 2.1.302, SDK 0.3.302, 5 Haiku turns, read-only).
+Status: DRAFT v5 (review rounds 1–4 applied). Builds on MVP9 (Claude CLI provider, architecture A) and the spike `scratchpad/connectors-spike/notes.md` (CLI 2.1.302, SDK 0.3.302, 5 Haiku turns, read-only).
 
 ## Goal
 
@@ -47,9 +47,11 @@ A connector `tool_use` is a call that Pi must show but not run.
 - **Hash**: `claude_connector` is left out of the system-message key in `normalize.ts` (tools added/removed), so turning the first connector on or off does not force a Rebind by itself. A change of the chosen server set closes the live query; the next call takes the **Resume** path with the new options (same SDK session).
 - **Adapter invariants** (review round 3, owner B):
   1. The inbox drains **one API message** per turn (up to and including its `message_stop` and `assistant`) and keeps the rest queued (`turn.ts:41-43`, `api-message-reader.ts:195` ignore anything after the first message). `closeQuery` clears the inbox (`lifecycle.ts:17`).
-  2. A `result` queued in the inbox is tagged; draining it counts as "result seen", so `settleAfter` does not add an owed result (`pump.ts:37-41`, `run-bound.ts:44-45`).
+  2. One consuming rule for `result`: when a `result` arrives with no listener it is not queued; it sets `binding.resultSeen = true`. `settleAfter` (`run-bound.ts:44-45`) adds an owed result only when `resultSeen` is false, and then clears it. A queued `result` therefore never reaches a later turn (`turn.ts:45`).
   3. `settleAfter` filters connector ids out of `summary.toolUseIds` before adding to `expected` (`run-bound.ts:44`).
-  4. Resume and Resume-at filter `claude_connector` results out of `plan.suffix` in `prepare.ts:34-50`; if the suffix is empty after the filter, no user message is sent and the turn only reads (from the inbox or live).
+  4. Continue (`deliver.ts:19-25`), Resume and Resume-at (`prepare.ts:34-50`) filter `claude_connector` results out. With a live query and an empty suffix after the filter, no user message is sent and the turn only reads (inbox or live). With **no live query** (Resume after a close or crash) and an empty suffix, the CLI's own next message is lost, so the Resume sends the user text "Continue." (`launch.ts:59` always pushes input; the resumed SDK session already holds the connector results).
+  7. **Busy**: `isBusy` (`lifecycle.ts:66-67`) also counts open connector ids, a non-empty inbox and pending approvals, so the 15 min idle close and invariant 6 never close a query that owes a CLI-started message.
+  8. **Stop**: `claude_connector.execute()` listens to its abort signal and calls the adapter's `interruptConversation(sessionId)` (a port that owner B exposes and owner A calls), which runs `interruptAndSettle`. As a backstop, an aborted connector result in the next call's delivery (`normalize.ts:36-37`) also triggers `interruptAndSettle`.
   5. `normalize.ts` drops a system entry whose only change is `claude_connector` added or removed, so `hasForeignEntry` (`choose-path.ts:34-43`) does not Rebind.
   6. A change of the chosen server set marks the binding "options stale"; at the next `streamSimple`, before `choosePath`, an idle binding closes its query (so `atHeadPlan` picks Resume, `choose-path.ts:42-46`, `launch.ts:70-79` builds fresh options). A busy binding is never closed for this; it waits for the next idle call.
 - **Tool definitions to the CLI**: the adapter filters `claude_connector` out of the `tau` MCP server.
@@ -90,10 +92,10 @@ Gates: (n), (q) and (r) run **first** in Phase 0. If (n) fails, writes are Out (
 0. **Foundation** (one agent): gate pins (n), (q), (r) first, then (k)–(p); results in this doc and the design adjusted per the gates. Protocol (`Settings.claudeConnectors`, `ClaudeCliStatus.connectors`, approvals list and decide routes in `rest.ts`, CLI command in `commands.ts` with the coverage test), settings store field, server routes, testkit fake core + contract tag `claude-connectors` (pending), web hooks. `claude-cli/sdk-types.ts` and `sdk-port.ts` gain `mcpServerStatus()`, `toggleMcpServer()`, the `canUseTool` option and `permissionMode: "default"`. Fake SDK: connectors in `mcpServerStatus`, CLI-executed tool results (early and late), the CLI starting the next message by itself, `canUseTool`. `connectors/names.ts` (frozen), the `claude_connector` tool definition stub and its extension, the approvals port interface, and stubs for every owner.
 1. **Parallel**:
    - **A: Connectors core** owns `core/src/claude-cli/connectors/**` except `names.ts` (probe, cache, observed-result store, chosen-server settings logic), `core/src/harness/tools/claude-connector.ts` (execute), `core/src/provider/provider-service.ts` connector status.
-   - **B: Adapter** owns `core/src/claude-cli/stream/**` (query options, wait for connectors, mapping in the reader, pump routing, skip delivery, `expected` exclusion, filter, abort, rebind text, `canUseTool` bridge to the approvals port).
+   - **B: Adapter** owns `core/src/claude-cli/stream/**` (query options, wait for connectors, mapping in the reader, pump routing, skip delivery, `stream/errors.ts` `neutralText` over connector status errors, the `interruptConversation` port, `expected` exclusion, filter, abort, rebind text, `canUseTool` bridge to the approvals port).
    - **C: Approvals core** owns `core/src/approvals/**` and `core/src/harness/live-work.ts` (pending store, decide, always-allow, Stop denies, `hasPendingApproval`).
-   - **D: Web** owns `web/src/settings/ClaudeConnectors*`, `web/src/conversation/ToolApproval*`, the tool card label for `claude_connector` ("Linear · list_teams").
-2. **Integration** (owns `create-core.ts`, harness extension wiring, `AgentDoc.tools` offering, `claude-cli/errors.ts` `neutralText` over connector status errors): notes, wiring, e2e with the fake SDK (turn on Linear, a read-only call shows a card with a result, a write call asks, Allow once, Deny, Always allow).
+   - **D: Web** owns `web/src/settings/ClaudeConnectors*`, `web/src/conversation/ToolApproval*`, `web/src/conversation/tools/ClaudeConnectorTool.tsx` (label "Linear · list_teams", the `tool_unavailable` text) and its registration in the tool card registry.
+2. **Integration** (owns `create-core.ts`, harness extension wiring, `AgentDoc.tools` offering): notes, wiring, e2e with the fake SDK (turn on Linear, a read-only call shows a card with a result, a write call asks, Allow once, Deny, Always allow).
 3. **Verify for real**: on this machine, turn on Linear, ask a Claude CLI thread "list my Linear teams"; ask it to draft (not send) something that needs a write tool and deny it.
 
 ## Testing
