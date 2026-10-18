@@ -105,7 +105,7 @@ function SidebarThreadRow({
                 </span>
               </span>
             ) : null}
-            <span className={cn("truncate", MOTION, projectIcon && "group-data-[current=true]/menu-item:-translate-x-[21px]")}>{context}</span>
+            <span className={cn("truncate", MOTION, projectIcon && "group-data-[current=true]/menu-item:-translate-x-[21px]", "group-data-[current=true]/menu-item:font-semibold")}>{context}</span>
           </span>
         ) : null}
         <span data-slot="thread-title" className={cn(compact ? "truncate" : "line-clamp-2 break-words", "text-sm font-normal text-foreground/80 group-data-[current=true]/menu-item:text-foreground")}>
