@@ -1,9 +1,10 @@
 import type { ConversationSummary, Project } from "@tau/protocol";
 import { useRef } from "react";
+import { useLocation } from "react-router";
 import { useFlipList } from "@/hooks/use-flip-list";
 import { ProjectGroup } from "./ProjectGroup";
-import { projectSections } from "./sidebar-model";
-import { useClosedProjects } from "./use-sidebar-preferences";
+import { isProjectOpen, projectIdFromPath, projectSections } from "./sidebar-model";
+import { useProjectOpenOverrides } from "./use-sidebar-preferences";
 
 interface ProjectsViewProps {
   projects: readonly Project[];
@@ -19,18 +20,21 @@ export function ProjectsView({
   onProjectRemoved,
 }: ProjectsViewProps) {
   const listRef = useRef<HTMLDivElement>(null);
-  const { closed, isOpen, setOpen } = useClosedProjects();
-  useFlipList(listRef, closed.join(","));
+  const { overrides, setOpen } = useProjectOpenOverrides();
+  const currentProjectId = projectIdFromPath(useLocation().pathname);
+  const sections = projectSections(projects, conversations);
+  const openKey = sections.map((section) => isProjectOpen(section, overrides, currentProjectId)).join(",");
+  useFlipList(listRef, openKey);
   const byId = new Map(projects.map((project) => [project.id, project]));
   return (
     <div ref={listRef}>
-      {projectSections(projects, conversations).map((section) => (
+      {sections.map((section) => (
         <ProjectGroup
           key={section.project.id}
           section={section}
           projects={byId}
           activeConversationId={activeConversationId}
-          open={isOpen(section.project.id)}
+          open={isProjectOpen(section, overrides, currentProjectId)}
           onOpenChange={(open) => setOpen(section.project.id, open)}
           onRemoved={() => onProjectRemoved(section.project.id)}
         />

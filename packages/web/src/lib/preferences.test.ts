@@ -68,11 +68,17 @@ describe("preferences", () => {
     preferences.setSidebarMode("projects");
     expect(window.localStorage.getItem("tau-sidebar-mode")).toBe("projects");
     expect(preferences.getSidebarMode()).toBe("projects");
-    expect(preferences.getClosedProjects()).toEqual([]);
-    preferences.setClosedProjects(["a", "b"]);
-    expect(window.localStorage.getItem("tau-sidebar-closed-projects")).toBe('["a","b"]');
-    expect(preferences.getClosedProjects()).toEqual(["a", "b"]);
-    window.localStorage.setItem("tau-sidebar-closed-projects", "{oops");
-    expect(preferences.getClosedProjects()).toEqual([]);
+    expect(preferences.getProjectOpenOverrides()).toEqual({});
+    preferences.setProjectOpenOverrides({ a: false, b: true });
+    expect(preferences.getProjectOpenOverrides()).toEqual({ a: false, b: true });
+    window.localStorage.setItem("tau-sidebar-project-overrides", "{oops");
+    expect(preferences.getProjectOpenOverrides()).toEqual({});
+  });
+
+  it("reads the legacy closed list as closed overrides, new overrides winning", () => {
+    window.localStorage.setItem("tau-sidebar-closed-projects", '["a","b"]');
+    expect(preferences.getProjectOpenOverrides()).toEqual({ a: false, b: false });
+    preferences.setProjectOpenOverrides({ b: true });
+    expect(preferences.getProjectOpenOverrides()).toEqual({ a: false, b: true });
   });
 });

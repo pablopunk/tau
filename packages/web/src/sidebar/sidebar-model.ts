@@ -48,3 +48,18 @@ export function projectSections(
 }
 
 export const homeRelative = (path: string): string => path.replace(/^(\/Users|\/home)\/[^/]+/, "~");
+
+export const projectIdFromPath = (pathname: string): string | undefined => {
+  const encoded = /^\/p\/([^/]+)/.exec(pathname)?.[1];
+  return encoded === undefined ? undefined : decodeURIComponent(encoded);
+};
+
+export function isProjectOpen(
+  section: ProjectSection,
+  overrides: Readonly<Record<string, boolean>>,
+  currentProjectId: string | undefined,
+): boolean {
+  if (section.project.id === currentProjectId) return true;
+  const isNotReady = section.project.status !== "ready";
+  return overrides[section.project.id] ?? (isNotReady || section.active.length > 0);
+}

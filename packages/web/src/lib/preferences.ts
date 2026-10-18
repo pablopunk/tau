@@ -10,6 +10,7 @@ const KEYS = {
   seenBaseline: `${PREFIX}seen-baseline`,
   sidebarMode: "tau-sidebar-mode",
   closedProjects: "tau-sidebar-closed-projects",
+  projectOpenOverrides: "tau-sidebar-project-overrides",
   collapsedThreads: "tau-sidebar-collapsed-threads",
   theme: `${PREFIX}theme`,
 } as const;
@@ -63,12 +64,25 @@ const themeListeners = new Set<() => void>();
 const isStringArray = (value: unknown): value is string[] =>
   Array.isArray(value) && value.every((entry) => typeof entry === "string");
 
+const isBooleanRecord = (value: unknown): value is Record<string, boolean> =>
+  typeof value === "object" &&
+  value !== null &&
+  !Array.isArray(value) &&
+  Object.values(value).every((entry) => typeof entry === "boolean");
+
+const legacyClosedAsOverrides = (ids: readonly string[]): Record<string, boolean> =>
+  Object.fromEntries(ids.map((id) => [id, false]));
+
 export const preferences = {
   getSidebarMode: (): SidebarMode => (readString(KEYS.sidebarMode) === "projects" ? "projects" : "threads"),
   setSidebarMode: (mode: SidebarMode): void => writeString(KEYS.sidebarMode, mode),
 
-  getClosedProjects: (): string[] => readJson(KEYS.closedProjects, isStringArray) ?? [],
-  setClosedProjects: (ids: readonly string[]): void => writeString(KEYS.closedProjects, JSON.stringify(ids)),
+  getProjectOpenOverrides: (): Record<string, boolean> => ({
+    ...legacyClosedAsOverrides(readJson(KEYS.closedProjects, isStringArray) ?? []),
+    ...(readJson(KEYS.projectOpenOverrides, isBooleanRecord) ?? {}),
+  }),
+  setProjectOpenOverrides: (overrides: Readonly<Record<string, boolean>>): void =>
+    writeString(KEYS.projectOpenOverrides, JSON.stringify(overrides)),
 
   getCollapsedThreads: (): string[] => readJson(KEYS.collapsedThreads, isStringArray) ?? [],
   setCollapsedThreads: (ids: readonly string[]): void =>

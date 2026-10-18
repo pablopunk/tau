@@ -10,14 +10,16 @@ export function useSidebarMode() {
   return [mode, change] as const;
 }
 
-export function useClosedProjects() {
-  const [closed, setClosed] = useState<string[]>(() => preferences.getClosedProjects());
+export function useProjectOpenOverrides() {
+  const [overrides, setOverrides] = useState<Record<string, boolean>>(() =>
+    preferences.getProjectOpenOverrides(),
+  );
   const setOpen = (projectId: string, open: boolean) => {
-    const next = open ? closed.filter((id) => id !== projectId) : [...new Set([...closed, projectId])];
-    preferences.setClosedProjects(next);
-    setClosed(next);
+    const next = { ...overrides, [projectId]: open };
+    preferences.setProjectOpenOverrides(next);
+    setOverrides(next);
   };
-  return { closed, isOpen: (projectId: string) => !closed.includes(projectId), setOpen };
+  return { overrides, setOpen };
 }
 
 export function useCollapsedThreads() {

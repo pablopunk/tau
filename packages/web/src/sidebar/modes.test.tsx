@@ -130,19 +130,59 @@ describe("projects mode", () => {
     ]);
   });
 
-  it("collapses a group and persists it", async () => {
+  const emptyProject = project({ id: "p9", name: "Empty", kind: "folder" });
+  const withEmpty = () => mocked.projects.list.mockResolvedValue([project(), repo, emptyProject]);
+  const emptyToggle = (expanded: boolean) => screen.findByRole("button", { name: /^Empty/, expanded });
+
+  it("collapses a busy group and persists the override", async () => {
     const user = userEvent.setup();
     renderSidebar();
     await user.click(await screen.findByRole("button", { name: /Repo/, expanded: true }));
-    expect(preferences.getClosedProjects()).toEqual(["p2"]);
+    expect(preferences.getProjectOpenOverrides()).toEqual({ p2: false });
     expect(screen.queryByRole("link", { name: /Bravo/ })).not.toBeInTheDocument();
   });
 
-  it("starts collapsed for persisted closed projects", async () => {
-    preferences.setClosedProjects(["p2"]);
+  it("starts collapsed for legacy closed projects", async () => {
+    window.localStorage.setItem("tau-sidebar-closed-projects", '["p2"]');
     renderSidebar();
     await screen.findByRole("group", { name: "Repo" });
     expect(screen.queryByRole("link", { name: /Bravo/ })).not.toBeInTheDocument();
+  });
+
+  it("collapses a project without threads by default", async () => {
+    withEmpty();
+    renderSidebar();
+    await emptyToggle(false);
+    expect(screen.queryByText("No threads yet")).not.toBeInTheDocument();
+  });
+
+  it("keeps an empty project open once the user opens it", async () => {
+    withEmpty();
+    const user = userEvent.setup();
+    const view = renderSidebar();
+    await user.click(await emptyToggle(false));
+    expect(preferences.getProjectOpenOverrides()).toEqual({ p9: true });
+    view.unmount();
+    renderSidebar();
+    await emptyToggle(true);
+  });
+
+  it("opens an empty project when its first thread arrives", async () => {
+    withEmpty();
+    const view = renderSidebar();
+    await emptyToggle(false);
+    mocked.conversations.listAll.mockResolvedValue([
+      conversation({ id: "n", title: "Newest", projectId: "p9", lastActivityAt: 99 }),
+    ]);
+    await view.client.invalidateQueries();
+    await emptyToggle(true);
+  });
+
+  it("keeps the project of the current thread open", async () => {
+    withEmpty();
+    preferences.setProjectOpenOverrides({ p2: false });
+    renderSidebar("/p/p2/c/b");
+    await screen.findByRole("button", { name: /Repo/, expanded: true });
   });
 
   it("keeps failed projects reachable with Retry and Remove", async () => {
