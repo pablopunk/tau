@@ -272,7 +272,7 @@ function ComposerForm({
               </Button>
             </>
           ) : null}
-          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1">{toolbar}</div>
+          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">{toolbar}</div>
           {busy && onStop ? (
             <Button
               type="button"
