@@ -43,7 +43,11 @@ const thread = (id: string, overrides: Partial<ConversationSummary> = {}): Conve
   ...overrides,
 });
 
-function setUp(threads: ConversationSummary[], unmerged: Record<string, string[]> = {}) {
+function setUp(
+  threads: ConversationSummary[],
+  unmerged: Record<string, string[]> = {},
+  unmergedWork?: RemovalHooks["unmergedWork"],
+) {
   const alive = new Map(threads.map((item) => [item.id, item]));
   const warnings = new Map<string, string | null>();
   const discarded: string[] = [];
@@ -58,7 +62,7 @@ function setUp(threads: ConversationSummary[], unmerged: Record<string, string[]
     },
   } as unknown as ConversationStore;
   const hooks: RemovalHooks = {
-    unmergedWork: async (item) => unmerged[item.id] ?? [],
+    unmergedWork: unmergedWork ?? (async (item) => unmerged[item.id] ?? []),
     onConversationRemoved: [async (item) => void discarded.push(item.id)],
     onProjectRemoved: [],
   };
@@ -163,5 +167,19 @@ describe("deleteArchived", () => {
     const result = await cleanup.deleteArchived({ force: true });
     expect(result).toEqual({ deleted: ["dirty"], kept: [] });
     expect(alive.size).toBe(0);
+  });
+
+  it("blocks a thread that was clean at decide time but dirty at delete time", async () => {
+    const calls = new Map<string, number>();
+    const cleanThenDirty = async (item: ConversationSummary) => {
+      const count = (calls.get(item.id) ?? 0) + 1;
+      calls.set(item.id, count);
+      return count === 1 ? [] : ["a.txt"];
+    };
+    const { cleanup, alive } = setUp([thread("late")], {}, cleanThenDirty);
+    const result = await cleanup.deleteArchived({ force: false });
+    expect(result.deleted).toEqual([]);
+    expect(result.kept.map((item) => item.id)).toEqual(["late"]);
+    expect(alive.has("late")).toBe(true);
   });
 });
