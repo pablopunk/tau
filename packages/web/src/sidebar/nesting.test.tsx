@@ -43,10 +43,13 @@ describe("<ThreadsView> nesting", () => {
     expect(childRow?.querySelector("[data-slot=tree-branch]")).toHaveAttribute("data-last", "true");
   });
 
-  it("clamps a child title to two lines like a parent", () => {
+  it("shows a child as one compact row: avatar and title, no project label or icon", () => {
     renderView();
-    expect(screen.getByText("Child thread").className).toContain("line-clamp-2");
-    expect(screen.getByText("Child thread").className).not.toContain("truncate");
+    const title = screen.getByText("Child thread");
+    expect(title.className).toContain("truncate");
+    const row = title.closest('[data-depth="1"]');
+    expect(row?.querySelector('[data-slot="thread-context"]')).toBeNull();
+    expect(row?.querySelector('[data-slot="thread-project-fade"]')).toBeNull();
   });
 
   it("gives only the last of several children the corner", () => {

@@ -1,9 +1,8 @@
 import type { ConversationSummary, Project } from "@pi-everywhere/protocol";
-import { ChevronRightIcon } from "lucide-react";
+import { ChevronRightIcon, Trash2Icon } from "lucide-react";
 import { Fragment, useState } from "react";
-import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { SidebarMenu } from "@/components/ui/sidebar";
+import { SidebarMenu, SidebarMenuButton, SidebarMenuItem } from "@/components/ui/sidebar";
 import { DeleteArchivedDialog } from "./DeleteArchivedDialog";
 import { ThreadRow } from "./ThreadRow";
 import { UnmergedWarning } from "./UnmergedWarning";
@@ -26,17 +25,10 @@ export function ArchivedConversations({
   const topLevel = conversations.filter((conversation) => conversation.parentId === null);
   return (
     <Collapsible className="group/archived">
-      <div className="flex items-center justify-between pr-1">
-        <CollapsibleTrigger className="flex flex-1 items-center gap-1 px-2 py-1 text-xs text-muted-foreground">
-          <ChevronRightIcon className="size-3 transition-transform group-data-[state=open]/archived:rotate-90" />
-          Archived ({conversations.length})
-        </CollapsibleTrigger>
-        {showProject && (
-          <Button variant="ghost" size="xs" onClick={() => setConfirming(true)}>
-            Delete all archived
-          </Button>
-        )}
-      </div>
+      <CollapsibleTrigger className="flex w-full items-center gap-1 px-2 py-1 text-xs text-muted-foreground">
+        <ChevronRightIcon className="size-3 transition-transform group-data-[state=open]/archived:rotate-90" />
+        Archived ({conversations.length})
+      </CollapsibleTrigger>
       {confirming && <DeleteArchivedDialog archived={topLevel} onClose={() => setConfirming(false)} />}
       <CollapsibleContent>
         <SidebarMenu>
@@ -53,6 +45,18 @@ export function ArchivedConversations({
               )}
             </Fragment>
           ))}
+          {showProject && (
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                size="sm"
+                className="text-muted-foreground hover:text-destructive"
+                onClick={() => setConfirming(true)}
+              >
+                <Trash2Icon />
+                Delete all archived
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          )}
         </SidebarMenu>
       </CollapsibleContent>
     </Collapsible>

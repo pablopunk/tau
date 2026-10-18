@@ -26,7 +26,6 @@ import { TreeBranch, TreeToggle } from "@/components/ui/tree-branch";
 import { api } from "@/lib/api";
 import { conversationPath } from "@/lib/paths";
 import { queryKeys } from "@/lib/queries";
-import { SubagentTypeLabel } from "@/sidebar/subagents/SubagentTypeLabel";
 import { conversationDot } from "./conversation-dot";
 import { DeleteConversationDialog } from "./DeleteConversationDialog";
 import { NameDialog } from "./NameDialog";
@@ -47,7 +46,9 @@ interface ThreadRowProps {
 }
 
 const tooltipOf = (title: string, project: Project | undefined, conversation: ConversationSummary) =>
-  [title, project?.name, conversation.model?.modelId, conversation.status].filter(Boolean).join(" · ");
+  [title, conversation.agentType, project?.name, conversation.model?.modelId, conversation.status]
+    .filter(Boolean)
+    .join(" · ");
 
 export function ThreadRow({
   conversation,
@@ -138,14 +139,8 @@ export function ThreadRow({
                 badge={dot && dot !== "running" ? <StatusDot status={dot} /> : undefined}
               />
             }
-            context={
-              depth > 0 ? (
-                <SubagentTypeLabel conversation={conversation} />
-              ) : showProject ? (
-                project?.name
-              ) : undefined
-            }
-            projectIcon={projectIcon(17)}
+            context={depth === 0 && showProject ? project?.name : undefined}
+            projectIcon={depth > 0 ? undefined : projectIcon(17)}
             time={<RelativeTime at={conversation.lastActivityAt} />}
             actions={
               <>
