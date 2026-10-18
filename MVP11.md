@@ -1,6 +1,6 @@
 # MVP11 plan: thread panes, starting with a terminal
 
-Status: DRAFT v4 (review rounds 1–3 applied as one text; round 4 pending). Builds on PLAN.md "Later → Thread panes" and "Built-in terminal".
+Status: APPROVED v5 (review rounds 1–4 applied). Builds on PLAN.md "Later → Thread panes" and "Built-in terminal".
 
 ## Goal
 
@@ -22,7 +22,7 @@ Out (later plans): agent tools that open, write to or read panes; other pane kin
 
 ### Packages
 
-- `protocol`: `TerminalInfo { id, conversationId, title, status: "running" | "exited", exitCode: number | null, createdAt }`, `Change` += `{ resource: "terminals", conversationId }`, REST routes, WS control frames (TypeBox), `TERMINAL_STREAM_PATH`, and a `terminals` availability flag in the status the web already reads.
+- `protocol`: `TerminalInfo { id, conversationId, title, status: "running" | "exited", exitCode: number | null, createdAt }`, `Change` += `{ resource: "terminals", conversationId }`, REST routes, WS control frames (TypeBox), `TERMINAL_STREAM_PATH`, and `Core.terminals.available(): Promise<boolean>` (no general status exists; the web reads it with a query and hides the button when false; the real core, `faux-core.ts` and `createFakeCore` implement it).
 - `core`: `Core.terminals { list(conversationId), open(conversationId, { cols, rows }), close(id), attach(id, { onData, onExit }) → { write, resize, detach } }`. Code in `core/src/terminals/**`. The **only** file that imports `@earendil-works/pi-env` is `core/src/harness/terminal-daemon.ts` (same rule as Pi Durable); its port (`open(options) → { write, resize, close, foreground, exited }`) exposes no pi-env types, so tests use a fake port with no PTY. A Biome `noRestrictedImports` override enforces it. Implementers of `Core`: the real core, `faux-core.ts`, testkit `createFakeCore`.
 - `server`: `GET /conversations/:id/terminals`, `POST /conversations/:id/terminals` (body `{ cols, rows }`, returns `TerminalInfo`), `DELETE /terminals/:id` (204), and one WebSocket `GET /api/terminals/:id/stream`. No business logic: it forwards to `core.terminals.attach`.
 - `web`: `web/src/panes/**` (strip, tabs, route), `web/src/panes/terminal/**` (stream hook), design-system parts in `components/ui` first (`pane-strip.tsx`, `terminal-view.tsx`).
@@ -36,8 +36,8 @@ Out (later plans): agent tools that open, write to or read panes; other pane kin
 - Client → server: **binary** frames are input bytes; a text frame `{ "type": "resize", "cols", "rows" }` (TypeBox, 1..500). The client sends its size right after `ready`.
 - Exception to "every frame is a TypeBox schema": raw output and input are binary by design; every text frame is a TypeBox schema. Say so in `protocol/src/terminal-stream.ts`.
 - **Backpressure**: `RemoteTerminal` has only `onData` (`terminal.d.ts`): no pause signal. The 256 KB ring is the only memory guard. A client whose socket `bufferedAmount` stays above 1 MB for 5 s is closed (code 1013); it reattaches and gets the ring again. `waitForDrain` is not used. Input frames: `maxPayload` 64 KB on this socket (the browser splits a larger paste). Replay frames are at most 64 KB.
-- **Replay**: the ring starts at a chunk boundary. On attach the service sends to the new client only: `ESC c` (full reset), then a **mode prefix**, then the ring. The ring tracker scans every output chunk (keeping a short tail across chunk boundaries) and records the last state of these private modes: `?1049` and `?47` (alternate screen), `?25` (cursor), `?1` (application cursor keys), `?2004` (bracketed paste), `?1000 ?1002 ?1003 ?1006` (mouse). The prefix re-sets them, so a ring cut after `vim` entered the alternate screen still replays in the alternate screen, and quitting restores the shell screen.
-- **Repaint**: after replay, when `foreground()` is defined (a full-screen job runs), the service resizes the PTY to `resize(cols + 1, rows)` and back to `resize(cols, rows)` (the API is `resize(cols, rows)`; a same-size resize may not raise `SIGWINCH`). At a plain shell prompt no repaint is sent, so zsh does not draw a second prompt. The repaint output goes to every attached client: harmless extra redraw, documented.
+- **Replay**: `onData` chunks are arbitrary PTY reads, so when the ring first evicts bytes it advances to the first `\n` or `ESC` and skips UTF-8 continuation bytes (test). On attach the service sends to the new client only: `ESC c` (full reset), then a **mode prefix**, then the ring. The ring tracker scans every output chunk (keeping a short tail across chunk boundaries) and records the last state of these private modes: `?1049` and `?47` (alternate screen), `?25` (cursor), `?1` (application cursor keys), `?2004` (bracketed paste), `?1000 ?1002 ?1003 ?1006` (mouse). The prefix re-sets them, so a ring cut after `vim` entered the alternate screen still replays in the alternate screen, and quitting restores the shell screen.
+- **Repaint**: on the new size owner's first `resize` frame (its fitted size arrives only after `ready`): if the size differs from the PTY's, that resize raises `SIGWINCH` by itself; if it is equal and `foreground()` is defined (a full-screen job runs), the service resizes the PTY to `resize(cols + 1, rows)` and back to `resize(cols, rows)` (the API is `resize(cols, rows)`; a same-size resize may not raise `SIGWINCH`). At a plain shell prompt no repaint is sent, so zsh does not draw a second prompt. The repaint output goes to every attached client: harmless extra redraw, documented.
 - **Size owner**: the most recently attached client that has sent a `resize` owns the PTY size; when it detaches, the most recent remaining client becomes the owner. Other clients show a letterboxed view. (A reload attaches the new socket before the old one closes, so the new one takes over at once.)
 
 ### Terminal service (core)
@@ -50,7 +50,7 @@ Out (later plans): agent tools that open, write to or read panes; other pane kin
 - **`closeAllOf(conversationId)` call sites** (it keys on the conversation id and never reads the store):
   1. **Delete and children, delete-archived, `archived-cleanup`**: the terminal service is the **first** entry of the `onConversationRemoved` array (`removal-hooks.ts:25-34`), before the worktree discard (`create-core.ts:244`); it also closes children's terminals, as `process-service.ts` does. `archived-cleanup` goes through `removal.remove` (`archived-cleanup.ts:74`): covered.
   2. **Project remove**: `projects-api.ts:94-96` runs the conversation hooks and then `runProjectRemoved`; the terminal hook runs before `workspaces.onProjectRemoved`.
-  3. **Archive** (including `archiveChildren`, `conversations-api.ts:121-128` and `:182-185`): no hook exists; one named direct call through an injected port.
+  3. **Archive** (including `archiveChildren`, `conversations-api.ts:121-128` and `:182-185`): no hook exists; one named direct call through an injected port, made **before** `conversations.archive`, best-effort (errors are caught and reported, never block the archive).
   4. **`workspaces.remove`** (`workspaces/workspace-service.ts:135-148`): inside `lock.run`, **after** `requireIdle` and the unmerged-work check, right before `removeOne` and the shared-worktree `update`. A rejected remove must leave terminals running (test).
   5. `core.close()` (`create-core.ts:330`) closes the connection. The fatal path (`onFatal` exits at once, `create-core.ts:82,120`) has no hook: pin (g) is the guarantee.
 
@@ -83,7 +83,7 @@ Out (later plans): agent tools that open, write to or read panes; other pane kin
 - (f) A 5 MB flood (`yes | head -c 5000000`) with a stalled client: the client is closed with 1013, memory stays bounded by the ring plus one socket buffer, other sockets keep working; note `onData` chunk sizes.
 - (g) SIGKILL of the tau process leaves no shell and no daemon (check `ps`), on macOS and on Linux. If it does, add a parent-pid watchdog before going on.
 - (h) `cwdOf` for: a thread with a worktree, a thread on the main checkout, a legacy thread, a thread whose worktree state is `removed`, a thread whose folder was deleted by hand.
-- (i) **Partly done in review (round 3)**: a resize to cols+1 and back makes `vim` and `top` redraw with `\e[H\e[2J` and the full screen. Still to pin: with the mode prefix, a reload after the ring wrapped (`top` running for minutes) stays in the alternate screen, and quitting restores the shell screen.
+- (i) **Partly done in review (round 3)**: a resize to cols+1 and back makes `vim` and `top` redraw with `\e[H\e[2J` and the full screen. Still to pin: with the mode prefix, a reload after the ring wrapped (`top` running for minutes) stays in the alternate screen. Round 4 pinned this with a headless xterm: the prefix keeps the alternate buffer; after `q` the shell screen is only partly restored (the prompt from the repaint, not the old scrollback).
 
 ## Phases and owners
 
@@ -109,7 +109,7 @@ Out (later plans): agent tools that open, write to or read panes; other pane kin
 - **pi-env packaging and its Rust daemon**: pins (b), (c). pi-env is young (1.3.0, same family as Pi Durable); pin it with Pi Durable.
 - **Output floods and memory**: pin (f); the ring size is fixed.
 - **Orphans**: pin (g).
-- **Full-screen replay**: pin (i); the mode tracker is the weakest part.
+- **Full-screen replay**: pin (i); the mode tracker is the weakest part, and the shell screen after quitting a full-screen program is only partly restored (prompt, no old scrollback).
 - **Keyboard capture** inside the app: global shortcuts must not eat terminal keys.
 - **Worktree deletion with a shell inside**: `closeAllOf` before removal, but never for a rejected removal.
 
