@@ -1,6 +1,6 @@
 # MVP11 plan: thread panes, starting with a terminal
 
-Status: APPROVED v5 (review rounds 1–4 applied). Builds on PLAN.md "Later → Thread panes" and "Built-in terminal".
+Status: IMPLEMENTED, integrated (see "Integration results"). Plan APPROVED v5 (review rounds 1–4 applied). Builds on PLAN.md "Later → Thread panes" and "Built-in terminal".
 
 ## Goal
 
@@ -148,3 +148,19 @@ Run on macOS arm64 (Darwin), pi-env 1.3.0, the login shell is zsh. The pins use 
 - Ring start: the stub's doc carries the rule (advance to the first `\n` or `ESC`, skip UTF-8 continuation bytes) for owner A's test.
 - Repaint trigger: the stub's doc carries it (first `resize` of the new size owner; equal size and `foreground()` defined means `cols+1` and back); pinned in (i).
 - Archive order: `closeTerminalsOf` runs **before** `conversations.archive` (also for children), best-effort; the hook test asserts the thread is not yet archived at call time.
+
+
+## Integration results
+
+Done, uncommitted in the integration worktree.
+
+- Notes applied: attach to an exited terminal sends `ready`, replay, `exit`, then closes 1000 (server test). `api.terminals` replaces `terminal-api.ts`; the `transport` export is gone. Terminal icon button + tooltip is in `ThreadToolbar`; the corner button is gone. The core emits a `terminals` Change on a title change (test counts it). Closing a terminal now drops its record (tab closes); archive/delete ends the shells.
+- Fixes found in real runs: ring buffer was quadratic on tiny chunks (head index); a stalled client never read the 1013 close, so the server now `terminate()`s 2 s after it; xterm answers queries inside the replayed output and those answers reached vim/top, so terminal input starting with ESC is dropped for 600 ms after a reset.
+- maxPayload 64 KB on the shared socket server: safe, `/live` client frames are only `subscribe`/`unsubscribe` with an id (`ClientFrameSchema`). Kept.
+- Breakpoints: `use-narrow` (760) and `useIsMobile` (768) left as is: the plan says tabs below 760, and 768 would change that.
+- Pin (f), real flood (12–30 MB `yes | head -c`) through the real socket with a paused-reader client: healthy client received all bytes; server RSS 158 MB at start, peak about 233 MB after the fix (a 409 MB peak was seen before the terminate fix), back to start level afterwards. The stalled socket was dropped (stall watch fired at about 2.2 MB buffered). The client saw 1006, not 1013: a paused client never reads the close frame, so 1013 is only visible to clients that read.
+- Pins (c) and (g) need Linux / a registry install: not run here.
+- e2e `terminal.spec.ts`: daemon file exists and is executable; echo `$((6*7))` shows 42, `pwd` shows the thread folder, reload replays, close removes the tab; archiving kills the shell pid. Passes.
+- The full e2e suite has 3 to 4 failures (mvp5, mvp6, mvp9-claude-cli, mvp9-connectors, thread-scroll varies per run) that also fail on the commit before MVP11 (95e491e), so they are not from this work. They stop later specs in serial mode.
+- Browser (agent-browser, scratch home, real built app): `pwd` is the worktree folder, `ls` ok, vim and top run and the tab title follows (`vim`, `zsh`), resize changes `stty size` (34x59, 29x42, 49x59), a second browser tab on the same terminal shows the same output, close removes the shell process, archive leaves no shell under the daemon. Phone 420 px shows Chat / Terminal tabs. Light and dark themes render from theme variables.
+- Biome: 12 warnings left, none in MVP11 files (the others are old files in claude-cli, goals, harness).

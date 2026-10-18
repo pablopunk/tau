@@ -23,6 +23,8 @@ export interface TerminalViewProps {
 }
 
 const FIT_DEBOUNCE_MS = 80;
+/** After a reset the server replays old output; xterm answers the queries inside it (colors, cursor position), and those answers would reach the program now running. */
+const REPLAY_QUIET_MS = 600;
 const encoder = new TextEncoder();
 const binaryBytes = (text: string) => Uint8Array.from(text, (char) => char.charCodeAt(0) & 0xff);
 
@@ -76,8 +78,11 @@ async function createScreen(host: HTMLElement) {
   return { terminal, fit };
 }
 
-function wireScreen(terminal: Terminal, onInput: (data: Uint8Array) => void) {
-  terminal.onData((text) => onInput(encoder.encode(text)));
+function wireScreen(terminal: Terminal, onInput: (data: Uint8Array) => void, isReplaying: () => boolean) {
+  terminal.onData((text) => {
+    if (text.startsWith("\x1b") && isReplaying()) return;
+    onInput(encoder.encode(text));
+  });
   terminal.onBinary((text) => onInput(binaryBytes(text)));
   terminal.attachCustomKeyEventHandler((event) => !isLeaveCombo(event));
 }
@@ -95,7 +100,12 @@ export function TerminalView({ onInput, onResize, onHandle, onLeave, autoFocus, 
     let cleanup = () => {};
     void createScreen(element).then(({ terminal, fit }) => {
       if (disposed) return terminal.dispose();
-      wireScreen(terminal, (data) => latest.current.onInput(data));
+      let quietUntil = 0;
+      wireScreen(
+        terminal,
+        (data) => latest.current.onInput(data),
+        () => performance.now() < quietUntil,
+      );
       let timer: ReturnType<typeof setTimeout> | undefined;
       const refit = () => {
         const size = fit.proposeDimensions();
@@ -116,7 +126,10 @@ export function TerminalView({ onInput, onResize, onHandle, onLeave, autoFocus, 
       if (autoFocus) terminal.focus();
       latest.current.onHandle({
         write: (data) => terminal.write(data),
-        reset: () => terminal.reset(),
+        reset: () => {
+          quietUntil = performance.now() + REPLAY_QUIET_MS;
+          terminal.reset();
+        },
         focus: () => terminal.focus(),
       });
       cleanup = () => {

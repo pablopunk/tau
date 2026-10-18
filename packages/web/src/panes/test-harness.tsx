@@ -2,10 +2,12 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createFakeCore, type FakeCore } from "@tau/testkit";
 import { render } from "@testing-library/react";
 import { MemoryRouter, Route, Routes, useLocation, useMatch, useParams } from "react-router";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import { LiveClientProvider } from "@/conversation/live-client-context";
 import { createStubLiveClient } from "@/conversation/test-utils";
 import { createFakeTransport } from "@/lib/transport/fake";
 import type { Transport } from "@/lib/transport/types";
+import { ThreadTerminalButton } from "./TerminalButton";
 import { ThreadPanes } from "./ThreadPanes";
 
 export interface Backend {
@@ -30,6 +32,7 @@ function Route_() {
   return (
     <ThreadPanes projectId={projectId} conversationId={conversationId} terminalId={terminalId}>
       <div data-testid="conversation" className="flex h-full flex-col">
+        <ThreadTerminalButton />
         <div data-testid="scroll" className="min-h-0 flex-1 overflow-y-auto" />
         <textarea aria-label="Message" />
       </div>
@@ -47,10 +50,12 @@ export function renderPanes(path: string) {
     <MemoryRouter initialEntries={[path]}>
       <QueryClientProvider client={client}>
         <LiveClientProvider client={createStubLiveClient(null)}>
-          <Where />
-          <Routes>
-            <Route path="/p/:projectId/c/:conversationId/*" element={<Route_ />} />
-          </Routes>
+          <TooltipProvider>
+            <Where />
+            <Routes>
+              <Route path="/p/:projectId/c/:conversationId/*" element={<Route_ />} />
+            </Routes>
+          </TooltipProvider>
         </LiveClientProvider>
       </QueryClientProvider>
     </MemoryRouter>,

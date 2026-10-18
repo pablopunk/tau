@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { TerminalHandle } from "@/components/ui/terminal-view";
-import { terminalApi } from "../terminal-api";
+import { api } from "@/lib/api";
 import {
   createTerminalConnection,
   type TerminalConnection,
@@ -46,7 +46,7 @@ export function useTerminalStream(terminalId: string): TerminalStream {
   useEffect(() => {
     setState({ status: "connecting", exitCode: null });
     const next = createTerminalConnection({
-      open: (handlers) => terminalApi.openStream(terminalId, handlers),
+      open: (handlers) => api.terminals.openStream(terminalId, handlers),
       sink: sinkRef.current.sink,
       onState: setState,
     });

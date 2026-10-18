@@ -1,6 +1,7 @@
 import { SquareTerminal } from "lucide-react";
 import { useOpenConversation } from "@/activity";
 import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useOpenAndFocusTerminal, useTerminalsAvailable } from "./use-terminals";
 
 /** Opens a terminal in the thread and focuses it. Hidden when this machine cannot run terminals. */
@@ -9,9 +10,20 @@ export function TerminalButton({ projectId, conversationId }: { projectId: strin
   const open = useOpenAndFocusTerminal(projectId, conversationId);
   if (!available) return null;
   return (
-    <Button variant="outline" size="sm" onClick={open.run} disabled={open.pending}>
-      <SquareTerminal /> Terminal
-    </Button>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          variant="outline"
+          size="icon-sm"
+          aria-label="Terminal"
+          onClick={open.run}
+          disabled={open.pending}
+        >
+          <SquareTerminal />
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent>Terminal</TooltipContent>
+    </Tooltip>
   );
 }
 

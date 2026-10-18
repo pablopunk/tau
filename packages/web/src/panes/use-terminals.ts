@@ -1,9 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router";
 import { toast } from "sonner";
+import { api } from "@/lib/api";
 import { errorMessage } from "@/lib/error-message";
 import { terminalPath } from "@/lib/paths";
-import { terminalApi } from "./terminal-api";
 
 export const terminalKeys = {
   available: ["terminals", "available"] as const,
@@ -13,12 +13,12 @@ export const terminalKeys = {
 const DEFAULT_SIZE = { cols: 80, rows: 24 };
 
 export const useTerminalsAvailable = () =>
-  useQuery({ queryKey: terminalKeys.available, queryFn: terminalApi.available, staleTime: Infinity });
+  useQuery({ queryKey: terminalKeys.available, queryFn: api.terminals.available, staleTime: Infinity });
 
 export function useTerminals(conversationId: string, enabled: boolean) {
   return useQuery({
     queryKey: terminalKeys.list(conversationId),
-    queryFn: () => terminalApi.list(conversationId),
+    queryFn: () => api.terminals.list(conversationId),
     enabled,
   });
 }
@@ -26,7 +26,7 @@ export function useTerminals(conversationId: string, enabled: boolean) {
 export function useOpenTerminal(conversationId: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: () => terminalApi.open(conversationId, DEFAULT_SIZE),
+    mutationFn: () => api.terminals.open(conversationId, DEFAULT_SIZE),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: terminalKeys.list(conversationId) }),
   });
 }
@@ -34,7 +34,7 @@ export function useOpenTerminal(conversationId: string) {
 export function useCloseTerminal(conversationId: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) => terminalApi.close(id),
+    mutationFn: (id: string) => api.terminals.close(id),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: terminalKeys.list(conversationId) }),
   });
 }

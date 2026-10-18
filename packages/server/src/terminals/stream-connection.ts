@@ -14,6 +14,7 @@ import { createCoalescer } from "./coalescer";
 import { watchStall } from "./stall-watch";
 
 const INTERNAL_ERROR = 1011;
+const SLOW_CLOSE_GRACE_MS = 2000;
 
 export function decodeResize(raw: string): TerminalClientFrame | undefined {
   try {
@@ -44,11 +45,19 @@ export class TerminalStream {
     id: string,
     private readonly onError: (error: unknown) => void,
   ) {
-    this.stopWatching = watchStall(socket, () => socket.close(TERMINAL_STREAM_CLOSE_SLOW, "too slow"));
+    this.stopWatching = watchStall(socket, () => this.dropSlowClient());
     this.attachment = this.attach(core, id);
     socket.on("message", (data, isBinary) => void this.handleMessage(data, isBinary));
     socket.on("close", () => void this.dispose());
     socket.on("error", onError);
+  }
+
+  /** A stalled client never reads the close frame queued behind its data: close with 1013, then cut the socket so the buffer is freed. */
+  private dropSlowClient(): void {
+    this.socket.close(TERMINAL_STREAM_CLOSE_SLOW, "too slow");
+    const cut = setTimeout(() => this.socket.terminate(), SLOW_CLOSE_GRACE_MS);
+    cut.unref();
+    this.socket.once("close", () => clearTimeout(cut));
   }
 
   private async attach(core: Core, id: string): Promise<TerminalAttachment | undefined> {
@@ -64,12 +73,20 @@ export class TerminalStream {
       this.sendText({ type: "ready", status: attachment.status, exitCode: attachment.exitCode });
       this.ready = true;
       for (const step of this.queue.splice(0)) step();
-      if (attachment.status === "exited") this.afterReady(() => this.sendExit(attachment.exitCode));
+      if (attachment.status === "exited") this.finishExited(attachment.exitCode);
       return attachment;
     } catch (error) {
       this.failAttach(error);
       return undefined;
     }
+  }
+
+  /** Attaching to an ended terminal never calls `onExit`: send the replay, then `exit`, then close. */
+  private finishExited(exitCode: number | null): void {
+    this.afterReady(() => {
+      this.sendExit(exitCode);
+      this.socket.close(1000, "exited");
+    });
   }
 
   private failAttach(error: unknown): void {

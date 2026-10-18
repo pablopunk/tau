@@ -9,11 +9,14 @@ const state = vi.hoisted(() => ({
   writes: [] as string[],
 }));
 
-vi.mock("@/lib/api", () => ({
-  get transport() {
-    return state.backend.transport;
-  },
-}));
+vi.mock("@/lib/api", async () => {
+  const { createApi } = await vi.importActual<typeof import("@/lib/api")>("@/lib/api");
+  return {
+    get api() {
+      return createApi(state.backend.transport as never);
+    },
+  };
+});
 vi.mock("@xterm/xterm/css/xterm.css", () => ({}));
 vi.mock("@xterm/addon-fit", () => ({
   FitAddon: class {
@@ -163,9 +166,11 @@ describe("routes and ended state", () => {
   it("shows 'This terminal ended' for an exited terminal and for a gone one", async () => {
     await setup();
     const { id } = await backend.core.terminals.open(conversationId, { cols: 80, rows: 24 });
-    await backend.core.terminals.close(id);
+    const shell = await backend.core.terminals.attach(id, { onData: () => {}, onExit: () => {} });
+    shell.write(new TextEncoder().encode("exit\r"));
+    shell.detach();
     renderPanes(`${threadPath()}/terminal/${id}`);
-    expect(await screen.findByText(/This terminal ended/)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText(/This terminal ended/)).toBeInTheDocument());
     expect(await screen.findByRole("tab", { name: "sh" })).toHaveAttribute("data-ended", "true");
   });
 
@@ -173,7 +178,7 @@ describe("routes and ended state", () => {
     await setup();
     await backend.core.terminals.open(conversationId, { cols: 80, rows: 24 });
     renderPanes(`${threadPath()}/terminal/nope`);
-    expect(await screen.findByText(/This terminal ended/)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText(/This terminal ended/)).toBeInTheDocument());
   });
 
   it("closing the focused tab goes back to the conversation", async () => {

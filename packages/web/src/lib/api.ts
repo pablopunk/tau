@@ -32,17 +32,17 @@ import type {
   StartConversationInput,
   SuggestDirectoriesInput,
   SuggestedCodeFolder,
+  TerminalInfo,
   ThinkingLevel,
   Timer,
   UseGithubRepoInput,
   WorkspaceDefault,
-  WorkspaceMode,
   WorkspaceStatus,
 } from "@tau/protocol";
-import { fillPath, routes } from "@tau/protocol";
+import { fillPath, routes, terminalStreamPath } from "@tau/protocol";
 import { createHttpTransport } from "./transport/http";
 import { createLazyTransport } from "./transport/lazy";
-import type { LiveTransport, Transport } from "./transport/types";
+import type { LiveTransport, StreamHandlers, StreamSocket, Transport } from "./transport/types";
 
 export type { LiveHandlers, LiveSocket, LiveTransport, Transport } from "./transport/types";
 
@@ -158,6 +158,14 @@ export interface Api {
     servers(projectId: string | null): Promise<McpServerStatus[]>;
     save(config: McpServerConfig): Promise<void>;
     remove(name: string): Promise<void>;
+  };
+  terminals: {
+    available(): Promise<boolean>;
+    list(conversationId: string): Promise<TerminalInfo[]>;
+    open(conversationId: string, size: { cols: number; rows: number }): Promise<TerminalInfo>;
+    close(id: string): Promise<void>;
+    /** The binary stream of one terminal (raw output down, input bytes and resize frames up). */
+    openStream(id: string, handlers: StreamHandlers): StreamSocket;
   };
   /** Raw frames of `/api/live`; `LiveClient` turns them into views. */
   live: LiveTransport;
@@ -280,6 +288,13 @@ export function createApi(transport: Transport): Api {
       save: (config) => request("saveMcpServer", { params: { name: config.name }, body: config }),
       remove: (name) => request("removeMcpServer", { params: { name } }),
     },
+    terminals: {
+      available: async () => (await request("getTerminalsAvailable", {})).available,
+      list: (id) => request("listTerminals", { params: { id } }),
+      open: (id, size) => request("openTerminal", { params: { id }, body: size }),
+      close: (id) => request("closeTerminal", { params: { id } }),
+      openStream: (id, handlers) => transport.openStream(terminalStreamPath(id), handlers),
+    },
     live: transport.live,
   };
 }
@@ -293,6 +308,4 @@ export function createDefaultTransport(): Transport {
 }
 
 /** The app's client: real over HTTP + WebSocket, or the in-browser fake when built with `VITE_FAKE=1`. */
-/** The one shared transport; `panes/terminal-api.ts` uses it for terminals and streams. */
-export const transport: Transport = createDefaultTransport();
-export const api: Api = createApi(transport);
+export const api: Api = createApi(createDefaultTransport());

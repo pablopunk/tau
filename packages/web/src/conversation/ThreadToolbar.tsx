@@ -7,6 +7,7 @@ import { GoalChip } from "@/goal/GoalChip";
 import { api } from "@/lib/api";
 import { errorMessage } from "@/lib/error-message";
 import { useModels } from "@/lib/queries";
+import { ThreadTerminalButton } from "@/panes";
 import { ProcessesChip } from "@/processes/ProcessesChip";
 import { TimersChip } from "@/timers/TimersChip";
 import { contextUsage } from "./composer/context-usage";
@@ -45,6 +46,7 @@ export function ThreadToolbar({
       <GoalChip conversationId={id} />
       <ProcessesChip conversationId={id} />
       <TimersChip conversationId={id} />
+      <ThreadTerminalButton />
     </>
   );
 }

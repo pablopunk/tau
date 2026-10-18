@@ -5,7 +5,6 @@ import { PaneSplitter } from "@/components/ui/pane-splitter";
 import { PaneStrip, type PaneTab } from "@/components/ui/pane-strip";
 import { conversationPath, terminalPath } from "@/lib/paths";
 import { readSplit, SPLIT_DEFAULT, SPLIT_MAX, SPLIT_MIN, writeSplit } from "./split-width";
-import { TerminalButton } from "./TerminalButton";
 import { GoneTerminal, TerminalPane } from "./terminal/TerminalPane";
 import { useNarrow } from "./use-narrow";
 import { useTerminalChanges } from "./use-terminal-changes";
@@ -118,11 +117,10 @@ export function ThreadPanes({ projectId, conversationId, terminalId, children }:
       <div
         key="chat"
         hidden={!showChat}
-        className="relative h-full min-h-0 min-w-0 flex-1"
+        className="h-full min-h-0 min-w-0 flex-1"
         style={narrow || !showStrip ? undefined : { flex: `0 0 ${split}%` }}
       >
         {children}
-        {showStrip ? null : <ButtonCorner projectId={projectId} conversationId={conversationId} />}
       </div>
       {showStrip && !narrow ? (
         <PaneSplitter
@@ -144,14 +142,6 @@ export function ThreadPanes({ projectId, conversationId, terminalId, children }:
       ) : (
         strip
       )}
-    </div>
-  );
-}
-
-function ButtonCorner({ projectId, conversationId }: { projectId: string; conversationId: string }) {
-  return (
-    <div className="absolute top-1.5 right-3 z-10">
-      <TerminalButton projectId={projectId} conversationId={conversationId} />
     </div>
   );
 }

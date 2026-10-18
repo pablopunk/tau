@@ -4,7 +4,11 @@ import { join } from "node:path";
 import type { Change, ConversationSummary } from "@tau/protocol";
 import { describe, expect, it } from "vitest";
 import { createChangeEmitter } from "../change-emitter";
-import { createFakeTerminalDaemon, type FakeTerminalDaemon } from "./fake-terminal-daemon";
+import {
+  createFakeTerminalDaemon,
+  type FakeTerminalDaemon,
+  type FakeTerminalHandle,
+} from "./fake-terminal-daemon";
 import { createTerminalService } from "./terminal-service";
 
 const text = (chunks: Uint8Array[]) => chunks.map((chunk) => new TextDecoder().decode(chunk)).join("");
@@ -57,6 +61,12 @@ async function setup(options: { env?: Record<string, string>; daemon?: FakeTermi
     titleIntervalMs: 10,
   });
   return { service, daemon, threads, seen, folder, api: service.api };
+}
+
+function firstTerminal(daemon: FakeTerminalDaemon): FakeTerminalHandle {
+  const handle = daemon.terminals[0];
+  if (!handle) throw new Error("no terminal was opened");
+  return handle;
 }
 
 const dims = { cols: 80, rows: 24 };
@@ -127,7 +137,7 @@ describe("terminal service: replay and attach", () => {
   it("replays ESC c, the mode prefix and the ring to the new client only, then goes live", async () => {
     const { api, daemon } = await setup();
     const info = await api.open("t1", dims);
-    const handle = daemon.terminals[0]!;
+    const handle = firstTerminal(daemon);
     handle.output("\x1b[?1049hhello");
     const first: Uint8Array[] = [];
     await api.attach(info.id, { onData: (d) => first.push(d), onExit: () => undefined });
@@ -169,7 +179,7 @@ describe("terminal service: size owner and repaint", () => {
   it("gives the PTY size to the newest client that resized, with handover on detach", async () => {
     const { api, daemon } = await setup();
     const info = await api.open("t1", dims);
-    const sizes = daemon.terminals[0]!.sizes;
+    const sizes = firstTerminal(daemon).sizes;
     const one = await api.attach(info.id, none);
     one.resize(100, 30);
     const two = await api.attach(info.id, none);
@@ -187,7 +197,7 @@ describe("terminal service: size owner and repaint", () => {
   it("repaints with cols+1 and back when the first size equals the PTY's and a job runs", async () => {
     const { api, daemon } = await setup();
     const info = await api.open("t1", dims);
-    const handle = daemon.terminals[0]!;
+    const handle = firstTerminal(daemon);
     handle.foregroundName = "vim";
     const client = await api.attach(info.id, none);
     client.resize(80, 24);
@@ -201,7 +211,7 @@ describe("terminal service: size owner and repaint", () => {
   it("sends nothing for an equal size at a plain prompt, and a plain resize when it differs", async () => {
     const { api, daemon } = await setup();
     const info = await api.open("t1", dims);
-    const handle = daemon.terminals[0]!;
+    const handle = firstTerminal(daemon);
     const client = await api.attach(info.id, none);
     client.resize(80, 24);
     await new Promise((resolve) => setTimeout(resolve, 5));
@@ -233,6 +243,7 @@ describe("terminal service: lifecycle", () => {
     await api.open("t2", dims);
     await api.close(a.id);
     await api.close(a.id);
+    expect((await api.list("t1")).map((terminal) => terminal.id)).not.toContain(a.id);
     await expect(api.close("nope")).rejects.toMatchObject({ code: "not_found" });
     await service.onConversationRemoved(threads.get("t1") as ConversationSummary);
     expect(daemon.terminals.map((handle) => handle.closed)).toEqual([true, true, false]);
@@ -242,15 +253,16 @@ describe("terminal service: lifecycle", () => {
   });
 
   it("titles follow the foreground job only while a client is attached", async () => {
-    const { api, daemon } = await setup();
+    const { api, daemon, seen } = await setup();
     const info = await api.open("t1", dims);
-    const handle = daemon.terminals[0]!;
+    const handle = firstTerminal(daemon);
     handle.foregroundName = "sleep";
     await new Promise((resolve) => setTimeout(resolve, 40));
     expect((await api.list("t1"))[0]?.title).toBe("zsh");
     const client = await api.attach(info.id, none);
     await new Promise((resolve) => setTimeout(resolve, 40));
     expect((await api.list("t1"))[0]?.title).toBe("sleep");
+    expect(seen.filter((change) => change.resource === "terminals")).toHaveLength(2);
     handle.foregroundName = undefined;
     await new Promise((resolve) => setTimeout(resolve, 40));
     expect((await api.list("t1"))[0]?.title).toBe("zsh");

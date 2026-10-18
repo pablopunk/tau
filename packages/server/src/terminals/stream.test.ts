@@ -119,6 +119,27 @@ describe("terminal stream", () => {
     expect(JSON.parse(all.at(-1)?.text ?? "")).toEqual({ type: "exit", exitCode: 0 });
   });
 
+  it("attaching to an ended terminal sends ready (exited), the replay, exit, then closes", async () => {
+    ctx = await startTestServer();
+    const id = await openTerminal();
+    const first = connect(id);
+    const firstFrames = collect(first);
+    await new Promise((resolve) => first.once("open", resolve));
+    first.send(Buffer.from("exit\r"));
+    await firstFrames.until((all) => all.at(-1)?.binary === false && all.length > 2);
+    const late = connect(id);
+    const lateFrames = collect(late);
+    const done = closed(late);
+    expect((await done).code).toBe(1000);
+    const texts = lateFrames.messages.filter((message) => !message.binary).map((m) => JSON.parse(m.text));
+    expect(texts).toEqual([
+      { type: "ready", status: "exited", exitCode: 0 },
+      { type: "exit", exitCode: 0 },
+    ]);
+    expect(lateFrames.messages[0]?.binary).toBe(false);
+    expect(lateFrames.messages.at(-1)?.binary).toBe(false);
+  });
+
   it("replays to a second attachment", async () => {
     ctx = await startTestServer();
     const id = await openTerminal();

@@ -90,7 +90,7 @@ export function terminalCases(make: MakeContractTarget, test: CaseRunner): void 
       const { core } = target;
       const { conversation, info } = await threadWithTerminal();
       await core.terminals.close(info.id);
-      expect((await core.terminals.list(conversation.id))[0]?.status).toBe("exited");
+      expect(await core.terminals.list(conversation.id)).toEqual([]);
     });
 
     test("[terminals] ends a thread's terminals when it is archived or deleted", async () => {

@@ -28,7 +28,6 @@ import type {
   ThinkingLevel,
   UseGithubRepoInput,
   WorkspaceDefault,
-  WorkspaceMode,
 } from "./entities";
 import type {
   Checkpoint,

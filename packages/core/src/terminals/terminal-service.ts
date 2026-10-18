@@ -43,6 +43,8 @@ const unavailable = () => notFound("Terminals are not available.");
 
 export function createTerminalService(deps: TerminalServiceDeps): TerminalService {
   const entries = new Map<string, TerminalEntry>();
+  /** Ids already closed and dropped: closing them again is a no-op, not `not_found`. */
+  const dismissed = new Set<string>();
   const timers = new Map<string, ReturnType<typeof setInterval>>();
   const now = deps.now ?? Date.now;
   const announce = (entry: TerminalEntry) =>
@@ -132,15 +134,31 @@ export function createTerminalService(deps: TerminalServiceDeps): TerminalServic
     return { ...info };
   }
 
-  function closeEntry(entry: TerminalEntry) {
+  function endEntry(entry: TerminalEntry) {
     if (entry.info.status === "exited") return;
     end(entry, null);
     entry.port.close();
   }
 
+  /** The user closed it: the shell dies and the record goes, an ended one included. */
+  function closeEntry(entry: TerminalEntry) {
+    endEntry(entry);
+    if (entries.get(entry.info.id) !== entry) return;
+    entries.delete(entry.info.id);
+    dismissed.add(entry.info.id);
+    announce(entry);
+  }
+
   async function closeAllOf(conversationId: string) {
     for (const entry of [...entries.values()]) {
-      if (entry.info.conversationId === conversationId) closeEntry(entry);
+      if (entry.info.conversationId === conversationId) endEntry(entry);
+    }
+  }
+
+  /** The thread is gone: its ended records go with it. */
+  function forgetAllOf(conversationId: string) {
+    for (const entry of [...entries.values()]) {
+      if (entry.info.conversationId === conversationId) entries.delete(entry.info.id);
     }
   }
 
@@ -161,6 +179,7 @@ export function createTerminalService(deps: TerminalServiceDeps): TerminalServic
       },
       open: (conversationId, size) => open(conversationId, size),
       async close(id) {
+        if (dismissed.has(id)) return;
         closeEntry(await entryOf(id));
       },
       async attach(id, handlers) {
@@ -180,7 +199,11 @@ export function createTerminalService(deps: TerminalServiceDeps): TerminalServic
     closeAllOf,
     async onConversationRemoved(conversation) {
       await closeAllOf(conversation.id).catch(() => undefined);
-      for (const child of await childrenOf(conversation).catch(() => [])) await closeAllOf(child.id);
+      forgetAllOf(conversation.id);
+      for (const child of await childrenOf(conversation).catch(() => [])) {
+        await closeAllOf(child.id);
+        forgetAllOf(child.id);
+      }
     },
     async close() {
       for (const entry of entries.values()) stopTitlePolling(entry);

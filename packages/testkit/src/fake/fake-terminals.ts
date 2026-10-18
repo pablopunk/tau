@@ -39,6 +39,7 @@ export function createFakeTerminals(deps: {
   requireConversation: (id: string) => unknown;
 }): FakeTerminals {
   const entries = new Map<string, Entry>();
+  const dismissed = new Set<string>();
   const encoder = new TextEncoder();
   let nextId = 1;
 
@@ -132,8 +133,12 @@ export function createFakeTerminals(deps: {
         return { ...info };
       },
       async close(id) {
+        if (dismissed.has(id)) return;
         const entry = entryOf(id);
         end(entry, null);
+        entries.delete(id);
+        dismissed.add(id);
+        announce(entry);
       },
       async attach(id, handlers) {
         const entry = entryOf(id);
