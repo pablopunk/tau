@@ -24,6 +24,13 @@ describe("parseAgentTypeFile", () => {
     });
   });
 
+  it("reads thinking, and effort as its alias", () => {
+    expect(parseAgentTypeFile("x", agentMd("thinking: low"), "user-pi").thinking).toBe("low");
+    expect(parseAgentTypeFile("x", agentMd("effort: High"), "user-pi").thinking).toBe("high");
+    expect(parseAgentTypeFile("x", agentMd("thinking: low\neffort: high"), "user-pi").thinking).toBe("low");
+    expect(parseAgentTypeFile("x", agentMd("effort: loud"), "user-pi").thinking).toBeUndefined();
+  });
+
   it("reads YAML list tools and disallowedTools", () => {
     const type = parseAgentTypeFile(
       "x",

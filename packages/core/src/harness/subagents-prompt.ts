@@ -14,7 +14,8 @@ function agentDetails(entry: IndexedConversation): string {
   const model = entry.agentModel
     ? `${entry.agentModel.provider}/${entry.agentModel.modelId}`
     : "default model";
-  return `${entry.agentType}, ${model}, ${entry.agentStatus ?? "running"}, last activity ${activeAt(entry)}`;
+  const level = entry.agentThinking ? ` · ${entry.agentThinking}` : "";
+  return `${entry.agentType}, ${model}${level}, ${entry.agentStatus ?? "running"}, last activity ${activeAt(entry)}`;
 }
 
 export const subagentLine = (entry: IndexedConversation) =>

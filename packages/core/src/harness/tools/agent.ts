@@ -5,6 +5,7 @@ import {
   section,
   type ToolExecutionApi,
 } from "@earendil-works/pi-durable";
+import { ThinkingLevelSchema } from "@tau/protocol";
 import { type Static, Type } from "typebox";
 import { type ChildSpec, startBackgroundChild, startForkedBackgroundChild } from "../subagent-runtime";
 import { subagentServicesOf } from "../subagent-services";
@@ -21,6 +22,7 @@ export const AgentParameters = Type.Object({
   prompt: Type.String(),
   subagent_type: Type.Optional(Type.String()),
   model: Type.Optional(Type.String()),
+  thinking: Type.Optional(ThinkingLevelSchema),
   isolation: Type.Optional(Type.Literal("worktree")),
   run_in_background: Type.Optional(Type.Boolean()),
 });
@@ -37,6 +39,7 @@ async function specFor(args: Args, api: ToolExecutionApi, context: CallContext, 
   const plan = await planChild({
     subagentType: args.subagent_type,
     model: args.model,
+    thinking: args.thinking,
     parent: await api.agent(context),
     projectPath: project.path,
     connected: await ref.current().connectedModels(),
@@ -49,7 +52,13 @@ async function specFor(args: Args, api: ToolExecutionApi, context: CallContext, 
   const spec: ChildSpec = {
     description: args.description,
     prompt: args.prompt,
-    agent: { type: plan.type, model: plan.model, background: args.run_in_background !== false },
+    agent: {
+      type: plan.type,
+      model: plan.model,
+      thinking: plan.thinkingLevel,
+      background: args.run_in_background !== false,
+    },
+    thinkingLevel: plan.thinkingLevel,
     tools: plan.tools,
     foreground: args.run_in_background === false,
     ...(plan.instructions && { instructions: plan.instructions }),

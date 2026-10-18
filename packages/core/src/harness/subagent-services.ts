@@ -1,4 +1,4 @@
-import type { ModelRef, Project } from "@tau/protocol";
+import type { ModelRef, Project, ThinkingLevel } from "@tau/protocol";
 import type { AgentTypeLoader } from "../agents/agent-types";
 import type { ResolveModelAlias } from "../agents/model-alias";
 import type { WorkspaceService } from "../workspaces/workspace-service";
@@ -8,6 +8,7 @@ export interface SubagentServices {
   readonly agentTypes: AgentTypeLoader;
   readonly resolveModelAlias: ResolveModelAlias;
   readonly fastModel: () => Promise<ModelRef | undefined>;
+  readonly clampThinking: (model: ModelRef, level: ThinkingLevel) => ThinkingLevel;
   readonly projectOf: (projectId: string) => Promise<Project>;
   readonly workspaces: Pick<WorkspaceService, "create" | "merge">;
 }

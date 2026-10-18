@@ -19,6 +19,7 @@ export function describeSubagent(entry: IndexedConversation) {
     description: entry.title,
     type: entry.agentType ?? "task",
     model: entry.agentModel ? modelName(entry.agentModel) : null,
+    thinking: entry.agentThinking ?? null,
     status: entry.agentStatus ?? entry.status ?? "idle",
     lastActivity: new Date(entry.lastRunEndedAt ?? entry.updatedAt).toISOString(),
     worktree: hasWorktree(entry) ? (entry.workspace?.path ?? null) : null,

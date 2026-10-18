@@ -26,6 +26,7 @@ const reader: AgentType = {
   tools: ["read"],
   disallowedTools: [],
   model: "faux-2",
+  thinking: undefined,
   prompt: "You only read files.",
 };
 

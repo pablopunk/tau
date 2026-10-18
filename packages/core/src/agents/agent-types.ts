@@ -1,5 +1,6 @@
 import { homedir } from "node:os";
 import { join } from "node:path";
+import type { ThinkingLevel } from "@tau/protocol";
 import { FORK, FORK_TYPE, GENERAL_PURPOSE_TYPE } from "./built-in-types";
 import { readAgentDir } from "./read-agent-dir";
 
@@ -15,6 +16,8 @@ export interface AgentType {
   readonly tools: readonly string[] | undefined;
   readonly disallowedTools: readonly string[];
   readonly model: string | undefined;
+  /** From frontmatter `thinking:` (alias `effort:`); `undefined` when absent or not a known level. */
+  readonly thinking: ThinkingLevel | undefined;
   readonly prompt: string;
   /** Set for a type whose tool list maps to nothing: shown in `list_agents`, rejected on use. */
   readonly error?: string;

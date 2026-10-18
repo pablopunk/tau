@@ -10,6 +10,7 @@ const builtIn = (name: string, description: string): AgentType => ({
   tools: undefined,
   disallowedTools: [],
   model: undefined,
+  thinking: undefined,
   prompt: "",
 });
 

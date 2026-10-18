@@ -2,7 +2,7 @@ import { Link } from "react-router";
 import { conversationPath } from "@/lib/paths";
 import { useAllConversations } from "@/lib/queries";
 import { AgentStatusBadge } from "./AgentStatusBadge";
-import { agentTypeLabel, isRunningChild } from "./agent-meta";
+import { agentTypeLabel, isRunningChild, modelWithLevel } from "./agent-meta";
 import { StopAgentButton } from "./StopAgentButton";
 import { useModelLabel } from "./use-model-label";
 
@@ -12,7 +12,7 @@ export function SubagentBanner({ parentId, childId }: { parentId: string; childI
   const parent = all?.find((item) => item.id === parentId);
   const child = childId ? all?.find((item) => item.id === childId) : undefined;
   if (!parent) return null;
-  const model = modelLabel.ofRef(child?.agentModel);
+  const model = modelWithLevel(modelLabel.ofRef(child?.agentModel), child?.agentThinking);
   return (
     <div className="flex items-center gap-2 border-b px-4 py-1.5 text-xs text-muted-foreground">
       <p className="min-w-0 flex-1 truncate">

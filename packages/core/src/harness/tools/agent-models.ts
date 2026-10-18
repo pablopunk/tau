@@ -1,4 +1,5 @@
 import type { ModelRef } from "@tau/protocol";
+import { THINKING_GUIDANCE } from "./agent-thinking";
 
 export const MODEL_LIST_CAP = 40;
 
@@ -20,6 +21,7 @@ export function connectedModelLines(models: readonly ModelRef[], parent: ModelRe
 export function modelsGuidance(models: readonly ModelRef[], parent: ModelRef | undefined): string {
   return [
     `Subagent models: a subagent uses your model (${parent ? modelName(parent) : "unknown"}) unless you pass \`model\` to the agent tool. Pick another one only when the user asked for it in this conversation, for example "use DeepSeek for the workers".`,
+    `Subagent effort: ${THINKING_GUIDANCE}`,
     "Connected models:",
     ...connectedModelLines(models, parent),
   ].join("\n");

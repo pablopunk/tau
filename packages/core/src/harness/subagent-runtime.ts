@@ -7,7 +7,7 @@ import {
   type ToolRegistration,
   type Tx,
 } from "@earendil-works/pi-durable";
-import type { ModelRef, ThreadWorkspace } from "@tau/protocol";
+import type { ModelRef, ThinkingLevel, ThreadWorkspace } from "@tau/protocol";
 import { type ChildAgentInfo, registerChildConversation } from "./conversation-child";
 import { ConversationDoc, INDEX_SEED, ProjectIndexDoc } from "./conversation-docs";
 import { legacyWorkspace } from "./conversation-index";
@@ -31,6 +31,7 @@ export type ChildSpec = {
   readonly prompt: string;
   readonly agent: ChildAgentInfo;
   readonly model?: ModelRef;
+  readonly thinkingLevel?: ThinkingLevel;
   readonly withoutExtension?: Extension;
   readonly instructions?: string;
   readonly tools?: readonly ToolRegistration[];
@@ -61,6 +62,7 @@ function agentChange(spec: ChildSpec) {
   return {
     ...removal,
     model: spec.agent.model,
+    ...(spec.thinkingLevel && { thinkingLevel: spec.thinkingLevel }),
     ...(spec.tools && { tools: spec.tools }),
     ...(spec.instructions && { instructions: spec.instructions }),
     ...(spec.workspace && { cwd: spec.workspace.path }),

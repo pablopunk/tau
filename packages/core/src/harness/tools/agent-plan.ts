@@ -1,5 +1,5 @@
 import type { ToolExecutionApi, ToolRegistration } from "@earendil-works/pi-durable";
-import type { ModelRef } from "@tau/protocol";
+import type { ModelRef, ThinkingLevel } from "@tau/protocol";
 import { type AgentType, GENERAL_PURPOSE } from "../../agents/agent-types";
 import type { SubagentServices } from "../subagent-services";
 import { isSubagentTool } from "../subagent-tool-names";
@@ -10,6 +10,7 @@ export const FORK = "fork";
 export type ChildPlan = {
   readonly type: string;
   readonly model: ModelRef;
+  readonly thinkingLevel: ThinkingLevel;
   readonly tools: readonly ToolRegistration[];
   readonly instructions: string | undefined;
 };
@@ -19,6 +20,7 @@ type ParentAgent = Awaited<ReturnType<ToolExecutionApi["agent"]>>;
 export type PlanInput = {
   readonly subagentType: string | undefined;
   readonly model: string | undefined;
+  readonly thinking?: ThinkingLevel | undefined;
   readonly parent: ParentAgent;
   readonly projectPath: string;
   readonly connected: readonly ModelRef[];
@@ -57,6 +59,14 @@ async function resolveModel(requested: string | undefined, input: PlanInput): Pr
   return input.services.resolveModelAlias(requested, { parent, fast, connected: input.connected });
 }
 
+const FALLBACK_LEVEL: ThinkingLevel = "medium";
+
+/** Order: the tool argument, then the agent type, then the parent's level; clamped to the child's model. */
+function resolveThinking(model: ModelRef, type: AgentType | undefined, input: PlanInput): ThinkingLevel {
+  const wanted = input.thinking ?? type?.thinking ?? input.parent.thinkingLevel ?? FALLBACK_LEVEL;
+  return input.services.clampThinking(model, wanted);
+}
+
 export async function planChild(input: PlanInput): Promise<ChildPlan> {
   const fork = input.subagentType === FORK;
   const type =
@@ -65,6 +75,7 @@ export async function planChild(input: PlanInput): Promise<ChildPlan> {
   return {
     type: fork ? FORK : (type?.name ?? GENERAL_PURPOSE),
     model,
+    thinkingLevel: resolveThinking(model, type, input),
     tools: allowedTools(input.parent.tools, type),
     instructions: fork ? FORK_INSTRUCTIONS : type?.prompt || undefined,
   };

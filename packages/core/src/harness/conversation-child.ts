@@ -1,10 +1,11 @@
 import type { ConversationId, Tx } from "@earendil-works/pi-durable";
-import type { ModelRef, ThreadWorkspace } from "@tau/protocol";
+import type { ModelRef, ThinkingLevel, ThreadWorkspace } from "@tau/protocol";
 import { ConversationDoc, INDEX_SEED, ProjectIndexDoc } from "./conversation-docs";
 
 export type ChildAgentInfo = {
   readonly type: string;
   readonly model: ModelRef;
+  readonly thinking?: ThinkingLevel;
   readonly background: boolean;
 };
 
@@ -38,6 +39,7 @@ export async function registerChildConversation(tx: Tx, child: ChildConversation
     ...(child.agent && {
       agentType: child.agent.type,
       agentModel: child.agent.model,
+      ...(child.agent.thinking && { agentThinking: child.agent.thinking }),
       agentStatus: "running" as const,
       background: child.agent.background,
     }),

@@ -22,6 +22,7 @@ import { harnessNotificationSubmitter } from "./harness/notification-submitter";
 import { BACKGROUND, openAgentHarness, openSqliteStorage } from "./harness/open";
 import { createProjectStore } from "./harness/project-store";
 import { createAgentRegistry } from "./harness/registry";
+import { clampThinkingFor } from "./harness/tools/agent-thinking";
 import { createToolServicesRef } from "./harness/tools/tool-file";
 import { openDataHome } from "./home/data-home";
 import { acquireHomeLock } from "./home/lock";
@@ -160,6 +161,7 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
         agentTypes: createAgentTypeLoader(),
         resolveModelAlias,
         fastModel: async () => (await settings.get()).fastModel ?? undefined,
+        clampThinking: (ref, level) => clampThinkingFor(provider.models, ref, level),
         projectOf: (id) => projects.require(id),
         workspaces,
       },

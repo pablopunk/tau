@@ -1,3 +1,5 @@
+import { type ThinkingLevel, ThinkingLevelSchema } from "@tau/protocol";
+import { Value } from "typebox/value";
 import type { AgentType, AgentTypeSource } from "./agent-types";
 import { listOf, parseFrontmatter, textOf } from "./frontmatter";
 import { mapClaudeTools, mapDisallowedTools } from "./tool-mapping";
@@ -10,6 +12,12 @@ function mapTools(requested: readonly string[] | undefined) {
   return { tools, error: tools.length === 0 ? NO_TOOLS_ERROR : undefined };
 }
 
+export function thinkingOf(value: string | undefined): ThinkingLevel | undefined {
+  const word = value?.trim().toLowerCase();
+  if (!word) return undefined;
+  return Value.Check(ThinkingLevelSchema, word) ? (word as ThinkingLevel) : undefined;
+}
+
 export function parseAgentTypeFile(fileBase: string, content: string, source: AgentTypeSource): AgentType {
   const { fields, body } = parseFrontmatter(content);
   const { tools, error } = mapTools(listOf(fields.get("tools")));
@@ -20,6 +28,7 @@ export function parseAgentTypeFile(fileBase: string, content: string, source: Ag
     tools,
     disallowedTools: mapDisallowedTools(listOf(fields.get("disallowedTools")) ?? []),
     model: textOf(fields.get("model")),
+    thinking: thinkingOf(textOf(fields.get("thinking")) ?? textOf(fields.get("effort"))),
     prompt: body,
     ...(error ? { error } : {}),
   };

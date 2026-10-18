@@ -11,6 +11,9 @@ export const isSpecialType = (agentType: string | null | undefined): agentType i
 export const isRunningChild = (child: ConversationSummary | undefined): boolean =>
   child?.status === "running" || child?.agentStatus === "running";
 
+export const modelWithLevel = (model: string | undefined, level: string | null | undefined) =>
+  model && level ? `${model} · ${level}` : model;
+
 const CARD_STATUS_OF_AGENT: Record<AgentStatus, ToolStatus> = {
   running: "running",
   done: "done",

@@ -9,7 +9,7 @@ import {
   fauxToolCall,
 } from "@earendil-works/pi-ai/providers/faux";
 import type { Harness } from "@earendil-works/pi-durable";
-import type { ModelRef, Project } from "@tau/protocol";
+import type { ModelRef, Project, ThinkingLevel } from "@tau/protocol";
 import { SUBAGENT_NOTIFICATION_KIND } from "@tau/protocol";
 import type { AgentTypeLoader } from "../agents/agent-types";
 import type { ResolveModelAlias } from "../agents/model-alias";
@@ -23,6 +23,7 @@ import { createConversationStore } from "./conversation-store";
 import { BACKGROUND, openAgentHarness, openSqliteStorage } from "./open";
 import { createAgentRegistry } from "./registry";
 import type { SubagentServices } from "./subagent-services";
+import { clampThinkingFor } from "./tools/agent-thinking";
 import { createToolServicesRef } from "./tools/tool-file";
 
 export const FAUX = { provider: "faux", modelId: "faux-1" };
@@ -100,10 +101,11 @@ export async function openRig(root: string, projectPath: string, options: RigOpt
     ...options.project,
   };
   const toolServices = createToolServicesRef();
+  const models = createCallableFaux();
   const status = createStatusTracker({ changes: createChangeEmitter(), now: Date.now });
   const harness: Harness = await openAgentHarness({
     storage: await openSqliteStorage(join(root, "agent.sqlite")),
-    models: createCallableFaux(),
+    models,
     registry: createAgentRegistry(toolServices),
     beforeResume: (opened) => status.attach(opened),
   });
@@ -116,6 +118,7 @@ export async function openRig(root: string, projectPath: string, options: RigOpt
       agentTypes: typesDouble([]),
       resolveModelAlias: aliasDouble,
       fastModel: async () => ({ provider: "faux", modelId: "faux-fast" }),
+      clampThinking: (ref: ModelRef, level: ThinkingLevel) => clampThinkingFor(models, ref, level),
       projectOf: async () => project,
       workspaces,
       ...options.services,

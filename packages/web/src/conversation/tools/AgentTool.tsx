@@ -1,7 +1,7 @@
 import { Bot } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { AgentStatusBadge } from "@/sidebar/subagents/AgentStatusBadge";
-import { agentTypeLabel, cardStatusOf, isRunningChild } from "@/sidebar/subagents/agent-meta";
+import { agentTypeLabel, cardStatusOf, isRunningChild, modelWithLevel } from "@/sidebar/subagents/agent-meta";
 import { StopAgentButton } from "@/sidebar/subagents/StopAgentButton";
 import { useModelLabel } from "@/sidebar/subagents/use-model-label";
 import { argText, resultText } from "../model/tool-state";
@@ -16,7 +16,10 @@ export function AgentTool({ state }: ToolRendererProps) {
   const child = useChildById(childId);
   const modelLabel = useModelLabel();
   const type = child?.agentType ?? argText(state, "subagent_type");
-  const model = modelLabel.ofRef(child?.agentModel) ?? argText(state, "model");
+  const model = modelWithLevel(
+    modelLabel.ofRef(child?.agentModel) ?? argText(state, "model"),
+    child?.agentThinking ?? argText(state, "thinking"),
+  );
   const answer = resultText(state.result);
   return (
     <ToolCard

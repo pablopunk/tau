@@ -5,6 +5,7 @@ export const AGENT_DESCRIPTION = [
   "- The subagent does not see this conversation. Write `prompt` as a complete, self-contained brief: the goal, the relevant files and paths, what to return, and any constraints.",
   '- `subagent_type` picks an agent type from the available types. Omit it for "general-purpose". Use "fork" to start a subagent that inherits this whole conversation; the prompt is then its next message.',
   "- `model` is optional. The default is your own model. Pick another one only when the user asked for it in this conversation; the connected models are listed in the subagents section of your instructions. Use `provider/modelId`, or an alias such as `sonnet`, `opus`, `haiku` or `fast`.",
+  '- `thinking` is optional: off, minimal, low, medium, high, xhigh or max. Use the effort the user asked for in this conversation (for example "Sonnet with low effort"); otherwise leave it out and the subagent inherits yours. It is clamped to what the subagent\'s model supports.',
   '- `isolation: "worktree"` gives the subagent its own git worktree and branch, so parallel agents do not touch the same files. Use merge_agent to bring its committed work back. It fails in a project that is not a git repository.',
   "- By default the subagent runs in the background and this call returns at once with its id. You get a notification with its report when it answers, and that wakes you if you are idle. Do not poll, sleep or check on it; keep working on something else, or end your turn and wait for the notification.",
   "- Set `run_in_background: false` only when you cannot continue without the answer. The call then waits and returns the final report.",
@@ -23,7 +24,7 @@ export const STOP_AGENT_DESCRIPTION =
   "Stop the current run of one of your subagents by id. A notification with status stopped follows. The subagent stays and can be given new work with send_message.";
 
 export const LIST_AGENTS_DESCRIPTION =
-  "List your subagents with id, description, type, model, status, last activity and worktree path. Use it to find an id; it is not a way to wait for results, notifications arrive by themselves.";
+  "List your subagents with id, description, type, model, thinking level, status, last activity and worktree path. Use it to find an id; it is not a way to wait for results, notifications arrive by themselves.";
 
 export const MERGE_AGENT_DESCRIPTION = [
   "Merge the committed work of a subagent that has its own worktree into this thread's checkout (rebase, then fast-forward only).",
