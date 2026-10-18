@@ -9,15 +9,18 @@ import {
 import type { ClaudeConnectorSettings } from "@tau/protocol";
 import type { Approvals } from "../../approvals/approvals-port";
 import type { ClaudeCliClock } from "../clock";
+import type { ObservedResultStore } from "../connectors/observed-results";
 import type { PlanUsage } from "../plan-usage";
 import type { InterruptConversationPort } from "../ports";
-import type { ClaudeSdkLoader } from "../sdk-types";
-import { createBinding } from "./binding";
+import type { ClaudeMcpServerStatus, ClaudeSdkLoader } from "../sdk-types";
+import { type Binding, createBinding } from "./binding";
 import { type CallContext, readCallContext } from "./call-context";
 import { choosePath } from "./choose-path";
+import { optionsKeyOf } from "./connector-choice";
+import { connectorSettingsOf } from "./connector-settings";
 import { neutralText, THREAD_CLOSED_TEXT } from "./errors";
 import { emptyAssistantMessage, finalEvent } from "./finish";
-import { cancelIdle, closeQuery } from "./lifecycle";
+import { cancelIdle, closeQuery, interruptAndSettle, isBusy } from "./lifecycle";
 import { runBound } from "./run-bound";
 import { runOneShot } from "./run-one-shot";
 import { createRuntime, type Runtime } from "./runtime";
@@ -37,6 +40,12 @@ export interface ClaudeCliStreamDeps {
   readonly connectorSettings?: () => Promise<ClaudeConnectorSettings>;
   /** Where `canUseTool` asks the user. Absent: every ask is denied. */
   readonly approvals?: Approvals;
+  /** Where CLI-run connector results go. Absent: they are dropped. */
+  readonly observed?: ObservedResultStore;
+  /** The cached connector list (tool names, read-only flags). Absent: the adapter probes by itself. */
+  readonly connectorStatus?: () => Promise<readonly ClaudeMcpServerStatus[] | null>;
+  /** The chosen servers that were not connected when the first input went in. */
+  readonly onConnectorsLate?: (notes: readonly string[]) => void;
 }
 
 export interface ClaudeCliStreamer extends InterruptConversationPort {
@@ -54,6 +63,13 @@ export interface ClaudeCliStreamer extends InterruptConversationPort {
 
 const messageOf = (error: unknown): string => (error instanceof Error ? error.message : String(error));
 
+/** The chosen servers changed: an idle query closes so the next call resumes with new options. */
+async function closeIfOptionsStale(rt: Runtime, binding: Binding): Promise<void> {
+  if (!binding.query) return;
+  const key = optionsKeyOf(await connectorSettingsOf(rt));
+  if (key !== binding.optionsKey && binding.query && !isBusy(binding)) closeQuery(rt, binding);
+}
+
 async function runCall(
   rt: Runtime,
   call: CallContext,
@@ -67,6 +83,7 @@ async function runCall(
   }
   const existing = call.sessionId ? rt.bindings.get(call.sessionId) : undefined;
   await existing?.settling;
+  if (existing) await closeIfOptionsStale(rt, existing);
   const plan = choosePath({
     hasTools: call.tools.length > 0,
     binding: existing,
@@ -121,6 +138,9 @@ export function createClaudeCliStream(deps: ClaudeCliStreamDeps): ClaudeCliStrea
       for (const binding of rt.bindings.values()) cancelIdle(binding);
     },
     processCount: () => rt.live.size,
-    interruptConversation: async () => undefined,
+    interruptConversation: async (piSessionId) => {
+      const binding = rt.bindings.get(piSessionId);
+      if (binding) await interruptAndSettle(rt, binding);
+    },
   };
 }

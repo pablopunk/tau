@@ -1,4 +1,5 @@
 import type { AssistantMessage, AssistantMessageEvent, ToolCall } from "@earendil-works/pi-ai";
+import { CONNECTOR_TOOL_NAME, type ConnectorCall, parseConnectorToolName } from "../connectors/names";
 import type { ClaudeSdkMessage } from "../sdk-types";
 import { TOOL_NAME_PREFIX } from "../tool-server";
 import { mergeUsage, type RawUsage } from "./usage";
@@ -36,6 +37,7 @@ interface StreamEventPayload {
 interface OpenBlock {
   readonly contentIndex: number;
   readonly kind: "text" | "thinking" | "toolCall";
+  readonly connector?: ConnectorCall;
   json: string;
 }
 
@@ -53,6 +55,14 @@ const stopReasonOf = (raw: string | undefined): ReaderSummary["stopReason"] => {
 
 export const stripToolPrefix = (name: string): string =>
   name.startsWith(TOOL_NAME_PREFIX) ? name.slice(TOOL_NAME_PREFIX.length) : name;
+
+const asConnectorArguments = (
+  connector: ConnectorCall,
+  parsed: Pick<ToolCall, "arguments" | "argumentsError">,
+): Pick<ToolCall, "arguments" | "argumentsError"> => ({
+  ...parsed,
+  arguments: { server: connector.server, tool: connector.tool, arguments: parsed.arguments },
+});
 
 function parseArguments(json: string): Pick<ToolCall, "arguments" | "argumentsError"> {
   try {
@@ -92,15 +102,16 @@ export function createApiMessageReader(
     blocksStarted += 1;
     const contentIndex = message.content.length;
     if (block.type === "tool_use") {
+      const connector = parseConnectorToolName(block.name ?? "") ?? undefined;
       const call: ToolCall = {
         type: "toolCall",
         id: block.id ?? "",
-        name: stripToolPrefix(block.name ?? ""),
+        name: connector ? CONNECTOR_TOOL_NAME : stripToolPrefix(block.name ?? ""),
         arguments: {},
       };
       toolUseIds.push(call.id);
       message.content.push(call);
-      open.set(index, { contentIndex, kind: "toolCall", json: "" });
+      open.set(index, { contentIndex, kind: "toolCall", connector, json: "" });
       push({ type: "toolcall_start", contentIndex, partial: message });
       return;
     }
@@ -162,7 +173,8 @@ export function createApiMessageReader(
         partial: message,
       });
     } else {
-      Object.assign(content, parseArguments(block.json));
+      const parsed = parseArguments(block.json);
+      Object.assign(content, block.connector ? asConnectorArguments(block.connector, parsed) : parsed);
       push({ type: "toolcall_end", contentIndex: block.contentIndex, toolCall: content, partial: message });
     }
   };

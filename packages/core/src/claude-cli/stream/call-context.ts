@@ -1,6 +1,7 @@
 import type { Api, Model, SimpleStreamOptions, Tool, TranscriptContext } from "@earendil-works/pi-ai";
+import { CONNECTOR_TOOL_NAME } from "../connectors/names";
 import type { ClaudeEffort } from "../sdk-types";
-import { type Entry, normalize, prefixHashes } from "./normalize";
+import { abortedToolCallIds, type Entry, normalize, prefixHashes } from "./normalize";
 import { effortOf } from "./query-options";
 import { readSystemState } from "./system-state";
 
@@ -13,6 +14,8 @@ export interface CallContext {
   readonly tools: readonly Tool[];
   readonly entries: readonly Entry[];
   readonly hashes: readonly string[];
+  /** Tool results Pi marked aborted: they are not in `entries`. */
+  readonly abortedToolCallIds: readonly string[];
   readonly sessionId: string | undefined;
   readonly signal: AbortSignal | undefined;
 }
@@ -29,9 +32,10 @@ export function readCallContext(
     modelValue: model.id,
     effort: effortOf(options?.reasoning),
     systemPrompt: system.prompt,
-    tools: system.tools,
+    tools: system.tools.filter((tool) => tool.name !== CONNECTOR_TOOL_NAME),
     entries,
     hashes: prefixHashes(entries),
+    abortedToolCallIds: abortedToolCallIds(context.messages),
     sessionId: options?.sessionId,
     signal: options?.signal,
   };

@@ -1,6 +1,6 @@
 import type { Tool } from "@earendil-works/pi-ai";
 import type { ClaudeInput } from "../claude-input";
-import type { ClaudeEffort, ClaudeQuery } from "../sdk-types";
+import type { ClaudeEffort, ClaudeQuery, ClaudeSdkMessage } from "../sdk-types";
 import { type CallMap, createCallMap } from "./deferred";
 import type { Turn } from "./turn";
 
@@ -43,6 +43,22 @@ export interface Binding {
   latestResetsAt: number | null;
   /** Runs on the first message of a fresh query: the session id is known then. */
   onFirstMessage: ((sessionId: string) => void) | null;
+  /** Ids of connector calls the CLI runs itself; never in `expected`, never delivered. */
+  readonly connectorIds: Set<string>;
+  /** Connector calls whose result has not arrived yet. */
+  readonly openConnectorIds: Set<string>;
+  /** Messages that arrived with no active listener: the next turn drains one API message. */
+  inbox: ClaudeSdkMessage[];
+  /** A `result` arrived with no active listener and no owed result to consume it. */
+  resultSeen: boolean;
+  /** The SDK session's last message is a connector `tool_result`. */
+  connectorTail: boolean;
+  /** The CLI has a turn open: input was pushed and no `result` came yet. */
+  cliBusy: boolean;
+  pendingApprovals: number;
+  /** The connector choice the live query was started with. */
+  optionsKey: string;
+  interrupting: Promise<void> | null;
 }
 
 export function createBinding(id: string, model: string): Binding {
@@ -66,5 +82,14 @@ export function createBinding(id: string, model: string): Binding {
     idleCancel: null,
     latestResetsAt: null,
     onFirstMessage: null,
+    connectorIds: new Set(),
+    openConnectorIds: new Set(),
+    inbox: [],
+    resultSeen: false,
+    connectorTail: false,
+    cliBusy: false,
+    pendingApprovals: 0,
+    optionsKey: "",
+    interrupting: null,
   };
 }

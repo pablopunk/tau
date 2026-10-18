@@ -1,4 +1,4 @@
-import type { ClaudeSdkPort } from "../sdk-types";
+import type { ClaudeMcpServerStatus, ClaudeSdkPort } from "../sdk-types";
 import type { Binding } from "./binding";
 import type { ClaudeCliStreamDeps } from "./claude-cli-stream";
 
@@ -8,6 +8,8 @@ export interface Runtime {
   readonly bindings: Map<string, Binding>;
   /** Bindings with a running SDK process, one-shot ones included. */
   readonly live: Set<Binding>;
+  /** The last connector list the adapter's own probe read. */
+  statusCache: { readonly at: number; readonly value: readonly ClaudeMcpServerStatus[] } | null;
   port(): Promise<ClaudeSdkPort>;
   notifyProcesses(): void;
 }
@@ -20,6 +22,7 @@ export function createRuntime(deps: ClaudeCliStreamDeps): Runtime {
     deps,
     bindings: new Map(),
     live,
+    statusCache: null,
     port() {
       loaded ??= deps.sdk().catch((error: unknown) => {
         loaded = undefined;

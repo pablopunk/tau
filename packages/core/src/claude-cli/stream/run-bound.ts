@@ -4,6 +4,7 @@ import type { CallContext } from "./call-context";
 import type { Plan } from "./choose-path";
 import { isAuthCode, neutralText } from "./errors";
 import { finalEvent } from "./finish";
+import { drainInbox } from "./inbox";
 import { cancelIdle, interruptAndSettle, touchIdle } from "./lifecycle";
 import { assistantKey, chainHash } from "./normalize";
 import { prepare } from "./prepare";
@@ -24,6 +25,15 @@ function recordCheckpoint(
   binding.head = { length, hash };
 }
 
+const tauCallIds = (binding: Binding, ids: readonly string[]): string[] =>
+  ids.filter((id) => !binding.connectorIds.has(id));
+
+/** The `result` of this turn may already have come, with no listener to take it. */
+function owePendingResult(binding: Binding): void {
+  if (binding.resultSeen) binding.resultSeen = false;
+  else binding.owedResults += 1;
+}
+
 /** What the SDK session and the binding look like after the turn. */
 function settleAfter(
   rt: Runtime,
@@ -32,19 +42,15 @@ function settleAfter(
   message: AssistantMessage,
   outcome: TurnOutcome,
 ): void {
-  if (outcome.kind === "failed" && outcome.failure === "limit") {
-    binding.settling = interruptAndSettle(rt, binding);
-  }
+  if (outcome.kind === "failed" && outcome.failure === "limit") void interruptAndSettle(rt, binding);
   if (outcome.kind !== "complete") return;
   const { summary } = outcome;
   const isToolRound = summary.stopReason === "toolUse";
   if (summary.errorCode === null) recordCheckpoint(binding, call, message, summary.lastUuid);
   else if (isAuthCode(summary.errorCode)) rt.deps.onAuthError();
-  if (isToolRound) for (const id of summary.toolUseIds) binding.expected.add(id);
-  else binding.owedResults += 1;
-  if (summary.errorCode !== null && binding.expected.size > 0) {
-    binding.settling = interruptAndSettle(rt, binding);
-  }
+  if (isToolRound) for (const id of tauCallIds(binding, summary.toolUseIds)) binding.expected.add(id);
+  else owePendingResult(binding);
+  if (summary.errorCode !== null && binding.expected.size > 0) void interruptAndSettle(rt, binding);
 }
 
 /** One Pi request on a bound SDK session: Continue, Resume, Resume-at or Rebind. */
@@ -59,9 +65,10 @@ export async function runBound(
   cancelIdle(binding);
   const turn = createTurn(message, (event) => stream.push(event));
   binding.listener = turn;
+  if (plan.kind === "continue") drainInbox(binding, turn);
   const onAbort = () => {
     turn.abort();
-    binding.settling = interruptAndSettle(rt, binding);
+    void interruptAndSettle(rt, binding);
   };
   call.signal?.addEventListener("abort", onAbort, { once: true });
   if (call.signal?.aborted) onAbort();

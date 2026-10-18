@@ -7,6 +7,9 @@ import type {
   ToolCall,
   ToolResultMessage,
 } from "@earendil-works/pi-ai";
+import { CONNECTOR_TOOL_NAME } from "../connectors/names";
+
+type SystemMessage = Extract<Message, { role: "system" }>;
 
 /** A message that counts for the hash, with its canonical text. */
 export interface Entry {
@@ -57,20 +60,38 @@ export function assistantKey(message: AssistantMessage): string {
   return stableJson({ role: "assistant", text, calls });
 }
 
+const notConnectorTool = ({ name }: { readonly name: string }): boolean => name !== CONNECTOR_TOOL_NAME;
+
+const systemKey = (message: SystemMessage): string =>
+  stableJson({
+    role: "system",
+    content: textOfBlocks(message.content),
+    sections: message.sections ?? null,
+    added: message.toolsAdded?.filter(notConnectorTool).map(({ name, description, parameters }) => ({
+      name,
+      description,
+      parameters,
+    })),
+    removed: message.toolsRemoved?.filter(notConnectorTool).map((tool) => tool.name),
+  });
+
+const isEmptySystemKey = (message: SystemMessage): boolean =>
+  textOfBlocks(message.content) === "" &&
+  Object.keys(message.sections ?? {}).length === 0 &&
+  !message.toolsAdded?.some(notConnectorTool) &&
+  !message.toolsRemoved?.some(notConnectorTool);
+
+const mentionsConnectorTool = (message: SystemMessage): boolean =>
+  [...(message.toolsAdded ?? []), ...(message.toolsRemoved ?? [])].some(
+    (tool) => tool.name === CONNECTOR_TOOL_NAME,
+  );
+
+/** A system entry whose only change is `claude_connector` added or removed does not count. */
+const isConnectorToolOnlyChange = (message: SystemMessage): boolean =>
+  mentionsConnectorTool(message) && isEmptySystemKey(message);
+
 function keyOf(message: Message): string {
-  if (message.role === "system") {
-    return stableJson({
-      role: "system",
-      content: textOfBlocks(message.content),
-      sections: message.sections ?? null,
-      added: message.toolsAdded?.map(({ name, description, parameters }) => ({
-        name,
-        description,
-        parameters,
-      })),
-      removed: message.toolsRemoved?.map((tool) => tool.name),
-    });
-  }
+  if (message.role === "system") return systemKey(message);
   if (message.role === "user") return stableJson({ role: "user", content: blocksKey(message.content) });
   if (message.role === "assistant") return assistantKey(message);
   return stableJson({
@@ -83,10 +104,16 @@ function keyOf(message: Message): string {
 }
 
 const countsForHash = (message: Message): boolean => {
+  if (message.role === "system") return !isConnectorToolOnlyChange(message);
   if (message.role === "assistant") return !isFailedAssistant(message);
   if (message.role === "toolResult") return !isAbortedToolResult(message);
   return true;
 };
+
+export const abortedToolCallIds = (messages: readonly Message[]): string[] =>
+  messages.flatMap((message) =>
+    message.role === "toolResult" && isAbortedToolResult(message) ? [message.toolCallId] : [],
+  );
 
 export const normalize = (messages: readonly Message[]): Entry[] =>
   messages.filter(countsForHash).map((message) => ({ message, key: keyOf(message) }));

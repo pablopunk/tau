@@ -45,3 +45,10 @@ export function textForErrorCode(code: string, resetsAt: number | null): string 
 
 /** The UI says "Claude CLI", never "Claude Code", also for texts the CLI wrote. */
 export const neutralText = (text: string): string => text.replace(/Claude Code/gi, "Claude CLI");
+
+/** A connector that is not usable, in the CLI's own words with the product name neutralized. */
+export const connectorStatusErrorText = (server: {
+  readonly name: string;
+  readonly status: string;
+  readonly error: string | null;
+}): string => neutralText(`${server.name}: ${server.error ?? server.status}`);

@@ -9,9 +9,12 @@ import type {
   ToolCall,
   TranscriptContext,
 } from "@earendil-works/pi-ai";
+import type { ClaudeConnectorSettings } from "@tau/protocol";
+import type { Approvals } from "../../approvals/approvals-port";
 import type { ClaudeCliClock } from "../clock";
+import type { ObservedResultStore } from "../connectors/observed-results";
 import type { RateLimitInfo } from "../plan-usage";
-import type { ClaudeSdkPort } from "../sdk-types";
+import type { ClaudeMcpServerStatus, ClaudeSdkPort, ClaudeToolResult } from "../sdk-types";
 import {
   createFakeClaudeSdk,
   type FakeClaudeSdk,
@@ -95,6 +98,21 @@ export const toolCallsOf = (message: AssistantMessage): ToolCall[] =>
 
 export const contextOf = (messages: Message[]) => ({ messages }) as unknown as TranscriptContext;
 
+export interface TestObservedStore extends ObservedResultStore {
+  readonly settled: Map<string, ClaudeToolResult>;
+}
+
+export function createTestObservedStore(): TestObservedStore {
+  const settled = new Map<string, ClaudeToolResult>();
+  return {
+    settled,
+    settle: (id, result) => void settled.set(id, result),
+    wait: async (id) => settled.get(id) ?? { content: [], isError: true },
+    forget: (id) => void settled.delete(id),
+    isConnectorCall: (id) => settled.has(id),
+  };
+}
+
 export interface Harness {
   readonly fake: FakeClaudeSdk;
   readonly streamer: ClaudeCliStreamer;
@@ -103,11 +121,18 @@ export interface Harness {
   readonly authErrors: number[];
   readonly processCounts: number[];
   readonly contextWindows: [string, number][];
+  readonly observed: TestObservedStore;
+  readonly late: (readonly string[])[];
+  /** Replaces the connector choice the next call reads. */
+  setConnectorSettings(settings: ClaudeConnectorSettings): void;
 }
 
 export interface HarnessOptions extends FakeClaudeSdkOptions {
   readonly env?: Record<string, string | undefined>;
   readonly wrap?: (port: ClaudeSdkPort) => ClaudeSdkPort;
+  readonly connectorSettings?: ClaudeConnectorSettings;
+  readonly approvals?: Approvals;
+  readonly connectorStatus?: () => Promise<readonly ClaudeMcpServerStatus[] | null>;
 }
 
 export function createHarness(options: HarnessOptions = {}): Harness {
@@ -118,6 +143,12 @@ export function createHarness(options: HarnessOptions = {}): Harness {
   const processCounts: number[] = [];
   const contextWindows: [string, number][] = [];
   const port = options.wrap ? options.wrap(fake.port) : fake.port;
+  const observed = createTestObservedStore();
+  const late: (readonly string[])[] = [];
+  let connectorSettings: ClaudeConnectorSettings = options.connectorSettings ?? {
+    enabled: [],
+    alwaysAllow: [],
+  };
   const streamer = createClaudeCliStream({
     sdk: async () => port,
     planUsage: { current: () => null, record: (info) => void usage.push(info) },
@@ -126,8 +157,26 @@ export function createHarness(options: HarnessOptions = {}): Harness {
     noteContextWindow: (value, window) => void contextWindows.push([value, window]),
     onAuthError: () => void authErrors.push(1),
     onProcessCount: (count) => void processCounts.push(count),
+    observed,
+    approvals: options.approvals,
+    connectorStatus: options.connectorStatus,
+    onConnectorsLate: (notes) => void late.push(notes),
+    connectorSettings: async () => connectorSettings,
   });
-  return { fake, streamer, clock, usage, authErrors, processCounts, contextWindows };
+  return {
+    fake,
+    streamer,
+    clock,
+    usage,
+    authErrors,
+    processCounts,
+    contextWindows,
+    observed,
+    late,
+    setConnectorSettings(settings) {
+      connectorSettings = settings;
+    },
+  };
 }
 
 export interface Answer {

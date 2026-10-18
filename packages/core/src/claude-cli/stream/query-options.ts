@@ -1,4 +1,10 @@
-import type { ClaudeEffort, ClaudeInputStream, ClaudeQueryOptions, ClaudeToolHost } from "../sdk-types";
+import type {
+  ClaudeCanUseTool,
+  ClaudeEffort,
+  ClaudeInputStream,
+  ClaudeQueryOptions,
+  ClaudeToolHost,
+} from "../sdk-types";
 import { TOOL_NAME_PREFIX } from "../tool-server";
 
 const API_KEY_VARIABLES = ["ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN"];
@@ -7,6 +13,16 @@ export const withoutApiKeys = (
   env: Readonly<Record<string, string | undefined>>,
 ): Record<string, string | undefined> =>
   Object.fromEntries(Object.entries(env).filter(([name]) => !API_KEY_VARIABLES.includes(name)));
+
+/** `disallowedTools` is not in the frozen `ClaudeQueryOptions` yet; `sdk-port.ts` passes it through as is. */
+export type StreamQueryOptions = ClaudeQueryOptions & { readonly disallowedTools?: readonly string[] };
+
+/** What a query with at least one chosen connector adds. */
+export interface ConnectorQueryInput {
+  readonly allowedTools: readonly string[];
+  readonly disallowedTools: readonly string[];
+  readonly canUseTool: ClaudeCanUseTool;
+}
 
 export interface QueryOptionsInput {
   readonly prompt: ClaudeInputStream | string;
@@ -22,13 +38,32 @@ export interface QueryOptionsInput {
   readonly persistSession?: boolean;
   readonly maxTurns?: number;
   readonly toolHost?: ClaudeToolHost;
+  readonly connectors?: ConnectorQueryInput;
 }
 
 const optional = <K extends string, V>(key: K, value: V | undefined) =>
   value === undefined ? {} : ({ [key]: value } as Record<K, V>);
 
-/** The options every query gets, whatever the path. */
-export function buildQueryOptions(input: QueryOptionsInput): ClaudeQueryOptions {
+const lockedDownOptions = (tauTools: readonly string[]) =>
+  ({
+    strictMcpConfig: true,
+    settings: { disableClaudeAiConnectors: true, autoCompactEnabled: false },
+    permissionMode: "dontAsk",
+    allowedTools: tauTools,
+  }) as const;
+
+const connectorOptions = (tauTools: readonly string[], connectors: ConnectorQueryInput) => ({
+  strictMcpConfig: false,
+  settings: { disableClaudeAiConnectors: false, autoCompactEnabled: false },
+  permissionMode: "default" as const,
+  allowedTools: [...tauTools, ...connectors.allowedTools],
+  canUseTool: connectors.canUseTool,
+  ...(connectors.disallowedTools.length > 0 && { disallowedTools: connectors.disallowedTools }),
+});
+
+/** The options every query gets, whatever the path. Connectors loosen the MCP lock only when chosen. */
+export function buildQueryOptions(input: QueryOptionsInput): StreamQueryOptions {
+  const tauTools = input.toolHost ? [`${TOOL_NAME_PREFIX}*`] : [];
   return {
     prompt: input.prompt,
     model: input.model,
@@ -37,12 +72,9 @@ export function buildQueryOptions(input: QueryOptionsInput): ClaudeQueryOptions 
     env: withoutApiKeys(input.env),
     title: input.title,
     tools: [],
-    strictMcpConfig: true,
     settingSources: [],
-    settings: { disableClaudeAiConnectors: true, autoCompactEnabled: false },
-    permissionMode: "dontAsk",
-    allowedTools: input.toolHost ? [`${TOOL_NAME_PREFIX}*`] : [],
     includePartialMessages: true,
+    ...(input.connectors ? connectorOptions(tauTools, input.connectors) : lockedDownOptions(tauTools)),
     ...optional("effort", input.effort),
     ...optional("resume", input.resume),
     ...optional("resumeSessionAt", input.resumeSessionAt),
