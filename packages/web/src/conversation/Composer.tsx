@@ -6,6 +6,7 @@ import {
   type FormEvent,
   type KeyboardEvent,
   type ReactNode,
+  useEffect,
   useRef,
   useState,
 } from "react";
@@ -18,10 +19,12 @@ import { AttachmentRow } from "./composer/AttachmentRow";
 import { loadDraft, saveDraft } from "./composer/drafts";
 import { applyMention } from "./composer/mentions";
 import { menuKeyAction } from "./composer/menu-keys";
+import { onComposerRestore } from "./composer/restore";
 import { type CommandHandlers, type CommandName, parseSlashCommand } from "./composer/slash-commands";
 import { commandItemId, useComposerMenu } from "./composer/use-composer-menu";
 import { insertionOf } from "./composer/use-mention-items";
 import { usePageDrag } from "./composer/use-page-drop";
+import { loadAttachments } from "./images/attachments";
 import { useAttachments } from "./images/use-attachments";
 
 export interface ComposerProps {
@@ -100,6 +103,16 @@ function ComposerForm({
   const textarea = useRef<HTMLTextAreaElement>(null);
   const menu = useComposerMenu({ text, caret, commands, projectId, pastedText });
   const canSend = (text.trim().length > 0 || attachments.length > 0) && !preparing && !disabled;
+
+  useEffect(
+    () =>
+      onComposerRestore(target, () => {
+        setTextState(loadDraft(target));
+        replace(loadAttachments(target));
+        requestAnimationFrame(() => textarea.current?.focus());
+      }),
+    [target, replace],
+  );
 
   const setText = (value: string) => {
     saveDraft(target, value);

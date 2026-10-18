@@ -3,6 +3,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { toast } from "sonner";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { loadDraft } from "../composer/drafts";
 import { BusyModeHint } from "./BusyModeHint";
 import { QueuedItemActions } from "./QueuedItemActions";
 
@@ -18,7 +19,10 @@ vi.mock("@/lib/api", () => ({
 
 const item = { id: 7, mode: "followUp" as const, text: "later", images: [] };
 
-beforeEach(() => vi.clearAllMocks());
+beforeEach(() => {
+  vi.clearAllMocks();
+  window.localStorage.clear();
+});
 
 describe("<QueuedItemActions>", () => {
   it("shows the mode and cancels the queued item", async () => {
@@ -28,6 +32,7 @@ describe("<QueuedItemActions>", () => {
     await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
     expect(mocks.cancelQueued).toHaveBeenCalledWith("c1", "7");
     expect(toast.info).not.toHaveBeenCalled();
+    expect(loadDraft("c1")).toBe("later");
   });
 
   it("labels a steer item and toasts when the item was already delivered", async () => {
@@ -36,6 +41,7 @@ describe("<QueuedItemActions>", () => {
     expect(screen.getByText("Steering")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
     expect(toast.info).toHaveBeenCalled();
+    expect(loadDraft("c1")).toBe("");
   });
 });
 
