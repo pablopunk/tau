@@ -27,6 +27,18 @@ describe("hasLiveWork", () => {
     expect(await liveWork.hasLiveWork(summary.id)).toBe(true);
   });
 
+  it("is true while an approval is pending", async () => {
+    let pending = false;
+    const liveWork = createLiveWork({
+      harness: world.harness,
+      processes: { hasRunning: () => false },
+      approvals: { hasPending: () => pending },
+    });
+    expect(await liveWork.hasLiveWork("98765")).toBe(false);
+    pending = true;
+    expect(await liveWork.hasLiveWork("98765")).toBe(true);
+  });
+
   it("is false for an unknown thread", async () => {
     const liveWork = createLiveWork({ harness: world.harness, processes: { hasRunning: () => false } });
     expect(await liveWork.hasLiveWork("98765")).toBe(false);
