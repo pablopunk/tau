@@ -48,9 +48,11 @@ export function assessThread(
     return { state: "error", message: errorMessageOf(view) };
   }
   const idle = summary.status === "idle";
-  const queueEmpty = readLive(view).queued.length === 0;
+  const live = readLive(view);
+  const queueEmpty = live.queued.length === 0;
+  const viewCaughtUp = !live.busy;
   const childRunning = descendantsOf(all, conversationId).some((child) => child.agentStatus === "running");
-  const settled = idle && runEndedAfter(summary, endedAfter) && queueEmpty && !childRunning;
+  const settled = idle && runEndedAfter(summary, endedAfter) && queueEmpty && viewCaughtUp && !childRunning;
   return settled ? { state: "done", answer: lastAssistantText(view) } : { state: "waiting" };
 }
 

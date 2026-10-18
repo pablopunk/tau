@@ -130,7 +130,7 @@ describe("sidebar projects", () => {
     const user = userEvent.setup();
     renderSidebar();
     await user.click(await screen.findByRole("button", { name: "New thread in Home" }));
-    expect(await screen.findByTestId("location")).toHaveTextContent("/new");
+    await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/new"));
   });
 
   it("shows a spinner while a project clones", async () => {

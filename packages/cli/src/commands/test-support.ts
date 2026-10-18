@@ -40,7 +40,7 @@ export function summary(id: string, overrides: Partial<ConversationSummary> = {}
   };
 }
 
-export function viewWith(answer: string, queued: readonly string[] = []): ConversationView {
+export function viewWith(answer: string, queued: readonly string[] = [], running = false): ConversationView {
   return {
     entries: [
       { id: 1, kind: "pi.user", model: [{ role: "user", content: "go" }] },
@@ -51,6 +51,7 @@ export function viewWith(answer: string, queued: readonly string[] = []): Conver
       },
     ],
     docs: {
+      ...(running ? { "pi.live": { run: { id: 1 } } } : {}),
       "pi.inbox": {
         items: queued.map((text, index) => ({ id: index + 1, mode: "followUp", content: text })),
       },
@@ -75,6 +76,17 @@ export class FakeTau {
   readonly stdout: string[] = [];
   readonly stderr: string[] = [];
   answers = new Map<string, { status: number; body?: unknown }>();
+  private inflight = 0;
+  private subscriptions = 0;
+
+  /** Resolves once a subscribe happened and no request has been in flight for a few ticks. */
+  async quiet(): Promise<void> {
+    let calmTicks = 0;
+    while (calmTicks < 3) {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      calmTicks = this.inflight === 0 && this.subscriptions > 0 ? calmTicks + 1 : 0;
+    }
+  }
 
   env(home: string, overrides: Partial<CommandEnv> = {}): CommandEnv {
     return {
@@ -98,6 +110,15 @@ export class FakeTau {
   }
 
   private async handle(url: string, init: RequestInit | undefined): Promise<Response> {
+    this.inflight += 1;
+    try {
+      return await this.answer(url, init);
+    } finally {
+      this.inflight -= 1;
+    }
+  }
+
+  private async answer(url: string, init: RequestInit | undefined): Promise<Response> {
     const path = url.replace(TEST_URL, "");
     const method = init?.method ?? "GET";
     const body = typeof init?.body === "string" ? (JSON.parse(init.body) as unknown) : undefined;
@@ -117,6 +138,7 @@ export class FakeTau {
       send: (raw) => {
         const frame = JSON.parse(raw) as { type: string; conversationId: string };
         const view = this.views.get(frame.conversationId);
+        if (frame.type === "subscribe") this.subscriptions += 1;
         if (frame.type === "subscribe")
           queueMicrotask(() => this.pushView(frame.conversationId, view ?? null));
       },

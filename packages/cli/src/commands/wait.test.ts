@@ -4,8 +4,6 @@ import { executeApiCommand } from "./run-command";
 import { FakeTau, makeHome, summary, viewWith } from "./test-support";
 import { assessThread } from "./wait";
 
-const settle = () => new Promise((resolve) => setTimeout(resolve, 15));
-
 function setup(first: Parameters<typeof summary>[1], queued: readonly string[] = []) {
   const fake = new FakeTau();
   fake.summaries = [summary("t1", first)];
@@ -24,6 +22,7 @@ describe("assessThread", () => {
     expect(assessThread(idle, "t1", viewWith("x", ["queued"]), 10).state).toBe("waiting");
     const running = [summary("t1", { status: "running", lastRunEndedAt: 20 })];
     expect(assessThread(running, "t1", view, 10).state).toBe("waiting");
+    expect(assessThread(idle, "t1", viewWith("midway", [], true), 10).state).toBe("waiting");
   });
 
   it("treats a null R0 as any finished run", () => {
@@ -45,11 +44,11 @@ describe("--wait against a scripted server", () => {
   it("send: already idle with an old run does not finish until a new run ends", async () => {
     const { fake, env } = setup({ lastRunEndedAt: 10 });
     const done = executeApiCommand("threads", ["send", "t1", "hi", "--wait"], env);
-    await settle();
-    expect(fake.stdout.at(-1)).not.toContain("the answer");
+    await fake.quiet();
+    expect(fake.stdout.join("")).not.toContain("the answer");
     fake.summaries = [summary("t1", { status: "running", lastRunEndedAt: 10 })];
     fake.pushChanged();
-    await settle();
+    await fake.quiet();
     fake.summaries = [summary("t1", { lastRunEndedAt: 20 })];
     fake.pushChanged();
     await done;
@@ -60,14 +59,28 @@ describe("--wait against a scripted server", () => {
   it("send: a message queued behind a running run counts as not done", async () => {
     const { fake, env } = setup({ status: "running", lastRunEndedAt: 10 }, ["next"]);
     const done = executeApiCommand("threads", ["send", "t1", "hi", "--wait"], env);
-    await settle();
+    await fake.quiet();
     fake.summaries = [summary("t1", { lastRunEndedAt: 20 })];
     fake.pushChanged();
-    await settle();
-    expect(fake.stdout.at(-1)).not.toContain("the answer");
+    await fake.quiet();
+    expect(fake.stdout.join("")).not.toContain("the answer");
     fake.pushView("t1", viewWith("the answer"));
     await done;
     expect(fake.stdout.at(-1)).toBe("\nthe answer");
+  });
+
+  it("send: does not print an answer from a view that has not caught up with the ended run", async () => {
+    const { fake, env } = setup({ lastRunEndedAt: 10 });
+    fake.views.set("t1", viewWith("midway", [], true));
+    const done = executeApiCommand("threads", ["send", "t1", "hi", "--wait"], env);
+    await fake.quiet();
+    fake.summaries = [summary("t1", { lastRunEndedAt: 20 })];
+    fake.pushChanged();
+    await fake.quiet();
+    expect(fake.stdout.join("")).not.toContain("midway");
+    fake.pushView("t1", viewWith("the final answer"));
+    await done;
+    expect(fake.stdout.at(-1)).toBe("\nthe final answer");
   });
 
   it("start: waits for a child that runs after the parent goes idle", async () => {
@@ -83,8 +96,8 @@ describe("--wait against a scripted server", () => {
       ["start", "go", "--project", "p1", "--wait"],
       fake.env(makeHome()),
     );
-    await settle();
-    expect(fake.stdout.at(-1)).not.toContain("the answer");
+    await fake.quiet();
+    expect(fake.stdout.join("")).not.toContain("the answer");
     fake.summaries = [
       summary("t1", { lastRunEndedAt: 20 }),
       summary("c1", { parentId: "t1", agentStatus: "done" }),

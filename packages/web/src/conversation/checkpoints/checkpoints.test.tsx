@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ConversationSummary } from "@tau/protocol";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, useLocation } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -61,7 +61,7 @@ describe("message actions", () => {
     expect(screen.queryByRole("menuitem", { name: "Rewind to here" })).toBeNull();
     await userEvent.click(await screen.findByRole("menuitem", { name: "Fork from here" }));
     expect(conversations.fork).toHaveBeenCalledWith("4", "13");
-    expect(await screen.findByTestId("location")).toHaveTextContent("/p/p1/c/9");
+    await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/p/p1/c/9"));
   });
 
   it("calls rewinding the first message Rewind to start", async () => {
@@ -94,7 +94,7 @@ describe("message actions", () => {
     await pickAction("Rewind to here");
     await userEvent.click(await screen.findByRole("button", { name: "Rewind" }));
     expect(conversations.rewind).toHaveBeenCalledWith("4", "12");
-    expect(await screen.findByTestId("location")).toHaveTextContent("/p/p1/c/9");
+    await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/p/p1/c/9"));
     expect(loadDraft("9")).toBe("do it");
   });
 
