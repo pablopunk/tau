@@ -1,8 +1,5 @@
-import { useQueryClient } from "@tanstack/react-query";
 import type { ConversationSummary } from "@tau/protocol";
 import { useState } from "react";
-import { FormError } from "@/app/FormError";
-import { useSubmit } from "@/app/use-submit";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -15,7 +12,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import { api } from "@/lib/api";
+import { useDeleteArchived } from "@/lib/use-delete-archived";
 
 interface DeleteArchivedDialogProps {
   archived: readonly ConversationSummary[];
@@ -25,18 +22,14 @@ interface DeleteArchivedDialogProps {
 const plural = (count: number) => `${count} archived thread${count === 1 ? "" : "s"}`;
 
 export function DeleteArchivedDialog({ archived, onClose }: DeleteArchivedDialogProps) {
-  const queryClient = useQueryClient();
-  const { run, error, pending } = useSubmit();
+  const { startDeleteArchived } = useDeleteArchived();
   const [force, setForce] = useState(false);
   const unmerged = archived.filter((thread) => thread.unmergedWarning !== null);
   const deleting = force ? archived.length : archived.length - unmerged.length;
 
-  const confirm = async () => {
-    const deleted = await run(async () => {
-      await api.conversations.deleteArchived({ force });
-      await queryClient.invalidateQueries({ queryKey: ["conversations"] });
-    });
-    if (deleted) onClose();
+  const confirm = () => {
+    startDeleteArchived(force, archived);
+    onClose();
   };
 
   return (
@@ -66,15 +59,13 @@ export function DeleteArchivedDialog({ archived, onClose }: DeleteArchivedDialog
             Also delete threads with unmerged work
           </Label>
         )}
-        <FormError message={error} />
         <AlertDialogFooter>
           <AlertDialogCancel>Cancel</AlertDialogCancel>
           <AlertDialogAction
             variant="destructive"
-            disabled={pending}
             onClick={(event) => {
               event.preventDefault();
-              void confirm();
+              confirm();
             }}
           >
             Delete {deleting}

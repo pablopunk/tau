@@ -1,8 +1,10 @@
 import type { ConversationSummary, Project } from "@tau/protocol";
 import { ChevronRightIcon, Trash2Icon } from "lucide-react";
 import { Fragment, useState } from "react";
+import { toast } from "sonner";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { SidebarMenu, SidebarMenuButton, SidebarMenuItem } from "@/components/ui/sidebar";
+import { useDeleteArchived } from "@/lib/use-delete-archived";
 import { DeleteArchivedDialog } from "./DeleteArchivedDialog";
 import { ThreadRow } from "./ThreadRow";
 import { UnmergedWarning } from "./UnmergedWarning";
@@ -21,6 +23,7 @@ export function ArchivedConversations({
   showProject,
 }: ArchivedConversationsProps) {
   const [confirming, setConfirming] = useState(false);
+  const { inFlight } = useDeleteArchived();
   if (conversations.length === 0) return null;
   const topLevel = conversations.filter((conversation) => conversation.parentId === null);
   return (
@@ -50,7 +53,8 @@ export function ArchivedConversations({
               <SidebarMenuButton
                 size="sm"
                 className="text-muted-foreground hover:text-destructive"
-                onClick={() => setConfirming(true)}
+                aria-disabled={inFlight}
+                onClick={() => (inFlight ? toast.info("Already deleting…") : setConfirming(true))}
               >
                 <Trash2Icon />
                 Delete all archived
