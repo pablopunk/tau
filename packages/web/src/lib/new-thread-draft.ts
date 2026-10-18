@@ -28,7 +28,9 @@ function asDraft(value: unknown): NewThreadDraft {
   const record = value as Record<string, unknown>;
   return {
     projectId: typeof record.projectId === "string" ? record.projectId : null,
-    model: isModelRef(record.model) ? { provider: record.model.provider, modelId: record.model.modelId } : null,
+    model: isModelRef(record.model)
+      ? { provider: record.model.provider, modelId: record.model.modelId }
+      : null,
     thinkingLevel:
       typeof record.thinkingLevel === "string" && THINKING_LEVELS.includes(record.thinkingLevel)
         ? (record.thinkingLevel as ThinkingLevel)
