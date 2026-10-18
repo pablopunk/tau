@@ -1,16 +1,30 @@
 import { randomUUID } from "node:crypto";
 import { AppError, type ConversationSummary, type ProcessInfo } from "@tau/protocol";
-import type { NotificationSubmitter } from "../harness/notification-submitter";
+import type { Notification, NotificationSubmitter } from "../harness/notification-submitter";
 import { lastLines } from "./log-tail";
+import { createMonitorBatcher, type MonitorBatcher } from "./monitor-batcher";
 import { createProcessFiles } from "./process-files";
 import { groupIsAlive, terminateGroup } from "./process-group";
-import { type RunningProcess, spawnRunning } from "./running-process";
+import {
+  monitorEventNotification,
+  noisyNoticeText,
+  noticeNotification,
+  processExitNotification,
+  restartNoticeText,
+} from "./process-notifications";
+import { type ExitDetails, type RunningProcess, spawnRunning } from "./running-process";
 
 export interface StartProcessRequest {
   readonly conversationId: string;
   readonly cwd: string;
   readonly command: string;
   readonly name?: string;
+  /** Default `process`. A monitor turns each stdout line into a notification. */
+  readonly kind?: ProcessInfo["kind"];
+  /** Default true; a plain process tells the thread when it exits by itself. */
+  readonly notifyOnExit?: boolean;
+  /** Monitors only. 0 or undefined runs until stopped. */
+  readonly timeoutMs?: number;
 }
 
 export interface ProcessService {
@@ -32,10 +46,11 @@ export interface ProcessService {
 
 export interface ProcessDeps {
   readonly home: string;
-  /** Owner B (MVP8) sends monitor events, exit notices and restart notices through it. */
+  /** Monitor events, exit notices and restart notices go through it. */
   readonly notifications?: NotificationSubmitter;
   readonly emitChange: (conversationId: string) => void;
   readonly stopGraceMs?: number;
+  readonly batchMs?: number;
 }
 
 const DEFAULT_STOP_GRACE_MS = 5000;
@@ -47,6 +62,12 @@ interface Entry {
   info: ProcessInfo;
   pid: number;
   running?: RunningProcess;
+  batcher?: MonitorBatcher;
+  timeout?: ReturnType<typeof setTimeout>;
+  timedOut?: boolean;
+  sequence: number;
+  /** Notifications go out in order, one after another. */
+  delivery: Promise<void>;
 }
 
 export function createProcessService(deps: ProcessDeps): ProcessService {
@@ -63,6 +84,52 @@ export function createProcessService(deps: ProcessDeps): ProcessService {
   const persist = (entry: Entry) =>
     files.save({ info: infoOf(entry), pid: entry.pid }).catch(() => undefined);
 
+  const send = (entry: Entry, notification: Notification) => {
+    const conversationId = entry.info.conversationId;
+    const notify = deps.notifications?.notify.bind(deps.notifications);
+    if (!notify) return;
+    entry.delivery = entry.delivery.then(() => notify(conversationId, notification)).catch(() => undefined);
+  };
+
+  const monitorBatcherFor = (entry: Entry): MonitorBatcher => {
+    return createMonitorBatcher({
+      batchMs: deps.batchMs,
+      send: ({ lines, dropped }) =>
+        send(entry, monitorEventNotification(entry.info, { lines, dropped }, entry.sequence++)),
+      onNoisy: () => {
+        send(entry, noticeNotification(noisyNoticeText(entry.info.name), `notice:${entry.info.id}:noisy`));
+        void stopEntry(entry);
+      },
+    });
+  };
+
+  const armTimeout = (entry: Entry, timeoutMs: number) => {
+    entry.timeout = setTimeout(() => {
+      entry.timedOut = true;
+      void stopEntry(entry);
+    }, timeoutMs);
+  };
+
+  const announceRestart = (entry: Entry) =>
+    send(entry, noticeNotification(restartNoticeText(entry.info.name), `notice:${entry.info.id}:restart`));
+
+  function finishEntry(entry: Entry, details: ExitDetails, notifyOnExit: boolean) {
+    if (entry.timeout) clearTimeout(entry.timeout);
+    if (entry.batcher) return finishMonitor(entry, details);
+    if (notifyOnExit && !details.stopRequested) {
+      send(entry, processExitNotification(entry.info, details.exitCode, details.logTail));
+    }
+  }
+
+  function finishMonitor(entry: Entry, details: ExitDetails) {
+    const batcher = entry.batcher;
+    batcher?.flush();
+    batcher?.close();
+    if (details.stopRequested && !entry.timedOut) return;
+    const ended = entry.timedOut ? "timeout" : { exitCode: details.exitCode };
+    send(entry, monitorEventNotification(entry.info, { lines: [], dropped: 0, ended }, entry.sequence++));
+  }
+
   async function stopEntry(entry: Entry) {
     const running = entry.running;
     if (!running) return;
@@ -73,21 +140,24 @@ export function createProcessService(deps: ProcessDeps): ProcessService {
   }
 
   return {
-    async start({ conversationId, cwd, command, name }) {
+    async start(request) {
+      const { conversationId, cwd, command } = request;
       const id = randomUUID();
+      const kind = request.kind ?? "process";
       const info: ProcessInfo = {
         id,
         conversationId,
-        name: name?.trim() || command.slice(0, NAME_LIMIT),
+        name: request.name?.trim() || command.slice(0, NAME_LIMIT),
         command,
         state: "running",
         exitCode: null,
         startedAt: Date.now(),
         urls: [],
-        kind: "process",
+        kind,
       };
-      const entry: Entry = { info, pid: 0 };
+      const entry: Entry = { info, pid: 0, delivery: Promise.resolve(), sequence: 0 };
       const announce = () => deps.emitChange(conversationId);
+      if (kind === "monitor") entry.batcher = monitorBatcherFor(entry);
       entry.running = spawnRunning({
         info,
         cwd,
@@ -96,13 +166,19 @@ export function createProcessService(deps: ProcessDeps): ProcessService {
           void persist(entry);
           announce();
         },
-        onExit: () => {
+        onLine: (stream, line) => {
+          if (stream === "stdout") entry.batcher?.push(line);
+        },
+        onExit: (exited, details) => {
+          entry.info = exited;
+          finishEntry(entry, details, request.notifyOnExit ?? true);
           void persist(entry);
           announce();
         },
       });
       entry.pid = entry.running.pid;
       entries.set(id, entry);
+      if (kind === "monitor" && request.timeoutMs) armTimeout(entry, request.timeoutMs);
       await persist(entry);
       announce();
       return infoOf(entry);
@@ -125,11 +201,12 @@ export function createProcessService(deps: ProcessDeps): ProcessService {
     },
     async reapStaleAtStartup() {
       for (const record of await files.loadAll()) {
-        const entry: Entry = { info: record.info, pid: record.pid };
+        const entry: Entry = { info: record.info, pid: record.pid, delivery: Promise.resolve(), sequence: 0 };
         if (record.info.state === "running") {
           if (record.pid > 0 && groupIsAlive(record.pid)) await terminateGroup(record.pid, grace);
           entry.info = { ...record.info, state: "killed", exitCode: null };
           await persist(entry);
+          if (record.info.kind === "monitor") announceRestart(entry);
         }
         entries.set(record.info.id, entry);
       }

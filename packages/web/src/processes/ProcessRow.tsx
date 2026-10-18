@@ -25,6 +25,7 @@ export function ProcessRow({ process }: { process: ProcessInfo }) {
     <li className="space-y-2 px-4 py-3">
       <div className="flex items-center gap-2">
         <span className="min-w-0 flex-1 truncate text-sm font-medium">{process.name}</span>
+        {process.kind === "monitor" ? <Badge variant="outline">monitor</Badge> : null}
         <Badge variant={running ? "default" : "secondary"}>{stateLabel(process)}</Badge>
         {running ? (
           <Button size="sm" variant="outline" onClick={() => void stop()}>

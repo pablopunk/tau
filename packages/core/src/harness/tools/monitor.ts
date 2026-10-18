@@ -1,6 +1,8 @@
-import { defineExtension } from "@earendil-works/pi-durable";
+import { defineExtension, defineTool } from "@earendil-works/pi-durable";
 import { Type } from "typebox";
-import { type ToolFileFactory, unimplementedTool } from "./tool-file";
+import type { ToolFileFactory } from "./tool-file";
+
+export const DEFAULT_MONITOR_TIMEOUT_MS = 300_000;
 
 export const MonitorParameters = Type.Object({
   command: Type.String(),
@@ -9,17 +11,43 @@ export const MonitorParameters = Type.Object({
   timeout_ms: Type.Optional(Type.Number({ minimum: 0 })),
 });
 
-/** Owner B (MVP8) implements it; see MVP8.md section 2. */
-export const monitorToolFile: ToolFileFactory = () => ({
-  implemented: false,
+const DESCRIPTION = [
+  "Run a command in the background; each stdout line arrives as a notification, so you do not poll.",
+  "Filter the output with `grep --line-buffered` and match failure lines too, not only success.",
+  "Many lines in one second are batched (at most 20); more than 30 notifications in a minute stop the monitor.",
+  "Stop it with process_stop.",
+].join(" ");
+
+export const monitorToolFile: ToolFileFactory = (services) => ({
+  implemented: true,
   extension: defineExtension({
     name: "monitor",
     tools: [
-      unimplementedTool(
-        "monitor",
-        "Run a command in the background; each stdout line wakes you.",
-        MonitorParameters,
-      ),
+      defineTool({
+        name: "monitor",
+        description: DESCRIPTION,
+        parameters: MonitorParameters,
+        replay: "unsafe",
+        execute: async ({ command, description, timeout_ms }, api) => {
+          const info = await services.current().processes.start({
+            conversationId: String(api.conversationId),
+            cwd: api.env?.cwd ?? process.cwd(),
+            command,
+            name: description,
+            kind: "monitor",
+            timeoutMs: timeout_ms ?? DEFAULT_MONITOR_TIMEOUT_MS,
+          });
+          return {
+            output: [
+              {
+                type: "text",
+                text: `Monitor ${info.id} started. Each stdout line arrives as a notification. Stop it with process_stop.`,
+              },
+            ],
+            details: { processId: info.id },
+          };
+        },
+      }),
     ],
   }),
 });

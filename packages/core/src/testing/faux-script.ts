@@ -18,6 +18,8 @@ export const SCRIPT_USAGE = [
   "agents",
   "continue <subagent id> <prompt>",
   "bg <command>",
+  "bg-quiet <command>",
+  "monitor <command>",
   "todo <first> | <second> | ...",
   "think",
   "fail",
@@ -129,6 +131,10 @@ function scriptedReply(input: string, attempt: number, user: UserMessage | undef
     }
     case "bg":
       return toolCallReply("process_start", { command: rest });
+    case "bg-quiet":
+      return toolCallReply("process_start", { command: rest, notify_on_exit: false });
+    case "monitor":
+      return toolCallReply("monitor", { command: rest, description: rest });
     case "todo":
       return toolCallReply("todo_write", todoArguments(rest));
     case "think":

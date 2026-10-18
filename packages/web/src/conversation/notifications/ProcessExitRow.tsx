@@ -1,10 +1,18 @@
 import type { ProcessExitData } from "@tau/protocol";
+import { LogLines } from "./LogLines";
 
-/** Owner B (MVP8) builds this row; see MVP8.md section 6. The stub keeps the transcript from dropping the entry. */
+const codeLabel = (code: ProcessExitData["exitCode"]) => (code === null ? "no exit code" : `exit ${code}`);
+
 export function ProcessExitRow({ data }: { data: ProcessExitData }) {
+  const summary = (
+    <span className="min-w-0 truncate">
+      Process <span className="font-medium">{data.name}</span> exited ({codeLabel(data.exitCode)})
+    </span>
+  );
+  const lines = data.logTail === "" ? [] : data.logTail.split("\n");
   return (
-    <div data-testid="process-exit" className="rounded-lg border bg-card px-3 py-2 text-sm">
-      Process exited: {data.name}
+    <div data-testid="process-exit" className="rounded-lg border bg-card text-sm">
+      <LogLines lines={lines} summary={summary} />
     </div>
   );
 }

@@ -1,8 +1,9 @@
 import { type ChildProcess, spawn } from "node:child_process";
 import type { ProcessInfo } from "@tau/protocol";
+import { createLineSplitter } from "./line-splitter";
 import { extractLocalUrls } from "./local-urls";
 import { type LogFile, openLogFile } from "./log-file";
-import { createLogTail, type LogTail } from "./log-tail";
+import { createLogTail, type LogTail, lastLines } from "./log-tail";
 
 export interface RunningProcess {
   info: ProcessInfo;
@@ -17,7 +18,18 @@ export interface SpawnRequest {
   readonly cwd: string;
   readonly logPath: string;
   readonly onUrls: () => void;
-  readonly onExit: () => void;
+  readonly onExit: (info: ProcessInfo, details: ExitDetails) => void;
+  readonly onLine?: (stream: OutputStream, line: string) => void;
+}
+
+export type OutputStream = "stdout" | "stderr";
+
+export const EXIT_TAIL_LINES = 20;
+
+export interface ExitDetails {
+  readonly exitCode: number | null;
+  readonly stopRequested: boolean;
+  readonly logTail: string;
 }
 
 export function spawnRunning(request: SpawnRequest): RunningProcess {
@@ -34,31 +46,48 @@ export function spawnRunning(request: SpawnRequest): RunningProcess {
     stopRequested: false,
     exited: Promise.resolve(),
   };
-  pipeOutput(child, running, log, request.onUrls);
+  const splitters = pipeOutput(child, running, log, request);
+  const finish = (code: number | null) => {
+    for (const splitter of splitters) splitter.flush();
+    settle(running, code);
+    return {
+      exitCode: code,
+      stopRequested: running.stopRequested,
+      logTail: lastLines(running.tail.text(), EXIT_TAIL_LINES),
+    };
+  };
+  let details: ExitDetails | undefined;
   const exited = new Promise<void>((resolve) => {
     child.once("error", (error) => {
       running.tail.append(`${error.message}\n`);
-      settle(running, null);
+      details = finish(null);
       resolve();
     });
     child.once("exit", (code) => {
-      settle(running, code);
+      details ??= finish(code);
       resolve();
     });
     child.once("close", () => void log.close());
   });
-  return Object.assign(running, { exited: exited.then(request.onExit) });
+  return Object.assign(running, {
+    exited: exited.then(() => request.onExit(running.info, details as ExitDetails)),
+  });
 }
 
-function pipeOutput(child: ChildProcess, running: RunningProcess, log: LogFile, onUrls: () => void) {
-  const onChunk = (chunk: Buffer) => {
+function pipeOutput(child: ChildProcess, running: RunningProcess, log: LogFile, request: SpawnRequest) {
+  const splitterFor = (stream: OutputStream) => createLineSplitter((line) => request.onLine?.(stream, line));
+  const stdout = splitterFor("stdout");
+  const stderr = splitterFor("stderr");
+  const onChunk = (splitter: ReturnType<typeof splitterFor>) => (chunk: Buffer) => {
     const text = chunk.toString("utf8");
     running.tail.append(text);
     log.append(text);
-    if (addUrls(running, text)) onUrls();
+    if (addUrls(running, text)) request.onUrls();
+    splitter.push(text);
   };
-  child.stdout?.on("data", onChunk);
-  child.stderr?.on("data", onChunk);
+  child.stdout?.on("data", onChunk(stdout));
+  child.stderr?.on("data", onChunk(stderr));
+  return [stdout, stderr];
 }
 
 function addUrls(running: RunningProcess, text: string): boolean {
