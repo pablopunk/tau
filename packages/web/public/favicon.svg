@@ -2,8 +2,10 @@
 <title>tau</title>
 <g clip-path="url(#clip0_1_2)">
 <path d="M25 0H7C3.13401 0 0 3.13401 0 7V25C0 28.866 3.13401 32 7 32H25C28.866 32 32 28.866 32 25V7C32 3.13401 28.866 0 25 0Z" fill="#18181B"/>
+<g transform="translate(0 -1.75)">
 <path d="M8 11H14M14 11H22M14 11V21C14 23.6 15.6 24.5 18.2 24.5H19" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" stroke="#8F8F8F"/>
 <path d="M8 11H16M16 11H24M16 11V20.5C16 23.1 17.6 24.5 20.2 24.5H21" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" stroke="#FAFAFA"/>
+</g>
 </g>
 <defs>
 <clipPath id="clip0_1_2">
