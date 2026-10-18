@@ -177,6 +177,13 @@ export interface Core {
     setIcon(id: string, png: Uint8Array | null): Promise<void>;
     /** Rejects `not_found`, and `invalid_request` for Home. */
     rename(id: string, name: string): Promise<void>;
+    /**
+     * Points the project at another folder holding the same repository (matching remote URL or root commit),
+     * and moves checkout threads and worktree links with it. Rejects `not_found`, `path_not_found`,
+     * `not_a_directory`, `duplicate_project`, `thread_busy` while a thread runs, and `invalid_request` for Home or
+     * another repository.
+     */
+    setFolder(id: string, path: string): Promise<Project>;
     /** Deletes the project's conversations, aborting busy ones. Never touches the folder. Rejects `not_found`, and `invalid_request` for Home. */
     remove(id: string): Promise<void>;
     /** At most 20 files and folders relative to the project folder, best match first. A query with `..` or starting with `/` or `~` gives `[]`. Rejects `not_found`. */

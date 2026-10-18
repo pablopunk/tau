@@ -97,6 +97,7 @@ export interface Api {
     clone(input: { url: string; name?: string }): Promise<Project>;
     retryClone(id: string): Promise<void>;
     suggestFiles(id: string, query: string): Promise<FileSuggestion[]>;
+    setFolder(id: string, path: string): Promise<Project>;
     rename(id: string, name: string): Promise<void>;
     remove(id: string): Promise<void>;
     /** Image sources for `<img src>`; the session cookie authenticates them. */
@@ -215,6 +216,7 @@ export function createApi(transport: Transport): Api {
       retryClone: (id) => request("retryClone", { params: { id } }),
       suggestFiles: (id, query) => request("suggestProjectFiles", { params: { id }, body: { query } }),
       rename: (id, name) => request("renameProject", { params: { id }, body: { name } }),
+      setFolder: (id, path) => request("setProjectFolder", { params: { id }, body: { path } }),
       remove: (id) => request("removeProject", { params: { id } }),
       iconUrl: (id) => fillPath(routes.getProjectIcon.path, { id }),
       iconCandidates: (id) => request("listIconCandidates", { params: { id } }),

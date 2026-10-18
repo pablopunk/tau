@@ -50,6 +50,9 @@ export function registerRoutes(app: FastifyInstance, core: Core): void {
   defineRoute(app, routes.addProject, ({ body }) => core.projects.add(body));
   defineRoute(app, routes.cloneProject, ({ body }) => core.projects.clone(body));
   defineRoute(app, routes.retryClone, ({ params }) => core.projects.retryClone(params.id));
+  defineRoute(app, routes.setProjectFolder, ({ params, body }) =>
+    core.projects.setFolder(params.id, body.path),
+  );
   defineRoute(app, routes.renameProject, ({ params, body }) => core.projects.rename(params.id, body.name));
   defineRoute(app, routes.removeProject, ({ params }) => core.projects.remove(params.id));
   defineImageRoute(app, routes.getProjectIcon, ({ params }) => core.projects.icon(params.id));

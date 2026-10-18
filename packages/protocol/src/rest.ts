@@ -277,6 +277,14 @@ export const routes = {
     params: IdParams,
     body: Type.Object({ name: Type.String({ minLength: 1 }) }),
   },
+  setProjectFolder: {
+    method: "PUT",
+    path: `${API_PREFIX}/projects/:id/folder`,
+    status: 200,
+    params: IdParams,
+    body: Type.Object({ path: Type.String({ minLength: 1 }) }),
+    response: ProjectSchema,
+  },
   removeProject: { method: "DELETE", path: `${API_PREFIX}/projects/:id`, status: 204, params: IdParams },
   getProjectIcon: {
     method: "GET",

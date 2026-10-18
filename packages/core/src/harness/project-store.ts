@@ -68,6 +68,8 @@ export interface ProjectStore {
   }): Promise<Project>;
   /** Replaces status, error and optionally path; resolves false when the project no longer exists. */
   setCloneState(id: string, update: ProjectUpdate): Promise<boolean>;
+  /** `path` must already be a real path; rejects `duplicate_project` when another project has it. */
+  setPath(id: string, path: string): Promise<void>;
   rename(id: string, name: string): Promise<void>;
   /** Drops the project record only; its conversations go through `ConversationStore.removeAllOfProject`. */
   remove(id: string): Promise<void>;
@@ -125,6 +127,16 @@ export function createProjectStore(
         if (update.error === undefined) delete project.error;
         else project.error = update.error;
         return true;
+      }, BACKGROUND),
+    setPath: (id, path) =>
+      harness.commit(async (tx) => {
+        const { projects } = await tx.doc(ProjectsDoc);
+        const project = projects.find((candidate) => candidate.id === id);
+        if (!project) throw notFound();
+        if (projects.some((other) => other.id !== id && other.path === path)) {
+          throw new AppError("duplicate_project", "This folder is already a project.");
+        }
+        project.path = path;
       }, BACKGROUND),
     rename: (id, name) =>
       harness.commit(async (tx) => {

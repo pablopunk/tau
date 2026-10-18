@@ -60,6 +60,7 @@ export function projectCases(make: MakeContractTarget, test: CaseRunner): void {
       const { core } = target;
       await rejectsWithCode(core.projects.rename("nope", "x"), "not_found");
       await rejectsWithCode(core.projects.remove("nope"), "not_found");
+      await rejectsWithCode(core.projects.setFolder("nope", "/tmp"), "not_found");
       await rejectsWithCode(core.conversations.list("nope"), "not_found");
       await rejectsWithCode(
         core.conversations.start({ projectId: "nope", text: "hi", requestId: "r1" }),

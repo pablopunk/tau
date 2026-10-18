@@ -194,6 +194,13 @@ export const commands: readonly CommandDef[] = [
     destructive: false,
   },
   {
+    command: "projects set-folder",
+    route: "setProjectFolder",
+    summary: "Point a project at its moved folder",
+    positionals: ["params.id", "body.path"],
+    destructive: false,
+  },
+  {
     command: "projects remove",
     route: "removeProject",
     summary: "Remove a project from tau",

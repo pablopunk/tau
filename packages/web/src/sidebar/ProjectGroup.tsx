@@ -25,6 +25,7 @@ import { api } from "@/lib/api";
 import { newThreadPath } from "@/lib/paths";
 import { queryKeys } from "@/lib/queries";
 import { ArchivedConversations } from "./ArchivedConversations";
+import { ChangeFolderDialog } from "./ChangeFolderDialog";
 import { CloneFailed } from "./CloneFailed";
 import { NameDialog } from "./NameDialog";
 import { RemoveProjectDialog } from "./RemoveProjectDialog";
@@ -41,7 +42,7 @@ interface ProjectGroupProps {
   onRemoved: () => void;
 }
 
-type Dialog = "rename" | "remove" | "icon" | null;
+type Dialog = "rename" | "remove" | "icon" | "folder" | null;
 
 export function ProjectGroup({
   section,
@@ -91,6 +92,7 @@ export function ProjectGroup({
               <>
                 <DropdownMenuItem onSelect={() => setDialog("rename")}>Rename project</DropdownMenuItem>
                 <DropdownMenuItem onSelect={() => setDialog("icon")}>Change icon</DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => setDialog("folder")}>Change folder…</DropdownMenuItem>
                 <DropdownMenuItem variant="destructive" onSelect={() => setDialog("remove")}>
                   Remove project
                 </DropdownMenuItem>
@@ -152,6 +154,7 @@ export function ProjectGroup({
       {dialog === "remove" && (
         <RemoveProjectDialog project={project} onConfirm={remove} onClose={closeDialog} />
       )}
+      {dialog === "folder" && <ChangeFolderDialog project={project} onClose={closeDialog} />}
       {dialog === "icon" && <ChangeIconDialog project={project} onClose={closeDialog} />}
     </SidebarGroup>
   );

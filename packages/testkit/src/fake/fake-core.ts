@@ -421,6 +421,14 @@ export function createFakeCore(options: FakeCoreOptions = {}): FakeCore {
         scheduleClone(project);
         emit({ resource: "projects" });
       },
+      async setFolder(id, path) {
+        const project = requireProject(id);
+        if (project.id === HOME_ID) throw new AppError("invalid_request", "Home cannot change folder.");
+        project.path = resolveFolder(path);
+        emit({ resource: "projects" });
+        emit({ resource: "conversations", projectId: id });
+        return present(project);
+      },
       async icon(id) {
         requireProject(id);
         return icons.icon(id);

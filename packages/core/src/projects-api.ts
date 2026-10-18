@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { basename } from "node:path";
 import { AppError, type Core, isIconPng } from "@tau/protocol";
 import type { ChangeEmitter } from "./change-emitter";
+import { changeProjectFolder } from "./change-project-folder";
 import { suggestFiles } from "./fs/suggest-files";
 import type { CloneService } from "./git/clone-service";
 import type { ConversationStore } from "./harness/conversation-store";
@@ -80,6 +81,9 @@ export function createProjectsApi(deps: {
       rejectHome(id, "renamed");
       await projects.rename(id, requireName(name));
       announce();
+    },
+    async setFolder(id, path) {
+      return present(await changeProjectFolder({ projects, conversations, changes }, id, path));
     },
     async remove(id) {
       rejectHome(id, "removed");

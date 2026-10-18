@@ -66,6 +66,7 @@ const handlers: Handlers = {
   retryClone: (core, { params }) => core.projects.retryClone(params.id),
   listProjects: (core) => core.projects.list(),
   addProject: (core, { body }) => core.projects.add(body as never),
+  setProjectFolder: (core, { params, body }) => core.projects.setFolder(params.id, body.path as string),
   renameProject: (core, { params, body }) => core.projects.rename(params.id, body.name as string),
   removeProject: (core, { params }) => core.projects.remove(params.id),
   listConversations: (core, { params }) => core.conversations.list(params.id),
