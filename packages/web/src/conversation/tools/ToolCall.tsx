@@ -5,6 +5,7 @@ import { AgentSendMessageTool } from "./AgentSendMessageTool";
 import { AgentStopTool } from "./AgentStopTool";
 import { AgentTool } from "./AgentTool";
 import { BashTool } from "./BashTool";
+import { ClaudeConnectorTool } from "./ClaudeConnectorTool";
 import { EditTool } from "./EditTool";
 import { GenericTool } from "./GenericTool";
 import { McpTool } from "./McpTool";
@@ -34,6 +35,7 @@ const RENDERERS: Record<string, ComponentType<ToolRendererProps>> = {
   get_search_content: WebTool,
   mcp_search: McpTool,
   mcp_call: McpTool,
+  claude_connector: ClaudeConnectorTool,
   process_start: ProcessTool,
   process_logs: ProcessTool,
   process_stop: ProcessTool,
