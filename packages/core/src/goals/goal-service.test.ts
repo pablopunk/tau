@@ -90,6 +90,30 @@ describe("goal: set, get and the judge loop", () => {
     await waitForGoal(id, "achieved", (goal) => goal.state === "achieved");
   });
 
+  it("a message after a Stop resumes the goal and the next run end is judged", async () => {
+    const { startThread, service, world, judge, waitForGoal } = await open([verdictJson("met")]);
+    const id = await startThread();
+    await service.set(id, "bash sleep 30");
+    await waitUntilTrue(async () => (await world.store.find(id))?.status === "running", "the run");
+    await world.store.abort(id);
+    await waitForGoal(id, "paused", (goal) => goal.state === "paused");
+    await world.store.send(id, { text: "Continue with the goal.", requestId: "continue" }, Date.now());
+    await waitForGoal(id, "achieved", (goal) => goal.state === "achieved");
+    expect(judge.calls).toHaveLength(1);
+  });
+
+  it("a message does not resume an achieved goal", async () => {
+    const { startThread, service, world, judge, waitForGoal, waitForIdle } = await open([verdictJson("met")]);
+    const id = await startThread();
+    await service.set(id, "all tests pass");
+    await waitForGoal(id, "achieved", (goal) => goal.state === "achieved");
+    await waitForIdle(id);
+    await world.store.send(id, { text: "thanks", requestId: "thanks" }, Date.now());
+    await waitForIdle(id);
+    expect(await service.get(id)).toMatchObject({ state: "achieved" });
+    expect(judge.calls).toHaveLength(1);
+  });
+
   it("a stale verdict is dropped when the user sends a message during the judge call", async () => {
     let release: (() => void) | undefined;
     const gate = new Promise<void>((resolve) => {

@@ -14,7 +14,7 @@ type MessageLike = {
 export interface RunFacts {
   readonly usedTool: boolean;
   readonly tokens: number;
-  /** The run began with a message the user typed, not a continuation or a notification. */
+  /** The run holds a message the user typed, not only continuations or notifications. */
   readonly startedByUser: boolean;
   readonly errorMessage: string | undefined;
 }
@@ -53,7 +53,7 @@ export function analyzeRun(entries: Entries, runStartEntryId: string | null): Ru
   return {
     usedTool: messages.some(callsATool),
     tokens: messages.reduce((sum, message) => sum + (message?.usage?.totalTokens ?? 0), 0),
-    startedByUser: isUserTyped(run[0]),
+    startedByUser: run.some(isUserTyped),
     errorMessage: answer?.stopReason === "error" ? (answer.errorMessage ?? "The run failed.") : undefined,
   };
 }
