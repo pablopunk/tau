@@ -17,12 +17,12 @@ type RequestInput = {
   body?: unknown;
 };
 
-function urlFor(route: RouteDef, input: RequestInput): string {
+function urlFor(route: RouteDef, input: RequestInput, prefix: string): string {
   const entries = Object.entries(input.query ?? {}).filter(
     (entry): entry is [string, string] => entry[1] !== undefined,
   );
   const search = new URLSearchParams(entries).toString();
-  return fillPath(route.path, input.params) + (search ? `?${search}` : "");
+  return prefix + fillPath(route.path, input.params) + (search ? `?${search}` : "");
 }
 
 function assertBody(route: RouteDef, body: unknown): void {
@@ -54,11 +54,11 @@ function init(route: RouteDef, body: unknown): RequestInit {
   };
 }
 
-async function send(route: RouteDef, input: RequestInput): Promise<unknown> {
+async function send(route: RouteDef, input: RequestInput, prefix: string): Promise<unknown> {
   assertBody(route, input.body);
   let response: Response;
   try {
-    response = await fetch(urlFor(route, input), init(route, input.body));
+    response = await fetch(urlFor(route, input, prefix), init(route, input.body));
   } catch {
     throw new AppError("internal", "Could not reach the server");
   }
@@ -69,12 +69,17 @@ async function send(route: RouteDef, input: RequestInput): Promise<unknown> {
   return json;
 }
 
-export function createHttpTransport(): Transport {
+export interface HttpTransportOptions {
+  /** Added in front of every request, live and stream URL: `/api/m/<machineId>` on the hub. Default: none (this machine). */
+  readonly prefix?: string;
+}
+
+export function createHttpTransport({ prefix = "" }: HttpTransportOptions = {}): Transport {
   return {
     async request<N extends JsonRouteName>(name: N, input: RouteRequest<N>) {
-      return (await send(routes[name], input as RequestInput)) as RouteResponse<N>;
+      return (await send(routes[name], input as RequestInput, prefix)) as RouteResponse<N>;
     },
-    live: createWebSocketTransport(),
-    openStream: openWebSocketStream,
+    live: createWebSocketTransport(prefix),
+    openStream: (path, handlers) => openWebSocketStream(path, handlers, prefix),
   };
 }

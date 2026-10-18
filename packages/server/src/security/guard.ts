@@ -8,9 +8,11 @@ import {
   isTunnelOrigin,
 } from "./allow-list";
 import type { GuardContext } from "./guard-context";
+import { createLinkLimits, type LinkLimits } from "./link-limits";
 import {
   bearerOf,
   isApiPath,
+  isMachineLink,
   isOpenSurface,
   needsOriginCheck,
   rejectApi,
@@ -21,6 +23,7 @@ import { UNAUTHORIZED_PAGE } from "./unauthorized-page";
 
 export const DEVICE_COOKIE = "tau_device";
 export const OWNER_DEVICE_ID = "owner";
+const LOCAL_PEER = "local";
 
 export type { GuardContext } from "./guard-context";
 
@@ -44,8 +47,32 @@ async function authenticateDevice(ctx: GuardContext, request: FastifyRequest): P
   return true;
 }
 
+/** Machine branch: a rate-limit check by peer BEFORE the hash lookup; only a machine secret passes, never a cookie. */
+async function authenticateMachine(
+  ctx: GuardContext,
+  limits: LinkLimits,
+  request: FastifyRequest,
+): Promise<boolean> {
+  const peer = ctx.tunnel.tagOf(request.raw.socket)?.peer ?? LOCAL_PEER;
+  if (limits.locked(peer)) return false;
+  const secret = bearerOf(request);
+  const verified = secret ? await ctx.access.verifyMachine(secret) : undefined;
+  if (!verified) {
+    limits.recordFailure(peer);
+    return false;
+  }
+  request.deviceId = verified.deviceId;
+  ctx.access.touch(verified.deviceId);
+  return true;
+}
+
 /** A tagged socket came through the tunnel: only the tunnel Host and Origin, only a device cookie. */
-async function guardTunneled(ctx: GuardContext, request: FastifyRequest, reply: FastifyReply) {
+async function guardTunneled(
+  ctx: GuardContext,
+  limits: LinkLimits,
+  request: FastifyRequest,
+  reply: FastifyReply,
+) {
   const list = ctx.hostnames();
   if (!isTunnelHost(list, request.headers.host)) return forbid(reply, "host");
   const { origin } = request.headers;
@@ -54,6 +81,10 @@ async function guardTunneled(ctx: GuardContext, request: FastifyRequest, reply: 
     return forbid(reply, "origin");
   }
   if (isOpenSurface(request)) return rejectContentType(request, reply);
+  if (isMachineLink(request)) {
+    if (!(await authenticateMachine(ctx, limits, request))) return sendUnauthenticated(request, reply);
+    return;
+  }
   if (!(await authenticateDevice(ctx, request))) return sendUnauthenticated(request, reply);
   rejectContentType(request, reply);
 }
@@ -72,12 +103,22 @@ function startSession(ctx: GuardContext, reply: FastifyReply, token: string) {
 }
 
 /** An untagged socket is loopback: the master token works, and device cookies too. */
-async function guardLocal(ctx: GuardContext, request: FastifyRequest, reply: FastifyReply) {
+async function guardLocal(
+  ctx: GuardContext,
+  limits: LinkLimits,
+  request: FastifyRequest,
+  reply: FastifyReply,
+) {
   const list = ctx.hostnames();
   if (!isAllowedLocalHost(list, request.headers.host)) return forbid(reply, "host");
   if (request.headers.authorization !== undefined) {
-    if (!ctx.session.isValidToken(bearerOf(request))) return sendUnauthenticated(request, reply);
+    const master = ctx.session.isValidToken(bearerOf(request));
+    if (!master && !isMachineLink(request)) return sendUnauthenticated(request, reply);
     if (hasForeignOrigin(list, request)) return forbid(reply, "origin");
+    if (!master) {
+      if (!(await authenticateMachine(ctx, limits, request))) return sendUnauthenticated(request, reply);
+      return;
+    }
     request.deviceId = OWNER_DEVICE_ID;
     return rejectContentType(request, reply);
   }
@@ -93,14 +134,16 @@ async function guardLocal(ctx: GuardContext, request: FastifyRequest, reply: Fas
     request.deviceId = OWNER_DEVICE_ID;
     return rejectContentType(request, reply);
   }
-  if (!(await authenticateDevice(ctx, request))) return sendUnauthenticated(request, reply);
+  if (isMachineLink(request) || !(await authenticateDevice(ctx, request))) {
+    return sendUnauthenticated(request, reply);
+  }
   rejectContentType(request, reply);
 }
 
 /** Runs before routing. Provenance is the socket (`ctx.tunnel`), never a header. */
-export function createGuard(ctx: GuardContext) {
+export function createGuard(ctx: GuardContext, limits: LinkLimits = createLinkLimits()) {
   return async function guard(request: FastifyRequest, reply: FastifyReply): Promise<void> {
-    if (ctx.tunnel.tagOf(request.raw.socket)) return guardTunneled(ctx, request, reply);
-    return guardLocal(ctx, request, reply);
+    if (ctx.tunnel.tagOf(request.raw.socket)) return guardTunneled(ctx, limits, request, reply);
+    return guardLocal(ctx, limits, request, reply);
   };
 }

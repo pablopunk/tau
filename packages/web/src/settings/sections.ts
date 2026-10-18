@@ -7,6 +7,7 @@ export const SETTINGS_SECTIONS = [
   { id: "agent", label: "Agent" },
   { id: "tools", label: "Tools" },
   { id: "remote", label: "Remote access" },
+  { id: "machines", label: "Machines" },
 ] as const;
 
 export type SettingsSectionId = (typeof SETTINGS_SECTIONS)[number]["id"];

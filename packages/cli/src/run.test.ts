@@ -58,6 +58,28 @@ describe("run", () => {
     expect(openBrowser).toHaveBeenCalledWith(app?.url);
   });
 
+  it("starts the link client with the frozen options and stops it before the server", async () => {
+    const home = newHome();
+    const order: string[] = [];
+    const stop = vi.fn(async () => void order.push("link"));
+    const startLinkClient = vi.fn(() => ({ stop }));
+    const { dependencies, core, serverClose } = fakeDependencies({ startLinkClient });
+    serverClose.mockImplementation(async () => void order.push("server"));
+    const app = await run(optionsFor(home, "--port", "5001"), dependencies);
+    expect(startLinkClient).toHaveBeenCalledWith({
+      port: 5001,
+      token: expect.stringMatching(/.{32,}/),
+      hubFile: expect.objectContaining({
+        read: expect.any(Function),
+        write: expect.any(Function),
+        delete: expect.any(Function),
+      }),
+      core,
+    });
+    await app?.close();
+    expect(order).toEqual(["link", "server"]);
+  });
+
   it("does not open the browser with --no-open", async () => {
     const { dependencies, openBrowser } = fakeDependencies();
     await run(optionsFor(newHome(), "--no-open"), dependencies);

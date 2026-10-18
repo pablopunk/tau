@@ -124,6 +124,37 @@ export const SETTINGS_INDEX: readonly SettingEntry[] = [
     description: "Linked devices: rename, revoke, sign out all.",
     keywords: ["sessions", "revoke", "sign out", "logout", "this device", "linked", "last seen"],
   },
+  {
+    id: "machines",
+    section: "machines",
+    label: "Machines",
+    description: "This machine and the machines linked to it: rename, disconnect, open their settings.",
+    keywords: [
+      "computers",
+      "servers",
+      "homelab",
+      "linked",
+      "online",
+      "offline",
+      "runtimes",
+      "hub",
+      "federation",
+    ],
+  },
+  {
+    id: "connect-machine",
+    section: "machines",
+    label: "Connect a machine",
+    description: "Link another tau with one command: a code, a link and a QR.",
+    keywords: ["link", "add machine", "tau connect", "pair", "code", "qr", "second computer", "server"],
+  },
+  {
+    id: "hub-link",
+    section: "machines",
+    label: "Linked to a hub",
+    description: "When this machine is linked to another tau: the hub's name, its state, and Disconnect.",
+    keywords: ["hub", "disconnect", "unlink", "tau disconnect", "unreachable", "update tau"],
+  },
 ];
 
 /** Row ids built from data, such as `provider:openai`. Entries for them come from `dynamicEntries`. */

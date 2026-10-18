@@ -6,6 +6,7 @@ import { lifecycleFlagsOf } from "./lifecycle/flags";
 import { resolvePort, writeStoredPort } from "./lifecycle/port-store";
 import { waitForFreeHome } from "./lifecycle/wait-for-lock";
 import { mirrorConsoleToLogFile } from "./logging/file-logging";
+import { startLinkClient } from "./machines/link-client";
 import { defaultHome, parseCliOptions } from "./options";
 import { run } from "./run";
 import { findStaticDir } from "./static-dir";
@@ -55,6 +56,7 @@ async function serveOnce(argv: readonly string[]): Promise<void> {
     createCore,
     createServer,
     openBrowser,
+    startLinkClient,
     log: (message) => console.log(message),
     staticDir: findStaticDir(),
     cliEntry: cliEntry().entry,

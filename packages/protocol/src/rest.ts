@@ -37,6 +37,7 @@ import {
   WorkspaceDefaultSchema,
 } from "./entities";
 import { ICON_BODY_LIMIT } from "./icons";
+import { HubLinkSchema, MachineSchema, RenameMachineBodySchema } from "./machines";
 import {
   CheckpointSchema,
   McpServerConfigSchema,
@@ -143,6 +144,24 @@ export const routes = {
     body: RedeemPairingBodySchema,
     response: RedeemPairingResponseSchema,
   },
+  listMachines: {
+    method: "GET",
+    path: `${API_PREFIX}/machines`,
+    status: 200,
+    response: Type.Array(MachineSchema),
+  },
+  renameMachine: {
+    method: "PUT",
+    path: `${API_PREFIX}/machines/:id`,
+    status: 204,
+    params: IdParams,
+    body: RenameMachineBodySchema,
+  },
+  disconnectMachine: { method: "DELETE", path: `${API_PREFIX}/machines/:id`, status: 204, params: IdParams },
+  getHubLink: { method: "GET", path: `${API_PREFIX}/machines/hub`, status: 200, response: HubLinkSchema },
+  disconnectHub: { method: "POST", path: `${API_PREFIX}/machines/hub/disconnect`, status: 204 },
+  /** A WebSocket route: the machine dials the hub here with its machine secret (`machine-link.ts`). */
+  linkMachine: { method: "GET", path: `${API_PREFIX}/machines/link`, status: 200 },
   getSettings: { method: "GET", path: `${API_PREFIX}/settings`, status: 200, response: SettingsSchema },
   setDefaultModel: {
     method: "PUT",

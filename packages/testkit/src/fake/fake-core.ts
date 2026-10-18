@@ -5,6 +5,7 @@ import {
   type Core,
   type MessageMode,
   type ModelRef,
+  PROTOCOL_VERSION,
   type Project,
   type Settings,
   type Skill,
@@ -33,6 +34,7 @@ import { cloneWouldFail, folderNameFor, repositoryKeyOf } from "./fake-git";
 import { createFakeGithub, type FakeGithubOptions } from "./fake-github";
 import { createFakeIcons } from "./fake-icons";
 import { assertImageMatchesMimeType } from "./fake-images";
+import { createFakeMachines, FAKE_MACHINE_SEEDS, type FakeMachines } from "./fake-machines";
 import { createFakeMvp5 } from "./fake-mvp5";
 import { createFakeMvp8 } from "./fake-mvp8";
 import { createFakeProviders } from "./fake-providers";
@@ -59,6 +61,8 @@ export interface FakeCoreOptions {
   readonly terminals?: boolean;
   /** Start with remote on. Default false. */
   readonly remote?: boolean;
+  /** Start as a hub with two linked machines (`Homelab` online, `Work laptop` offline). Default false. */
+  readonly machines?: boolean;
 }
 
 export { FAKE_HOME_PATH };
@@ -75,6 +79,13 @@ export type FakeCore = Core & {
   readonly seedApproval: FakeConnectors["seedApproval"];
   /** Plays tunnel behaviour (`reconnecting`, errors) over the fake remote. */
   readonly remoteControl: Pick<FakeRemote, "push">;
+  /** Plays link behaviour over the fake machines registry. */
+  readonly machinesControl: Pick<FakeMachines, "setStatus">;
+  /**
+   * The data of each linked machine: `core.machineCores.get(id)` is the fake tau that `/api/m/<id>/...` reaches.
+   * Empty unless `machines: true`; a machine added by `core.machines.register` has none.
+   */
+  readonly machineCores: ReadonlyMap<string, FakeCore>;
 };
 
 export function createFakeCore(options: FakeCoreOptions = {}): FakeCore {
@@ -350,8 +361,25 @@ export function createFakeCore(options: FakeCoreOptions = {}): FakeCore {
   const access = createFakeAccess({ now, emit, remoteUrl: () => remote.status().url });
   const remote = createFakeRemote({ now, emit, access, enabled: options.remote });
 
+  const machines = createFakeMachines({ now, emit, access });
+  const machineCores = new Map<string, FakeCore>();
+  if (options.machines) seedMachines();
+
+  function seedMachines() {
+    for (const seed of FAKE_MACHINE_SEEDS) {
+      const { id } = access.addMachineDevice(seed.name);
+      void machines.api
+        .register(id, { ...seed, protocolVersion: PROTOCOL_VERSION })
+        .then(() => (seed.status === "offline" ? machines.api.markOffline(id) : undefined));
+      machineCores.set(id, createFakeCore({ configured: true, now, speed, terminals: options.terminals }));
+    }
+  }
+
   return {
     access,
+    machines: machines.api,
+    machinesControl: machines,
+    machineCores,
     remote: remote.api,
     remoteControl: remote,
     fs: {

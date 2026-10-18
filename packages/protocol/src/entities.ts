@@ -293,6 +293,7 @@ export const ChangeSchema = Type.Union([
   Type.Object({ resource: Type.Literal("approvals"), conversationId: Type.String() }),
   Type.Object({ resource: Type.Literal("remote") }),
   Type.Object({ resource: Type.Literal("devices") }),
+  Type.Object({ resource: Type.Literal("machines") }),
 ]);
 export type Change = Type.Static<typeof ChangeSchema>;
 

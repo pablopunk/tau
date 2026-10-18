@@ -13,8 +13,10 @@ import type {
   GithubRepo,
   GithubStatus,
   Goal,
+  HubLink,
   LoginSession,
   LoopInput,
+  Machine,
   McpServerConfig,
   McpServerStatus,
   MessageMode,
@@ -180,6 +182,15 @@ export interface Api {
     /** What the pair page does with `fetch`; here for the fake backend and tests (a real device redeems before it has a session). */
     redeemPairing(input: RedeemPairingBody): Promise<RedeemPairingResponse>;
   };
+  machines: {
+    /** The machines linked to THIS tau (a hub). */
+    list(): Promise<Machine[]>;
+    rename(id: string, name: string): Promise<void>;
+    disconnect(id: string): Promise<void>;
+    /** This tau's own link to a hub ("Linked to <hub>"). */
+    hubLink(): Promise<HubLink>;
+    disconnectHub(): Promise<void>;
+  };
   terminals: {
     available(): Promise<boolean>;
     list(conversationId: string): Promise<TerminalInfo[]>;
@@ -322,6 +333,13 @@ export function createApi(transport: Transport): Api {
       signOutAll: () => request("signOutAllDevices", {}),
       mintPairing: (input) => request("mintPairing", { query: input }),
       redeemPairing: (input) => request("redeemPairing", { body: input }),
+    },
+    machines: {
+      list: () => request("listMachines", {}),
+      rename: (id, name) => request("renameMachine", { params: { id }, body: { name } }),
+      disconnect: (id) => request("disconnectMachine", { params: { id } }),
+      hubLink: () => request("getHubLink", {}),
+      disconnectHub: () => request("disconnectHub", {}),
     },
     terminals: {
       available: async () => (await request("getTerminalsAvailable", {})).available,

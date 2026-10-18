@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import type { Core, CreateCore, CreateCoreOptions } from "@tau/protocol";
+import { type Core, type CreateCore, type CreateCoreOptions, PROTOCOL_VERSION } from "@tau/protocol";
 import { createAccess } from "./access/create-access";
 import { createFileDeviceStore } from "./access/file-device-store";
 import { createAgentTypeLoader } from "./agents/agent-types";
@@ -41,6 +41,7 @@ import { openDataHome } from "./home/data-home";
 import { acquireHomeLock } from "./home/lock";
 import { createSettingsStore } from "./home/settings-store";
 import { createIconService } from "./icons/icon-service";
+import { createMachines } from "./machines/create-machines";
 import { createMcpService } from "./mcp/mcp-service";
 import { createMcpApi } from "./mcp-api";
 import { createProcessService } from "./processes/process-service";
@@ -333,9 +334,19 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
       })
       .catch((error: unknown) => console.error("tau: remote access did not start", error));
 
+    const machines = createMachines({
+      directory: home.machinesDirectory,
+      now: deps.now,
+      changes,
+      access,
+      forgetHub: options.forgetHub,
+      protocolVersion: PROTOCOL_VERSION,
+    });
+
     let closing: Promise<void> | undefined;
     return {
       access,
+      machines,
       remote: remote.api,
       fs: { suggestDirectories },
       settings: createSettingsApi({

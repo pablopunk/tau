@@ -5,6 +5,7 @@ import type { Core } from "@tau/protocol";
 import { createFakeCore, type FakeCoreOptions } from "@tau/testkit";
 import type { LightMyRequestResponse } from "fastify";
 import { createServer, type RunningServer } from "../create-server";
+import type { MachineGateway } from "../machines/gateway";
 
 export const TOKEN = "test-token-123";
 
@@ -30,10 +31,16 @@ export function makeStaticDir(): string {
 }
 
 export async function startTestServer(
-  options: { core?: Core; fake?: FakeCoreOptions; staticDir?: string } = {},
+  options: { core?: Core; fake?: FakeCoreOptions; staticDir?: string; gateway?: MachineGateway } = {},
 ): Promise<TestServer> {
   const core = options.core ?? createFakeCore({ configured: true, speed: 1000, ...options.fake });
-  const server = await createServer({ core, port: 0, token: TOKEN, staticDir: options.staticDir });
+  const server = await createServer({
+    core,
+    port: 0,
+    token: TOKEN,
+    staticDir: options.staticDir,
+    gateway: options.gateway,
+  });
   const cookie = `tau_${server.port}=${TOKEN}`;
   const headers = { host: `127.0.0.1:${server.port}`, origin: server.origin, cookie };
   return {

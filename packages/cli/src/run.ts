@@ -2,6 +2,8 @@ import { createTunnelTargetRef, publishServerUrl, readRunningInstance } from "@t
 import type { Core, CreateCore } from "@tau/protocol";
 import type { CreateServer } from "@tau/server";
 import { listenOnFreePort } from "./listen-on-free-port";
+import { createHubFileStore, type HubFileStore } from "./machines/hub-file";
+import type { StartLinkClient } from "./machines/link-client";
 import type { CliOptions } from "./options";
 import { ensurePrivateDirectory } from "./private-files";
 import { readOrCreateToken } from "./token";
@@ -14,6 +16,8 @@ export interface RunDependencies {
   readonly staticDir: string | undefined;
   /** The CLI entry file, for core's `<home>/bin/tau` shim. */
   readonly cliEntry?: string;
+  /** Dials the hub when `<home>/hub.json` exists; absent in tests. */
+  readonly startLinkClient?: StartLinkClient;
   /** Written to the lock file. */
   readonly version?: string;
 }
@@ -53,11 +57,13 @@ export async function run(
   if (await reportExistingInstance(options, dependencies, token)) return undefined;
 
   const tunnelTarget = createTunnelTargetRef();
+  const hubFile: HubFileStore = createHubFileStore(options.home);
   const core: Core = await dependencies.createCore({
     home: options.home,
     faux: options.faux,
     cliEntry: dependencies.cliEntry,
     tunnelTarget: tunnelTarget.get,
+    forgetHub: () => hubFile.delete(),
   });
   try {
     const server = await listenOnFreePort(options.port, (port) =>
@@ -67,9 +73,11 @@ export async function run(
     await publishServerUrl(options.home, server.origin, dependencies.version);
     dependencies.log(`tau is running: ${server.url}`);
     if (options.open) await openBrowserSafely(server.url, dependencies);
+    const link = dependencies.startLinkClient?.({ port: server.port, token, hubFile, core });
     return {
       url: server.url,
       close: async () => {
+        await link?.stop();
         await server.close();
         await core.close();
       },

@@ -1,15 +1,15 @@
 import { decodeServerFrame, encodeFrame, LIVE_PATH } from "@tau/protocol";
 import type { LiveHandlers, LiveSocket, LiveTransport, StreamHandlers, StreamSocket } from "./types";
 
-function liveUrl(): string {
+function liveUrl(prefix: string): string {
   const scheme = window.location.protocol === "https:" ? "wss" : "ws";
-  return `${scheme}://${window.location.host}${LIVE_PATH}`;
+  return `${scheme}://${window.location.host}${prefix}${LIVE_PATH}`;
 }
 
-export function createWebSocketTransport(): LiveTransport {
+export function createWebSocketTransport(prefix = ""): LiveTransport {
   return {
     open(handlers: LiveHandlers): LiveSocket {
-      const socket = new WebSocket(liveUrl());
+      const socket = new WebSocket(liveUrl(prefix));
       socket.addEventListener("open", () => handlers.onOpen());
       socket.addEventListener("close", () => handlers.onClose());
       socket.addEventListener("message", (event) => {
@@ -24,9 +24,9 @@ export function createWebSocketTransport(): LiveTransport {
   };
 }
 
-export function openWebSocketStream(path: string, handlers: StreamHandlers): StreamSocket {
+export function openWebSocketStream(path: string, handlers: StreamHandlers, prefix = ""): StreamSocket {
   const scheme = window.location.protocol === "https:" ? "wss" : "ws";
-  const socket = new WebSocket(`${scheme}://${window.location.host}${path}`);
+  const socket = new WebSocket(`${scheme}://${window.location.host}${prefix}${path}`);
   socket.binaryType = "arraybuffer";
   socket.addEventListener("open", () => handlers.onOpen());
   socket.addEventListener("close", (event) => handlers.onClose(event.code, event.reason));

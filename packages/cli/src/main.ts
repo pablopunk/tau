@@ -1,4 +1,5 @@
 import { COMMAND_NOUNS } from "@tau/protocol";
+import { runConnect, runDisconnect } from "./commands/connect-command";
 import { runHelp } from "./commands/help";
 import { runPair } from "./commands/pair-command";
 import { runApiCommand } from "./commands/run-command";
@@ -35,6 +36,8 @@ export const commandTable: Readonly<Record<string, CommandHandler>> = {
   help: runHelp,
   ...apiCommandHandlers,
   pair: runPair,
+  connect: runConnect,
+  disconnect: runDisconnect,
 };
 
 export const bareHandler: CommandHandler = (argv) => runBare(argv, serveInForeground);

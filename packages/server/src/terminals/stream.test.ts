@@ -194,6 +194,15 @@ describe("terminal stream", () => {
     socket.send(Buffer.alloc(TERMINAL_STREAM_MAX_INPUT_BYTES + 1, 97));
     expect((await done).code).toBe(1009);
   });
+
+  it("pin (m1): refuses a 70 KB input frame with 1009 although the shared server accepts 1 MB", async () => {
+    ctx = await startTestServer();
+    const socket = connect(await openTerminal());
+    await new Promise((resolve) => socket.once("open", resolve));
+    const done = closed(socket);
+    socket.send(Buffer.alloc(70 * 1024, 97));
+    expect((await done).code).toBe(1009);
+  });
 });
 
 describe("terminal stream security", () => {

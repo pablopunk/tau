@@ -39,7 +39,11 @@ export const COMMAND_NOUNS = [
   "remote",
   "devices",
   "pair",
+  "machines",
 ] as const;
+
+/** Commands with their own flow (`tau pair` has a table verb too); the CLI wires them by hand. */
+export const FLOW_COMMANDS = ["connect", "disconnect"] as const;
 export type CommandNoun = (typeof COMMAND_NOUNS)[number];
 
 /** Body fields the CLI fills with a random id when the user gives none. */
@@ -579,6 +583,41 @@ export const commands: readonly CommandDef[] = [
     positionals: [],
     destructive: false,
   },
+  {
+    command: "machines list",
+    route: "listMachines",
+    summary: "List the machines linked to this hub",
+    positionals: [],
+    destructive: false,
+  },
+  {
+    command: "machines rename",
+    route: "renameMachine",
+    summary: "Rename a linked machine",
+    positionals: ["params.id", "body.name"],
+    destructive: false,
+  },
+  {
+    command: "machines disconnect",
+    route: "disconnectMachine",
+    summary: "Cut a machine's link from the hub: its streams close and its cached summary is deleted",
+    positionals: ["params.id"],
+    destructive: true,
+  },
+  {
+    command: "machines hub",
+    route: "getHubLink",
+    summary: "Show this machine's link to its hub",
+    positionals: [],
+    destructive: false,
+  },
+  {
+    command: "machines unlink",
+    route: "disconnectHub",
+    summary: "Cut this machine's link to its hub (`tau disconnect` does the same and forgets the hub)",
+    positionals: [],
+    destructive: true,
+  },
 ];
 
 const IMAGES = "Images are not text; agents have no use for them here.";
@@ -605,6 +644,7 @@ export const COMMAND_EXCLUSIONS = {
     "Called by the pair page and `tau connect` with a one-time code, never by an agent or the CLI.",
   getHealth: "A probe for the watchdog and the service manager; `tau status` shows the same facts.",
   recreateRemote: "UI only: it clears every linked device, so it needs the confirmation dialog.",
+  linkMachine: "A WebSocket the machine's server dials with its machine secret; not an HTTP call.",
   signOutAllDevices: "UI only: it signs out every browser and phone, this one included.",
 } as const satisfies Partial<Record<RouteName, string>>;
 

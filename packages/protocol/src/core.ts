@@ -30,6 +30,7 @@ import type {
   UseGithubRepoInput,
   WorkspaceDefault,
 } from "./entities";
+import type { HubLink, Machine, MachineHello, MachineSummary } from "./machines";
 import type {
   Checkpoint,
   McpServerConfig,
@@ -366,6 +367,34 @@ export interface Core {
     /** "Make a new URL": a new tunnel, every device and machine cleared. Rejects `invalid_request` unless `canRecreate`. */
     recreate(): Promise<RemoteStatus>;
   };
+  /**
+   * Machines (Stage 2). The hub side is a registry fed by the link route (`register`, `heartbeat`, `markOffline`);
+   * the machine side reports its own link to a hub (`reportLink`). Machine ids are the machines' device ids.
+   */
+  machines: {
+    /** Linked machines with a status computed from heartbeats (online, reconnecting after 15 s, offline after 45 s). */
+    list(): Promise<Machine[]>;
+    /** Rejects `not_found`. Announces `machines`. */
+    rename(id: string, name: string): Promise<void>;
+    /** Idempotent. Revokes the machine's device, deletes its summary cache, announces `machines`. The server closes its link. */
+    disconnect(id: string): Promise<void>;
+    /** This tau's link to its own hub. `none` when it has no `hub.json`. */
+    hubState(): Promise<HubLink>;
+    /** "Disconnect" on the machine: forgets the hub (`hub.json`) and closes the link. Idempotent. */
+    disconnectHub(): Promise<void>;
+    /** The link client reports its state; core keeps it for `hubState` and announces `machines`. */
+    reportLink(state: HubLink): void;
+    /** The link opened (`hello`). `update-required` when `hello.protocolVersion` differs from ours. Announces `machines`. */
+    register(machineId: string, hello: MachineHello): Promise<Machine>;
+    /** A ping or any frame arrived; `threadCount` refreshes the count. */
+    heartbeat(machineId: string, threadCount?: number): void;
+    /** The link closed. Announces `machines`. */
+    markOffline(machineId: string): void;
+    /** `undefined` when none was written. */
+    readSummary(machineId: string): Promise<MachineSummary | undefined>;
+    /** Written only while the link is healthy; deleted by `disconnect`. */
+    writeSummary(machineId: string, summary: MachineSummary): Promise<void>;
+  };
   /** Fires after a successful commit that changed the project list or one project's conversation index. */
   onChange(listener: (change: Change) => void): () => void;
   close(): Promise<void>;
@@ -378,6 +407,8 @@ export interface CreateCoreOptions {
   readonly cliEntry?: string;
   /** `127.0.0.1:<port>` of the server's tunnel listener; resolves once the server is up. Absent: remote cannot start. */
   readonly tunnelTarget?: () => Promise<string>;
+  /** Forgets this tau's hub (deletes `hub.json`); the CLI supplies it, core never reads `hub.json`. */
+  readonly forgetHub?: () => Promise<void>;
 }
 
 export type CreateCore = (options: CreateCoreOptions) => Promise<Core>;

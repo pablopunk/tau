@@ -66,11 +66,13 @@ describe("command table", () => {
     }
   });
 
-  it("flags only the six destructive commands", () => {
+  it("flags only the eight destructive commands", () => {
     const destructive = commands.filter((entry) => entry.destructive).map((entry) => entry.command);
     expect(destructive.sort()).toEqual(
       [
         "devices revoke",
+        "machines disconnect",
+        "machines unlink",
         "projects remove",
         "remote off",
         "threads delete",

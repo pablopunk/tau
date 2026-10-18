@@ -14,6 +14,8 @@ import {
 export type FakeAccess = Core["access"] & {
   /** Removes every device and machine, as a new URL or remote off does. */
   clearAll(): Promise<void>;
+  /** Adds a machine device without a pairing code (the fake hub's seeded machines). */
+  addMachineDevice(name: string): { id: string; secret: string };
 };
 
 export interface FakeAccessOptions {
@@ -168,6 +170,16 @@ export function createFakeAccess({ now, emit, remoteUrl }: FakeAccessOptions): F
       });
       announce();
       return { deviceId: id, kind: found.kind, secret };
+    },
+    addMachineDevice(name) {
+      const secret = randomHex(32);
+      const id = `device-${++counter}`;
+      const at = now();
+      devices.set(id, {
+        device: { id, name, kind: "machine", createdAt: at, lastSeenAt: at },
+        secretHash: sha256(secret),
+      });
+      return { id, secret };
     },
     async clearAll() {
       devices.clear();

@@ -40,6 +40,9 @@ export const queryKeys = {
   allMcpServers: ["mcp"] as const,
   remoteStatus: ["remote"] as const,
   devices: ["devices"] as const,
+  /** `["machines"]` is the hub's list; `["machines", "hub"]` is this tau's own link to a hub. */
+  machines: ["machines"] as const,
+  hubLink: ["machines", "hub"] as const,
 };
 
 export const useProviders = () =>

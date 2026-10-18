@@ -352,12 +352,4 @@ describe("tunnel listener: destroy rules", () => {
   });
 });
 
-describe("machine branch (Stage 2)", () => {
-  it.todo("accepts a machine Bearer only on GET /api/machines/link with an Upgrade header");
-  it.todo("checks the per-peer rate limit before the hash lookup on the link route");
-  it.todo("sets request.deviceId to the machine's device id, so revoke closes the link socket");
-  it.todo("answers 401 to a machine Bearer on /api/settings, /api/live and the terminal stream");
-  it.todo("answers 401 to a device cookie on the link route");
-  it.todo("answers 401 to a machine secret presented as a device cookie");
-  it.todo("refuses a master token on a tagged link request");
-});
+// The machine branch of the guard is tested in `machine-guard.test.ts`.

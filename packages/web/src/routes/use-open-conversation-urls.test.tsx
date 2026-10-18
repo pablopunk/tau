@@ -3,16 +3,47 @@ import type { ReactNode } from "react";
 import { MemoryRouter } from "react-router";
 import { describe, expect, it } from "vitest";
 import { useOpenConversation } from "@/activity";
-import { conversationPath, terminalPath } from "@/lib/paths";
+import { conversationPath, newThreadPath, terminalPath } from "@/lib/paths";
 
-const urls = [conversationPath("p1", "c1"), terminalPath("p1", "c1"), terminalPath("p1", "c1", "t1")];
+const local = { projectId: "p1", conversationId: "c1" };
+const remote = { machineId: "m 1", ...local };
+
+const urls: Array<[string, unknown]> = [
+  [conversationPath("p1", "c1"), local],
+  [terminalPath("p1", "c1"), local],
+  [terminalPath("p1", "c1", "t1"), local],
+  [conversationPath("p1", "c1", "m 1"), remote],
+  [terminalPath("p1", "c1", undefined, "m 1"), remote],
+  [terminalPath("p1", "c1", "t1", "m 1"), remote],
+];
+
+function open(url: string) {
+  const wrapper = ({ children }: { children: ReactNode }) => (
+    <MemoryRouter initialEntries={[url]}>{children}</MemoryRouter>
+  );
+  return renderHook(() => useOpenConversation(), { wrapper }).result.current;
+}
 
 describe("every consumer of useOpenConversation sees the ids on pane URLs", () => {
-  it.each(urls)("%s", (url) => {
-    const wrapper = ({ children }: { children: ReactNode }) => (
-      <MemoryRouter initialEntries={[url]}>{children}</MemoryRouter>
-    );
-    const { result } = renderHook(() => useOpenConversation(), { wrapper });
-    expect(result.current).toEqual({ projectId: "p1", conversationId: "c1" });
+  it.each(urls)("%s", (url, expected) => {
+    expect(open(url)).toEqual(expected);
+  });
+
+  it("reports no machineId on local URLs and nothing outside a thread", () => {
+    expect("machineId" in open(conversationPath("p1", "c1"))).toBe(false);
+    expect(open("/new")).toEqual({});
+    expect(open(newThreadPath("p1", "m1"))).toEqual({});
+  });
+});
+
+describe("URL shapes", () => {
+  it("keeps today's local URLs byte for byte and prefixes a machine's with /m/<id>", () => {
+    expect(conversationPath("p1", "c1")).toBe("/p/p1/c/c1");
+    expect(terminalPath("p1", "c1", "t1")).toBe("/p/p1/c/c1/terminal/t1");
+    expect(newThreadPath()).toBe("/new");
+    expect(newThreadPath("p 1")).toBe("/new?project=p%201");
+    expect(conversationPath("p1", "c1", "m1")).toBe("/m/m1/p/p1/c/c1");
+    expect(terminalPath("p1", "c1", "t1", "m1")).toBe("/m/m1/p/p1/c/c1/terminal/t1");
+    expect(newThreadPath("p1", "m1")).toBe("/new?project=p1&machine=m1");
   });
 });

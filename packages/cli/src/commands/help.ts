@@ -1,4 +1,4 @@
-import { COMMAND_NOUNS, commandOf, commands } from "@tau/protocol";
+import { COMMAND_NOUNS, commandOf, commands, FLOW_COMMANDS } from "@tau/protocol";
 import { usageError } from "./cli-exit";
 import { commandFlags } from "./command-flags";
 import { usageOf } from "./parse";
@@ -27,6 +27,7 @@ function rootHelp(): string {
     "",
     "API commands (output is JSON):",
     ...COMMAND_NOUNS.map((noun) => `  ${noun}`),
+    ...FLOW_COMMANDS.map((word) => `  ${word}`),
     "",
     "Run `tau <noun> --help` for the commands of a noun, `tau <noun> <verb> --help` for one command.",
   ].join("\n");

@@ -8,7 +8,8 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "vitest run --passWithNoTests"
+    "test": "vitest run --passWithNoTests",
+    "bump-protocol": "BUMP_PROTOCOL=1 vitest run src/protocol-version.test.ts"
   },
   "dependencies": {
     "@earendil-works/chord": "1.3.0",

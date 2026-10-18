@@ -1,4 +1,4 @@
-import { type Core, PAIR_PAGE_PATH, routes } from "@tau/protocol";
+import { AppError, acceptLinkRefusal, type Core, PAIR_PAGE_PATH, routes } from "@tau/protocol";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { defineRoute } from "../rest/define-route";
 import type { DeviceSockets } from "./device-sockets";
@@ -55,7 +55,11 @@ function registerDevices({ core, sockets }: AccessRouteDeps, app: FastifyInstanc
     await core.access.signOutAll();
     for (const device of before) if (device.kind !== "machine") sockets.closeDevice(device.id);
   });
-  defineRoute(app, routes.mintPairing, ({ query }) => core.access.mintPairing(query));
+  defineRoute(app, routes.mintPairing, async ({ query }) => {
+    const refusal = query.kind === "machine" ? acceptLinkRefusal(await core.machines.hubState()) : undefined;
+    if (refusal) throw new AppError("invalid_request", refusal);
+    return core.access.mintPairing(query);
+  });
 }
 
 export function registerAccessRoutes(app: FastifyInstance, deps: AccessRouteDeps): void {

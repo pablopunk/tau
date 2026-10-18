@@ -1,4 +1,12 @@
-import { API_PREFIX, AppError, ERROR_STATUS, PAIR_PAGE_PATH, routes, toErrorBody } from "@tau/protocol";
+import {
+  API_PREFIX,
+  AppError,
+  ERROR_STATUS,
+  MACHINE_LINK_PATH,
+  PAIR_PAGE_PATH,
+  routes,
+  toErrorBody,
+} from "@tau/protocol";
 import type { FastifyReply, FastifyRequest } from "fastify";
 
 export function pathOf(request: FastifyRequest): string {
@@ -45,4 +53,9 @@ const BEARER = /^Bearer ([^\s]+)$/i;
 
 export function bearerOf(request: FastifyRequest): string | undefined {
   return BEARER.exec(request.headers.authorization ?? "")?.[1];
+}
+
+/** Exactly `GET /api/machines/link` with `Upgrade: websocket`: the only place a machine secret is looked at. */
+export function isMachineLink(request: FastifyRequest): boolean {
+  return request.method === "GET" && pathOf(request) === MACHINE_LINK_PATH && isWebSocketUpgrade(request);
 }

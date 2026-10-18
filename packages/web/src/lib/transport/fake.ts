@@ -11,7 +11,7 @@ import {
   PROCESS_LOG_TAIL_DEFAULT,
   RETIRED_OPS,
 } from "@tau/protocol";
-import { createFakeCore } from "@tau/testkit";
+import { createFakeCore, type FakeCore } from "@tau/testkit";
 import { openFakeStream } from "./fake-terminal-stream";
 import type { LiveHandlers, LiveSocket, RouteRequest, RouteResponse, Transport } from "./types";
 
@@ -145,6 +145,14 @@ const handlers: Handlers = {
       ? { deviceId: redeemed.deviceId, secret: redeemed.secret }
       : { deviceId: redeemed.deviceId };
   },
+  listMachines: (core) => core.machines.list(),
+  renameMachine: (core, { params, body }) => core.machines.rename(params.id, body.name as string),
+  disconnectMachine: (core, { params }) => core.machines.disconnect(params.id),
+  getHubLink: (core) => core.machines.hubState(),
+  disconnectHub: (core) => core.machines.disconnectHub(),
+  linkMachine: async () => {
+    throw new AppError("not_found", "The machine link is a socket, not an HTTP call.");
+  },
   decideApproval: (core, { params, body }) =>
     core.approvals.decide(params.id, params.toolUseId, body.decision as never),
 };
@@ -213,12 +221,53 @@ async function seedReadyState(core: Core): Promise<void> {
   await core.projects.add({ path: READY_PROJECT });
 }
 
-/** The in-browser backend of `VITE_FAKE=1`. Add `?fake=ready` to the URL to start past setup, with a project and remote on (`&remote=off` starts with it off). */
+let hub: Promise<FakeCore> | undefined;
+
+/**
+ * One fake hub per page, shared by the local transport and every machine transport:
+ * `?fake=ready` starts past setup with remote on (`&remote=off` starts with it off), and `&machines=2`
+ * (or `&machines`) links the two fake machines (`Homelab` online, `Work laptop` offline).
+ */
+function fakeHub(): Promise<FakeCore> {
+  hub ??= (async () => {
+    const params = new URLSearchParams(window.location.search);
+    const ready = params.get("fake") === "ready";
+    const remote = ready && params.get("remote") !== "off";
+    const machines = ready && params.has("machines");
+    const core = createFakeCore({ configured: ready, remote, machines });
+    if (ready) await seedReadyState(core);
+    for (const machine of core.machineCores.values()) await seedReadyState(machine);
+    return core;
+  })();
+  return hub;
+}
+
+const OFFLINE = "This machine is offline.";
+
+function fakeMachineCore(core: FakeCore, machineId: string): Core {
+  const machineCore = core.machineCores.get(machineId);
+  if (!machineCore) throw new AppError("not_found", `No machine ${machineId}.`);
+  return machineCore;
+}
+
+/** The transport of one fake machine: its own fake core, or `not_found` while the hub lists it offline. */
+export async function createDefaultFakeMachineTransport(machineId: string): Promise<Transport> {
+  const core = await fakeHub();
+  const machineCore = fakeMachineCore(core, machineId);
+  const inner = createFakeTransport(machineCore);
+  const listed = async () => (await core.machines.list()).find((machine) => machine.id === machineId);
+  return {
+    async request(name, input) {
+      const machine = await listed();
+      if (machine?.status !== "online") throw new AppError("not_found", OFFLINE);
+      return inner.request(name, input);
+    },
+    live: inner.live,
+    openStream: inner.openStream,
+  };
+}
+
+/** The in-browser backend of `VITE_FAKE=1`. See `fakeHub` for the URL switches. */
 export async function createDefaultFakeTransport(): Promise<Transport> {
-  const params = new URLSearchParams(window.location.search);
-  const ready = params.get("fake") === "ready";
-  const remote = ready && params.get("remote") !== "off";
-  const core = createFakeCore({ configured: ready, remote });
-  if (ready) await seedReadyState(core);
-  return createFakeTransport(core);
+  return createFakeTransport(await fakeHub());
 }

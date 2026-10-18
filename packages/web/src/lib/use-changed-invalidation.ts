@@ -42,6 +42,10 @@ function invalidateChange(queryClient: QueryClient, change: Change) {
     void queryClient.invalidateQueries({ queryKey: queryKeys.devices });
     return;
   }
+  if (change.resource === "machines") {
+    void queryClient.invalidateQueries({ queryKey: queryKeys.machines });
+    return;
+  }
   if (change.resource === "mcp") {
     void queryClient.invalidateQueries({ queryKey: queryKeys.allMcpServers });
     return;
