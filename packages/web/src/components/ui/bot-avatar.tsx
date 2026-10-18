@@ -15,6 +15,9 @@ export function botAvatarLook(index: number) {
   }
 }
 
+/** bot-avatars draws the resting bot above its box center (it keeps headroom for the hop); measured at about a fifth of the size. */
+const spriteCenteringOffset = (size: number) => Math.round(size * 0.21)
+
 interface BotAvatarProps extends Omit<React.ComponentProps<"span">, "children"> {
   avatarIndex: number
   /** The only time the avatar moves: it hops and spins while the agent works, otherwise it is still. */
@@ -22,9 +25,11 @@ interface BotAvatarProps extends Omit<React.ComponentProps<"span">, "children"> 
   size?: number
   /** A status marker (a dot or icon) shown on the top left corner. */
   badge?: React.ReactNode
+  /** A marker about where the thread came from (e.g. a fork), shown on the bottom left corner. */
+  originBadge?: React.ReactNode
 }
 
-function BotAvatar({ avatarIndex, working = false, size = 24, badge, className, ...props }: BotAvatarProps) {
+function BotAvatar({ avatarIndex, working = false, size = 24, badge, originBadge, className, ...props }: BotAvatarProps) {
   const reducedMotion = usePrefersReducedMotion()
   return (
     <span
@@ -34,16 +39,19 @@ function BotAvatar({ avatarIndex, working = false, size = 24, badge, className, 
       style={{ width: size, height: size }}
       {...props}
     >
-      <BotAvatarCanvas
-        {...botAvatarLook(avatarIndex)}
-        size={size}
-        state={working ? "working" : "default"}
-        turn={working ? undefined : 0}
-        paused={!working || reducedMotion}
-        interactive={false}
-        aria-hidden
-      />
+      <span className="flex" style={{ transform: `translateY(${spriteCenteringOffset(size)}px)` }}>
+        <BotAvatarCanvas
+          {...botAvatarLook(avatarIndex)}
+          size={size}
+          state={working ? "working" : "default"}
+          turn={working ? undefined : 0}
+          paused={!working || reducedMotion}
+          interactive={false}
+          aria-hidden
+        />
+      </span>
       {badge ? <span className="absolute -top-1 -left-1 flex">{badge}</span> : null}
+      {originBadge ? <span className="absolute -bottom-1 -left-1 flex">{originBadge}</span> : null}
     </span>
   )
 }

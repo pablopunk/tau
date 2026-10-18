@@ -28,6 +28,7 @@ import { conversationPath } from "@/lib/paths";
 import { queryKeys } from "@/lib/queries";
 import { conversationDot } from "./conversation-dot";
 import { DeleteConversationDialog } from "./DeleteConversationDialog";
+import { ForkBadge, isFork } from "./ForkBadge";
 import { NameDialog } from "./NameDialog";
 import { ThreadMenuItems } from "./ThreadMenuItems";
 
@@ -137,6 +138,7 @@ export function ThreadRow({
                 avatarIndex={conversation.avatarIndex}
                 working={conversation.status === "running"}
                 badge={dot && dot !== "running" ? <StatusDot status={dot} /> : undefined}
+                originBadge={isFork(conversation) ? <ForkBadge conversation={conversation} /> : undefined}
               />
             }
             context={depth === 0 && showProject ? project?.name : undefined}
