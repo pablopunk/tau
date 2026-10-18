@@ -1,229 +1,206 @@
-# MVP12 plan: tau reachable from anywhere (the server everywhere)
+# MVP12 plan: tau reachable from anywhere, with all my machines in one UI
 
-Status: DRAFT v4 (round 1 applied; the user put machines in scope; round 2 and 3 pending). The sections "Round 1 changes" and "Machines" override older text where they disagree. Builds on PLAN.md "Hub + runtimes", "OpenTunnel" and "Pairing", and on MVP7 (the durable user service). Evidence so far: `@opentunnel/client` 0.5.2 and the `opentunnel` CLI README (unpacked in `/tmp/ot-inspect`), the current guard `packages/server/src/security/guard.ts`.
+Status: DRAFT v5 (one clean text; review rounds 1–3 applied; round 4 pending). Federation (Stage 2) awaits the user's OK. Builds on PLAN.md "OpenTunnel" and "Pairing" and on MVP7 (the durable user service). Evidence: `@opentunnel/client` 0.5.2 and `@opentunnel/protocol` (unpacked in `/tmp/ot-inspect`), the guard `packages/server/src/security/guard.ts`, the Multica docs (multica.ai/docs/daemon-runtimes) and the local `multica` CLI.
 
 ## Goal
 
-> tau runs 24/7 on one machine (my homelab or a Mac). I open it from my phone or any browser with a link or a QR code. No port forwarding, no account, no DNS. If the server hangs or crashes, it comes back by itself.
+> tau runs 24/7 on a machine (my homelab or a Mac). I open it from my phone or any browser with a link or a QR code. No port forwarding, no account, no DNS. If the server hangs or crashes, it comes back by itself. I can also connect any other server or PC, and see all their threads in the same UI.
 
 ## What already exists (do not redo)
 
-- **MVP7**: `tau service install` makes a launchd / systemd user / Task Scheduler service with restart after a crash and a reboot (`cli/src/service/**`, `KeepAlive`, `Restart=always` + linger). `tau status|logs|restart`.
-- **Guard** (`security/guard.ts:60-90`): every request needs the Host in an allow-list (only `127.0.0.1:<port>` and `localhost:<port>`), a valid Origin for writes and sockets, and a token (Bearer) or a cookie. One static token in `<home>/token`; the cookie value **is** that token, forever.
-- The server binds `127.0.0.1` (`create-server.ts:43`).
+- **MVP7**: `tau service install` makes a launchd, systemd user or Task Scheduler service that restarts after a crash and a reboot (`cli/src/service/**`; launchd `KeepAlive` `render.ts:22`, systemd `Restart=always` `render.ts:45` with `RestartSec=5`). `tau status|logs|restart`. `--service` mode exists (`options.ts:11`).
+- **Guard** (`security/guard.ts:60-90`): the Host must be in an allow-list (only `127.0.0.1:<port>` and `localhost:<port>`, `allow-list.ts`), writes and sockets need an allowed Origin, and every request needs the master token (Bearer or `?token=`) or its cookie `tau_<port>` (`session.ts:17`). One static token in `<home>/token`; the cookie value is that token.
+- The server binds `127.0.0.1` (`create-server.ts:43`). The terminal stream sets `maxPayload` 64 KB on the shared WebSocket server (`terminals/register-stream.ts:7`).
 
 ## Scope
 
-In:
-1. **Remote access switch** (Settings → Remote access, and `tau remote on|off|status`): the server opens an OpenTunnel tunnel to its own port. The public URL is `https://<name>.<hostname>`; it is stable until the user turns remote off (off deletes the tunnel; on makes a new URL). The tunnel runs **inside the server process** (`@opentunnel/client`, TLS ends in our process, the relay sees no plaintext). One service, one thing to watch.
-2. **Link a device** (Settings → Remote access → "Link a device", and `tau pair`): mints a **one-time pairing code**. The UI shows a QR code, the link, and a short code to type. The new device opens the link, and is signed in with **its own session**. Same flow for a phone, another browser, a colleague's laptop.
-3. **Devices** list in Settings (name, kind, last seen, "this device"); rename; revoke one; sign out all. Revoking cuts that device's open sockets at once.
-4. **Watched server**: a health route and a watchdog thread (a stuck event loop exits the process, so the OS service restarts it), a tunnel watcher (reconnect, recreate when down too long), and a status line in Settings and `tau status`: server uptime, last restart reason, tunnel state.
-5. **Headless first run**: on a server with no screen, `tau pair` over SSH enables remote when needed and prints the QR and link in the terminal. The phone then does the rest (providers, projects) in the web setup.
+Two stages. Stage 2 starts only after Stage 1 passes check, test, build, e2e and a real-tunnel run.
 
-Out (later plans): **a thread that moves between machines**, a hub that owns all data and thin runtimes (PLAN.md "Hub + runtimes"; see "Machines" for why), grouping the same repo across machines, per-machine permissions. PWA, mobile layout and offline caching (next plan); other tunnel providers (Cloudflare, Tailscale: the remote adapter is a port, so they fit later); LAN mode (binding `0.0.0.0`); per-device permission scopes; push notifications; auto update (`tau update`); the OS never sleeping (a Mac host may sleep: Settings shows a note, nothing more).
+### Stage 1: remote access
 
-## Design
+1. **Remote switch** (Settings → Remote access, `tau remote on|off|status`): the server opens an OpenTunnel tunnel to its own port. The URL is `https://<hostname>` (route `@`), stable until the user turns remote off or makes a new URL. The tunnel client runs inside the server process (TLS ends in our process; the relay sees no plaintext).
+2. **Link a device** (Settings → "Link a device", `tau pair`): a one-time code shown as QR, link and short code. The new device gets **its own session**. Phone, browser, a colleague's laptop: the same flow.
+3. **Devices** list (name, kind, last seen, "this device"): rename, revoke, sign out all. Revoke cuts that device's open sockets at once.
+4. **Watched server**: `GET /api/health`, a watchdog that kills a hung process so the OS service restarts it, a start log, the last exit reason, a tunnel status. Shown in Settings and `tau status`.
+5. **Headless first run**: `tau pair` over SSH enables remote when needed and prints the QR and link in the terminal.
 
-### Trust model (the main risk)
+### Stage 2: machines
 
-- **A public URL is not secret.** Certificates for `<random>.<hostname>` go to public CT logs, so scanners find it. The URL must be safe to be known. All defence is in auth.
-- **Loopback is not trust.** The tunnel delivers bytes to `127.0.0.1` and "a target cannot tell a tunneled request from a local one" (opentunnel README, trust-boundary note). The guard already needs a token or cookie for everything, so it stays correct, but two rules are added:
-  1. The **master token** (`<home>/token`, used by the CLI and the local browser link) is accepted **only** when the request's Host is a loopback name. Over the tunnel Host, only a **device secret** or a pairing code works.
-  2. The unauthenticated surface on the tunnel Host is exactly: the pair page (`GET /pair`), `POST /api/pair/redeem`, and `GET /api/health` (returns `{ ok: true }` only). Everything else answers 401 as today.
-- **Allow-list becomes dynamic**: the tunnel hostname is added to `hosts` and `https://<hostname>` to `origins` when the tunnel is up, and removed when it goes down (`allow-list.ts`, today fixed by port).
-- **Cookies**: `Secure` + `HttpOnly` + `SameSite=Strict` over https; the pair page lands the cookie with the same same-origin page trick as `session-start-page.ts`.
-- **A linked device can do everything the user can, including terminals and agents that run commands** (MVP11 risk note: remote needs per-device auth first; this plan adds it). Decision pending (see questions): no scopes now, loud text in the link dialog, per-device revoke.
+6. **Connect a machine** (`tau connect <link>` on the machine; Settings → Machines on the hub): any tau server or PC joins the hub with one command. The hub's sidebar groups threads by machine; each machine has its own settings, projects, providers and Claude login, all unchanged.
 
-### Devices and pairing (core, `core/src/access/**`)
+Out (later plans): a thread that moves between machines; a hub that owns all data with thin runtimes (rejected, see "Why federation"); grouping the same repo across machines; per-machine permissions; PWA, mobile layout and offline caching; other tunnel providers (the remote adapter is a port); LAN mode; per-device scopes; second factor; push notifications; `tau update`; keeping a Mac awake (a note in Settings only).
 
-- `Device { id, name, kind: "browser" | "phone" | "cli", createdAt, lastSeenAt, current }`. The secret is 32 random bytes shown **once** to the device (cookie value); the store keeps only `sha256(secret)`, in `<home>/devices.json`, private file mode. Constant-time compare (as `session.ts`).
-- **Pairing code**: single use, expires in 5 minutes, held in memory (a restart burns them). Link form `https://<host>/pair#<code>` (a fragment: never sent in a request line or referrer). Short form: 8 characters from a no-lookalike alphabet, in groups of 4, entered on `https://<host>/pair`. Several codes can be live (max 5).
-- **Redeem** (`POST /api/pair/redeem { code, deviceName }`, unauthenticated, no cookie needed): valid → creates the device, sets the cookie, burns the code, announces a `devices` Change to the owner's open UI ("Pablo's iPhone linked"). Wrong code: 401 with a generic message. **Rate limit**: all peers look like `127.0.0.1` to the server, so the limit is global: 5 failures in a minute lock redeem for 1 minute, and 20 failures burn every live code. (Per-visitor limits need the proxy-protocol listener; later.)
+## Design, Stage 1
+
+### Trust model
+
+- **A public URL is not secret** (certificates go to public CT logs). All defence is in auth.
+- **Provenance is the socket, not the header.** The SDK routes by SNI and forwards decrypted bytes unchanged, and the visitor chooses `Host` and `Origin`. A connection is **tunneled** when it arrived on the tunnel listener; headers prove nothing.
+- **Tunnel listener**: the route `@` points at a second loopback `net.Server` (`127.0.0.1:<random>`) with `proxyProtocol: "v2"`. It buffers until the full PROXY v2 header has arrived (12-byte signature, byte 12 `0x21` or `0x20`, byte 13 `0x11`/`0x21`/`0x00`, length in bytes 14–15; TCP4 12 address bytes, TCP6 36; the authority TLV `0x02` holds the SNI) with a 5 s timeout, strips it, and tags the socket in a `WeakMap<Socket, { peer, sni }>`. Rules:
+  1. A socket whose header is missing, malformed, split past the timeout or without an SNI equal to the tunnel hostname is **destroyed**, never treated as untagged.
+  2. Tag first, then `socket.unshift(rest)`, `app.server.emit("connection", socket)` and `socket.resume()` (without `resume()` nothing is read; verified in round 2).
+  3. The listener closes together with `app.close()`.
+  4. A LOCAL header (no address) uses one shared rate-limit bucket.
+- **Guard rules** (`GuardContext`, frozen in Phase 0: `{ session, access: Core["access"], tunnel, hostnames() }`). On an **untagged** socket: as today (master token, loopback Hosts, `?token=`), and device cookies work too. On a **tagged** socket: the only allowed Host is exactly the tunnel hostname (no port, because https `Host` has no port; `<hostname>:443` is refused), the only allowed Origin is `https://<hostname>`, and only a **device cookie** authenticates. The master token and `?token=` are refused.
+- **Unauthenticated surface on a tagged socket** is exactly: `GET /pair`, `POST /api/pair/redeem`, `GET /api/health` (`{ ok: true }`, no uptime). Plus, in Stage 2, the machine link (Bearer machine secret on `GET /api/machines/link` with an `Upgrade` header, never a cookie). `/assets/*` and everything else answer 401. `/pair` is served on untagged sockets too (same page).
+- **A linked device has full power**, terminals and agents included (decision 3). The link dialog says so in plain words.
+
+### Devices and pairing (`core/src/access/**`)
+
+- `Device { id, name, kind: "browser" | "phone" | "cli" | "machine", createdAt, lastSeenAt, current, os?, tauVersion?, protocolVersion? }` (`machine` is in the Stage 1 enum so `entities.ts` is frozen once). The secret is 32 random bytes, shown once to the device as its cookie. The store keeps `sha256(secret)` in `<home>/devices.json` (mode 0600, atomic writes). Constant-time compare.
+- **Codes**: single use, 5 minutes, in memory (a restart burns them), at most 5 live. A **link code** of 128 bits in the fragment `https://<hostname>/pair#<code>`; a separate **short code** of 8 characters (no lookalikes) typed on `/pair`, with its own limit.
+- **Redeem** `POST /api/pair/redeem { code, deviceName }`: needs `Content-Type: application/json` and Origin `https://<hostname>` (or an allowed loopback Origin). Valid: creates the device, sets the cookie, burns the code, emits a `devices` Change. Wrong code: 401, generic text. Failures never burn codes.
+- **Rate limit** per **peer address** from the PROXY header (IPv6: /64): 5 failures per minute lock that peer for 10 minutes. A global backstop of 100 failures per minute locks short-code redeem only (link codes stay usable).
+- **Cookie** `tau_device` (no port in the name): `HttpOnly`, `SameSite=Strict`, and `Secure` when the socket is tagged. The pair page redeems with `fetch`, then `location.replace("/")` (a same-origin step, so `SameSite=Strict` holds when the link came from another app).
+- **Seam** `Core.access { verifyDevice(secret) → Promise<{ deviceId } | undefined>, verifyMachine(secret), touch(deviceId), listDevices, renameDevice, revokeDevice, signOutAll, mintPairing, redeemPairing }`. `touch` is throttled to once a minute per device. The guard sets a request decoration `deviceId` (`"owner"` for the master token); `registerLive`, `registerTerminalStream` and the machine proxy register their sockets in a `Map<deviceId, Set<socket>>`; revoke closes them, and `/live` subscribe and terminal attach re-check. Mint, list, rename, revoke, sign out all need the owner (master token on loopback, or a linked device). **Sign out all** drops browsers and phones, **not** machines (own button in Stage 2).
 - Device names come from the User-Agent ("Safari on iPhone"), editable.
-- **Live cut**: revoke closes that device's `/live` and terminal sockets (a `deviceId` on each connection).
-- Mint, list, rename, revoke and sign-out-all need the owner (master token on loopback, or any linked device).
-
-### Remote adapter (core, `core/src/remote/**`)
-
-- A port `RemoteAccess { status(), enable(), disable() }`; **the only file that imports `@opentunnel/client`** is `core/src/harness/` style: `core/src/remote/opentunnel-adapter.ts` (Biome `noRestrictedImports`, like pi-env). A fake adapter for tests.
-- `enable()`: `client.tunnel.ensure({ profile })` then `connect({ routes: { "@": "127.0.0.1:<port>" } })`. Profile `tau-<hash of home>`, storage in `<home>/remote/` through a custom store so a `--home` test never touches the user's tunnel and `rm -rf <home>` cannot orphan one. `disable()`: `close()` then `tunnel.remove()`.
-- `Settings.remote { enabled }`. On server start, enabled → connect again with the stored identity (the URL is stable across restarts).
-- Status: `off | starting | online | reconnecting | error`, with the URL, a message for the error and `since`. Events `connected/disconnected/reconnecting` feed it. No raw error text from the relay in the UI without a `neutralText` pass.
-- Requires network to `opentunnel.xyz`; offline → `error: "Cannot reach the tunnel service"`, retried with backoff (the SDK reconnects).
-
-### Watchdog and health (server + cli)
-
-- `GET /api/health` → `{ ok: true }` (exempt from auth, loopback and tunnel). Used by the watchdog, `tau status`, and uptime checkers.
-- **Watchdog**: a `worker_threads` Worker started with the server pings the main thread every 5 s; no answer for 60 s → the worker writes "watchdog: event loop stuck" to the log and `process.exit(1)`. Under the MVP7 service the OS restarts it (non-zero exit is already the rule on Windows). Not started for `tau serve` in the foreground.
-- **Last restart reason** stored in `<home>/last-exit.json` (`watchdog`, `signal`, `clean`; a crash is "unknown" if the file says the previous run did not exit cleanly) and shown in Settings and `tau status`.
-- Crash loop: the MVP7 backoff stays. If the server starts 5 times in 5 minutes, it starts with `remote` **off** and says why (so a bad tunnel state cannot loop forever).
-
-### Web
-
-- Settings → **Remote access** section (`settings/Remote*`): switch with status chip and URL + copy; "Link a device" dialog (QR from a small `components/ui/qr-code.tsx` using a tiny library, the link with copy, the short code in big type, a 5-minute countdown, "Waiting for the device…", then "Linked: Safari on iPhone" and a new code button); Devices list (rows from `components/ui`, revoke with confirm, "This device"); remote-off confirmation that says the URL dies and linked devices stop working.
-- **Unauthenticated pair page** served by the server as static HTML on the tunnel Host (not the React app, which needs a session): code entry or auto-redeem from the `#code` fragment, a device name field, a calm error state. Small, no framework, styled like the app.
-- Light, dark, phone width.
-
-### CLI
-
-- `tau remote on|off|status [--json]`; `tau pair [--name <label>]` (prints link, short code and a terminal QR, then waits and prints "Linked: …" or times out); `tau devices list|rename|revoke <id>`. REST routes in `rest.ts`, commands table rows, coverage test (the destructive list grows by `devices revoke` and `remote off`: update the exact-list test on purpose). `tau status` gains remote and watchdog lines.
-
-### Packaging
-
-`@opentunnel/client` (peer `effect`) as a dependency of `packages/core` and `packages/cli`, exact versions, `neverBundle` if needed (pin). A terminal QR library for the CLI (small). Runs on the Node versions tau supports.
-
-## Round 1 changes (these override anything above that disagrees)
-
-### Provenance is the socket, not the header (replaces "Trust model" rule 1 and the dynamic allow-list)
-
-- The SDK routes by SNI and forwards decrypted bytes unchanged; the visitor chooses `Host` and `Origin`. So a header proves nothing. **A connection is "tunneled" when it arrived on the tunnel listener.**
-- The tunnel route `@` points at a **second loopback listener** (`127.0.0.1:<tunnelPort>`, random) with `proxyProtocol: "v2"`. A small `net.Server` parses and strips the PROXY header (peer address, requested hostname), tags the socket in a `WeakMap<Socket, { peer, hostname }>`, then hands it to Fastify with `app.server.emit("connection", socket)`. The guard reads the tag from `request.raw.socket`.
-- Rules in the guard: on an **untagged** socket (real loopback) the master token, loopback Hosts and `?token=` work as today, and device cookies work too. On a **tagged** socket only the tunnel hostname is an allowed Host, only `https://<hostname>` an allowed Origin, and only a **device cookie** authenticates; the master token and `?token=` are refused.
-- `GuardContext` (frozen in Phase 0): `{ session, access: Core["access"], tunnel: TunnelProvenance, hostnames(): ReadonlySet<string> }`. `create-server.ts` and `security/allow-list.ts` are foundation-owned; the allow-list reads the tunnel hostname live (add when online, remove when down).
-- Unauthenticated surface on a tagged socket is exactly: `GET /pair`, `POST /api/pair/redeem`, `GET /api/health` (`{ ok: true }` only). `/assets/*` and everything else stay 401.
-
-### Access seam in `Core` (frozen in Phase 0)
-
-`Core.access { verifyDevice(secret) → { deviceId } | undefined, touch(deviceId), listDevices, renameDevice, revokeDevice, signOutAll, mintPairing, redeemPairing }` and `Core.remote { status, enable, disable, recreate }`. The server stays free of business logic: it calls these. The guard sets a Fastify request decoration `deviceId` (`"owner"` for the master token). `registerLive` and `registerTerminalStream` pass it to their connections; a `Map<deviceId, Set<socket>>` closes a device's sockets on revoke. Revoke is also re-checked at every `/live` subscribe and terminal attach.
-
-### Pairing and rate limit (replaces the old redeem text)
-
-- Two kinds of code, both single use, 5 minutes, held in memory (restart burns them), max 5 live: a **link code** of 128 bits in the URL fragment (`https://<hostname>/pair#<code>`), and a **short code** of 8 characters (no lookalikes) typed on `/pair`. Constant-time compare against the live set.
-- Failures never burn codes. Limits use the **peer address from the PROXY header**: 5 failures per peer per minute lock that peer for 10 minutes; a global backstop of 100 failures per minute locks short-code redeem only (link codes stay usable). Untagged (loopback) redeem needs no limit beyond the backstop.
-- `POST /api/pair/redeem` needs `Content-Type: application/json` (so a cross-site form cannot burn a code) and an Origin of `https://<hostname>`. The pair page calls it with `fetch`, then `location.replace("/")` (same-origin step; `SameSite=Strict` is safe).
-- Cookie: one name `tau_device` for devices (no port in it), `Secure` + `HttpOnly` + `SameSite=Strict` when the socket is tagged. The master cookie keeps `tau_<port>`.
 
 ### Pair page
 
-One pre-built inline HTML string in `server/src/security/pair-page.ts` (in the style of `session-start-page.ts`), with `Content-Security-Policy: default-src 'none'; style-src 'unsafe-inline'; script-src 'sha256-…'; connect-src 'self'` and `cache-control: no-store`. It is the one UI outside the design system, on purpose (the React app needs a session); it uses the app's colour tokens by value and is owned by C. D (web) only builds the Settings side.
+One pre-built inline HTML string in `server/src/security/pair-page.ts` (like `session-start-page.ts`), owned by the server owner. It is the one UI outside the design system, on purpose (the React app needs a session); it uses the app's colour tokens by value. Headers: `Content-Security-Policy: default-src 'none'; style-src 'unsafe-inline'; script-src 'sha256-<hash of the exact script text, computed at module load>'; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'`, `cache-control: no-store`. A test fails when the script changes without the hash. The script reads `#code`, calls `history.replaceState` to remove it, redeems, and shows a calm error.
 
-### Remote adapter details
+### Remote adapter (`core/src/remote/**`)
 
-- Storage: a custom `OpenTunnelStorage` under `<home>/remote/` (not XDG), so a scratch home never touches the user's tunnel.
-- The URL is `https://<hostname>` (route `@`); stable across restarts while the stored identity exists. If the home is lost the tunnel is orphaned (`remove()` needs its token): documented.
-- `disable()`: close, then `remove()`. If `remove()` fails (offline) the identity is kept with `pendingRemoval: true` and retried at every start and when the network returns.
-- **No automatic re-creation.** `reconnecting` has no timeout that changes the URL; after 10 minutes the status says so and shows a **"Make a new URL"** button (`remote.recreate`), which kills linked devices' URL (their cookies stay valid for the new host only after re-pairing). 
-- Relay error text goes through a new `remote/neutral-text.ts` (the existing `neutralText` is Claude-specific).
+- Port `RemoteAccess { status, enable, disable, recreate }`; only `core/src/remote/opentunnel-adapter.ts` imports `@opentunnel/client` (Biome `noRestrictedImports`, like pi-env). A fake adapter for tests.
+- `enable()`: `ensure` then `connect({ routes: { "@": "127.0.0.1:<tunnelPort>" } })` with `proxyProtocol: "v2"` on the route. Storage: a custom `OpenTunnelStorage` under `<home>/remote/` (not XDG), so a scratch home never touches the user's tunnel. If the home is lost the tunnel is orphaned (`remove()` needs its token): documented.
+- `disable()`: `close()` then `remove()`. If `remove()` fails (offline) the identity is kept with `pendingRemoval: true` and retried at every start and when the network returns.
+- **No automatic re-creation.** After 10 minutes of `reconnecting` the status says so and offers **"Make a new URL"** (`recreate`): it saves the old token under a second profile (`tau-<hash>-old`) with `pendingRemoval`, creates a new tunnel, **clears all devices and machines** (their cookies and links belong to the old host), and says the user must pair again.
+- `Settings.remote { enabled }` (an old `settings.json` loads with it defaulted). On start, enabled → connect with the stored identity.
+- Status `off | starting | online | reconnecting | error`, with URL, `since` and a neutral message. Relay error text goes through a new `remote/neutral-text.ts` (the existing `neutralText` is Claude-specific). Offline: `error: "Cannot reach the tunnel service"`, the SDK retries.
 
 ### Watchdog, starts, last exit
 
-- Heartbeat is a `SharedArrayBuffer` counter incremented by the main thread every second; a `worker_threads` Worker (an extra tsdown entry `dist/watchdog.js`, started with `new Worker(new URL("./watchdog.js", import.meta.url))`) reads it every 5 s and calls `process.exit(1)` after 60 s without change. Started only in `--service` mode (read in `serve.ts` from the flag in `options.ts`).
-- `<home>/starts.json` keeps the last 10 start times; 5 starts in 5 minutes → start with `remote` off and say why. `<home>/last-exit.json` holds the previous run's end (`clean`, `watchdog`, `signal`, `unknown` when a run never wrote its end).
-- MVP7 already restarts (`render.ts:22` launchd `KeepAlive`, `render.ts:45` systemd `Restart=always`, `RestartSec=5`, Task Scheduler restart on failure). Pin (g) checks the systemd start-limit defaults on a rendered unit; no change otherwise.
+- The main thread increments a `SharedArrayBuffer` counter every second. A `worker_threads` Worker (an extra tsdown entry `dist/watchdog.js`, started by `new Worker(new URL("./watchdog.js", import.meta.url))`) reads it every 5 s. After 60 s without change it **first writes `last-exit.json` and a log line with synchronous `fs`**, then `process.kill(process.pid, "SIGKILL")`. (`process.exit` in a worker ends only the worker; verified in round 2.) launchd `KeepAlive` and systemd `Restart=always` restart after a signal.
+- Started only in `--service` mode (the flag is read in `serve.ts`).
+- `<home>/starts.json` keeps the last 10 start times; 5 starts in 5 minutes → start with `remote` off and say why. `<home>/last-exit.json` holds the previous run's end (`clean`, `watchdog`, `signal`, or `unknown` when a run never wrote its end).
+- `tau status` and Settings show uptime, last exit reason and tunnel state.
 
-### Packaging and CLI
+### Web (Stage 1)
 
-- `@opentunnel/client` and its peer `effect` (exact versions) are dependencies of `packages/core` and `packages/cli`, listed in `neverBundle`; one QR library without DOM dependency (`qrcode`: SVG for the web, text for the terminal) in `packages/web` and `packages/cli`. Biome `noRestrictedImports`: only `core/src/remote/opentunnel-adapter.ts` imports `@opentunnel/client`.
-- Phase 0 owns `protocol/src/{rest,entities,core,commands,commands.test}.ts`, the settings schema and its migration (an old `settings.json` loads with `remote` defaulted), `Change` resources `remote` and `devices`, `create-core.ts`, `create-server.ts`, `serve.ts`, `options.ts`, the guard seam, `allow-list.ts`, and the testkit fake and contract tags. Owner E edits only `cli/**`. New routes outside the CLI table: redeem and health go in `COMMAND_EXCLUSIONS` with reasons; `remote`, `devices`, `pair` join `COMMAND_NOUNS`; the destructive list gets `devices revoke` and `remote off` (the exact-list test changes on purpose).
-- `tau pair` finds the running server through the existing port store (`cli/src/lifecycle/port-store.ts`) and calls it over loopback with the master token; it enables remote through that server if needed.
+- Settings → **Remote access** (`settings/Remote*`): switch, status chip, URL with copy; "Link a device" dialog (QR from `components/ui/qr-code.tsx`, the link with copy, the short code in big type, a 5-minute countdown, "Waiting for the device…", then "Linked: Safari on iPhone"); Devices list (revoke with confirm, "This device"); remote-off confirmation ("the URL dies and linked devices stop working").
+- Light, dark, phone width.
 
-### Updated phases
+### CLI (Stage 1)
 
-0. Foundation owns everything listed above plus the **security suite extended first**: master token refused on a tagged socket even with `Host: 127.0.0.1:<port>`, a device cookie accepted, forged Host/Origin refused, the unauthenticated surface exact, `/assets/*` 401.
-1. A: `core/src/access/**` (devices, pairing, limits). B: `core/src/remote/**`, `core/src/watchdog/**`, `starts.json`, `last-exit.json`. C: `server/src/security/**` (tunnel listener and tags, guard, pair page, redeem and health routes, device-bound sockets). D: `web/src/settings/Remote*` and `components/ui/qr-code.tsx`. E: `cli/**`.
+`tau remote on|off|status [--json]`, `tau pair [--name <label>]` (prints link, short code and a terminal QR, then waits for "Linked: …" or times out), `tau devices list|rename|revoke <id>`. `tau pair` finds the running server through `cli/src/lifecycle/port-store.ts` and calls it over loopback with the master token (as `cli/src/commands/client.ts:71`). New routes: redeem and health go in `COMMAND_EXCLUSIONS` with reasons; `remote`, `devices`, `pair` join `COMMAND_NOUNS`; the exact destructive list gains `devices revoke` and `remote off` (the test changes on purpose).
 
-## Machines (round 2: the user wants several servers and PCs in one UI)
+### Packaging
 
-### How Multica does it (evidence: multica.ai/docs/daemon-runtimes, the local `multica` CLI)
+`@opentunnel/client` and its peer `effect ^4` (exact versions) are dependencies of `packages/core` and `packages/cli` and in `neverBundle` (`cli/tsdown.config.ts`). `qrcode` (SVG in `packages/web`, text renderer only in `packages/cli`). Node >=22.19 is already required.
 
-- A **daemon** on each computer dials the server (outbound only), registers **runtimes** (one per computer and tool), sends a **heartbeat every 15 s**; offline after missed heartbeats (about 3 min at most); runs and tool logins **stay on the computer**; the server stores the records. Setup is one command (`multica setup`, `multica daemon start`), `status`, `logs`, `restart`, and a **Runtimes page** with an online dot, version and owner. A local runtime is **private** to its owner by default.
-- What we copy: outbound-only link, heartbeat and online state, one command to connect, a Machines page, execution and logins stay on the machine. What we do not copy: Multica's server owns issues and runs; in tau the agent loop is Pi Durable and is welded to the machine's disk (below).
+## Design, Stage 2: machines
 
-### Why federation, not "hub owns all data" (the PLAN.md idea)
+### How Multica does it (evidence)
 
-`grep` over `packages/core/src`: 11 non-test files use `child_process` and 33 use `node:fs` (git clone and worktrees `workspaces/**` and `git/**`, checkpoints, processes, terminals, skills, MCP config, icons, GitHub, the Claude CLI and its login). A hub that owns data with thin runtimes means remoting all of that behind `ExecutionEnv`-like ports: a rewrite of core, and Claude CLI would still need its login on the runtime. **Federation** needs none of it: **every machine runs a full tau** (own Pi Durable storage, projects, settings, providers, Claude login, terminals), and the machine you open in the browser (the **hub**, any tau with remote on) shows the others.
+A daemon on each computer dials the server (outbound only), registers runtimes, sends a **heartbeat every 15 s** and is offline after missed beats. Runs, tool logins and code stay on the computer. Setup is one command (`multica daemon start`), with `status`, `logs`, `restart`, and a Runtimes page with an online dot and version. We copy: the outbound-only link, heartbeat and online state, one command, a Machines page, execution and logins stay on the machine. We do not copy "the server owns the data": in tau the agent loop is Pi Durable and is welded to the machine's disk.
 
-- A thread **lives on one machine** and runs there. The hub shows it, never copies it.
-- A machine **works alone** when the hub is off (its own tau, locally). The hub going down loses the view, not the work.
-- Cost (accepted): no "continue this thread on another machine while the laptop is off"; the same repo on two machines is two projects. Both are later work (fork a thread onto another machine; group by git remote).
-- PLAN.md "Hub + runtimes" is rewritten to this after approval.
+### Why federation, not "hub owns all data"
 
-### Link (one pairing flow, new device kind `machine`)
+`grep` over `packages/core/src` (round 3 confirmed): 11 non-test files use `child_process` and 33 use `node:fs` (git, worktrees, checkpoints, processes, terminals, skills, MCP config, icons, GitHub, the Claude CLI and its login). A hub with thin runtimes means remoting all of it: a rewrite of core. **Federation** needs none of it: **every machine runs a full tau**, and the machine you open (the **hub**: any tau with remote on) shows the others.
 
-- On the hub: Settings → **Machines** → "Connect a machine" shows the same link / short code / QR dialog as a device, with a command: `npx tau connect <link>` (and `tau connect <short code> --hub <url>`).
-- On the machine: `tau connect` talks to the machine's **own running server** over loopback (starts the MVP7 service if none is running, after asking), stores `{ hubUrl, machineSecret, name }` in `<home>/hub.json` (private file) and the **server process dials the hub** (`wss://<hostname>/api/machines/link`). No second daemon: one service, watched by the watchdog. Name defaults to the host name; `tau connect --name`. `tau disconnect` and Settings → "Linked to <hub>" → Disconnect on the machine, and "Disconnect" on the hub: both sides can cut it.
-- Credential: a **machine secret**, hashed at rest on the hub in the same store as devices (`kind: "machine"`, plus `os`, `tauVersion`, `protocolVersion`), revocable in the Devices list. It is accepted **only** on `GET /api/machines/link` (Bearer, a WebSocket upgrade); it is not a cookie and opens no other route. On a tagged socket this is one more entry in the unauthenticated-looking surface, with its own rate limit.
-- A linked machine does **not** accept machine links itself (no chains, no loops).
-- Same-Mac test: two scratch homes and ports; the hub URL may be `http://127.0.0.1:<port>` (loopback is allowed for `--hub`), so the whole feature is testable with no tunnel.
+- A thread lives on one machine and runs there. The hub shows it and never copies it.
+- A machine works alone when the hub is off. The hub going down loses the view, not the work.
+- Accepted cost: no "continue this thread on another machine while the laptop is off"; the same repo on two machines is two projects. Both are later work.
+- After approval, PLAN.md "Hub + runtimes" is rewritten to this.
+
+### Link
+
+- On the hub: Settings → **Machines** → "Connect a machine": the same link / short code / QR dialog as a device, with the command `npx tau connect <link>` (and `tau connect <short code> --hub <url>`).
+- On the machine: `tau connect` first prints the hub's name and asks "Link this machine to <hub>?", then redeems the code, stores `{ hubUrl, machineSecret, name }` in `<home>/hub.json` (mode 0600). With no running server it starts `serve` in the foreground for the session, or offers `tau service install`. The **server process dials the hub** (`wss://<hostname>/api/machines/link`): one service, watched by the watchdog. `tau connect --name`; the default name is the host name. `tau disconnect` and Settings → "Linked to <hub>" → Disconnect on the machine, "Disconnect" on the hub: both sides can cut it, and a cut closes in-flight streams.
+- **Credential**: a machine secret (`kind: "machine"`), hashed in the devices store, revocable in Devices. `Core.access.verifyMachine` accepts it **only** for `GET /api/machines/link` with an `Upgrade` header. The device-cookie path rejects machine secrets and the machine path rejects device cookies (both in the security suite). The link route has its own per-peer rate limit.
+- **No loops, no chains** (two-way): `tau connect` is refused when this tau already has linked machines, and a link is refused when this tau has a `hub.json`. A machine never accepts links while it is linked.
+- **Hub URL changes** (a "Make a new URL" on the hub): every machine's `hub.json` points to a dead host. They show "Hub unreachable" and the user runs `tau connect` again. (The hub does not push the new URL.)
+- Same-Mac test: two scratch homes and ports; `--hub http://127.0.0.1:<port>` is allowed for loopback, so the feature is testable with no tunnel.
 
 ### The link carries the machine's own API (no new business API)
 
-- One WebSocket per machine, multiplexed frames (TypeBox text frames; binary bodies as binary frames with a 4-byte stream id): `request {id, method, path, query, body}` → `response {id, status, body}`, `open {id, path}` → `message {id, data}` → `close {id, code, reason}` (WebSocket proxying: `/api/live` and the terminal stream), `ping/pong` every 15 s.
-- The machine's link client calls **its own server on loopback with its own master token**, so the machine's guard, schemas and `Core` are unchanged and tested as today. The hub exposes `/api/m/<machineId>/**`, authenticated like any other API route (device cookie), and forwards through the link. The hub's server adds no business logic: path in, path out. Allow-list for forwarded paths: only `/api/**` of the routes table; never the machine's `/api/access/**`, `/api/remote/**`, `/api/machines/**` (a machine's own security surface is not reachable through the hub).
-- Backpressure per stream (a stalled browser must not stall the link): a bounded queue per stream, close that stream with 1013 when it overflows; large responses (images, 5 MB) are chunked.
-- **Version skew**: the web app comes from the hub, the API from the machine. `hello` carries `protocolVersion` (a number bumped on any route/schema change). Different → the machine shows as **"Update tau on <machine>"**, not as online. No attempt to be compatible across versions.
+- **Where the code lives** (round 3): `core/src/machines/**` holds the registry, summaries, heartbeat state and `Core.machines`. The **link client** (dials the hub, calls its own server on loopback with the master token and `Host: 127.0.0.1:<port>`, no Origin) lives in `cli/src/machines/**` and is wired in `serve.ts`, because only the CLI layer knows the bound port and the token. Core never calls its own HTTP server. The link client's calls arrive on the untagged listener, so the master token works.
+- **Frames**: one WebSocket per machine on its **own `WebSocketServer` (`noServer`, own `maxPayload` of 1 MB)**, not the shared one with the 64 KB cap. TypeBox text frames carry control (`hello`, `request {id, method, path, query, headers?, hubDevice}`, `response {id, status}`, `open {id, path}`, `close {id, code, reason}`, `credit {id, bytes}`, `ping`, `pong`); bodies and stream data travel as binary frames with a 4-byte stream id and a flag byte, in chunks of at most 256 KB, so a 42 MB message body (`MESSAGE_BODY_LIMIT`, `rest.ts:47`) and a 5 MB image fit. Stream ids are allocated by the hub only. Heartbeat: ping every 15 s; offline after 45 s; the UI shows "Reconnecting…" before "Offline".
+- **Hub proxy** `/api/m/<machineId>/**`: authenticated like any API route (device cookie), then forwards. The path filter (a mechanism, not a wildcard): decode once, reject `..`, `%2e`, `%2f`, `//` and a query string in the path; match method plus the path against the `routes` table templates (`fillPath`) plus the constants `LIVE_PATH` and `TERMINAL_STREAM_PATH`; an explicit denylist for `access`, `remote`, `machines`, `pair`, `health`. The hub never forwards `Host`, `Origin`, `Cookie` or `Authorization` from the browser. Per-route `bodyLimit` (`define-route.ts:12`) is re-applied on the hub. Tests: a denylisted or unknown path answers 403/404 on the hub and on a direct machine.
+- **Flow control**: per stream, credit-based. For terminal streams the machine's link client pauses reading the stream (its own server's socket) when credits run out, so a slow phone slows its own terminal only. `/live` streams use a bounded queue and close with 1013 on overflow (the web resyncs on reconnect, `use-changed-invalidation.ts:50`). One stalled stream never stalls the link.
+- **Audit and revoke**: the request frame carries a `hubDevice` label that the link client sets as header `x-tau-hub-device`; the machine logs it. Proxied streams are registered in the hub's `Map<deviceId, Set<socket>>`, so revoking a hub device closes its `/api/m/<id>/live` and terminal streams.
+- **Version skew**: `protocolVersion` is a **hash** of the `routes` table, the frame schemas and the `Change` union, computed at build time; a test fails when a schema changes and the hash does not (bumping is automatic). Different from the hub's → the machine shows "Update tau on <machine>" with a copyable command, never as online; both versions are shown.
 
-### Web (the large part)
+### Web (Stage 2)
 
-- `lib/api.ts` is a singleton today. New `MachineContext`: `{ machineId | "local", api, transport }`; `local` is today's behaviour, byte for byte (no prefix, same URLs). A remote machine's transport adds the `/api/m/<id>` prefix to `request`, `live` and `openStream`. React Query keys gain the machine id; every direct `api` import moves behind a `useApi()` hook (a mechanical pass, owner-listed below, behind a codemod-style grep gate: no `import { api }` outside `lib/`).
-- URLs: local stays `/p/:projectId/c/:conversationId[/terminal/:id]`; a remote thread is `/m/:machineId/p/:projectId/c/:conversationId[...]`. `lib/paths.ts` is the only builder; `use-open-conversation.ts` and its consumers read `machineId` too (extend the 7-consumer test from MVP11).
-- **Sidebar**: threads of all online machines in one list, **grouped by machine** (a header per machine with an online dot, collapsible, local first), plus a machine filter in the existing search. Project icon/colour as today. An **offline** machine keeps its last known projects and thread titles (cached on the hub in `<home>/machines/<id>/summary.json`, titles and times only, no transcripts), greyed, with "Offline, last seen 3 h ago"; opening one shows a calm "This machine is offline" state with no spinner loop.
-- **Settings → Machines** (Multica's Runtimes page, in tau taste): rows with name, OS, tau version, online dot, last seen, thread count; row actions: rename, disconnect, "Open settings" (the Settings dialog for that machine: providers, projects folder, Claude CLI, connectors, all as today, with a header "Settings for <machine>"). New piece `components/ui/machine-row.tsx`. A "This machine" row first.
-- Notifications and "needs attention" badges: each machine's `/live` feeds the same store, the sidebar badge aggregates.
-- New thread: the project picker lists projects of all machines (the project knows its machine); "Add project" asks which machine first when more than one is online.
+- **One provider per machine** (round 3, replaces a global `useApi` pass): `MachineProvider` owns that machine's `api` (a `Transport` whose `urlFor` adds `/api/m/<id>`, `transport/http.ts:21`), its own `QueryClient` and its own `LiveClient`. Query keys stay as they are and cannot leak across machines. The **local** machine is a provider with no prefix: today's URLs and behaviour, byte for byte. `app/providers.tsx:16` (`createLiveClient`) becomes per-machine; `use-changed-invalidation.ts` and `use-terminal-changes.ts` read `useLiveClient()` and work unchanged. Drafts and preferences in `localStorage` (14 uses) get the machine id in their keys.
+- Round 3 numbers: 62 files import `api` (about 101 uses), 33 files use queries, about 117 `queryKey` mentions. A grep gate keeps `import { api }` out of components that sit outside a provider.
+- **URLs**: local `/p/:projectId/c/:conversationId[/terminal/:id]`; remote `/m/:machineId/p/:projectId/c/:conversationId[...]`. `lib/paths.ts` is the only builder; `use-open-conversation.ts` and its consumers read `machineId` (extend the MVP11 consumer test).
+- **Sidebar**: one group component per machine, each running its queries under its own provider and isolating its errors (one failing machine blocks no other). Header with online dot, collapsible, local first, a machine filter in the search. An **offline** machine shows its last known projects and thread titles from `<home>/machines/<id>/summary.json` (titles and times only, no transcripts), greyed, marked stale, "Offline, last seen 3 h ago"; the cache is written only while the link is healthy and deleted on disconnect. Opening an offline thread shows a calm "This machine is offline" state.
+- **Settings → Machines** (Multica's Runtimes page in tau taste; `components/ui/machine-row.tsx`): "This machine" first; rows with name, OS, tau version, online dot, last seen, thread count; actions rename, disconnect, "Open settings". "Settings for <machine>" renders the machine's providers, projects folder, Claude CLI and connectors, but **not** Remote access, Devices or Machines (their routes are denylisted and would show the hub's data). Folder pickers are labelled with the machine name.
+- The machine name shows in the thread header and window title when more than one machine is online. Notifications and needs-attention badges aggregate across providers. New thread: the project picker lists projects of all machines; "Add project" asks which machine first.
 
-### Phasing inside MVP12 (two release points)
+## Phase 0 pins (foundation runs these; results go in this doc)
 
-- **Stage 1** (verified and usable on its own): remote access, pairing, devices, watchdog, security (everything above this section).
-- **Stage 2**: machines. Starts only after Stage 1 passes check, test, build, e2e and a real-tunnel run, and uses its devices store, guard and pairing. Owners for Stage 2: **F** `core/src/machines/**` (hub registry, link client, summary cache, heartbeat) ; **G** `server/src/machines/**` (link socket, multiplexer, `/api/m/**` proxy, backpressure, path allow-list); **H** web (`MachineContext`, `useApi` pass, sidebar groups, Machines page, offline state); **I** cli (`tau connect`, `tau disconnect`, `tau machines list`). Phase 0 of Stage 2 freezes: `Core.machines`, the frame schemas (`protocol/src/machine-link.ts`), `protocolVersion`, routes, commands, the `MachineContext` seam, fake core with two machines, contract tag.
-
-### Machines: pins and tests
-
-- (m1) A same-Mac federation spike: two scratch homes, link B to A over loopback, `GET /api/m/<B>/api/conversations`, the `/live` socket and the terminal stream through the proxy, a 5 MB image response, 20 parallel requests, kill B and watch A mark it offline within 45 s, reconnect.
-- (m2) The link works over the real tunnel (wss through the tagged listener, binary frames).
-- (m3) `useApi` pass: count of `import { api }` outside `lib/` and the Query keys that need the machine id.
-- (m4) Stalled browser on a proxied terminal stream does not stall the link or other streams.
-- Tests: frame schemas, multiplexer ordering and backpressure, version-skew state, path allow-list (access, remote and machines routes unreachable through the hub), machine secret accepted only on the link route and refused elsewhere, revoke closes the link, offline cache, web `MachineContext` (two fake machines, grouping, offline state), the same-Mac e2e (two real built servers on scratch homes: link, see B's thread in A's sidebar, send a message through A, see the answer), then the real-tunnel e2e.
-
-### Risks (machines)
-
-- **Hub to machine is full power** (terminals, agents, files): one stolen device on the hub is a remote shell on every linked machine. Mitigations are the Stage 1 ones; a later "hub devices need a second factor to open a terminal" is not in this plan. The link dialog says it in plain words.
-- **The web pass is wide** (every `api` use, every Query key, every path builder). A mistake leaks one machine's data into another's cache: keys must include the machine id; a test asserts it.
-- **Hub as single view**: two hubs on one machine, or machine A linked to B and B to A, are refused by the "linked machines do not accept links" rule.
-- **Protocol skew** is a real support cost; the strict version check is the guard.
-
-## Phase 0 pins (foundation runs these first; results in this doc)
-
-- (a) The SDK in plain Node 22 here: `create({ store })`, `tunnel.ensure`, `connect({ routes })`, time to first online, hostname shape; **always `remove()` afterwards** (tunnels do not expire).
-- (b) Through the public URL from this machine: HTTP GET, a WebSocket upgrade (the `/live` socket), a binary WebSocket (terminal stream), a 5 MB response, 20 parallel requests; what `Host` and `Origin` the server sees.
-- (c) The Host/Origin allow-list works with the tunnel hostname and refuses others; `Secure` cookie round trip over https.
+Stage 1:
+- (a) The SDK in plain Node 22: `create({ store })`, `ensure`, `connect({ routes })` with `proxyProtocol: "v2"`, time to first online, hostname shape; **always `remove()` afterwards** (tunnels do not expire).
+- (b) Through the public URL: HTTP GET, a WebSocket upgrade (`/live`), a binary WebSocket (terminal stream), a 5 MB response, 20 parallel requests; the `Host` and `Origin` the server sees.
+- (c) Allow-list: exactly the tunnel hostname (no port) passes on a tagged socket; `<hostname>:443` and others are refused; a `Secure` cookie round trip over https.
 - (d) Disable then enable gives a new hostname; the old URL stops answering.
-- (e) Restart of the server keeps the same URL; the tunnel is back in under 10 s.
-- (f) Offline start (no network): the server starts, status `error`, recovers when the network returns.
-- (g) Watchdog: block the event loop in a test server (busy loop) → exit code 1 within the limit; the MVP7 service restarts it (macOS `launchctl kickstart` semantic check with a scratch home and label).
-- (h) Bundle size and install size with the SDK and `effect`; the built `dist/bin.js` works from `npm i -g` of a `pnpm pack` tarball.
-- (j) **Provenance**: the tagged second listener works with keep-alive, WebSocket upgrade and a binary WebSocket through the real tunnel, and the PROXY v2 header gives the peer address; a visitor sending `Host: 127.0.0.1:<port>` is still tagged (security test).
-- (k) The SDK's `new WebSocket(url, { headers })` works on Node 22 (undici) and `effect` bundling or `neverBundle` works from a packed install.
-- (i) A real phone browser through the tunnel (**the user does this one**, we do not drive their devices).
+- (e) A server restart keeps the URL; the tunnel is back in under 10 s.
+- (f) Offline start: the server starts, status `error`, recovers when the network returns.
+- (g) Watchdog: a busy-loop test server is killed by `SIGKILL` within the limit with `last-exit.json` written first; assert the signal; `launchctl` restarts it (scratch home and label); check the systemd start-limit defaults on a rendered unit.
+- (h) Bundle and install size with the SDK and `effect`; the built `dist/bin.js` works from `npm i -g` of a `pnpm pack` tarball.
+- (j) **Provenance**: the tagged listener works with keep-alive reuse, WebSocket upgrade (`upgrade` event with Fastify and `@fastify/websocket`) and a binary WebSocket through the real tunnel; a malformed or split PROXY header destroys the socket; the PROXY v2 header gives the peer address; a visitor sending `Host: 127.0.0.1:<port>` is still tagged.
+- (k) The SDK's `new WebSocket(url, { headers })` works on Node 22 (undici), and `neverBundle` with `effect` works from a packed install.
+- (i) A real phone browser through the tunnel (**the user does this one**).
 
-## Phases and owners (draft)
+Stage 2:
+- (m1) Same-Mac federation spike: two scratch homes, link B to A over loopback, `GET /api/m/<B>/api/conversations`, the `/live` socket and the terminal stream through the proxy, a 5 MB image, a 42 MB message body, 20 parallel requests, kill B and watch A mark it offline within 45 s, reconnect.
+- (m2) The link over the real tunnel (wss through the tagged listener, binary frames).
+- (m3) Count `import { api }` outside providers and the `localStorage` keys that need the machine id.
+- (m4) A stalled browser on a proxied terminal stream does not stall the link or other streams (credit flow).
 
-0. **Foundation**: pins (a)–(h); dependencies, Biome rule; protocol (`Settings.remote`, `RemoteStatus`, `Device`, routes, `Change` `remote`/`devices`, commands); `Access` and `RemoteAccess` ports with fakes; testkit core fake + contract tags; the dynamic allow-list and the guard split (master token loopback-only, device secret, pair routes) behind the new port, with the **security suite extended first**; stubs for each owner.
-1. **Parallel**: **A** access/devices/pairing/rate limit (`core/src/access/**`); **B** remote adapter, status machine, watchdog worker, last-exit (`core/src/remote/**`, `core/src/watchdog/**`); **C** server (guard changes, pair page, redeem, health, device-bound sockets, `security/**`); **D** web (Remote section, link dialog, QR, devices, unauthenticated pair page assets); **E** cli (commands, terminal QR, `tau status`).
-2. **Integration**: wiring in `create-core.ts`, `create-server.ts`, `serve.ts`; e2e with the fake adapter (turn on, link a second "device" through the redeem route, revoke, socket cut); then with the **real tunnel** on a scratch home and random port.
-3. **Verify for real**: build, run on a scratch home and port, turn remote on, open the public URL in a browser tab with no cookie (401 page), link it with the code, use the app (thread, terminal), revoke, see it cut. The user then links their phone from their own tau.
+## Phases and owners
+
+Phase 0 of each stage is **one foundation agent** that owns every seam file; owners fill only their folders and put needed changes in a note for the integrator. Agents run on Sonnet, low effort, in worktrees; the orchestrator commits their work.
+
+### Stage 1
+
+0. **Foundation**: pins (a)–(h), (j), (k); dependencies and `neverBundle`; Biome rule; protocol (`protocol/src/{rest,entities,core,commands,commands.test}.ts`: `Settings.remote` and its migration, `RemoteStatus`, `Device` with `machine`, routes, `Change` resources `remote` and `devices`, commands with the exclusions above); `Core.access` and `Core.remote` for the real core, `faux-core.ts` and the testkit fake, contract tags; `create-core.ts`, `create-server.ts`, `serve.ts`, `options.ts`, `security/allow-list.ts` and the `GuardContext`; and the **security suite extended first** (master token refused on a tagged socket even with `Host: 127.0.0.1:<port>`; a device cookie accepted; forged Host and Origin refused; the unauthenticated surface exact; `/assets/*` 401; tagged-socket destroy rules); stubs for each owner.
+1. **Parallel**:
+   - **A** `core/src/access/**` (devices, codes, limits, throttled touch).
+   - **B** `core/src/remote/**`, `core/src/watchdog/**`, `starts.json`, `last-exit.json`.
+   - **C** `server/src/security/**` (tunnel listener and tags, guard, pair page, redeem and health routes, device-bound sockets).
+   - **D** `web/src/settings/Remote*` and `web/src/components/ui/qr-code.tsx`.
+   - **E** `cli/**` command handlers (nothing in `protocol`).
+2. **Integration**: notes, wiring, e2e with the fake adapter (turn on, link a second "device" through redeem, revoke, socket cut), then the **real tunnel** on a scratch home and a random port. `check` and `test` after each merge.
+3. **Verify for real**: build, run on a scratch home and port, turn remote on, open the public URL in a browser with no cookie (401 page), link with the code, use the app (thread, terminal), revoke, see it cut. The user links their phone from their own tau.
+
+### Stage 2
+
+0. **Foundation**: pins (m1)–(m4); `Core.machines`; `protocol/src/machine-link.ts` frame schemas; the `protocolVersion` hash and its test; routes and commands (`tau connect`, `disconnect`, `machines list`); the `MachineProvider` seam, the path-filter table, the fake core with two machines; contract tag; `serve.ts` wiring; the guard's machine-link entry and its security tests.
+1. **Parallel**:
+   - **F** `core/src/machines/**` (registry, summaries, heartbeat state).
+   - **G** `server/src/machines/**` (link socket on its own `WebSocketServer`, multiplexer, credit flow, `/api/m/**` proxy, path filter, device-socket registry).
+   - **H** web (`MachineProvider`, per-machine live client and keys, sidebar groups, Machines page, `machine-row.tsx`, offline state, URLs).
+   - **I** `cli/src/machines/**` (link client) and the `tau connect|disconnect|machines` handlers.
+2. **Integration**: the same-Mac e2e (two real built servers on scratch homes: link, see B's thread in A's sidebar, send a message through A, see the answer, revoke, disconnect), then the real-tunnel e2e.
+3. **Verify for real**: the same flow in a browser on this Mac (two scratch homes); the user connects a second machine of their own.
 
 ## Testing
 
-- Core: pairing code single use, expiry with a fake clock, max live codes, rate limit and global lock, device secret hashed at rest, constant-time compare, revoke, last seen; remote status machine over a fake adapter (offline, reconnect, error, disable burns identity); watchdog (fake clock; real stuck-loop test in a child process); last-exit file.
-- Server: security suite extended: master token refused on a tunnel Host, device secret accepted, foreign Host/Origin refused, unauthenticated surface is exactly pair page, redeem and health, WebSocket upgrade needs a device cookie, revoke closes sockets, `Secure` cookie flags.
-- Web: Remote section states, dialog (countdown, linked state), devices list and revoke, QR renders the link, pair page (no framework) error paths.
-- CLI: command table coverage test, `tau pair` prints QR and waits (fake core).
-- e2e as above, then the real-tunnel run.
+- Core: code single use, expiry with a fake clock, max live codes, per-peer limits, short-code backstop, secrets hashed at rest, constant-time compare, revoke, throttled touch; remote status machine over a fake adapter (offline, reconnect, error, disable, recreate clears devices, pending removal); watchdog (fake clock; a real stuck-loop in a child process asserts the signal and `last-exit.json`); starts log and crash-loop rule; machines registry, heartbeat, offline cache.
+- Server: the extended security suite (above); redeem needs JSON and the right Origin; pair page CSP hash test; device secret rejected on the machine route and machine secret rejected elsewhere; revoke closes sockets including proxied streams; tunnel-listener destroy rules; frame schemas, multiplexer ordering, credit flow, version-skew state, path filter (tables of allowed and denied paths), per-route body limits through the hub, a 42 MB body.
+- Web: Remote section states, dialog (countdown, linked state), devices list, QR renders the link; two fake machines (grouping, offline state, no cross-machine cache leak, per-machine drafts); consumer test for `machineId` on every URL shape.
+- CLI: coverage test, `tau pair` prints a QR and waits, `tau connect` confirm prompt and the two-way loop refusal.
+- e2e as in the phases.
 
 ## Risks
 
-- **Remote shell on a public URL.** A stolen device cookie equals the user's account on that machine (agents, terminals, `claude` login). Mitigations: per-device secrets, hashed at rest, revoke, `Secure`, short-lived one-time codes, global rate limit, no master token over the tunnel. Weak spot: no per-visitor rate limit and no second factor.
+- **A remote shell on a public URL.** A stolen device cookie equals the user's account on that machine (agents, terminals, the `claude` login), and through the hub on every linked machine. Mitigations: per-device secrets hashed at rest, revoke, `Secure`, one-time short-lived codes, per-peer limits, no master token over the tunnel, socket provenance. Weak spots: no second factor, no scopes (later).
 - **OpenTunnel is young** (0.5.2, one relay we do not control). It sees no plaintext, but it can drop or delay. Pin the version; the adapter is a port.
-- **Tunnels do not expire and cannot be deleted without their token**: the store lives in `<home>/remote/`; pins and tests must `remove()`.
-- **Watchdog false positives** under heavy CPU work on the main thread (a long sync task): 60 s is generous; log the reason.
-- **NixOS / odd hosts**: the user service uses the user manager with linger; verify on the real homelab (the user does this).
-- **Mac host sleep** kills the tunnel; a note, not a fix.
+- **Tunnels do not expire and cannot be deleted without their token**: the store lives in `<home>/remote/`; pins and tests must `remove()`; a lost home orphans one.
+- **Provenance depends on the tunnel listener**: a bug that tags a loopback socket or leaves a tunneled socket untagged breaks the model; the security suite and pin (j) are the guard.
+- **Watchdog false positives** under a long synchronous task on the main thread: 60 s is generous; the reason is logged and stored.
+- **The web pass is wide** (62 files use `api`); the per-provider design keeps keys and caches isolated.
+- **Protocol skew** across machines is a real support cost; the hash check refuses to mix versions.
+- **NixOS and odd hosts**: the user service needs the user manager with linger; the user verifies on the real homelab.
+- **A Mac host that sleeps** kills the tunnel; a note, not a fix.
 
-## Decisions (agreed with the user)
+## Decisions
 
-1. **Machines are IN this plan** (the user changed it): I connect any server or PC and see all its threads in one UI. Architecture (federation, below) is proposed by the orchestrator and **awaits the user's OK**.
+1. **Machines are in this plan** (the user's call). Architecture: **federation** (proposed by the orchestrator, **awaits the user's OK**).
 2. The pairing code alone is the approval (no "approve on the host" click).
 3. A linked device gets **full power** (terminals and agents included), no scopes. The link dialog says so in plain words.
-4. First host to test: the user's Mac (this machine), with a scratch home and a random port for agent runs. The user links their own phone from their own tau.
+4. First host to test: the user's Mac (this machine), with a scratch home and a random port for agent runs. The user links their own phone and second machine from their own tau.
