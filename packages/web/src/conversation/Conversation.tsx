@@ -91,7 +91,9 @@ function ConversationPanel({ id }: ConversationProps) {
       ) : null}
       {parentId ? <SubagentBanner parentId={parentId} childId={id} /> : null}
       <div ref={scrollRef} onScroll={onScroll} className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
-        <div ref={contentRef} className="mx-auto w-full max-w-3xl px-4 py-6">
+        {/* relative: contains absolute descendants (e.g. sr-only) so they can't inflate the outer scroll container */}
+        {/* relative: contains absolute descendants (e.g. sr-only) so they can't inflate the outer scroll container */}
+        <div ref={contentRef} className="relative mx-auto w-full max-w-3xl px-4 py-6">
           <section aria-label="Conversation" aria-live="polite" aria-relevant="additions">
             <Body id={id} state={state} onRetry={parentId ? undefined : actions.retry} />
           </section>
