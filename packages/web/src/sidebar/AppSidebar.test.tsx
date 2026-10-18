@@ -120,7 +120,7 @@ describe("sidebar rows", () => {
     expect(await screen.findByText(/transcript stays on disk/i)).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Delete thread" }));
 
-    await waitFor(() => expect(mocked.conversations.remove).toHaveBeenCalledWith("c1"));
+    await waitFor(() => expect(mocked.conversations.remove).toHaveBeenCalledWith("c1", { force: false }));
     await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent(/^\/$/));
   });
 });

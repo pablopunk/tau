@@ -24,6 +24,7 @@ Working name. Goal: my own app to run Pi agents on my machines and use them from
 
 ### Client
 - Web app installable to the home screen (PWA), like webr. Same app on phone and laptop.
+- **The app is URL-based.** Every view the user can reach has its own URL (`/p/<project>/c/<thread>`, `/new?project=…`). Back and forward work, a reload keeps the view, and a link opens the same view. New views get a URL first, not hidden UI state.
 
 ### Built-in terminal
 - The app has a real terminal on any machine (hub or runtime), so setup never says "SSH into your server" (e.g. `claude` login, installing tools).
@@ -130,6 +131,7 @@ Out of the MVP: tunnels, pairing, remote runtimes, terminals, other providers, f
 
 ## Later
 - **Model tiers** in Settings → Models: "smart" (the main thread) and "worker" (subagents), so the parent picks workers without being told in the chat. Keep the Models section uncluttered when adding it.
+- **Project view** (next): "Open project" in a project's context menu goes to a project URL (for example `/p/<project>`). There the sidebar shows only that project's threads, and "New thread" starts in that project. The browser Back button and a "All projects" link go back to the full sidebar. A thread opened from the project view keeps the project URL scope.
 - **Chat with a subagent directly**: open the child thread's composer instead of going through the parent.
 - **Timers and loops** (planned): the agent schedules a wake-up ("check CI in 10 minutes"), recurring prompts, and a `/loop` mode. Pi Durable timers survive restarts.
 - **Monitor** (planned): a background command whose output lines or exit wake the agent; processes notify the agent when they exit.

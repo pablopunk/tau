@@ -84,8 +84,8 @@ export function ThreadRow({
     await api.conversations.archive(conversation.id, !archived);
     await refresh();
   };
-  const remove = async () => {
-    await api.conversations.remove(conversation.id);
+  const remove = async (force: boolean) => {
+    await api.conversations.remove(conversation.id, { force });
     if (active) navigate("/");
     await refresh();
   };
