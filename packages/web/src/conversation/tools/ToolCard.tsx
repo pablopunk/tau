@@ -1,5 +1,5 @@
 import { Check, ChevronRight, CircleSlash, Loader2, X } from "lucide-react";
-import type { ReactNode } from "react";
+import { type ReactNode, useState } from "react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
 import { isActive, type ToolStatus } from "../model/tool-state";
@@ -26,22 +26,16 @@ export interface ToolCardProps {
   readonly subtitle?: string | undefined;
   readonly status: ToolStatus;
   readonly badge?: ReactNode;
-  readonly defaultOpen?: boolean;
   readonly children?: ReactNode;
 }
 
-export function ToolCard({
-  icon,
-  title,
-  subtitle,
-  status,
-  badge,
-  defaultOpen = false,
-  children,
-}: ToolCardProps) {
+export function ToolCard({ icon, title, subtitle, status, badge, children }: ToolCardProps) {
+  const [toggled, setToggled] = useState<boolean | undefined>(undefined);
+  const open = toggled ?? isActive(status);
   return (
     <Collapsible
-      defaultOpen={defaultOpen}
+      open={open}
+      onOpenChange={setToggled}
       data-tool-status={status}
       className="group/tool overflow-hidden rounded-lg border bg-card text-card-foreground"
     >

@@ -47,7 +47,6 @@ export function EditTool({ state }: ToolRendererProps) {
       subtitle={argText(state, "path")}
       status={state.status}
       badge={<ChangeCount diff={diff} />}
-      defaultOpen
     >
       {failure ? <p className="text-sm text-destructive">{failure}</p> : null}
       {diff ? <DiffView diff={diff} /> : null}

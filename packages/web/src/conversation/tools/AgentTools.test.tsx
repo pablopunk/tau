@@ -70,23 +70,26 @@ describe("agent tool cards", () => {
     expect(stopAgent).toHaveBeenCalledWith("kid");
   });
 
-  it("hides Stop once the child is done", () => {
+  it("hides Stop once the child is done", async () => {
     children.current = [child({ agentStatus: "done" })];
     renderAt("/", <AgentTool state={stateOf("agent", {}, "", { conversationId: "kid" })} />);
+    await userEvent.click(screen.getByRole("button"));
     expect(screen.queryByRole("button", { name: "Stop" })).toBeNull();
     expect(screen.getByText("done")).toBeTruthy();
   });
 
-  it("shows one status for a stopped child, taken from the child", () => {
+  it("shows one status for a stopped child, taken from the child", async () => {
     children.current = [child({ agentStatus: "stopped" })];
     renderAt("/", <AgentTool state={stateOf("agent", {}, "", { conversationId: "kid" })} />);
+    await userEvent.click(screen.getByRole("button"));
     expect(screen.getByText("stopped")).toBeTruthy();
     expect(screen.queryByText("Done")).toBeNull();
   });
 
-  it("shows the error text of a failed agent call", () => {
+  it("shows the error text of a failed agent call", async () => {
     const state = stateOf("agent", { description: "x" }, "isolation failed badly", {}, true);
     renderAt("/", <AgentTool state={state} />);
+    await userEvent.click(screen.getByRole("button"));
     expect(screen.getByText("isolation failed badly")).toBeTruthy();
   });
 
@@ -111,11 +114,12 @@ describe("agent tool cards", () => {
     expect(screen.getByText("scan")).toBeTruthy();
   });
 
-  it("flags a merge conflict", () => {
+  it("flags a merge conflict", async () => {
     renderAt(
       "/",
       <AgentMergeTool state={stateOf("merge_agent", { id: "kid" }, "conflict in a.ts", {}, true)} />,
     );
+    await userEvent.click(screen.getByRole("button"));
     expect(screen.getByText("conflict in a.ts")).toBeTruthy();
   });
 });

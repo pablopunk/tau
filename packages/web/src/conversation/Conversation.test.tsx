@@ -109,8 +109,9 @@ describe("<Conversation> tools", () => {
     expect(screen.getByRole("figure", { name: "Written content" })).toBeInTheDocument();
   });
 
-  it("renders an edit call as a diff with change counts", () => {
+  it("renders an edit call as a diff with change counts", async () => {
     renderView(endOf("edit"));
+    await userEvent.click(screen.getByText("Edit"));
     const diff = screen.getByRole("figure", { name: "Diff" });
     expect(within(diff).getByText(/goodbye world/)).toBeInTheDocument();
     expect(within(diff).getByText(/hello world/)).toBeInTheDocument();
@@ -132,9 +133,10 @@ describe("<Conversation> tools", () => {
     expect(screen.getByText("Running")).toBeInTheDocument();
   });
 
-  it("shows the exit code of a failed bash call from the result diagnostics", () => {
+  it("shows the exit code of a failed bash call from the result diagnostics", async () => {
     renderView(endOf("bash-fail"));
     expect(screen.getByText("Exit 3")).toBeInTheDocument();
+    await userEvent.click(screen.getByText("Bash"));
     expect(screen.getByRole("figure", { name: "Command output" })).toHaveTextContent("oops");
     expect(screen.getByText("Failed")).toBeInTheDocument();
   });

@@ -15,7 +15,6 @@ export function AgentMergeTool({ state }: ToolRendererProps) {
       icon={<GitMerge />}
       title={`Merge ${child?.title.trim() || id || "subagent"}`}
       status={state.status}
-      defaultOpen={conflict}
     >
       {text ? (
         <Alert

@@ -28,7 +28,6 @@ export function AgentTool({ state }: ToolRendererProps) {
       title={child?.title.trim() || "Subagent"}
       subtitle={argText(state, "description")}
       status={cardStatusOf(child, state.status)}
-      defaultOpen
       badge={<Badge variant="secondary">{agentTypeLabel(type)}</Badge>}
     >
       <div className="flex flex-wrap items-center gap-2">
