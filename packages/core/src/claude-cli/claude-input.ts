@@ -1,4 +1,9 @@
-import type { ClaudeContentBlock, ClaudeInputStream, ClaudeUserMessage } from "./sdk-types";
+import type {
+  ClaudeApiContentBlock,
+  ClaudeContentBlock,
+  ClaudeInputStream,
+  ClaudeUserMessage,
+} from "./sdk-types";
 
 export interface ClaudeInput {
   readonly stream: ClaudeInputStream;
@@ -6,9 +11,17 @@ export interface ClaudeInput {
   close(): void;
 }
 
+export const toApiBlock = (block: ClaudeContentBlock): ClaudeApiContentBlock =>
+  block.type === "image"
+    ? { type: "image", source: { type: "base64", media_type: block.mimeType, data: block.data } }
+    : block;
+
+const toApiContent = (content: string | readonly ClaudeContentBlock[]) =>
+  typeof content === "string" ? content : content.map(toApiBlock);
+
 const userMessage = (content: string | readonly ClaudeContentBlock[]): ClaudeUserMessage => ({
   type: "user",
-  message: { role: "user", content },
+  message: { role: "user", content: toApiContent(content) },
   parent_tool_use_id: null,
   session_id: "",
 });

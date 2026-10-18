@@ -25,6 +25,13 @@ export type ClaudeContentBlock =
   | { readonly type: "text"; readonly text: string }
   | { readonly type: "image"; readonly data: string; readonly mimeType: string };
 
+export type ClaudeApiContentBlock =
+  | { readonly type: "text"; readonly text: string }
+  | {
+      readonly type: "image";
+      readonly source: { readonly type: "base64"; readonly media_type: string; readonly data: string };
+    };
+
 export interface ClaudeToolDefinition {
   readonly name: string;
   readonly description: string;
@@ -83,7 +90,7 @@ export type ClaudeCanUseTool = (request: ClaudePermissionRequest) => Promise<Cla
 
 export interface ClaudeUserMessage {
   readonly type: "user";
-  readonly message: { readonly role: "user"; readonly content: string | readonly ClaudeContentBlock[] };
+  readonly message: { readonly role: "user"; readonly content: string | readonly ClaudeApiContentBlock[] };
   readonly parent_tool_use_id: null;
   readonly session_id: "";
 }
