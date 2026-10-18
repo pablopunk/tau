@@ -15,7 +15,7 @@ import { conversationPath, newThreadPath } from "@/lib/paths";
 import { useAllConversations, useProjects } from "@/lib/queries";
 import { SETTINGS_SECTIONS } from "@/settings/sections";
 import { SettingsItem } from "./SettingsItem";
-import { SettingsSearchGroup } from "./SettingsSearchGroup";
+import { SettingsSearchGroup, useSettingResults } from "./SettingsSearchGroup";
 
 export function CommandPalette() {
   const [open, setOpen] = useState(false);
@@ -25,6 +25,7 @@ export function CommandPalette() {
   const conversations = useAllConversations().data ?? [];
   const projects = useProjects().data ?? [];
   const projectName = (id: string) => projects.find((project) => project.id === id)?.name ?? "";
+  const settingResults = useSettingResults(search);
   useHotkey("mod+k", () => setOpen((current) => !current));
 
   const run = (action: () => void) => () => {
@@ -42,14 +43,14 @@ export function CommandPalette() {
           placeholder="Search threads, projects, actions, settings"
         />
         <CommandList>
-          <CommandEmpty>No results.</CommandEmpty>
+          {settingResults.length === 0 && <CommandEmpty>No results.</CommandEmpty>}
           <CommandGroup heading="Actions">
             <CommandItem onSelect={run(() => navigate(newThreadPath(projectId)))}>New thread</CommandItem>
             {SETTINGS_SECTIONS.map((section) => (
               <SettingsItem key={section.id} section={section} run={run} />
             ))}
           </CommandGroup>
-          <SettingsSearchGroup search={search} run={run} />
+          <SettingsSearchGroup search={search} results={settingResults} run={run} />
           <CommandGroup heading="Projects">
             {projects.map((project) => (
               <CommandItem

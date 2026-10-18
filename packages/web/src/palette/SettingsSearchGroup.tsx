@@ -8,19 +8,23 @@ import { useSettingEntries } from "@/settings/use-setting-entries";
 
 const MAX_RESULTS = 8;
 
-interface SettingsSearchGroupProps {
-  search: string;
-  run: (action: () => void) => () => void;
-}
-
-/** Settings found by the same index and ranking as the Settings dialog search. Shown only while searching. */
-export function SettingsSearchGroup({ search, run }: SettingsSearchGroupProps) {
+/** Settings found by the same index and ranking as the Settings dialog search; none while not searching. */
+export function useSettingResults(search: string) {
   const entries = useSettingEntries();
-  const openSetting = useOpenSetting();
-  const results = useMemo(
+  return useMemo(
     () => (search.trim() === "" ? [] : searchSettings(search, entries).slice(0, MAX_RESULTS)),
     [search, entries],
   );
+}
+
+interface SettingsSearchGroupProps {
+  search: string;
+  results: ReturnType<typeof useSettingResults>;
+  run: (action: () => void) => () => void;
+}
+
+export function SettingsSearchGroup({ search, results, run }: SettingsSearchGroupProps) {
+  const openSetting = useOpenSetting();
   if (results.length === 0) return null;
   return (
     <CommandGroup forceMount heading="Settings">
@@ -31,8 +35,12 @@ export function SettingsSearchGroup({ search, run }: SettingsSearchGroupProps) {
           value={`setting ${result.id}`}
           onSelect={run(() => openSetting(result.section, settingTarget(result)))}
         >
-          <HighlightedText text={result.label} ranges={highlightRanges(result.label, search)} />
-          <span className="ml-auto text-xs text-muted-foreground">{result.sectionLabel}</span>
+          <HighlightedText
+            className="min-w-0 flex-1 truncate"
+            text={result.label}
+            ranges={highlightRanges(result.label, search)}
+          />
+          <span className="shrink-0 text-xs text-muted-foreground">{result.sectionLabel}</span>
         </CommandItem>
       ))}
     </CommandGroup>

@@ -152,6 +152,15 @@ describe("settings dialog search", () => {
 });
 
 describe("palette to setting", () => {
+  it("does not say No results when only settings match", async () => {
+    const user = userEvent.setup();
+    renderApp("/", <CommandPalette />);
+    await user.keyboard("{Control>}k{/Control}");
+    await user.type(await screen.findByPlaceholderText(/Search threads/), "dark mode");
+    expect(await screen.findByRole("option", { name: /Appearance/ })).toBeInTheDocument();
+    expect(screen.queryByText("No results.")).not.toBeInTheDocument();
+  });
+
   it("opens the dialog on the chosen setting", async () => {
     const user = userEvent.setup();
     renderApp("/", <CommandPalette />);
