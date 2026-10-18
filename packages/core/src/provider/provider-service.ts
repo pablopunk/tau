@@ -57,19 +57,40 @@ export function createProviderService(options: ProviderServiceOptions): Provider
     : createRealModels(credentials, options.env, claudeCli.provider);
   const connections = createConnectionReader({ credentials, models, faux: options.faux, claudeCli });
   const entries = visibleProviders(!claudeCliDisabled(options.env));
-  const lister = createModelLister({ models, connections, entries, faux: options.faux });
+  const lister = createModelLister({
+    models,
+    connections,
+    entries,
+    faux: options.faux,
+    claudeCliModels: () => claudeCli.provider?.getModels() ?? [],
+  });
   const logins = createLoginSessions({
     models,
     changes: options.changes,
     deviceIdFile: join(dirname(options.credentialsFile), "device-id"),
   });
 
+  let firstCheck: Promise<void> | undefined;
+  const firstClaudeCliCheck = (): Promise<void> => {
+    if (claudeCliDisabled(options.env)) return Promise.resolve();
+    firstCheck ??= claudeCli.refresh().then(
+      () => undefined,
+      () => undefined,
+    );
+    return firstCheck;
+  };
+
+  async function readAfterFirstCheck(entry: ProviderEntry) {
+    if (entry.kind === "cli") await firstClaudeCliCheck();
+    return connections.read(entry);
+  }
+
   const infoOf = async (entry: ProviderEntry): Promise<ProviderInfo> => ({
     id: entry.id,
     name: entry.name,
     methods: [...entry.methods],
     keyUrl: entry.keyUrl,
-    connection: await connections.read(entry),
+    connection: await readAfterFirstCheck(entry),
     cli: entry.kind === "cli" ? claudeCli.status() : null,
   });
 
@@ -108,6 +129,7 @@ export function createProviderService(options: ProviderServiceOptions): Provider
   async function acknowledgeClaudeCli(): Promise<ProviderInfo> {
     if (claudeCliDisabled(options.env)) throw new AppError("invalid_request", "Claude CLI is turned off.");
     await claudeCli.acknowledge();
+    await claudeCli.refresh();
     return claudeCliInfo();
   }
 
@@ -128,11 +150,15 @@ export function createProviderService(options: ProviderServiceOptions): Provider
     list: () => Promise.all(entries.map(infoOf)),
     setApiKey,
     disconnect,
-    listModels: () => lister.list(),
+    listModels: async () => {
+      await firstClaudeCliCheck();
+      return lister.list();
+    },
     acknowledgeClaudeCli,
     refreshClaudeCli,
     close: () => claudeCli.close(),
     async lists(ref) {
+      await firstClaudeCliCheck();
       const available = await lister.list();
       return available.some((model) => model.provider === ref.provider && model.modelId === ref.modelId);
     },

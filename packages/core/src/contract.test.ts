@@ -13,8 +13,9 @@ import { makeLocalRepo } from "./test-support/local-repo";
 
 const REAL_CORE_IMPLEMENTED = true;
 
-/** MVP9 owner A removes `claude-cli` when detection and the notice work in the real core. */
-const PENDING_TAGS: string[] = ["claude-cli"];
+const PENDING_TAGS: string[] = [];
+
+process.env.TAU_FAKE_CLAUDE_CLI = "1";
 
 process.env.TAU_ALLOW_FILE_CLONES = "1";
 

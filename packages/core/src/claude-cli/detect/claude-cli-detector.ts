@@ -2,8 +2,13 @@ import type { ClaudeCliStatus, ClaudeCliUsage } from "@tau/protocol";
 import type { ClaudeCliClock } from "../clock";
 import type { ClaudeSdkLoader } from "../sdk-types";
 import { claudeCliStatusOf } from "../status";
+import { readCliVersion } from "./claude-cli-version";
+import { failureMessage, isMissingBinary, stateOfAuth } from "./detection-state";
 
-/** Owner A. Frozen signature; the body is a placeholder that always reports `missing`. */
+const BACKGROUND_INTERVAL_MS = 60_000;
+
+type Environment = Readonly<Record<string, string | undefined>>;
+
 export interface ClaudeCliDetectorDeps {
   readonly sdk: ClaudeSdkLoader;
   /** `Settings.claudeCliNoticeAt`. */
@@ -12,6 +17,9 @@ export interface ClaudeCliDetectorDeps {
   /** Called when the state changed; the service emits `{ resource: "providers" }`. */
   readonly onChange: () => void;
   readonly clock: ClaudeCliClock;
+  /** Where `TAU_CLAUDE_PATH` is read for `claude --version`. Defaults to the process environment. */
+  readonly env?: Environment;
+  readonly installedVersion?: () => Promise<string | null>;
 }
 
 export interface ClaudeCliDetector {
@@ -24,7 +32,81 @@ export interface ClaudeCliDetector {
   stop(): void;
 }
 
-export function createClaudeCliDetector(_deps: ClaudeCliDetectorDeps): ClaudeCliDetector {
-  const status = claudeCliStatusOf("missing");
-  return { status: () => status, refresh: async () => status, start: () => undefined, stop: () => undefined };
+const sameStatus = (a: ClaudeCliStatus, b: ClaudeCliStatus): boolean =>
+  JSON.stringify(a) === JSON.stringify(b);
+
+async function bundledVersionOf(sdk: ClaudeSdkLoader): Promise<string | null> {
+  try {
+    return await (await sdk()).bundledCliVersion();
+  } catch {
+    return null;
+  }
+}
+
+export function createClaudeCliDetector(deps: ClaudeCliDetectorDeps): ClaudeCliDetector {
+  const installedVersion = deps.installedVersion ?? (() => readCliVersion(deps.env ?? process.env));
+  let last = claudeCliStatusOf("missing");
+  let running: Promise<ClaudeCliStatus> | null = null;
+  let cancelTimer: (() => void) | null = null;
+
+  const current = (): ClaudeCliStatus => ({ ...last, usage: deps.usage() });
+
+  function publish(next: ClaudeCliStatus): void {
+    const changed = !sameStatus(last, next);
+    last = next;
+    if (changed) deps.onChange();
+  }
+
+  async function detect(): Promise<ClaudeCliStatus> {
+    try {
+      const port = await deps.sdk();
+      const [auth, noticeAt, cliVersion, sdkCliVersion] = await Promise.all([
+        port.authStatus(),
+        deps.noticeAt(),
+        installedVersion(),
+        bundledVersionOf(deps.sdk),
+      ]);
+      return claudeCliStatusOf(stateOfAuth(auth, noticeAt !== null), {
+        plan: auth.subscriptionType,
+        org: auth.orgName,
+        cliVersion,
+        sdkCliVersion,
+      });
+    } catch (error) {
+      if (isMissingBinary(error)) return claudeCliStatusOf("missing");
+      return { ...last, message: failureMessage(error) };
+    }
+  }
+
+  function check(): Promise<ClaudeCliStatus> {
+    running ??= detect()
+      .then(publish)
+      .then(current)
+      .finally(() => {
+        running = null;
+      });
+    return running;
+  }
+
+  function schedule(): void {
+    cancelTimer = deps.clock.setTimer(() => {
+      void check().finally(() => {
+        if (cancelTimer) schedule();
+      });
+    }, BACKGROUND_INTERVAL_MS);
+  }
+
+  return {
+    status: current,
+    refresh: check,
+    start() {
+      if (cancelTimer) return;
+      schedule();
+      void check();
+    },
+    stop() {
+      cancelTimer?.();
+      cancelTimer = null;
+    },
+  };
 }

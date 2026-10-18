@@ -1,6 +1,7 @@
 import { getSupportedThinkingLevels, type Models } from "@earendil-works/pi-ai/models";
 import { personalizeOpenRouterCatalog } from "@earendil-works/pi-ai/providers/openrouter";
 import { AppError, type ModelInfo } from "@tau/protocol";
+import { CLAUDE_CLI_PROVIDER_NAME } from "../claude-cli/provider";
 import { FAUX_PROVIDER_ID } from "../testing/faux-provider";
 import type { ConnectionReader } from "./connections";
 import type { PiProviderRef, ProviderEntry } from "./providers-table";
@@ -31,6 +32,8 @@ export function createModelLister(deps: {
   connections: ConnectionReader;
   entries: readonly ProviderEntry[];
   faux: boolean;
+  /** The Claude CLI provider's own list; faux mode has no registered provider to ask. */
+  claudeCliModels: () => readonly ListedModel[];
 }): ModelLister {
   const { models, connections } = deps;
 
@@ -72,10 +75,17 @@ export function createModelLister(deps: {
   }
 
   async function listFaux(): Promise<ModelInfo[]> {
-    if ((await connectedEntries()).length === 0) return [];
-    return models
-      .getModels(FAUX_PROVIDER_ID)
-      .map((model) => toModelInfo(model as ListedModel, FAUX_PROVIDER_NAME));
+    const connected = await connectedEntries();
+    const keyed = connected.some((entry) => entry.kind !== "cli");
+    const fauxModels = keyed
+      ? models
+          .getModels(FAUX_PROVIDER_ID)
+          .map((model) => toModelInfo(model as ListedModel, FAUX_PROVIDER_NAME))
+      : [];
+    const cliModels = connected.some((entry) => entry.kind === "cli")
+      ? deps.claudeCliModels().map((model) => toModelInfo(model, CLAUDE_CLI_PROVIDER_NAME))
+      : [];
+    return [...fauxModels, ...cliModels];
   }
 
   return { list: () => (deps.faux ? listFaux() : listReal()) };

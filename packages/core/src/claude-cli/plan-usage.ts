@@ -10,7 +10,6 @@ export interface RateLimitInfo {
   readonly unifiedWindows?: { readonly five_hour?: { readonly utilization?: number } };
 }
 
-/** Owner A. Frozen signature; the body is a placeholder that never has usage. */
 export interface PlanUsage {
   current(): ClaudeCliUsage | null;
   /** Updates the in-memory usage and calls `onChange`. */
@@ -22,6 +21,22 @@ export interface PlanUsageDeps {
   readonly onChange: () => void;
 }
 
-export function createPlanUsage(_deps: PlanUsageDeps): PlanUsage {
-  return { current: () => null, record: () => undefined };
+const fiveHourUtilization = (info: RateLimitInfo): number | undefined =>
+  info.unifiedWindows?.five_hour?.utilization ??
+  (info.rateLimitType === "five_hour" ? info.utilization : undefined);
+
+export function createPlanUsage(deps: PlanUsageDeps): PlanUsage {
+  let usage: ClaudeCliUsage | null = null;
+  return {
+    current: () => usage,
+    record(info) {
+      usage = {
+        status: info.status,
+        fiveHour: fiveHourUtilization(info) ?? usage?.fiveHour ?? null,
+        resetsAt: info.resetsAt ?? usage?.resetsAt ?? null,
+        updatedAt: deps.clock.now(),
+      };
+      deps.onChange();
+    },
+  };
 }
