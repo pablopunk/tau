@@ -1,5 +1,6 @@
 import { AppError, type Core, iconCandidateUrl, type ProviderId, routes } from "@tau/protocol";
 import type { FastifyInstance } from "fastify";
+import type { DeviceSockets } from "../security/device-sockets";
 import { requireCandidateName } from "./candidate-name";
 import { defineImageRoute } from "./define-image-route";
 import { defineRoute } from "./define-route";
@@ -11,7 +12,7 @@ function startLoginFor(core: Core, id: ProviderId) {
   return core.providers.startLogin(id);
 }
 
-export function registerRoutes(app: FastifyInstance, core: Core): void {
+export function registerRoutes(app: FastifyInstance, core: Core, sockets: DeviceSockets): void {
   defineRoute(app, routes.suggestDirectories, ({ body }) => core.fs.suggestDirectories(body));
   defineRoute(app, routes.getSettings, () => core.settings.get());
   defineRoute(app, routes.setDefaultModel, ({ body }) => core.settings.setDefaultModel(body));
@@ -93,5 +94,5 @@ export function registerRoutes(app: FastifyInstance, core: Core): void {
   );
   defineRoute(app, routes.retryConversation, ({ params, body }) => core.conversations.retry(params.id, body));
   registerWorkspaceRoutes(app, core);
-  registerTerminalRoutes(app, core);
+  registerTerminalRoutes(app, core, sockets);
 }

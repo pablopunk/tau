@@ -59,7 +59,10 @@
               "level": "error",
               "options": {
                 "paths": {
-                  "@earendil-works/pi-env": "Only packages/core/src/harness/terminal-daemon.ts may import pi-env."
+                  "@earendil-works/pi-env": "Only packages/core/src/harness/terminal-daemon.ts may import pi-env.",
+                  "@opentunnel/client": "Only packages/core/src/remote/opentunnel-adapter.ts may import @opentunnel/client.",
+                  "@opentunnel/client/promise": "Only packages/core/src/remote/opentunnel-adapter.ts may import @opentunnel/client.",
+                  "@opentunnel/client/effect": "Only packages/core/src/remote/opentunnel-adapter.ts may import @opentunnel/client."
                 }
               }
             }
@@ -68,7 +71,10 @@
       }
     },
     {
-      "includes": ["packages/core/src/harness/terminal-daemon.ts"],
+      "includes": [
+        "packages/core/src/harness/terminal-daemon.ts",
+        "packages/core/src/remote/opentunnel-adapter.ts"
+      ],
       "linter": {
         "rules": {
           "style": {

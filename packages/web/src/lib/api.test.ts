@@ -43,6 +43,7 @@ describe("http transport", () => {
       workspaceDefault: "per-project",
       claudeCliNoticeAt: null,
       claudeConnectors: { enabled: [], alwaysAllow: [], askBeforeWrites: false },
+      remote: { enabled: false },
     };
     stubFetch(respond(200, settings));
     expect(await api.settings.get()).toEqual(settings);

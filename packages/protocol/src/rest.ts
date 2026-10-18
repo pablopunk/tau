@@ -1,4 +1,12 @@
 import { type TSchema, Type } from "typebox";
+import {
+  DeviceSchema,
+  MintedPairingSchema,
+  MintPairingInputSchema,
+  RedeemPairingBodySchema,
+  RedeemPairingResponseSchema,
+  RenameDeviceBodySchema,
+} from "./access";
 import { DeleteArchivedInputSchema, DeleteArchivedResultSchema } from "./archived";
 import {
   ClaudeConnectorSettingsSchema,
@@ -39,10 +47,12 @@ import {
 } from "./mvp5";
 import { GoalInputSchema, GoalSchema, LoopInputSchema, TimerSchema } from "./mvp8";
 import { ApprovalDecisionSchema, ApprovalSchema } from "./mvp10";
+import { HealthSchema, RemoteStatusSchema } from "./remote";
 import { OpenTerminalInputSchema, TerminalAvailabilitySchema, TerminalInfoSchema } from "./terminals";
 
 export const API_PREFIX = "/api";
 export const LIVE_PATH = `${API_PREFIX}/live`;
+export const PAIR_PAGE_PATH = "/pair";
 
 export const MESSAGE_BODY_LIMIT = 42 * 1024 * 1024;
 export const PROCESS_LOG_TAIL_DEFAULT = 200;
@@ -84,6 +94,55 @@ const NameParams = Type.Object({ name: Type.String({ minLength: 1 }) });
 const EntryBody = Type.Object({ entryId: Type.String({ minLength: 1 }) });
 
 export const routes = {
+  getHealth: { method: "GET", path: `${API_PREFIX}/health`, status: 200, response: HealthSchema },
+  getRemoteStatus: { method: "GET", path: `${API_PREFIX}/remote`, status: 200, response: RemoteStatusSchema },
+  enableRemote: {
+    method: "POST",
+    path: `${API_PREFIX}/remote/enable`,
+    status: 200,
+    response: RemoteStatusSchema,
+  },
+  disableRemote: {
+    method: "POST",
+    path: `${API_PREFIX}/remote/disable`,
+    status: 200,
+    response: RemoteStatusSchema,
+  },
+  recreateRemote: {
+    method: "POST",
+    path: `${API_PREFIX}/remote/recreate`,
+    status: 200,
+    response: RemoteStatusSchema,
+  },
+  listDevices: {
+    method: "GET",
+    path: `${API_PREFIX}/access/devices`,
+    status: 200,
+    response: Type.Array(DeviceSchema),
+  },
+  renameDevice: {
+    method: "PUT",
+    path: `${API_PREFIX}/access/devices/:id`,
+    status: 204,
+    params: IdParams,
+    body: RenameDeviceBodySchema,
+  },
+  revokeDevice: { method: "DELETE", path: `${API_PREFIX}/access/devices/:id`, status: 204, params: IdParams },
+  signOutAllDevices: { method: "POST", path: `${API_PREFIX}/access/sign-out-all`, status: 204 },
+  mintPairing: {
+    method: "POST",
+    path: `${API_PREFIX}/pair`,
+    status: 200,
+    query: MintPairingInputSchema,
+    response: MintedPairingSchema,
+  },
+  redeemPairing: {
+    method: "POST",
+    path: `${API_PREFIX}/pair/redeem`,
+    status: 200,
+    body: RedeemPairingBodySchema,
+    response: RedeemPairingResponseSchema,
+  },
   getSettings: { method: "GET", path: `${API_PREFIX}/settings`, status: 200, response: SettingsSchema },
   setDefaultModel: {
     method: "PUT",

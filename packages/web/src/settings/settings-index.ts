@@ -103,6 +103,27 @@ export const SETTINGS_INDEX: readonly SettingEntry[] = [
     description: "When on, tools that change things ask you first.",
     keywords: ["claude", "connectors", "approve", "approval", "permission", "prompt", "write", "confirm"],
   },
+  {
+    id: "remote-access",
+    section: "remote",
+    label: "Remote access",
+    description: "Open tau from your phone or any browser with a link.",
+    keywords: ["tunnel", "url", "public", "internet", "opentunnel", "phone", "anywhere", "remote", "online"],
+  },
+  {
+    id: "link-device",
+    section: "remote",
+    label: "Link a device",
+    description: "A one-time code, as a QR, a link and a short code.",
+    keywords: ["pair", "qr", "code", "phone", "browser", "colleague", "laptop", "add device"],
+  },
+  {
+    id: "devices",
+    section: "remote",
+    label: "Devices",
+    description: "Linked devices: rename, revoke, sign out all.",
+    keywords: ["sessions", "revoke", "sign out", "logout", "this device", "linked", "last seen"],
+  },
 ];
 
 /** Row ids built from data, such as `provider:openai`. Entries for them come from `dynamicEntries`. */

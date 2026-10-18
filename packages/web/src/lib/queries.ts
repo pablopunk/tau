@@ -9,7 +9,9 @@ import type {
   ApprovalDecision,
   ClaudeConnectorSettings,
   ConversationSummary,
+  MintPairingInput,
   ProviderId,
+  RemoteStatus,
 } from "@tau/protocol";
 import { api } from "./api";
 
@@ -36,6 +38,8 @@ export const queryKeys = {
   processLogs: (processId: string, tail?: number) => ["process-logs", processId, tail ?? null] as const,
   mcpServers: (projectId: string | null) => ["mcp", "servers", projectId] as const,
   allMcpServers: ["mcp"] as const,
+  remoteStatus: ["remote"] as const,
+  devices: ["devices"] as const,
 };
 
 export const useProviders = () =>
@@ -211,3 +215,41 @@ export const useProcessLogs = (processId: string, tail?: number, enabled = true)
 
 export const useMcpServers = (projectId: string | null) =>
   useQuery({ queryKey: queryKeys.mcpServers(projectId), queryFn: () => api.mcp.servers(projectId) });
+
+export const useRemoteStatus = () =>
+  useQuery({ queryKey: queryKeys.remoteStatus, queryFn: () => api.remote.status() });
+
+export const useDevices = () =>
+  useQuery({ queryKey: queryKeys.devices, queryFn: () => api.access.devices() });
+
+function useRemoteMutation(run: () => Promise<RemoteStatus>) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: run,
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.remoteStatus });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.settings });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.devices });
+    },
+  });
+}
+
+export const useEnableRemote = () => useRemoteMutation(() => api.remote.enable());
+export const useDisableRemote = () => useRemoteMutation(() => api.remote.disable());
+export const useRecreateRemote = () => useRemoteMutation(() => api.remote.recreate());
+
+export const useMintPairing = () =>
+  useMutation({ mutationFn: (input: MintPairingInput) => api.access.mintPairing(input) });
+
+function useDeviceMutation<V>(run: (value: V) => Promise<void>) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: run,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.devices }),
+  });
+}
+
+export const useRenameDevice = () =>
+  useDeviceMutation(({ id, name }: { id: string; name: string }) => api.access.renameDevice(id, name));
+export const useRevokeDevice = () => useDeviceMutation((id: string) => api.access.revokeDevice(id));
+export const useSignOutAllDevices = () => useDeviceMutation(() => api.access.signOutAll());

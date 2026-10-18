@@ -1,6 +1,7 @@
 import type { ModelThinkingLevel } from "@earendil-works/pi-ai";
 import { Type } from "typebox";
 import { GoalSummarySchema } from "./mvp8";
+import { RemoteSettingsSchema } from "./remote";
 
 export const ModelRefSchema = Type.Object({ provider: Type.String(), modelId: Type.String() });
 export type ModelRef = Type.Static<typeof ModelRefSchema>;
@@ -69,6 +70,7 @@ export const SettingsSchema = Type.Object({
   workspaceDefault: WorkspaceDefaultSchema,
   claudeCliNoticeAt: Type.Union([Type.Number(), Type.Null()]),
   claudeConnectors: ClaudeConnectorSettingsSchema,
+  remote: RemoteSettingsSchema,
 });
 export type Settings = Type.Static<typeof SettingsSchema>;
 
@@ -289,6 +291,8 @@ export const ChangeSchema = Type.Union([
   Type.Object({ resource: Type.Literal("timers"), conversationId: Type.String() }),
   Type.Object({ resource: Type.Literal("mcp") }),
   Type.Object({ resource: Type.Literal("approvals"), conversationId: Type.String() }),
+  Type.Object({ resource: Type.Literal("remote") }),
+  Type.Object({ resource: Type.Literal("devices") }),
 ]);
 export type Change = Type.Static<typeof ChangeSchema>;
 

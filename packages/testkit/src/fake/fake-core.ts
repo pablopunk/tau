@@ -15,6 +15,7 @@ import {
   type WorkspaceMode,
 } from "@tau/protocol";
 import { clampFakeThinkingLevel, FAKE_MODELS, findFakeModel } from "./catalog";
+import { createFakeAccess } from "./fake-access";
 import { createFakeConnectors, type FakeConnectors } from "./fake-connectors";
 import { FakeConversation, type FakeInput } from "./fake-conversation";
 import { createFakeDeleteArchived } from "./fake-delete-archived";
@@ -35,6 +36,7 @@ import { assertImageMatchesMimeType } from "./fake-images";
 import { createFakeMvp5 } from "./fake-mvp5";
 import { createFakeMvp8 } from "./fake-mvp8";
 import { createFakeProviders } from "./fake-providers";
+import { createFakeRemote, type FakeRemote } from "./fake-remote";
 import { suggestFakeDirectories } from "./fake-suggest";
 import { createFakeTerminals } from "./fake-terminals";
 import type { SpawnParams } from "./fake-thread-ops";
@@ -55,6 +57,8 @@ export interface FakeCoreOptions {
   readonly skills?: readonly Skill[];
   /** Whether terminals work. Default true. */
   readonly terminals?: boolean;
+  /** Start with remote on. Default false. */
+  readonly remote?: boolean;
 }
 
 export { FAKE_HOME_PATH };
@@ -67,7 +71,11 @@ const TITLE_WORDS = 3;
 
 const firstWords = (text: string) => text.trim().split(/\s+/).slice(0, TITLE_WORDS).join(" ");
 
-export type FakeCore = Core & { readonly seedApproval: FakeConnectors["seedApproval"] };
+export type FakeCore = Core & {
+  readonly seedApproval: FakeConnectors["seedApproval"];
+  /** Plays tunnel behaviour (`reconnecting`, errors) over the fake remote. */
+  readonly remoteControl: Pick<FakeRemote, "push">;
+};
 
 export function createFakeCore(options: FakeCoreOptions = {}): FakeCore {
   const now = options.now ?? Date.now;
@@ -339,7 +347,13 @@ export function createFakeCore(options: FakeCoreOptions = {}): FakeCore {
     conversation.remove();
   };
 
+  const access = createFakeAccess({ now, emit, remoteUrl: () => remote.status().url });
+  const remote = createFakeRemote({ now, emit, access, enabled: options.remote });
+
   return {
+    access,
+    remote: remote.api,
+    remoteControl: remote,
     fs: {
       async suggestDirectories(input) {
         return suggestFakeDirectories(fs, input);
@@ -360,6 +374,7 @@ export function createFakeCore(options: FakeCoreOptions = {}): FakeCore {
           workspaceDefault,
           claudeCliNoticeAt: connections.claudeCliNoticeAt(),
           claudeConnectors: connectors.settings(),
+          remote: { enabled: remote.status().state !== "off" },
         };
       },
       async setDefaultModel(ref) {

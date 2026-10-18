@@ -1,8 +1,11 @@
 import type { RouteDef, RouteInput, RouteOutput } from "@tau/protocol";
-import type { FastifyInstance } from "fastify";
+import type { FastifyInstance, FastifyRequest } from "fastify";
 
 // biome-ignore lint/suspicious/noConfusingVoidType: Core methods without a result resolve to void
-type Handler<R extends RouteDef> = (input: RouteInput<R>) => Promise<RouteOutput<R> | undefined | void>;
+type Handler<R extends RouteDef> = (
+  input: RouteInput<R>,
+  request: FastifyRequest,
+) => Promise<RouteOutput<R> | undefined | void>;
 
 /** Registers one frozen protocol route; schemas come from the protocol, so the handler input is fully typed. */
 export function defineRoute<R extends RouteDef>(app: FastifyInstance, route: R, handler: Handler<R>): void {
@@ -17,7 +20,7 @@ export function defineRoute<R extends RouteDef>(app: FastifyInstance, route: R, 
     },
     handler: async (request, reply) => {
       const input = { params: request.params, query: request.query, body: request.body } as RouteInput<R>;
-      const output = await handler(input);
+      const output = await handler(input, request);
       reply.code(route.status);
       if (route.status === 204) return reply.send();
       return output === null ? reply.type("application/json").send("null") : output;

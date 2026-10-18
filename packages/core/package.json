@@ -20,7 +20,9 @@
     "@earendil-works/pi-env": "1.3.0",
     "@earendil-works/pi-tui": "1.3.0",
     "@modelcontextprotocol/sdk": "1.32.1",
+    "@opentunnel/client": "0.5.2",
     "@tau/protocol": "workspace:*",
+    "effect": "4.0.5",
     "pi-web-access": "0.42.0",
     "typebox": "1.3.27"
   },

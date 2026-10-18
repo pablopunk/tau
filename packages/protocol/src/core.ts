@@ -1,3 +1,4 @@
+import type { Device, MintedPairing, MintPairingInput, RedeemedPairing, RedeemPairingInput } from "./access";
 import type { DeleteArchivedInput, DeleteArchivedResult } from "./archived";
 import type {
   Change,
@@ -39,6 +40,7 @@ import type {
 } from "./mvp5";
 import type { Goal, LoopInput, Timer } from "./mvp8";
 import type { Approval, ApprovalDecision } from "./mvp10";
+import type { RemoteStatus } from "./remote";
 import type { OpenTerminalInput, TerminalInfo } from "./terminals";
 import type { Op } from "./view";
 
@@ -330,6 +332,40 @@ export interface Core {
     /** Idempotent. */
     remove(name: string): Promise<void>;
   };
+  /**
+   * Who may talk to this server. Secrets are 32 random bytes shown once; the store keeps `sha256(secret)`.
+   * The server's guard calls `verify*`; `Core.access` never sees cookies or sockets.
+   */
+  access: {
+    /** A device secret (browser, phone, cli). `undefined` for a wrong secret or a machine secret. */
+    verifyDevice(secret: string): Promise<{ deviceId: string } | undefined>;
+    /** A machine secret, accepted only by `GET /api/machines/link`. `undefined` for any device secret. */
+    verifyMachine(secret: string): Promise<{ deviceId: string } | undefined>;
+    /** Records activity; throttled to once a minute per device. Never rejects. */
+    touch(deviceId: string): void;
+    /** Newest first. `current` is true for `currentDeviceId`, never for machines. */
+    listDevices(currentDeviceId?: string): Promise<Device[]>;
+    /** Rejects `not_found`. */
+    renameDevice(id: string, name: string): Promise<void>;
+    /** Idempotent for an unknown id. The server closes the device's open sockets. */
+    revokeDevice(id: string): Promise<void>;
+    /** Drops browsers, phones and cli devices, not machines. */
+    signOutAll(): Promise<void>;
+    /** Single use, five minutes, at most five live; the oldest is dropped. Rejects `invalid_request` for a machine pairing without remote. */
+    mintPairing(input: MintPairingInput): Promise<MintedPairing>;
+    /** Takes the link code or the short code. Rejects `unauthorized` (generic text) for a wrong or burnt code and for a locked peer. */
+    redeemPairing(input: RedeemPairingInput): Promise<RedeemedPairing>;
+  };
+  remote: {
+    /** Never rejects. */
+    status(): Promise<RemoteStatus>;
+    /** Opens the tunnel and stores `Settings.remote.enabled`. Resolves with `starting` or `online`. */
+    enable(): Promise<RemoteStatus>;
+    /** Closes and removes the tunnel; clears devices and machines. */
+    disable(): Promise<RemoteStatus>;
+    /** "Make a new URL": a new tunnel, every device and machine cleared. Rejects `invalid_request` unless `canRecreate`. */
+    recreate(): Promise<RemoteStatus>;
+  };
   /** Fires after a successful commit that changed the project list or one project's conversation index. */
   onChange(listener: (change: Change) => void): () => void;
   close(): Promise<void>;
@@ -340,6 +376,8 @@ export interface CreateCoreOptions {
   readonly faux?: boolean;
   /** The CLI entry file; core writes the `<home>/bin/tau` shim from it. */
   readonly cliEntry?: string;
+  /** `127.0.0.1:<port>` of the server's tunnel listener; resolves once the server is up. Absent: remote cannot start. */
+  readonly tunnelTarget?: () => Promise<string>;
 }
 
 export type CreateCore = (options: CreateCoreOptions) => Promise<Core>;

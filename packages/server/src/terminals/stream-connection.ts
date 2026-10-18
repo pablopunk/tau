@@ -3,6 +3,7 @@ import {
   type Core,
   TERMINAL_STREAM_CLOSE_SLOW,
   TERMINAL_STREAM_CLOSE_UNKNOWN,
+  TERMINAL_STREAM_MAX_INPUT_BYTES,
   type TerminalAttachment,
   type TerminalClientFrame,
   TerminalClientFrameSchema,
@@ -10,6 +11,7 @@ import {
 } from "@tau/protocol";
 import { Value } from "typebox/value";
 import type { RawData, WebSocket } from "ws";
+import { closeIfOversized } from "../ws-frame-cap";
 import { createCoalescer } from "./coalescer";
 import { watchStall } from "./stall-watch";
 
@@ -119,6 +121,7 @@ export class TerminalStream {
   }
 
   private async handleMessage(data: RawData, isBinary: boolean): Promise<void> {
+    if (closeIfOversized(this.socket, data, TERMINAL_STREAM_MAX_INPUT_BYTES)) return;
     const attachment = await this.attachment;
     if (!attachment) return;
     if (isBinary) return attachment.write(toBytes(data));

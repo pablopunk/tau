@@ -1,4 +1,5 @@
 import { describe } from "vitest";
+import { accessCases } from "./access";
 import { type ContractOptions, caseRunner } from "./case-runner";
 import { chatCases } from "./chat";
 import { checkpointCases } from "./checkpoints";
@@ -22,6 +23,7 @@ import { processCases } from "./processes";
 import { projectCases } from "./projects";
 import { providerCases } from "./providers";
 import { queueCases } from "./queue";
+import { remoteCases } from "./remote";
 import { retryCases } from "./retry";
 import { settingsAndProviderCases } from "./settings-provider";
 import { sidebarDataCases } from "./sidebar-data";
@@ -81,5 +83,7 @@ export function runCoreContract(
     goalCases(makeTarget, test);
     claudeCliCases(makeTarget, test);
     claudeConnectorCases(makeTarget, test);
+    accessCases(makeTarget, test);
+    remoteCases(makeTarget, test);
   });
 }

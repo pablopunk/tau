@@ -1,37 +1,31 @@
-import { API_PREFIX, AppError, ERROR_STATUS, toErrorBody } from "@tau/protocol";
+import { AppError } from "@tau/protocol";
 import type { FastifyReply, FastifyRequest } from "fastify";
-import { type AllowList, isAllowedHost, isAllowedOrigin } from "./allow-list";
-import type { Session } from "./session";
+import {
+  type AllowList,
+  isAllowedLocalHost,
+  isAllowedLocalOrigin,
+  isTunnelHost,
+  isTunnelOrigin,
+} from "./allow-list";
+import type { GuardContext } from "./guard-context";
+import {
+  bearerOf,
+  isApiPath,
+  isOpenSurface,
+  needsOriginCheck,
+  rejectApi,
+  rejectContentType,
+} from "./request-info";
 import { SESSION_START_PAGE } from "./session-start-page";
 import { UNAUTHORIZED_PAGE } from "./unauthorized-page";
 
-export interface GuardOptions {
-  readonly allowList: AllowList;
-  readonly session: Session;
-}
+export const DEVICE_COOKIE = "tau_device";
+export const OWNER_DEVICE_ID = "owner";
 
-const JSON_CONTENT_TYPE = /^application\/json\s*(;|$)/i;
+export type { GuardContext } from "./guard-context";
 
-function isApiPath(request: FastifyRequest): boolean {
-  const path = request.url.split("?")[0] ?? "";
-  return path === API_PREFIX || path.startsWith(`${API_PREFIX}/`);
-}
-
-function isWebSocketUpgrade(request: FastifyRequest): boolean {
-  return request.headers.upgrade?.toLowerCase() === "websocket";
-}
-
-function needsOriginCheck(request: FastifyRequest): boolean {
-  return request.method !== "GET" || isWebSocketUpgrade(request);
-}
-
-function hasBody(request: FastifyRequest): boolean {
-  const length = Number(request.headers["content-length"] ?? 0);
-  return length > 0 || request.headers["transfer-encoding"] !== undefined;
-}
-
-function rejectApi(reply: FastifyReply, error: AppError) {
-  return reply.code(ERROR_STATUS[error.code]).send(toErrorBody(error));
+function forbid(reply: FastifyReply, what: "host" | "origin") {
+  return void reply.code(403).type("text/plain").send(`Forbidden ${what}`);
 }
 
 function sendUnauthenticated(request: FastifyRequest, reply: FastifyReply) {
@@ -41,49 +35,72 @@ function sendUnauthenticated(request: FastifyRequest, reply: FastifyReply) {
   return reply.code(401).type("text/html; charset=utf-8").send(UNAUTHORIZED_PAGE);
 }
 
-const BEARER = /^Bearer ([^\s]+)$/i;
-
-function bearerOf(request: FastifyRequest): string | undefined {
-  return BEARER.exec(request.headers.authorization ?? "")?.[1];
+async function authenticateDevice(ctx: GuardContext, request: FastifyRequest): Promise<boolean> {
+  const secret = request.cookies[DEVICE_COOKIE];
+  const verified = secret ? await ctx.access.verifyDevice(secret) : undefined;
+  if (!verified) return false;
+  request.deviceId = verified.deviceId;
+  ctx.access.touch(verified.deviceId);
+  return true;
 }
 
-function hasForeignOrigin(allowList: AllowList, request: FastifyRequest): boolean {
+/** A tagged socket came through the tunnel: only the tunnel Host and Origin, only a device cookie. */
+async function guardTunneled(ctx: GuardContext, request: FastifyRequest, reply: FastifyReply) {
+  const list = ctx.hostnames();
+  if (!isTunnelHost(list, request.headers.host)) return forbid(reply, "host");
   const { origin } = request.headers;
-  return origin !== undefined && !isAllowedOrigin(allowList, origin);
+  const originOk = isTunnelOrigin(list, origin);
+  if ((needsOriginCheck(request) && !originOk) || (origin !== undefined && !originOk)) {
+    return forbid(reply, "origin");
+  }
+  if (isOpenSurface(request)) return rejectContentType(request, reply);
+  if (!(await authenticateDevice(ctx, request))) return sendUnauthenticated(request, reply);
+  rejectContentType(request, reply);
 }
 
-function rejectContentType(request: FastifyRequest, reply: FastifyReply): void {
-  if (!hasBody(request) || JSON_CONTENT_TYPE.test(request.headers["content-type"] ?? "")) return;
-  rejectApi(reply, new AppError("invalid_request", "Content-Type must be application/json"));
+function hasForeignOrigin(list: AllowList, request: FastifyRequest): boolean {
+  const { origin } = request.headers;
+  return origin !== undefined && !isAllowedLocalOrigin(list, origin);
 }
 
-/** Runs before routing: Host, Origin, token exchange, cookie, then content type. */
-export function createGuard({ allowList, session }: GuardOptions) {
+function startSession(ctx: GuardContext, reply: FastifyReply, token: string) {
+  return void reply
+    .setCookie(ctx.session.cookieName, token, { httpOnly: true, sameSite: "strict", path: "/" })
+    .header("cache-control", "no-store")
+    .type("text/html; charset=utf-8")
+    .send(SESSION_START_PAGE);
+}
+
+/** An untagged socket is loopback: the master token works, and device cookies too. */
+async function guardLocal(ctx: GuardContext, request: FastifyRequest, reply: FastifyReply) {
+  const list = ctx.hostnames();
+  if (!isAllowedLocalHost(list, request.headers.host)) return forbid(reply, "host");
+  if (request.headers.authorization !== undefined) {
+    if (!ctx.session.isValidToken(bearerOf(request))) return sendUnauthenticated(request, reply);
+    if (hasForeignOrigin(list, request)) return forbid(reply, "origin");
+    request.deviceId = OWNER_DEVICE_ID;
+    return rejectContentType(request, reply);
+  }
+  if (needsOriginCheck(request) && !isAllowedLocalOrigin(list, request.headers.origin)) {
+    return forbid(reply, "origin");
+  }
+  if (isOpenSurface(request)) return rejectContentType(request, reply);
+  const { token } = request.query as { token?: unknown };
+  if (request.method === "GET" && !isApiPath(request) && ctx.session.isValidToken(token)) {
+    return startSession(ctx, reply, token as string);
+  }
+  if (ctx.session.isValidToken(request.cookies[ctx.session.cookieName])) {
+    request.deviceId = OWNER_DEVICE_ID;
+    return rejectContentType(request, reply);
+  }
+  if (!(await authenticateDevice(ctx, request))) return sendUnauthenticated(request, reply);
+  rejectContentType(request, reply);
+}
+
+/** Runs before routing. Provenance is the socket (`ctx.tunnel`), never a header. */
+export function createGuard(ctx: GuardContext) {
   return async function guard(request: FastifyRequest, reply: FastifyReply): Promise<void> {
-    if (!isAllowedHost(allowList, request.headers.host)) {
-      return void reply.code(403).type("text/plain").send("Forbidden host");
-    }
-    if (request.headers.authorization !== undefined) {
-      if (!session.isValidToken(bearerOf(request))) return void sendUnauthenticated(request, reply);
-      if (hasForeignOrigin(allowList, request)) {
-        return void reply.code(403).type("text/plain").send("Forbidden origin");
-      }
-      return rejectContentType(request, reply);
-    }
-    if (needsOriginCheck(request) && !isAllowedOrigin(allowList, request.headers.origin)) {
-      return void reply.code(403).type("text/plain").send("Forbidden origin");
-    }
-    const { token } = request.query as { token?: unknown };
-    if (request.method === "GET" && !isApiPath(request) && session.isValidToken(token)) {
-      return void reply
-        .setCookie(session.cookieName, token as string, { httpOnly: true, sameSite: "strict", path: "/" })
-        .header("cache-control", "no-store")
-        .type("text/html; charset=utf-8")
-        .send(SESSION_START_PAGE);
-    }
-    if (!session.isValidToken(request.cookies[session.cookieName])) {
-      return void sendUnauthenticated(request, reply);
-    }
-    rejectContentType(request, reply);
+    if (ctx.tunnel.tagOf(request.raw.socket)) return guardTunneled(ctx, request, reply);
+    return guardLocal(ctx, request, reply);
   };
 }

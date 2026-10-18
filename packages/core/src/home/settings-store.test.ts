@@ -16,10 +16,27 @@ const DEFAULTS = {
   workspaceDefault: "per-project",
   claudeCliNoticeAt: null,
   claudeConnectors: { enabled: [], alwaysAllow: [], askBeforeWrites: false },
+  remote: { enabled: false },
 };
 const ref = { provider: "openrouter", modelId: "x/y" };
 
 describe("settings store", () => {
+  it("loads a settings.json from before remote access with remote off, and stores the switch", async () => {
+    const file = join(await tempDir(), "settings.json");
+    await writeFile(file, JSON.stringify({ messageMode: "queue" }));
+    const store = createSettingsStore(file, PROJECTS);
+    expect((await store.get()).remote).toEqual({ enabled: false });
+    await store.setRemoteEnabled(true);
+    expect((await store.get()).remote).toEqual({ enabled: true });
+    expect((await store.get()).messageMode).toBe("queue");
+  });
+
+  it("ignores a malformed remote field", async () => {
+    const file = join(await tempDir(), "settings.json");
+    await writeFile(file, JSON.stringify({ remote: { enabled: "yes" } }));
+    expect((await createSettingsStore(file, PROJECTS).get()).remote).toEqual({ enabled: false });
+  });
+
   it("defaults askBeforeWrites to false for connector settings stored without it", async () => {
     const file = join(await tempDir(), "settings.json");
     await writeFile(

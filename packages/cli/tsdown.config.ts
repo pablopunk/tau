@@ -1,7 +1,7 @@
 import { defineConfig } from "tsdown";
 
 export default defineConfig({
-  entry: { bin: "src/bin.ts" },
+  entry: { bin: "src/bin.ts", watchdog: "../core/src/watchdog/worker.ts" },
   format: "esm",
   platform: "node",
   target: "node22",
@@ -10,7 +10,7 @@ export default defineConfig({
   fixedExtension: false,
   deps: {
     alwaysBundle: [/^@tau\//],
-    neverBundle: ["@anthropic-ai/claude-agent-sdk", "@earendil-works/pi-env"],
+    neverBundle: ["@anthropic-ai/claude-agent-sdk", "@earendil-works/pi-env", "@opentunnel/client", "effect"],
   },
   copy: [
     { from: "../web/dist", to: "dist/web" },

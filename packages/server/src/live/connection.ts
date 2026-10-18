@@ -6,11 +6,13 @@ import {
   decodeClientFrame,
   encodeFrame,
   isAppError,
+  LIVE_MAX_FRAME_BYTES,
   type Op,
   RETIRED_OPS,
   type ServerFrame,
 } from "@tau/protocol";
 import type { WebSocket } from "ws";
+import { closeIfOversized } from "../ws-frame-cap";
 import { waitForDrain } from "./backpressure";
 
 interface Subscription {
@@ -31,7 +33,10 @@ export class LiveConnection {
     private readonly onError: (error: unknown) => void,
   ) {
     this.stopListeningForChanges = core.onChange((change) => this.sendChange(change));
-    socket.on("message", (data) => this.handleMessage(data.toString()));
+    socket.on("message", (data) => {
+      if (closeIfOversized(socket, data, LIVE_MAX_FRAME_BYTES)) return;
+      this.handleMessage(data.toString());
+    });
     socket.on("close", () => void this.dispose());
     socket.on("error", onError);
   }

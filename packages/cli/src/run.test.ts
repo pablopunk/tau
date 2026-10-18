@@ -24,6 +24,7 @@ function fakeDependencies(overrides: Partial<RunDependencies> = {}) {
   const createServer = vi.fn<CreateServer>(async ({ port, token }) => ({
     app: {} as never,
     port,
+    tunnelPort: 0,
     origin: `http://127.0.0.1:${port}`,
     url: `http://127.0.0.1:${port}/?token=${token}`,
     close: serverClose,
@@ -48,7 +49,9 @@ describe("run", () => {
     const { dependencies, logs, createCore, createServer, openBrowser } = fakeDependencies();
     const app = await run(optionsFor(home, "--faux", "--port", "5000"), dependencies);
 
-    expect(createCore).toHaveBeenCalledWith({ home, faux: true });
+    expect(createCore).toHaveBeenCalledWith(
+      expect.objectContaining({ home, faux: true, tunnelTarget: expect.any(Function) }),
+    );
     expect(createServer).toHaveBeenCalledWith(expect.objectContaining({ port: 5000, staticDir: "/static" }));
     expect(app?.url).toMatch(/^http:\/\/127\.0\.0\.1:5000\/\?token=.{32,}$/);
     expect(logs.join("\n")).toContain(app?.url);
@@ -90,6 +93,7 @@ describe("run", () => {
       return {
         app: {} as never,
         port,
+        tunnelPort: 0,
         origin: "",
         url: `http://127.0.0.1:${port}/?token=${token}`,
         close: async () => undefined,

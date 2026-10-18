@@ -8,6 +8,7 @@ import type {
   ConversationSummary,
   DeleteArchivedInput,
   DeleteArchivedResult,
+  Device,
   FileSuggestion,
   GithubRepo,
   GithubStatus,
@@ -17,6 +18,8 @@ import type {
   McpServerConfig,
   McpServerStatus,
   MessageMode,
+  MintedPairing,
+  MintPairingInput,
   ModelInfo,
   ModelRef,
   PathSuggestion,
@@ -24,6 +27,9 @@ import type {
   Project,
   ProviderId,
   ProviderInfo,
+  RedeemPairingBody,
+  RedeemPairingResponse,
+  RemoteStatus,
   RestorePreview,
   RetryInput,
   SendMessageInput,
@@ -159,6 +165,21 @@ export interface Api {
     save(config: McpServerConfig): Promise<void>;
     remove(name: string): Promise<void>;
   };
+  remote: {
+    status(): Promise<RemoteStatus>;
+    enable(): Promise<RemoteStatus>;
+    disable(): Promise<RemoteStatus>;
+    recreate(): Promise<RemoteStatus>;
+  };
+  access: {
+    devices(): Promise<Device[]>;
+    renameDevice(id: string, name: string): Promise<void>;
+    revokeDevice(id: string): Promise<void>;
+    signOutAll(): Promise<void>;
+    mintPairing(input: MintPairingInput): Promise<MintedPairing>;
+    /** What the pair page does with `fetch`; here for the fake backend and tests (a real device redeems before it has a session). */
+    redeemPairing(input: RedeemPairingBody): Promise<RedeemPairingResponse>;
+  };
   terminals: {
     available(): Promise<boolean>;
     list(conversationId: string): Promise<TerminalInfo[]>;
@@ -287,6 +308,20 @@ export function createApi(transport: Transport): Api {
       servers: (projectId) => request("listMcpServers", { query: projectId ? { projectId } : {} }),
       save: (config) => request("saveMcpServer", { params: { name: config.name }, body: config }),
       remove: (name) => request("removeMcpServer", { params: { name } }),
+    },
+    remote: {
+      status: () => request("getRemoteStatus", {}),
+      enable: () => request("enableRemote", {}),
+      disable: () => request("disableRemote", {}),
+      recreate: () => request("recreateRemote", {}),
+    },
+    access: {
+      devices: () => request("listDevices", {}),
+      renameDevice: (id, name) => request("renameDevice", { params: { id }, body: { name } }),
+      revokeDevice: (id) => request("revokeDevice", { params: { id } }),
+      signOutAll: () => request("signOutAllDevices", {}),
+      mintPairing: (input) => request("mintPairing", { query: input }),
+      redeemPairing: (input) => request("redeemPairing", { body: input }),
     },
     terminals: {
       available: async () => (await request("getTerminalsAvailable", {})).available,

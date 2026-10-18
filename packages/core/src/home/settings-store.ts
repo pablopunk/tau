@@ -7,6 +7,8 @@ import {
   MessageModeSchema,
   type ModelRef,
   ModelRefSchema,
+  type RemoteSettings,
+  RemoteSettingsSchema,
   type Settings,
   type ThinkingLevel,
   ThinkingLevelSchema,
@@ -32,6 +34,7 @@ type StoredSettings = {
   claudeConnectors?: ClaudeConnectorSettings;
   lastWorkspaceModes?: Record<string, WorkspaceMode>;
   mcpServers?: McpServerConfig[];
+  remote?: RemoteSettings;
 };
 
 const parseJson = (text: string | undefined): Record<string, unknown> => {
@@ -113,6 +116,7 @@ function parseStored(text: string | undefined): StoredSettings {
   if (claudeConnectors) stored.claudeConnectors = claudeConnectors;
   if (raw.lastWorkspaceModes !== undefined)
     stored.lastWorkspaceModes = validLastWorkspaceModes(raw.lastWorkspaceModes);
+  if (Value.Check(RemoteSettingsSchema, raw.remote)) stored.remote = { enabled: raw.remote.enabled };
   if (raw.mcpServers !== undefined) stored.mcpServers = validMcpServers(raw.mcpServers);
   return stored;
 }
@@ -127,6 +131,7 @@ const withDefaults = (stored: StoredSettings, defaultProjectsFolder: string): Se
   workspaceDefault: stored.workspaceDefault ?? "per-project",
   claudeCliNoticeAt: stored.claudeCliNoticeAt ?? null,
   claudeConnectors: stored.claudeConnectors ?? { enabled: [], alwaysAllow: [], askBeforeWrites: false },
+  remote: stored.remote ?? { enabled: false },
 });
 
 export interface SettingsStore {
@@ -143,6 +148,7 @@ export interface SettingsStore {
   setWorkspaceDefault(mode: WorkspaceDefault): Promise<void>;
   setClaudeCliNoticeAt(at: number): Promise<void>;
   setClaudeConnectors(value: ClaudeConnectorSettings): Promise<void>;
+  setRemoteEnabled(enabled: boolean): Promise<void>;
   lastWorkspaceMode(projectId: string): Promise<WorkspaceMode | undefined>;
   setLastWorkspaceMode(projectId: string, mode: WorkspaceMode): Promise<void>;
   /** Servers added in Settings. The real values (env, headers) stay here and never reach `Settings`. */
@@ -193,6 +199,7 @@ export function createSettingsStore(settingsFile: string, defaultProjectsFolder:
         ...stored,
         claudeConnectors: copyConnectorSettings(value),
       })),
+    setRemoteEnabled: (enabled) => update((stored) => ({ ...stored, remote: { enabled } })),
     lastWorkspaceMode: async (projectId) => (await readStored()).lastWorkspaceModes?.[projectId],
     setLastWorkspaceMode: (projectId, mode) =>
       update((stored) => ({

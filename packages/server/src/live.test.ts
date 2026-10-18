@@ -3,9 +3,11 @@ import {
   encodeFrame,
   isBaseOps,
   isRetiredOps,
+  LIVE_MAX_FRAME_BYTES,
   LIVE_PATH,
   type OpsFrame,
   type ServerFrame,
+  WS_MAX_PAYLOAD_BYTES,
 } from "@tau/protocol";
 import { createFakeCore } from "@tau/testkit";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -249,5 +251,24 @@ describe("backpressure", () => {
   it("gives up when the socket closes", async () => {
     const socket = { OPEN: 1, readyState: 3, bufferedAmount: 5 * 1024 * 1024 } as unknown as WebSocket;
     await waitForDrain(socket);
+  });
+});
+
+describe("WebSocket frame caps", () => {
+  const closeCodeOf = (socket: WebSocket, size: number) =>
+    new Promise<number>((resolve) => {
+      socket.once("close", resolve);
+      socket.once("open", () => socket.send(Buffer.alloc(size, 97)));
+    });
+
+  it("closes /live with 1009 above 64 KB, by the route's own check and by the 1 MB server limit", async () => {
+    ctx = await startTestServer();
+    expect(await closeCodeOf(connect(), LIVE_MAX_FRAME_BYTES + 1)).toBe(1009);
+    expect([1006, 1009]).toContain(await closeCodeOf(connect(), WS_MAX_PAYLOAD_BYTES + 1));
+  });
+
+  it("sets the shared server's maxPayload once, to 1 MB", async () => {
+    ctx = await startTestServer();
+    expect(ctx.server.app.websocketServer.options.maxPayload).toBe(WS_MAX_PAYLOAD_BYTES);
   });
 });

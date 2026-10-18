@@ -1,4 +1,4 @@
-import { publishServerUrl, readRunningInstance } from "@tau/core";
+import { createTunnelTargetRef, publishServerUrl, readRunningInstance } from "@tau/core";
 import type { Core, CreateCore } from "@tau/protocol";
 import type { CreateServer } from "@tau/server";
 import { listenOnFreePort } from "./listen-on-free-port";
@@ -52,15 +52,18 @@ export async function run(
   const token = await readOrCreateToken(options.home);
   if (await reportExistingInstance(options, dependencies, token)) return undefined;
 
+  const tunnelTarget = createTunnelTargetRef();
   const core: Core = await dependencies.createCore({
     home: options.home,
     faux: options.faux,
     cliEntry: dependencies.cliEntry,
+    tunnelTarget: tunnelTarget.get,
   });
   try {
     const server = await listenOnFreePort(options.port, (port) =>
       dependencies.createServer({ core, port, token, staticDir: dependencies.staticDir }),
     );
+    tunnelTarget.set(server.tunnelPort);
     await publishServerUrl(options.home, server.origin, dependencies.version);
     dependencies.log(`tau is running: ${server.url}`);
     if (options.open) await openBrowserSafely(server.url, dependencies);

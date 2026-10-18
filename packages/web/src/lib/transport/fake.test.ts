@@ -20,6 +20,25 @@ const until = async (condition: () => boolean) => {
   expect(condition()).toBe(true);
 };
 
+describe("fake transport: remote access and devices", () => {
+  it("turns remote on, links a device through the code, lists it as this device, revokes it", async () => {
+    const { api, frames, socket } = setup();
+    expect((await api.remote.status()).state).toBe("off");
+    const on = await api.remote.enable();
+    expect(on).toMatchObject({ state: "online", url: expect.stringMatching(/^https:\/\//) });
+    const minted = await api.access.mintPairing({ kind: "device" });
+    expect(minted.link).toBe(`${on.url}/pair#${minted.code}`);
+    await api.access.redeemPairing({ code: minted.shortCode, deviceName: "Safari on iPhone" });
+    const [device] = await api.access.devices();
+    expect(device).toMatchObject({ name: "Safari on iPhone", kind: "phone", current: true });
+    await until(() => frames.some((frame) => frame.type === "changed"));
+    await api.access.revokeDevice(device?.id ?? "");
+    expect(await api.access.devices()).toEqual([]);
+    expect((await api.remote.disable()).state).toBe("off");
+    socket.close();
+  });
+});
+
 describe("fake transport", () => {
   it("serves the REST routes from the fake core", async () => {
     const { api, socket } = setup();

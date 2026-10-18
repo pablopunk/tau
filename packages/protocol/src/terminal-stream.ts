@@ -18,6 +18,11 @@ export const terminalStreamPath = (id: string): string =>
   TERMINAL_STREAM_PATH.replace(":id", encodeURIComponent(id));
 
 export const TERMINAL_STREAM_MAX_INPUT_BYTES = 64 * 1024;
+
+/** The shared WebSocket server accepts frames up to this size (the machine link needs 256 KB chunks); each route enforces its own cap. */
+export const WS_MAX_PAYLOAD_BYTES = 1024 * 1024;
+/** `/live` client frames are `{type, conversationId}` only. */
+export const LIVE_MAX_FRAME_BYTES = 64 * 1024;
 export const TERMINAL_STREAM_MAX_REPLAY_FRAME_BYTES = 64 * 1024;
 export const TERMINAL_STREAM_CLOSE_UNKNOWN = 1008;
 export const TERMINAL_STREAM_CLOSE_SLOW = 1013;

@@ -1,6 +1,9 @@
+import { randomBytes } from "node:crypto";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import type { Core, CreateCore, CreateCoreOptions } from "@tau/protocol";
+import { createAccess } from "./access/create-access";
+import { createFileDeviceStore } from "./access/file-device-store";
 import { createAgentTypeLoader } from "./agents/agent-types";
 import { resolveModelAlias } from "./agents/model-alias";
 import { createApprovals } from "./approvals/approvals";
@@ -45,6 +48,8 @@ import { createPresentProject } from "./project-view";
 import { createProjectsApi } from "./projects-api";
 import { createProviderService, type Environment } from "./provider/provider-service";
 import { createProvidersApi } from "./providers-api";
+import { createOpenTunnelAdapter } from "./remote/opentunnel-adapter";
+import { createRemoteService } from "./remote/remote-service";
 import type { RemovalHooks } from "./removal-hooks";
 import { createSettingsApi } from "./settings-api";
 import { createSkillsApi } from "./skills/skills-api";
@@ -299,8 +304,24 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
     await scheduler.start();
     archivedCleanup.start();
 
+    const tunnel = createOpenTunnelAdapter({
+      directory: home.remoteDirectory,
+      tunnelTarget: options.tunnelTarget ?? (() => Promise.reject(new Error("No tunnel listener"))),
+      now: deps.now,
+    });
+    const access = createAccess({
+      store: createFileDeviceStore(home.devicesFile),
+      now: deps.now,
+      randomBytes: (size) => randomBytes(size),
+      remoteUrl: () => tunnel.status().url,
+      announce: () => changes.emit({ resource: "devices" }),
+    });
+    const remote = createRemoteService({ adapter: tunnel, settings, access, changes });
+
     let closing: Promise<void> | undefined;
     return {
+      access,
+      remote: remote.api,
       fs: { suggestDirectories },
       settings: createSettingsApi({
         settings,
@@ -353,6 +374,7 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
       close() {
         closing ??= (async () => {
           changes.clear();
+          await remote.close();
           await archivedCleanup.stop();
           clones.stopAll();
           try {

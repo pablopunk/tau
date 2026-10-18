@@ -50,6 +50,7 @@ beforeEach(() => {
     workspaceDefault: "per-project",
     claudeCliNoticeAt: null,
     claudeConnectors: { enabled: [], alwaysAllow: [], askBeforeWrites: false },
+    remote: { enabled: false },
   });
   mocked.projects.list.mockResolvedValue([project()]);
   mocked.conversations.listAll.mockResolvedValue([]);

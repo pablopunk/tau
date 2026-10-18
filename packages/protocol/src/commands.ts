@@ -36,6 +36,9 @@ export const COMMAND_NOUNS = [
   "timers",
   "goal",
   "mcp",
+  "remote",
+  "devices",
+  "pair",
 ] as const;
 export type CommandNoun = (typeof COMMAND_NOUNS)[number];
 
@@ -527,6 +530,55 @@ export const commands: readonly CommandDef[] = [
     positionals: ["params.name"],
     destructive: false,
   },
+  {
+    command: "remote status",
+    route: "getRemoteStatus",
+    summary: "Show the remote access state and URL",
+    positionals: [],
+    destructive: false,
+  },
+  {
+    command: "remote on",
+    route: "enableRemote",
+    summary: "Turn remote access on (opens the tunnel)",
+    positionals: [],
+    destructive: false,
+  },
+  {
+    command: "remote off",
+    route: "disableRemote",
+    summary: "Turn remote access off: the URL dies and linked devices stop working",
+    positionals: [],
+    destructive: true,
+  },
+  {
+    command: "devices list",
+    route: "listDevices",
+    summary: "List the linked devices",
+    positionals: [],
+    destructive: false,
+  },
+  {
+    command: "devices rename",
+    route: "renameDevice",
+    summary: "Rename a linked device",
+    positionals: ["params.id", "body.name"],
+    destructive: false,
+  },
+  {
+    command: "devices revoke",
+    route: "revokeDevice",
+    summary: "Revoke a device: its session and open sockets end at once",
+    positionals: ["params.id"],
+    destructive: true,
+  },
+  {
+    command: "pair new",
+    route: "mintPairing",
+    summary: "Make a one-time code to link a device (`tau pair` prints it with a QR)",
+    positionals: [],
+    destructive: false,
+  },
 ];
 
 const IMAGES = "Images are not text; agents have no use for them here.";
@@ -549,6 +601,11 @@ export const COMMAND_EXCLUSIONS = {
   suggestDirectories: TYPING_HELPER,
   getSuggestedCodeFolder: TYPING_HELPER,
   suggestProjectFiles: TYPING_HELPER,
+  redeemPairing:
+    "Called by the pair page and `tau connect` with a one-time code, never by an agent or the CLI.",
+  getHealth: "A probe for the watchdog and the service manager; `tau status` shows the same facts.",
+  recreateRemote: "UI only: it clears every linked device, so it needs the confirmation dialog.",
+  signOutAllDevices: "UI only: it signs out every browser and phone, this one included.",
 } as const satisfies Partial<Record<RouteName, string>>;
 
 export type ExcludedRoute = keyof typeof COMMAND_EXCLUSIONS;

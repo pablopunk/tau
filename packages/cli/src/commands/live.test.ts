@@ -1,7 +1,7 @@
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { Core } from "@tau/protocol";
+import { type Core, REMOTE_OFF } from "@tau/protocol";
 import { createServer, type RunningServer } from "@tau/server";
 import { afterEach, describe, expect, it } from "vitest";
 import { discoverServer } from "./client";
@@ -20,6 +20,7 @@ const stubCore = {
       return { stop: async () => undefined };
     },
   },
+  remote: { status: async () => REMOTE_OFF },
   onChange: () => () => undefined,
   close: async () => undefined,
 } as unknown as Core;

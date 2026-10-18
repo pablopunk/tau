@@ -1,4 +1,5 @@
-import { createCore } from "@tau/core";
+import { join } from "node:path";
+import { createCore, startWatchdog, type Watchdog } from "@tau/core";
 import { createServer } from "@tau/server";
 import { cliEntry } from "./cli-entry";
 import { lifecycleFlagsOf } from "./lifecycle/flags";
@@ -13,6 +14,15 @@ import { cliVersion } from "./version";
 async function openBrowser(url: string): Promise<void> {
   const { default: open } = await import("open");
   await open(url);
+}
+
+/** Only the service-managed run is watched: a hang is killed and the OS service restarts it. */
+function startServiceWatchdog(home: string): Watchdog {
+  return startWatchdog({
+    lastExitFile: join(home, "last-exit.json"),
+    logFile: join(home, "logs", "server.log"),
+    workerUrl: new URL("./watchdog.js", import.meta.url),
+  });
 }
 
 function closeOnSignals(close: () => Promise<void>): void {
@@ -51,7 +61,11 @@ async function serveOnce(argv: readonly string[]): Promise<void> {
   });
   if (!app) return options.service ? process.exit(1) : undefined;
   writeStoredPort(options.home, portOfUrl(app.url));
-  closeOnSignals(app.close);
+  const watchdog = options.service ? startServiceWatchdog(options.home) : undefined;
+  closeOnSignals(async () => {
+    await watchdog?.stop();
+    await app.close();
+  });
 }
 
 /** `tau serve`: the server in the foreground. `argv` holds only the server flags. */

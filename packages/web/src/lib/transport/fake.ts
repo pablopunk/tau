@@ -21,6 +21,9 @@ type Input = {
   body: Record<string, unknown>;
 };
 
+/** The fake browser is the first device linked: the Devices list marks it "This device". */
+export const FAKE_CURRENT_DEVICE_ID = "device-1";
+
 type Handlers = { [N in JsonRouteName]: (core: Core, input: Input) => Promise<unknown> };
 
 const handlers: Handlers = {
@@ -122,6 +125,26 @@ const handlers: Handlers = {
   setWorkspaceDefault: (core, { body }) => core.settings.setWorkspaceDefault(body.mode as never),
   setClaudeConnectors: (core, { body }) => core.settings.setClaudeConnectors(body as never),
   listApprovals: (core, { params }) => core.approvals.list(params.id),
+  getHealth: async () => ({ ok: true }),
+  getRemoteStatus: (core) => core.remote.status(),
+  enableRemote: (core) => core.remote.enable(),
+  disableRemote: (core) => core.remote.disable(),
+  recreateRemote: (core) => core.remote.recreate(),
+  listDevices: (core) => core.access.listDevices(FAKE_CURRENT_DEVICE_ID),
+  renameDevice: (core, { params, body }) => core.access.renameDevice(params.id, body.name as string),
+  revokeDevice: (core, { params }) => core.access.revokeDevice(params.id),
+  signOutAllDevices: (core) => core.access.signOutAll(),
+  mintPairing: (core, { query }) => core.access.mintPairing((query ?? {}) as never),
+  redeemPairing: async (core, { body }) => {
+    const redeemed = await core.access.redeemPairing({
+      code: body.code as string,
+      deviceName: body.deviceName as string,
+      peer: "fake",
+    });
+    return redeemed.kind === "machine"
+      ? { deviceId: redeemed.deviceId, secret: redeemed.secret }
+      : { deviceId: redeemed.deviceId };
+  },
   decideApproval: (core, { params, body }) =>
     core.approvals.decide(params.id, params.toolUseId, body.decision as never),
 };

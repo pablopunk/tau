@@ -2,7 +2,7 @@ import { mkdtempSync } from "node:fs";
 import { createServer as createNetServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { Core } from "@tau/protocol";
+import { type Core, REMOTE_OFF } from "@tau/protocol";
 import { createServer } from "@tau/server";
 import { describe, expect, it, vi } from "vitest";
 import { parseCliOptions } from "./options";
@@ -22,7 +22,11 @@ describe("run with the real server", () => {
   it("skips an occupied port and serves the session cookie exchange on the next one", async () => {
     const { port, release } = await occupy();
     const home = join(mkdtempSync(join(tmpdir(), "tau-cli-real-")), "home");
-    const core = { close: vi.fn(async () => undefined) } as unknown as Core;
+    const core = {
+      remote: { status: async () => REMOTE_OFF },
+      onChange: () => () => undefined,
+      close: vi.fn(async () => undefined),
+    } as unknown as Core;
     const app = await run(parseCliOptions(["--home", home, "--no-open", "--port", String(port)], {}), {
       createCore: async () => core,
       createServer,

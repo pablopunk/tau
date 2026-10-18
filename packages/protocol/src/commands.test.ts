@@ -66,10 +66,17 @@ describe("command table", () => {
     }
   });
 
-  it("flags only the four destructive commands", () => {
+  it("flags only the six destructive commands", () => {
     const destructive = commands.filter((entry) => entry.destructive).map((entry) => entry.command);
     expect(destructive.sort()).toEqual(
-      ["projects remove", "threads delete", "threads delete-archived", "workspaces remove"].sort(),
+      [
+        "devices revoke",
+        "projects remove",
+        "remote off",
+        "threads delete",
+        "threads delete-archived",
+        "workspaces remove",
+      ].sort(),
     );
   });
 
