@@ -58,7 +58,7 @@ async function createScreen(host: HTMLElement) {
     screenReaderMode: true,
     fontFamily: TERMINAL_FONT_FAMILY,
     fontSize: 13,
-    lineHeight: 1.2,
+    lineHeight: 1,
     cursorBlink: true,
     scrollback: 5000,
     theme: terminalTheme(host),
