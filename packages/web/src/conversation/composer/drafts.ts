@@ -1,10 +1,8 @@
-import { readWithLegacy } from "@/lib/legacy-storage";
-
 const PREFIX = "tau:draft:";
 
 export function loadDraft(target: string): string {
   try {
-    return readWithLegacy(PREFIX + target) ?? "";
+    return window.localStorage.getItem(PREFIX + target) ?? "";
   } catch {
     return "";
   }

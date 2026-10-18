@@ -7,7 +7,7 @@
     <script>
       try {
         const theme =
-          window.localStorage.getItem("tau:theme") ?? window.localStorage.getItem("pi-everywhere:theme");
+          window.localStorage.getItem("tau:theme");
         const dark =
           theme === "dark" ||
           (theme !== "light" && window.matchMedia("(prefers-color-scheme: dark)").matches);

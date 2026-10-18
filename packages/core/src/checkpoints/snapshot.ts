@@ -10,8 +10,6 @@ export const indexFileOf = (home: string, conversationId: string) =>
 
 export const refPrefixOf = (conversationId: string) => `refs/tau/${conversationId}/`;
 
-const legacyRefPrefixOf = (conversationId: string) => `refs/pi-everywhere/${conversationId}/`;
-
 export const refOf = (conversationId: string, name: string | number) =>
   `${refPrefixOf(conversationId)}${name}`;
 
@@ -63,7 +61,6 @@ export async function deleteRefsOf(commonDir: string, conversationId: string): P
     "for-each-ref",
     "--format=%(refname)",
     refPrefixOf(conversationId),
-    legacyRefPrefixOf(conversationId),
   ]);
   for (const ref of listed.split("\n").filter(Boolean)) await runGit(run, [gitDir, "update-ref", "-d", ref]);
 }

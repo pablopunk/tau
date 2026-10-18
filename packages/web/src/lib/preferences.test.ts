@@ -63,13 +63,6 @@ describe("preferences", () => {
     expect(preferences.getNotificationsEnabled()).toBe(false);
   });
 
-  it("reads the theme and sidebar mode stored before the rename", () => {
-    window.localStorage.setItem("pi-everywhere:theme", "dark");
-    window.localStorage.setItem("pie-sidebar-mode", "projects");
-    expect(preferences.getTheme()).toBe("dark");
-    expect(preferences.getSidebarMode()).toBe("projects");
-  });
-
   it("remembers the sidebar mode and the closed projects", () => {
     expect(preferences.getSidebarMode()).toBe("threads");
     preferences.setSidebarMode("projects");

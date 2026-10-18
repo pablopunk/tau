@@ -191,17 +191,6 @@ describe("checkpoint snapshots and restore", () => {
   });
 });
 
-describe("checkpoints stored under the old ref prefix", () => {
-  it("are deleted with the thread", async () => {
-    await snapshot("9", 1);
-    const sha = (await git("rev-parse", "refs/tau/9/1")).trim();
-    await git("update-ref", "refs/pi-everywhere/9/1", sha);
-    await git("update-ref", "-d", "refs/tau/9/1");
-    await deleteRefsOf(repo.commonDir, "9");
-    expect((await git("for-each-ref", "--format=%(refname)", "refs/pi-everywhere/")).trim()).toBe("");
-  });
-});
-
 describe("requireRepoRelative", () => {
   it.each(["", "../x", "a/../../x", "/etc/passwd", "a\0b"])("rejects %j", (path) => {
     expect(() => requireRepoRelative(path)).toThrow();

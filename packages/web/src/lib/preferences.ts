@@ -1,7 +1,5 @@
 import type { ModelRef, ThinkingLevel } from "@tau/protocol";
 
-import { readWithLegacy } from "./legacy-storage";
-
 const PREFIX = "tau:";
 const KEYS = {
   lastProject: `${PREFIX}last-project`,
@@ -18,7 +16,7 @@ const KEYS = {
 
 function readString(key: string): string | null {
   try {
-    return readWithLegacy(key);
+    return window.localStorage.getItem(key);
   } catch {
     return null;
   }
