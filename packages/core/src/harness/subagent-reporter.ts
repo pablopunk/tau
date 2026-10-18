@@ -2,7 +2,8 @@ import type { AssistantMessage } from "@earendil-works/pi-ai";
 import { AssistantEntry, type ConversationId, defineTask } from "@earendil-works/pi-durable";
 import type { SubagentNotificationData } from "@tau/protocol";
 import { ConversationDoc } from "./conversation-docs";
-import { notificationInput, notificationRequestId } from "./subagent-notification";
+import { createNotificationSubmitter } from "./notification-submitter";
+import { subagentNotification } from "./subagent-notification";
 import { SubagentRegistryDoc } from "./subagent-registry-doc";
 import { setAgentStatus } from "./subagent-status";
 
@@ -53,9 +54,12 @@ export const Reporter = defineTask<ReporterInput, ReporterState, null>({
     report: async (reporter, runtime, taskContext) => {
       const { notification } = reporter.state.checkpoint;
       if (notification !== undefined) {
-        const parent = (await runtime.conversation(runtime.conversationId, taskContext))!;
-        const requestId = notificationRequestId(notification.childId, `subagent:${reporter.id}`);
-        await parent.submit({ ...notificationInput(notification), requestId }, taskContext);
+        const submitter = createNotificationSubmitter((id, context) => runtime.conversation(id, context));
+        await submitter.notify(
+          String(runtime.conversationId),
+          subagentNotification(notification, `subagent:${reporter.id}`),
+          taskContext,
+        );
       }
       await runtime.commit(
         () => ({ status: "terminal", outcome: { status: "completed", result: null } }),

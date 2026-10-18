@@ -35,6 +35,10 @@ const thread = (id: string, overrides: Partial<ConversationSummary> = {}): Conve
   agentModel: null,
   agentStatus: null,
   background: false,
+  agentThinking: null,
+  timers: 0,
+  nextTimerAt: null,
+  goal: null,
   unmergedWarning: null,
   ...overrides,
 });

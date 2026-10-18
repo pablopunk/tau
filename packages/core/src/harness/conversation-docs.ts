@@ -1,5 +1,13 @@
 import { defineDoc, defineDocFamily } from "@earendil-works/pi-durable";
-import type { AgentStatus, ConversationStatus, ImageInput, ModelRef, ThreadWorkspace } from "@tau/protocol";
+import type {
+  AgentStatus,
+  ConversationStatus,
+  GoalSummary,
+  ImageInput,
+  ModelRef,
+  ThinkingLevel,
+  ThreadWorkspace,
+} from "@tau/protocol";
 
 export type IndexedConversation = {
   conversationId: number;
@@ -19,6 +27,10 @@ export type IndexedConversation = {
   agentType?: string;
   agentModel?: ModelRef;
   agentStatus?: AgentStatus;
+  agentThinking?: ThinkingLevel;
+  timers?: number;
+  nextTimerAt?: number;
+  goal?: GoalSummary;
   background?: boolean;
   unmergedWarning?: string;
 };

@@ -8,13 +8,18 @@ import { listAgentsToolFile } from "./tools/list-agents";
 import { mcpCallToolFile } from "./tools/mcp-call";
 import { mcpSearchToolFile } from "./tools/mcp-search";
 import { mergeAgentToolFile } from "./tools/merge-agent";
+import { monitorToolFile } from "./tools/monitor";
 import { processListToolFile } from "./tools/process-list";
 import { processLogsToolFile } from "./tools/process-logs";
 import { processStartToolFile } from "./tools/process-start";
 import { processStopToolFile } from "./tools/process-stop";
+import { scheduleRepeatToolFile } from "./tools/schedule-repeat";
+import { scheduleWakeupToolFile } from "./tools/schedule-wakeup";
 import { sendMessageToolFile } from "./tools/send-message";
 import { stopAgentToolFile } from "./tools/stop-agent";
 import { buildTaskToolFile, taskToolFile } from "./tools/task";
+import { timerDeleteToolFile } from "./tools/timer-delete";
+import { timersListToolFile } from "./tools/timers-list";
 import { todoWriteToolFile } from "./tools/todo-write";
 import { createToolServicesRef, type ToolFileFactory, type ToolServicesRef } from "./tools/tool-file";
 
@@ -32,6 +37,11 @@ export const TOOL_FILES: readonly ToolFileFactory[] = [
   processLogsToolFile,
   processStopToolFile,
   processListToolFile,
+  monitorToolFile,
+  scheduleWakeupToolFile,
+  scheduleRepeatToolFile,
+  timersListToolFile,
+  timerDeleteToolFile,
   piWebAccessToolFile,
 ];
 

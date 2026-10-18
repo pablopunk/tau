@@ -32,6 +32,7 @@ import { createFakeGithub, type FakeGithubOptions } from "./fake-github";
 import { createFakeIcons } from "./fake-icons";
 import { assertImageMatchesMimeType } from "./fake-images";
 import { createFakeMvp5 } from "./fake-mvp5";
+import { createFakeMvp8 } from "./fake-mvp8";
 import { createFakeProviders } from "./fake-providers";
 import { suggestFakeDirectories } from "./fake-suggest";
 import type { SpawnParams } from "./fake-thread-ops";
@@ -245,6 +246,8 @@ export function createFakeCore(options: FakeCoreOptions = {}): Core {
     githubConnected: async () => (await remoteHub.status()).state === "connected",
   });
 
+  const mvp8 = createFakeMvp8({ emit, now, requireConversation });
+
   function workspaceModeFor(projectId: string, requested: WorkspaceMode | undefined): WorkspaceMode {
     if (requested) {
       lastWorkspaceModes.set(projectId, requested);
@@ -294,6 +297,7 @@ export function createFakeCore(options: FakeCoreOptions = {}): Core {
       speed,
       now,
       onSummaryChange: (changedProjectId) => emit({ resource: "conversations", projectId: changedProjectId }),
+      summaryExtras: (id) => mvp8.extras(id),
       generateTitle,
     });
     conversations.set(conversation.id, conversation);
@@ -317,6 +321,7 @@ export function createFakeCore(options: FakeCoreOptions = {}): Core {
     for (const child of mvp5.childrenOf(conversation)) await removeConversation(child);
     await conversation.abort();
     mvp5.release(conversation);
+    mvp8.release(conversation.id);
     conversation.remove();
   };
 
@@ -523,6 +528,8 @@ export function createFakeCore(options: FakeCoreOptions = {}): Core {
     },
     workspaces: mvp5.workspaces,
     processes: mvp5.processes,
+    timers: mvp8.timers,
+    goals: mvp8.goals,
     mcp: mvp5.mcp,
     onChange(listener) {
       listeners.add(listener);

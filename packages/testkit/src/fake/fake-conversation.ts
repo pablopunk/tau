@@ -57,6 +57,10 @@ export interface FakeConversationDeps {
   readonly parentId?: string;
   readonly forkOf?: ConversationSummary["forkOf"];
   readonly onSummaryChange: (projectId: string) => void;
+  /** The timers and goal of the thread; the fake core owns them. */
+  readonly summaryExtras: (
+    conversationId: string,
+  ) => Pick<ConversationSummary, "timers" | "nextTimerAt" | "goal">;
   /** The name the title job comes up with, or `undefined` when it fails. */
   readonly generateTitle: (text: string) => string | undefined;
 }
@@ -204,6 +208,8 @@ export class FakeConversation {
       agentModel: this.agentInfo?.model ?? null,
       agentStatus: this.agentInfo?.status ?? null,
       background: this.agentInfo !== undefined,
+      agentThinking: this.agentInfo ? this.thinkingLevel() : null,
+      ...this.deps.summaryExtras(this.id),
       unmergedWarning: this.unmergedWarning(),
     };
   }

@@ -37,6 +37,7 @@ import type {
   RestorePreview,
   WorkspaceStatus,
 } from "./mvp5";
+import type { Goal, LoopInput, Timer } from "./mvp8";
 import type { Op } from "./view";
 
 export type {
@@ -253,6 +254,24 @@ export interface Core {
     logs(id: string, tail: number): Promise<string>;
     /** Idempotent for a stopped process; rejects `not_found`. */
     stop(id: string): Promise<void>;
+  };
+  timers: {
+    /** This thread's timers, soonest first. Rejects `not_found` for an unknown thread. */
+    list(conversationId: string): Promise<Timer[]>;
+    /** Idempotent. */
+    delete(id: string): Promise<void>;
+    /** Repeats `prompt` every `every` and runs it now, or paces itself without `every`. Rejects `not_found`, `invalid_request`. */
+    loop(conversationId: string, input: LoopInput): Promise<void>;
+    /** Deletes the thread's `/loop` timers. Idempotent. */
+    stopLoop(conversationId: string): Promise<void>;
+  };
+  goals: {
+    /** Replaces the active goal and starts a turn. Rejects `not_found`, `invalid_request` for a child thread or a condition over 4,000 characters. */
+    set(conversationId: string, condition: string): Promise<void>;
+    /** `null` when the thread has no goal. Rejects `not_found`. */
+    get(conversationId: string): Promise<Goal | null>;
+    /** Idempotent. Rejects `not_found`. */
+    clear(conversationId: string): Promise<void>;
   };
   mcp: {
     /** Settings servers plus the project's `.mcp.json` servers (`null` for settings only). Never returns env or header values. */

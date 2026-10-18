@@ -8,6 +8,7 @@ import {
   updateLiveConversation,
 } from "../harness/conversation-index";
 import { isBusy, lastAnswerFailed, observeBusyChanges } from "../harness/live-state";
+import { type RunEnd, readRunEnd } from "../harness/run-end";
 import { createSerialQueue } from "../home/serial-queue";
 
 export interface StatusTrackerDeps {
@@ -20,8 +21,11 @@ export interface StatusTracker {
   attach(harness: Harness): void;
   /** Recomputes the status of entries stored as running. */
   recoverAtStartup(): Promise<void>;
-  /** Called after a thread's run ended and its status was recorded. Listener errors are logged, never thrown. */
-  onRunEnded(listener: (conversationId: string) => Promise<void>): void;
+  /**
+   * Called after a thread's run ended and its status was recorded. `outcome` comes from the last assistant
+   * message's `stopReason`; a user Stop is `aborted`. Listener errors are logged, never thrown.
+   */
+  onRunEnded(listener: (end: RunEnd) => Promise<void>): void;
   /** Resolves once every status write and run-end listener queued so far has finished. */
   settled(): Promise<void>;
 }
@@ -31,7 +35,7 @@ type RunState = { busy: boolean; runEnded: boolean };
 export function createStatusTracker(deps: StatusTrackerDeps): StatusTracker {
   const states = new Map<string, RunState>();
   const enqueue = createSerialQueue();
-  const runEndedListeners: ((conversationId: string) => Promise<void>)[] = [];
+  const runEndedListeners: ((end: RunEnd) => Promise<void>)[] = [];
   const logRunEndFailure = (error: unknown) => console.error("tau: a run-end listener failed", error);
   let attached: Harness | undefined;
   let closed = false;
@@ -62,8 +66,10 @@ export function createStatusTracker(deps: StatusTrackerDeps): StatusTracker {
       return true;
     });
     if (written) deps.changes.emit({ resource: "conversations", projectId: meta.projectId });
-    if (runEnded)
-      for (const listener of runEndedListeners) await listener(conversationId).catch(logRunEndFailure);
+    if (runEnded && runEndedListeners.length > 0) {
+      const end = await readRunEnd(harness, id);
+      for (const listener of runEndedListeners) await listener(end).catch(logRunEndFailure);
+    }
   }
 
   function scheduleFlush(conversationId: string): void {

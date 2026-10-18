@@ -36,6 +36,7 @@ import {
   RestorePreviewSchema,
   WorkspaceStatusSchema,
 } from "./mvp5";
+import { GoalInputSchema, GoalSchema, LoopInputSchema, TimerSchema } from "./mvp8";
 
 export const API_PREFIX = "/api";
 export const LIVE_PATH = `${API_PREFIX}/live`;
@@ -479,6 +480,42 @@ export const routes = {
     response: Type.Object({ logs: Type.String() }),
   },
   stopProcess: { method: "DELETE", path: `${API_PREFIX}/processes/:id`, status: 204, params: IdParams },
+  listTimers: {
+    method: "GET",
+    path: `${API_PREFIX}/conversations/:id/timers`,
+    status: 200,
+    params: IdParams,
+    response: Type.Array(TimerSchema),
+  },
+  deleteTimer: { method: "DELETE", path: `${API_PREFIX}/timers/:id`, status: 204, params: IdParams },
+  startLoop: {
+    method: "POST",
+    path: `${API_PREFIX}/conversations/:id/loop`,
+    status: 204,
+    params: IdParams,
+    body: LoopInputSchema,
+  },
+  stopLoop: { method: "DELETE", path: `${API_PREFIX}/conversations/:id/loop`, status: 204, params: IdParams },
+  getGoal: {
+    method: "GET",
+    path: `${API_PREFIX}/conversations/:id/goal`,
+    status: 200,
+    params: IdParams,
+    response: Type.Union([GoalSchema, Type.Null()]),
+  },
+  setGoal: {
+    method: "PUT",
+    path: `${API_PREFIX}/conversations/:id/goal`,
+    status: 204,
+    params: IdParams,
+    body: GoalInputSchema,
+  },
+  clearGoal: {
+    method: "DELETE",
+    path: `${API_PREFIX}/conversations/:id/goal`,
+    status: 204,
+    params: IdParams,
+  },
   listMcpServers: {
     method: "GET",
     path: `${API_PREFIX}/mcp/servers`,

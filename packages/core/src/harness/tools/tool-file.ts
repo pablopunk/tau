@@ -4,6 +4,9 @@ import type { TSchema } from "typebox";
 import type { McpService } from "../../mcp/mcp-service";
 import { notImplemented } from "../../not-implemented";
 import type { ProcessService } from "../../processes/process-service";
+import type { Scheduler } from "../../timers/scheduler-api";
+import type { LiveWork } from "../live-work";
+import type { NotificationSubmitter } from "../notification-submitter";
 import type { SubagentServices } from "../subagent-services";
 
 export interface ToolServices {
@@ -12,6 +15,10 @@ export interface ToolServices {
   readonly processes: ProcessService;
   readonly mcp: McpService;
   readonly subagents: SubagentServices;
+  /** The only way to put a notification into a thread (MVP8). */
+  readonly notifications: NotificationSubmitter;
+  readonly scheduler: Scheduler;
+  readonly liveWork: LiveWork;
 }
 
 /** The tools are built before the services exist (the Harness needs the registry first), so they read this lazily. */

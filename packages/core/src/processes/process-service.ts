@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { AppError, type ConversationSummary, type ProcessInfo } from "@tau/protocol";
+import type { NotificationSubmitter } from "../harness/notification-submitter";
 import { lastLines } from "./log-tail";
 import { createProcessFiles } from "./process-files";
 import { groupIsAlive, terminateGroup } from "./process-group";
@@ -16,6 +17,8 @@ export interface ProcessService {
   /** Spawns in its own process group; a pid file `<home>/processes/<id>.json`. */
   start(request: StartProcessRequest): Promise<ProcessInfo>;
   list(conversationId: string): Promise<ProcessInfo[]>;
+  /** True while a process or monitor of the thread runs. */
+  hasRunning(conversationId: string): boolean;
   logs(id: string, tail: number): Promise<string>;
   /** SIGTERM, SIGKILL after 5 s. */
   stop(id: string): Promise<void>;
@@ -29,6 +32,8 @@ export interface ProcessService {
 
 export interface ProcessDeps {
   readonly home: string;
+  /** Owner B (MVP8) sends monitor events, exit notices and restart notices through it. */
+  readonly notifications?: NotificationSubmitter;
   readonly emitChange: (conversationId: string) => void;
   readonly stopGraceMs?: number;
 }
@@ -79,6 +84,7 @@ export function createProcessService(deps: ProcessDeps): ProcessService {
         exitCode: null,
         startedAt: Date.now(),
         urls: [],
+        kind: "process",
       };
       const entry: Entry = { info, pid: 0 };
       const announce = () => deps.emitChange(conversationId);
@@ -103,6 +109,11 @@ export function createProcessService(deps: ProcessDeps): ProcessService {
     },
     async list(conversationId) {
       return [...entries.values()].map(infoOf).filter((info) => info.conversationId === conversationId);
+    },
+    hasRunning(conversationId) {
+      return [...entries.values()].some(
+        (entry) => infoOf(entry).conversationId === conversationId && infoOf(entry).state === "running",
+      );
     },
     async logs(id, tail) {
       const entry = require(id);

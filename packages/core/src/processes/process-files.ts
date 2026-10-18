@@ -46,7 +46,8 @@ export function createProcessFiles(home: string): ProcessFiles {
 
 async function readRecord(path: string): Promise<ProcessRecord | undefined> {
   try {
-    return JSON.parse((await readFileIfPresent(path)) ?? "") as ProcessRecord;
+    const record = JSON.parse((await readFileIfPresent(path)) ?? "") as ProcessRecord;
+    return { ...record, info: { ...record.info, kind: record.info.kind ?? "process" } };
   } catch {
     return undefined;
   }

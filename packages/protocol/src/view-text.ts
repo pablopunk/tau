@@ -1,8 +1,8 @@
 import { SUBAGENT_NOTIFICATION_KIND } from "./entities";
+import { isNotificationText } from "./mvp8";
 import type { ConversationView, EntryRecord } from "./view";
 
 const TOOL_ARGUMENT_LIMIT = 80;
-const NOTIFICATION_MARKER = "<subagent-notification";
 
 type Block = { type?: string; text?: string; name?: string; arguments?: unknown };
 
@@ -47,7 +47,7 @@ function linesOf(entry: EntryRecord): string[] {
   const message = entry.model?.[0];
   if (entry.kind === "pi.user" && message?.role === "user") {
     const text = textOf(message.content).trim();
-    return text.startsWith(NOTIFICATION_MARKER) ? [] : [`user: ${text}`];
+    return isNotificationText(text) ? [] : [`user: ${text}`];
   }
   if (entry.kind === "pi.assistant" && message?.role === "assistant")
     return assistantLinesOf(message.content);

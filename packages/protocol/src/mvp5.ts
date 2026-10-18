@@ -45,6 +45,7 @@ export const ProcessInfoSchema = Type.Object({
   exitCode: Type.Union([Type.Number(), Type.Null()]),
   startedAt: Type.Number(),
   urls: Type.Array(Type.String()),
+  kind: Type.Union([Type.Literal("process"), Type.Literal("monitor")]),
 });
 export type ProcessInfo = Type.Static<typeof ProcessInfoSchema>;
 

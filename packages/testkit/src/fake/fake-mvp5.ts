@@ -10,6 +10,7 @@ import { createFakeWorkspaces, hasUnmergedWork } from "./fake-workspaces";
 export const FAKE_WORKTREES_FOLDER = "/fake/home/.tau/worktrees";
 const SUBAGENT_TRIGGER = "agent ";
 const PROCESS_TRIGGER = "bg ";
+const MONITOR_TRIGGER = "monitor ";
 
 export interface Mvp5Context {
   readonly emit: (change: Change) => void;
@@ -58,6 +59,8 @@ export function createFakeMvp5(ctx: Mvp5Context) {
       }
       if (text.startsWith(PROCESS_TRIGGER))
         processes.start(conversation.id, text.slice(PROCESS_TRIGGER.length).trim());
+      if (text.startsWith(MONITOR_TRIGGER))
+        processes.start(conversation.id, text.slice(MONITOR_TRIGGER.length).trim(), "monitor");
     },
 
     childrenOf(conversation: FakeConversation): FakeConversation[] {

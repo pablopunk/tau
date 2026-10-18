@@ -15,6 +15,7 @@ const info = (overrides: Partial<ProcessInfo>): ProcessInfo => ({
   exitCode: null,
   startedAt: 1,
   urls: ["http://localhost:5173/"],
+  kind: "process",
   ...overrides,
 });
 

@@ -28,12 +28,19 @@ function registerThreadRoutes(app: FastifyInstance, core: Core): void {
 }
 
 function registerToolRoutes(app: FastifyInstance, core: Core): void {
-  const { processes, mcp, settings } = core;
+  const { processes, mcp, settings, timers, goals } = core;
   defineRoute(app, routes.listProcesses, ({ params }) => processes.list(params.id));
   defineRoute(app, routes.getProcessLogs, async ({ params, query }) => ({
     logs: await processes.logs(params.id, query.tail ? Number(query.tail) : PROCESS_LOG_TAIL_DEFAULT),
   }));
   defineRoute(app, routes.stopProcess, ({ params }) => processes.stop(params.id));
+  defineRoute(app, routes.listTimers, ({ params }) => timers.list(params.id));
+  defineRoute(app, routes.deleteTimer, ({ params }) => timers.delete(params.id));
+  defineRoute(app, routes.startLoop, ({ params, body }) => timers.loop(params.id, body));
+  defineRoute(app, routes.stopLoop, ({ params }) => timers.stopLoop(params.id));
+  defineRoute(app, routes.getGoal, ({ params }) => goals.get(params.id));
+  defineRoute(app, routes.setGoal, ({ params, body }) => goals.set(params.id, body.condition));
+  defineRoute(app, routes.clearGoal, ({ params }) => goals.clear(params.id));
   defineRoute(app, routes.listMcpServers, ({ query }) => mcp.servers(query.projectId ?? null));
   defineRoute(app, routes.saveMcpServer, ({ params, body }) => mcp.save({ ...body, name: params.name }));
   defineRoute(app, routes.removeMcpServer, ({ params }) => mcp.remove(params.name));

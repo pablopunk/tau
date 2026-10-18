@@ -43,6 +43,10 @@ export const conversation = (overrides: Partial<ConversationSummary> = {}): Conv
   agentModel: null,
   agentStatus: null,
   background: false,
+  agentThinking: null,
+  timers: 0,
+  nextTimerAt: null,
+  goal: null,
   unmergedWarning: null,
   ...overrides,
 });

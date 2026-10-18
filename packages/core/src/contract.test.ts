@@ -13,7 +13,8 @@ import { makeLocalRepo } from "./test-support/local-repo";
 
 const REAL_CORE_IMPLEMENTED = true;
 
-const PENDING_TAGS: string[] = [];
+/** MVP8 owners remove their tag when the real core implements it: timers (C), monitors (B), goals (D). */
+const PENDING_TAGS: string[] = ["[timers]", "[monitors]", "[goals]"];
 
 process.env.TAU_ALLOW_FILE_CLONES = "1";
 

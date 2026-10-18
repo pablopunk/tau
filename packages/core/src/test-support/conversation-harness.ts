@@ -6,7 +6,7 @@ import { createConversationRecovery } from "../conversation-recovery";
 import { legacyWorkspace } from "../harness/conversation-index";
 import { type ConversationStore, createConversationStore } from "../harness/conversation-store";
 import { BACKGROUND, openAgentHarness, openSqliteStorage } from "../harness/open";
-import { createStatusTracker } from "../status/status-tracker";
+import { createStatusTracker, type StatusTracker } from "../status/status-tracker";
 import { createFauxSetup } from "../testing/faux-provider";
 
 export const FAUX_MODEL = { provider: "faux", modelId: "faux-1" };
@@ -16,6 +16,7 @@ export interface ConversationHarness {
   readonly store: ConversationStore;
   readonly changes: ChangeEmitter;
   readonly seen: Change[];
+  readonly status: StatusTracker;
   readonly project: Project;
   readonly models: ReturnType<typeof createFauxSetup>["models"];
   /** The startup steps of `createCore` that belong to conversations, in their order. */
@@ -54,6 +55,7 @@ export async function openConversationHarness(
     store,
     changes,
     seen,
+    status,
     project,
     models,
     async recover() {

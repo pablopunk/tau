@@ -14,8 +14,11 @@ import { suggestDirectories } from "./fs/suggest-directories";
 import { createCloneService } from "./git/clone-service";
 import { createGithubService } from "./github/github-service";
 import { createRunGh, type RunGh, resolveGhPath } from "./github/run-gh";
+import { createGoalsApi } from "./goals-api";
 import { createConversationForker } from "./harness/conversation-fork";
 import { createConversationStore } from "./harness/conversation-store";
+import { createLiveWork } from "./harness/live-work";
+import { harnessNotificationSubmitter } from "./harness/notification-submitter";
 import { BACKGROUND, openAgentHarness, openSqliteStorage } from "./harness/open";
 import { createProjectStore } from "./harness/project-store";
 import { createAgentRegistry } from "./harness/registry";
@@ -35,6 +38,9 @@ import type { RemovalHooks } from "./removal-hooks";
 import { createSettingsApi } from "./settings-api";
 import { createSkillsApi } from "./skills/skills-api";
 import { createStatusTracker } from "./status/status-tracker";
+import { createKeyedScheduler } from "./timers/keyed-scheduler";
+import { systemClock } from "./timers/scheduler-api";
+import { createTimersApi } from "./timers-api";
 import { createTitleService } from "./titles/title-service";
 import { createWorkspaceService } from "./workspaces/workspace-service";
 
@@ -130,10 +136,13 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
     });
     const forker = createConversationForker(harness, conversations);
     const checkpoints = createCheckpointService({ home: home.root, conversations, forker });
-    status.onRunEnded((id) => checkpoints.snapshotAfter(id, ""));
+    status.onRunEnded(({ conversationId }) => checkpoints.snapshotAfter(conversationId, ""));
     forker.onForked(async (fork) => changes.emit({ resource: "conversations", projectId: fork.projectId }));
+    const notifications = harnessNotificationSubmitter(harness);
+    const scheduler = createKeyedScheduler(systemClock);
     const processes = createProcessService({
       home: home.root,
+      notifications,
       emitChange: (conversationId) => changes.emit({ resource: "processes", conversationId }),
     });
     const mcp = createMcpService({
@@ -144,6 +153,9 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
     toolServices.set({
       processes,
       mcp,
+      notifications,
+      scheduler,
+      liveWork: createLiveWork({ harness, processes }),
       subagents: {
         agentTypes: createAgentTypeLoader(),
         resolveModelAlias,
@@ -231,6 +243,8 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
         logs: (id, tail) => processes.logs(id, tail),
         stop: (id) => processes.stop(id),
       },
+      timers: createTimersApi(),
+      goals: createGoalsApi(),
       mcp: createMcpApi({ settings, mcp, changes }),
       onChange: (listener) => changes.subscribe(listener),
       close() {
@@ -239,6 +253,7 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
           await archivedCleanup.stop();
           clones.stopAll();
           try {
+            await scheduler.close();
             await processes.stopAll();
             await status.settled();
             await mcp.closeAll();

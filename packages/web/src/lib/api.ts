@@ -8,7 +8,9 @@ import type {
   FileSuggestion,
   GithubRepo,
   GithubStatus,
+  Goal,
   LoginSession,
+  LoopInput,
   McpServerConfig,
   McpServerStatus,
   MessageMode,
@@ -28,6 +30,7 @@ import type {
   SuggestDirectoriesInput,
   SuggestedCodeFolder,
   ThinkingLevel,
+  Timer,
   UseGithubRepoInput,
   WorkspaceDefault,
   WorkspaceMode,
@@ -128,6 +131,17 @@ export interface Api {
     logs(id: string, tail?: number): Promise<string>;
     stop(id: string): Promise<void>;
   };
+  timers: {
+    list(conversationId: string): Promise<Timer[]>;
+    delete(id: string): Promise<void>;
+    loop(conversationId: string, input: LoopInput): Promise<void>;
+    stopLoop(conversationId: string): Promise<void>;
+  };
+  goals: {
+    set(conversationId: string, condition: string): Promise<void>;
+    get(conversationId: string): Promise<Goal | null>;
+    clear(conversationId: string): Promise<void>;
+  };
   mcp: {
     servers(projectId: string | null): Promise<McpServerStatus[]>;
     save(config: McpServerConfig): Promise<void>;
@@ -227,6 +241,17 @@ export function createApi(transport: Transport): Api {
       logs: async (id, tail) =>
         (await request("getProcessLogs", { params: { id }, query: tail ? { tail: String(tail) } : {} })).logs,
       stop: (id) => request("stopProcess", { params: { id } }),
+    },
+    timers: {
+      list: (id) => request("listTimers", { params: { id } }),
+      delete: (id) => request("deleteTimer", { params: { id } }),
+      loop: (id, input) => request("startLoop", { params: { id }, body: input }),
+      stopLoop: (id) => request("stopLoop", { params: { id } }),
+    },
+    goals: {
+      set: (id, condition) => request("setGoal", { params: { id }, body: { condition } }),
+      get: (id) => request("getGoal", { params: { id } }),
+      clear: (id) => request("clearGoal", { params: { id } }),
     },
     mcp: {
       servers: (projectId) => request("listMcpServers", { query: projectId ? { projectId } : {} }),

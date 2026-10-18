@@ -8,6 +8,7 @@ export * from "./icons";
 export * from "./live";
 export * from "./live-info";
 export * from "./mvp5";
+export * from "./mvp8";
 export * from "./ops";
 export * from "./rest";
 export * from "./retry";

@@ -9,7 +9,7 @@ interface Entry {
 
 export interface FakeProcesses {
   readonly api: Core["processes"];
-  start(conversationId: string, command: string): ProcessInfo;
+  start(conversationId: string, command: string, kind?: ProcessInfo["kind"]): ProcessInfo;
   killAll(conversationId: string): void;
 }
 
@@ -46,7 +46,7 @@ export function createFakeProcesses(deps: {
         kill(entryOf(id));
       },
     },
-    start(conversationId, command) {
+    start(conversationId, command, kind = "process") {
       const info: ProcessInfo = {
         id: `process-${nextId++}`,
         conversationId,
@@ -56,6 +56,7 @@ export function createFakeProcesses(deps: {
         exitCode: null,
         startedAt: deps.now(),
         urls: [FAKE_PROCESS_URL],
+        kind,
       };
       entries.set(info.id, { info, logs: `$ ${command}\nlistening on ${FAKE_PROCESS_URL}\n` });
       deps.emit({ resource: "processes", conversationId });

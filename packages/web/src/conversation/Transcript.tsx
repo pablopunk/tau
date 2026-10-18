@@ -9,6 +9,7 @@ import { QueuedMessages } from "./messages/QueuedMessages";
 import { UserMessage } from "./messages/UserMessage";
 import { isActive, resolveToolCall } from "./model/tool-state";
 import { buildTranscript } from "./model/transcript";
+import { isMvpNotificationItem, MvpNotificationRow } from "./notifications/MvpNotificationRow";
 import { SubagentNotificationRow } from "./notifications/SubagentNotificationRow";
 import { RetryButton } from "./RetryButton";
 import { LatestTodoCallProvider } from "./todos/latest-todo-call";
@@ -86,6 +87,7 @@ export function Transcript({
           if (item.kind === "compaction") return <CompactedDivider key={item.key} />;
           if (item.kind === "subagent-notification")
             return <SubagentNotificationRow key={item.key} data={item.data} />;
+          if (isMvpNotificationItem(item)) return <MvpNotificationRow key={item.key} item={item} />;
           if (item.kind === "retry") return <RetriedDivider key={item.key} />;
           if (item.kind === "user")
             return (

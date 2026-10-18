@@ -35,6 +35,10 @@ export function summary(id: string, overrides: Partial<ConversationSummary> = {}
     agentModel: null,
     agentStatus: null,
     background: false,
+    agentThinking: null,
+    timers: 0,
+    nextTimerAt: null,
+    goal: null,
     unmergedWarning: null,
     ...overrides,
   };

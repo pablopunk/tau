@@ -25,6 +25,8 @@ export const queryKeys = {
   checkpoints: (conversationId: string) => ["checkpoints", conversationId] as const,
   processes: (conversationId: string) => ["processes", conversationId] as const,
   allProcesses: ["processes"] as const,
+  timers: (conversationId: string) => ["timers", conversationId] as const,
+  goal: (conversationId: string) => ["goal", conversationId] as const,
   processLogs: (processId: string, tail?: number) => ["process-logs", processId, tail ?? null] as const,
   mcpServers: (projectId: string | null) => ["mcp", "servers", projectId] as const,
   allMcpServers: ["mcp"] as const,
@@ -129,6 +131,20 @@ export const useProcesses = (conversationId: string, enabled = true) =>
   useQuery({
     queryKey: queryKeys.processes(conversationId),
     queryFn: () => api.processes.list(conversationId),
+    enabled,
+  });
+
+export const useTimers = (conversationId: string, enabled = true) =>
+  useQuery({
+    queryKey: queryKeys.timers(conversationId),
+    queryFn: () => api.timers.list(conversationId),
+    enabled,
+  });
+
+export const useGoal = (conversationId: string, enabled = true) =>
+  useQuery({
+    queryKey: queryKeys.goal(conversationId),
+    queryFn: () => api.goals.get(conversationId),
     enabled,
   });
 

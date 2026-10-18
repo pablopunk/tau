@@ -1,5 +1,6 @@
 import type { ModelThinkingLevel } from "@earendil-works/pi-ai";
 import { Type } from "typebox";
+import { GoalSummarySchema } from "./mvp8";
 
 export const ModelRefSchema = Type.Object({ provider: Type.String(), modelId: Type.String() });
 export type ModelRef = Type.Static<typeof ModelRefSchema>;
@@ -202,6 +203,10 @@ export const ConversationSummarySchema = Type.Object({
   agentModel: Type.Union([ModelRefSchema, Type.Null()]),
   agentStatus: Type.Union([AgentStatusSchema, Type.Null()]),
   background: Type.Boolean(),
+  agentThinking: Type.Union([ThinkingLevelSchema, Type.Null()]),
+  timers: Type.Number(),
+  nextTimerAt: Type.Union([Type.String(), Type.Null()]),
+  goal: Type.Union([GoalSummarySchema, Type.Null()]),
   unmergedWarning: Type.Union([Type.String(), Type.Null()]),
 });
 export type ConversationSummary = Type.Static<typeof ConversationSummarySchema>;
@@ -211,6 +216,7 @@ export const ChangeSchema = Type.Union([
   Type.Object({ resource: Type.Literal("providers") }),
   Type.Object({ resource: Type.Literal("conversations"), projectId: Type.String() }),
   Type.Object({ resource: Type.Literal("processes"), conversationId: Type.String() }),
+  Type.Object({ resource: Type.Literal("timers"), conversationId: Type.String() }),
   Type.Object({ resource: Type.Literal("mcp") }),
 ]);
 export type Change = Type.Static<typeof ChangeSchema>;

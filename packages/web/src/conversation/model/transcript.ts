@@ -11,6 +11,8 @@ import type {
 import {
   isNotificationMarkerText,
   isSubagentNotificationKind,
+  type MvpNotificationItem,
+  parseMvpNotification,
   parseSubagentNotification,
 } from "../notifications/notification-entry";
 
@@ -36,6 +38,7 @@ export type TranscriptItem =
   | { readonly kind: "retry"; readonly key: string }
   | { readonly kind: "compaction"; readonly key: string }
   | { readonly kind: "subagent-notification"; readonly key: string; readonly data: SubagentNotificationData }
+  | (MvpNotificationItem & { readonly key: string })
   | {
       readonly kind: "assistant";
       readonly key: string;
@@ -78,6 +81,8 @@ function entryKey(entry: EntryRecord): string {
 }
 
 function notificationItemOf(entry: EntryRecord): TranscriptItem | undefined {
+  const mvp = parseMvpNotification(entry.kind, entry.data);
+  if (mvp) return { ...mvp, key: entryKey(entry) };
   if (!isSubagentNotificationKind(entry.kind)) return undefined;
   const data = parseSubagentNotification(entry.data);
   return data ? { kind: "subagent-notification", key: entryKey(entry), data } : undefined;

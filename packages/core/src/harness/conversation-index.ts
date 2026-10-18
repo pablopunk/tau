@@ -40,6 +40,10 @@ export const toSummary = (project: ProjectRef, entry: IndexedConversation): Conv
   agentModel: entry.agentModel ?? null,
   agentStatus: entry.agentStatus ?? null,
   background: entry.background ?? false,
+  agentThinking: entry.agentThinking ?? null,
+  timers: entry.timers ?? 0,
+  nextTimerAt: entry.nextTimerAt === undefined ? null : new Date(entry.nextTimerAt).toISOString(),
+  goal: entry.goal ?? null,
   unmergedWarning: entry.archivedAt === undefined ? null : (entry.unmergedWarning ?? null),
 });
 
