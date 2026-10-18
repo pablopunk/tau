@@ -15,7 +15,14 @@ const project = (status: Project["status"]): Project => ({
 });
 
 describe("createPresentProject", () => {
-  const present = createPresentProject({ version: async () => "auto" } as never);
+  const lastModes: Record<string, string> = { p1: "checkout" };
+  const settings = { lastWorkspaceMode: async (id: string) => lastModes[id] } as never;
+  const present = createPresentProject({ version: async () => "auto" } as never, settings);
+
+  it("exposes the last workspace mode used in the project", async () => {
+    expect((await present(project("ready"))).lastWorkspaceMode).toBe("checkout");
+    expect((await present({ ...project("ready"), id: "p2" })).lastWorkspaceMode).toBeUndefined();
+  });
 
   it("serves an icon url only once the project is ready", async () => {
     expect((await present(project("cloning"))).iconUrl).toBeNull();

@@ -9,6 +9,7 @@ import {
   type SendMessageInput,
   type StartConversationInput,
   type ThinkingLevel,
+  type WorkspaceMode,
 } from "@tau/protocol";
 import type { ArchivedCleanup } from "./archived-cleanup";
 import type { ChangeEmitter } from "./change-emitter";
@@ -72,6 +73,16 @@ export function createConversationsApi(deps: {
     requireImageBytesMatchTheirType(input);
   }
 
+  async function workspaceModeFor(projectId: string, requested: WorkspaceMode | undefined) {
+    if (requested) {
+      await settings.setLastWorkspaceMode(projectId, requested);
+      return requested;
+    }
+    const { workspaceDefault } = await settings.get();
+    if (workspaceDefault !== "per-project") return workspaceDefault;
+    return (await settings.lastWorkspaceMode(projectId)) ?? "worktree";
+  }
+
   async function startOnce(input: StartConversationInput): Promise<ConversationSummary> {
     const project = await projects.require(input.projectId);
     if (project.status !== "ready") throw new AppError("project_not_ready", "This project is not ready.");
@@ -82,7 +93,7 @@ export function createConversationsApi(deps: {
     const thinkingLevel = clampThinkingLevel(model, input.thinkingLevel ?? (await defaultLevel()));
     const workspace = await workspaces.create({
       project,
-      mode: input.workspace ?? (await settings.get()).workspaceDefault,
+      mode: await workspaceModeFor(project.id, input.workspace),
       requestId: input.requestId,
       firstMessage: input.text,
     });

@@ -11,7 +11,7 @@ vi.mock("@/lib/api", () => ({
 
 const mocked = vi.mocked(api, true);
 
-const settings = (workspaceDefault: "worktree" | "checkout") =>
+const settings = (workspaceDefault: "worktree" | "checkout" | "per-project") =>
   ({ workspaceDefault }) as Awaited<ReturnType<typeof api.settings.get>>;
 
 beforeEach(() => {
@@ -26,6 +26,16 @@ beforeEach(() => {
 describe("WorktreeToggle", () => {
   it("follows the settings default until the user chooses", async () => {
     mocked.settings.get.mockResolvedValue(settings("checkout"));
+    renderAt("/", <WorktreeToggle projectId="g" value={null} onChange={() => {}} />);
+    const checkout = await screen.findByRole("radio", { name: "Main checkout" });
+    await waitFor(() => expect(checkout.getAttribute("aria-checked")).toBe("true"));
+  });
+
+  it("starts from the last mode used in the project when the setting is per-project", async () => {
+    mocked.settings.get.mockResolvedValue(settings("per-project"));
+    mocked.projects.list.mockResolvedValue([
+      project({ id: "g", kind: "folder", isGitRepo: true, lastWorkspaceMode: "checkout" }),
+    ]);
     renderAt("/", <WorktreeToggle projectId="g" value={null} onChange={() => {}} />);
     const checkout = await screen.findByRole("radio", { name: "Main checkout" });
     await waitFor(() => expect(checkout.getAttribute("aria-checked")).toBe("true"));

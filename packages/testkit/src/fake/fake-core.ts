@@ -11,6 +11,7 @@ import {
   type StartConversationInput,
   type ThinkingLevel,
   type ThreadWorkspace,
+  type WorkspaceDefault,
   type WorkspaceMode,
 } from "@tau/protocol";
 import { clampFakeThinkingLevel, FAKE_MODELS, findFakeModel } from "./catalog";
@@ -90,7 +91,8 @@ export function createFakeCore(options: FakeCoreOptions = {}): Core {
     return level && info ? clampFakeThinkingLevel(info, level) : level;
   };
   let messageMode: MessageMode = "steer";
-  let workspaceDefault: WorkspaceMode = "worktree";
+  let workspaceDefault: WorkspaceDefault = "per-project";
+  const lastWorkspaceModes = new Map<string, WorkspaceMode>();
   let projectsFolder = FAKE_PROJECTS_FOLDER;
   let nextProjectId = 1;
   let nextConversationId = FIRST_CONVERSATION_ID;
@@ -103,6 +105,7 @@ export function createFakeCore(options: FakeCoreOptions = {}): Core {
   const allProjects = () => [home, ...projects];
   const present = (project: Project): Project => ({
     ...project,
+    ...(lastWorkspaceModes.has(project.id) && { lastWorkspaceMode: lastWorkspaceModes.get(project.id) }),
     iconUrl: project.id === HOME_ID ? null : icons.iconUrl(project.id),
   });
 
@@ -242,6 +245,15 @@ export function createFakeCore(options: FakeCoreOptions = {}): Core {
     githubConnected: async () => (await remoteHub.status()).state === "connected",
   });
 
+  function workspaceModeFor(projectId: string, requested: WorkspaceMode | undefined): WorkspaceMode {
+    if (requested) {
+      lastWorkspaceModes.set(projectId, requested);
+      return requested;
+    }
+    if (workspaceDefault !== "per-project") return workspaceDefault;
+    return lastWorkspaceModes.get(projectId) ?? "worktree";
+  }
+
   async function startConversation(input: StartConversationInput) {
     const project = requireProject(input.projectId);
     if (project.status !== "ready") throw new AppError("project_not_ready", "This project is not ready.");
@@ -254,7 +266,7 @@ export function createFakeCore(options: FakeCoreOptions = {}): Core {
     validateInput(input, model);
     const conversation = createConversation({
       projectId: project.id,
-      workspace: mvp5.workspaceFor(project, input.workspace ?? workspaceDefault, input.text),
+      workspace: mvp5.workspaceFor(project, workspaceModeFor(project.id, input.workspace), input.text),
       model: { provider: model.provider, modelId: model.modelId },
       thinkingLevel: clampFakeThinkingLevel(
         info,

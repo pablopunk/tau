@@ -87,7 +87,7 @@ export const commands: readonly CommandDef[] = [
   {
     command: "settings set-workspace-default",
     route: "setWorkspaceDefault",
-    summary: "Set the default workspace for new threads (worktree or checkout)",
+    summary: "Set the default workspace for new threads (worktree, checkout or per-project)",
     positionals: ["body.mode"],
     destructive: false,
   },

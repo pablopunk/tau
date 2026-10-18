@@ -40,7 +40,7 @@ describe("http transport", () => {
       fastThinkingLevel: null,
       projectsFolder: "/data/projects",
       messageMode: "steer",
-      workspaceDefault: "worktree",
+      workspaceDefault: "per-project",
     };
     stubFetch(respond(200, settings));
     expect(await api.settings.get()).toEqual(settings);

@@ -1,5 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
-import type { MessageMode, WorkspaceMode } from "@tau/protocol";
+import type { MessageMode, WorkspaceDefault } from "@tau/protocol";
 import { FormError } from "@/app/FormError";
 import { useSubmit } from "@/app/use-submit";
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
@@ -17,8 +17,9 @@ const textOption = <T extends string>(value: T, label: string): SegmentedOption<
 const MESSAGE_MODES = [textOption<MessageMode>("steer", "Steer"), textOption<MessageMode>("queue", "Queue")];
 
 const WORKSPACE_MODES = [
-  textOption<WorkspaceMode>("worktree", "Worktree"),
-  textOption<WorkspaceMode>("checkout", "Main checkout"),
+  textOption<WorkspaceDefault>("per-project", "Remember per project"),
+  textOption<WorkspaceDefault>("worktree", "Worktree"),
+  textOption<WorkspaceDefault>("checkout", "Main checkout"),
 ];
 
 const MESSAGE_MODE_LABEL = "While the agent works, new messages";

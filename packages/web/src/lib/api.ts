@@ -29,6 +29,7 @@ import type {
   SuggestedCodeFolder,
   ThinkingLevel,
   UseGithubRepoInput,
+  WorkspaceDefault,
   WorkspaceMode,
   WorkspaceStatus,
 } from "@tau/protocol";
@@ -54,7 +55,7 @@ export interface Api {
     setFastThinkingLevel(level: ThinkingLevel | null): Promise<void>;
     setProjectsFolder(path: string): Promise<void>;
     setMessageMode(mode: MessageMode): Promise<void>;
-    setWorkspaceDefault(mode: WorkspaceMode): Promise<void>;
+    setWorkspaceDefault(mode: WorkspaceDefault): Promise<void>;
     suggestedCodeFolder(): Promise<SuggestedCodeFolder>;
   };
   github: {

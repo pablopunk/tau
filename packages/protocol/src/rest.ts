@@ -25,7 +25,7 @@ import {
   SuggestedCodeFolderSchema,
   ThinkingLevelSchema,
   UseGithubRepoInputSchema,
-  WorkspaceModeSchema,
+  WorkspaceDefaultSchema,
 } from "./entities";
 import { ICON_BODY_LIMIT } from "./icons";
 import {
@@ -111,7 +111,7 @@ export const routes = {
     method: "PUT",
     path: `${API_PREFIX}/settings/workspace-default`,
     status: 204,
-    body: Type.Object({ mode: WorkspaceModeSchema }),
+    body: Type.Object({ mode: WorkspaceDefaultSchema }),
   },
   setProjectsFolder: {
     method: "PUT",

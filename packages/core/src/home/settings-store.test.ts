@@ -13,7 +13,7 @@ const DEFAULTS = {
   fastThinkingLevel: null,
   projectsFolder: PROJECTS,
   messageMode: "steer",
-  workspaceDefault: "worktree",
+  workspaceDefault: "per-project",
 };
 const ref = { provider: "openrouter", modelId: "x/y" };
 
@@ -29,6 +29,14 @@ describe("settings store", () => {
     expect(await createSettingsStore(path, PROJECTS).get()).toEqual({ ...DEFAULTS, defaultModel: ref });
     expect((await stat(path)).mode & 0o777).toBe(0o600);
     expect(JSON.parse(await readFile(path, "utf8"))).toEqual({ defaultModel: ref });
+  });
+
+  it("remembers the last workspace mode per project", async () => {
+    const path = join(await tempDir(), "settings.json");
+    await createSettingsStore(path, PROJECTS).setLastWorkspaceMode("p1", "checkout");
+    const store = createSettingsStore(path, PROJECTS);
+    expect(await store.lastWorkspaceMode("p1")).toBe("checkout");
+    expect(await store.lastWorkspaceMode("p2")).toBeUndefined();
   });
 
   it("keeps the model of an MVP settings file and fills the new fields", async () => {

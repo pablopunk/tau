@@ -1,3 +1,4 @@
+import { useQueryClient } from "@tanstack/react-query";
 import type { ImageInput, ModelRef, ThinkingLevel, WorkspaceMode } from "@tau/protocol";
 import { useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router";
@@ -9,7 +10,7 @@ import { api } from "@/lib/api";
 import { findModel, pickModel, pickProjectId, pickThinkingLevel } from "@/lib/new-thread-defaults";
 import { conversationPath } from "@/lib/paths";
 import { preferences } from "@/lib/preferences";
-import { useModels, useProjects, useSettings } from "@/lib/queries";
+import { queryKeys, useModels, useProjects, useSettings } from "@/lib/queries";
 import { clearDraftRequestId, draftRequestId } from "@/lib/start-request";
 import { WorktreeToggle } from "@/workspaces/WorktreeToggle";
 import { ProjectPicker } from "./ProjectPicker";
@@ -18,6 +19,7 @@ const toRef = ({ provider, modelId }: ModelRef): ModelRef => ({ provider, modelI
 
 export function NewThreadPage() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [params] = useSearchParams();
   const projects = useProjects();
   const models = useModels();
@@ -63,6 +65,7 @@ export function NewThreadPage() {
         ...(images.length > 0 && { images }),
       });
       clearDraftRequestId();
+      void queryClient.invalidateQueries({ queryKey: queryKeys.projects });
       preferences.setLastProjectId(created.projectId);
       if (model) preferences.setLastModel(toRef(model));
       preferences.setLastThinkingLevel(level);

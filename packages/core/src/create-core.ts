@@ -97,7 +97,7 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
     const shared = { projects, conversations, changes, now: deps.now };
     const titles = createTitleService({ harness, models: provider.models, settings, changes });
     const icons = createIconService({ iconsDirectory: home.iconsDirectory, now: deps.now });
-    const present = createPresentProject(icons);
+    const present = createPresentProject(icons, settings);
     const githubRef: { current?: ReturnType<typeof createGithubService> } = {};
     const allowFileClones = (options.faux ?? false) && deps.env.TAU_ALLOW_FILE_CLONES === "1";
     const clones = createCloneService({

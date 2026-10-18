@@ -21,7 +21,10 @@ export function workspaceCases(make: MakeContractTarget, test: CaseRunner): void
 
     test("[workspaces] defaults to worktrees and stores the message mode", async () => {
       const { core } = target;
-      expect(await core.settings.get()).toMatchObject({ messageMode: "steer", workspaceDefault: "worktree" });
+      expect(await core.settings.get()).toMatchObject({
+        messageMode: "steer",
+        workspaceDefault: "per-project",
+      });
       await core.settings.setWorkspaceDefault("checkout");
       await core.settings.setMessageMode("queue");
       expect(await core.settings.get()).toMatchObject({ messageMode: "queue", workspaceDefault: "checkout" });
@@ -49,6 +52,19 @@ export function workspaceCases(make: MakeContractTarget, test: CaseRunner): void
       await target.core.settings.setWorkspaceDefault("checkout");
       const { conversation } = await startConversation(target, { git: true });
       expect(conversation.workspace.mode).toBe("checkout");
+    });
+
+    test("[workspaces] per-project default follows the last explicit mode of that project", async () => {
+      const first = await startConversation(target, { workspace: "checkout", git: true });
+      const next = await startConversation(target, { projectId: first.project.id, text: "again" });
+      expect(next.conversation.workspace.mode).toBe("checkout");
+      const projects = await target.core.projects.list();
+      expect(projects.find((project) => project.id === first.project.id)?.lastWorkspaceMode).toBe("checkout");
+    });
+
+    test("[workspaces] per-project default is a worktree for a project with no history", async () => {
+      const { conversation } = await startConversation(target, { git: true });
+      expect(conversation.workspace.mode).toBe("worktree");
     });
 
     test("[workspaces] always uses the folder for Home", async () => {

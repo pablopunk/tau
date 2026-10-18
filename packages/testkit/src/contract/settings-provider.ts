@@ -23,7 +23,7 @@ export function settingsAndProviderCases(make: MakeContractTarget, test: CaseRun
         fastThinkingLevel: null,
         projectsFolder: expect.any(String),
         messageMode: "steer",
-        workspaceDefault: "worktree",
+        workspaceDefault: "per-project",
       });
       expect(await hasConnectedProvider(core)).toBe(false);
       expect(await core.models.list()).toEqual([]);

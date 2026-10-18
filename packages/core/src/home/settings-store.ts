@@ -8,6 +8,8 @@ import {
   type Settings,
   type ThinkingLevel,
   ThinkingLevelSchema,
+  type WorkspaceDefault,
+  WorkspaceDefaultSchema,
   type WorkspaceMode,
   WorkspaceModeSchema,
 } from "@tau/protocol";
@@ -23,7 +25,8 @@ type StoredSettings = {
   fastThinkingLevel?: ThinkingLevel;
   projectsFolder?: string;
   messageMode?: MessageMode;
-  workspaceDefault?: WorkspaceMode;
+  workspaceDefault?: WorkspaceDefault;
+  lastWorkspaceModes?: Record<string, WorkspaceMode>;
   mcpServers?: McpServerConfig[];
 };
 
@@ -54,6 +57,19 @@ const validMessageMode = (value: unknown): MessageMode | undefined =>
 const validWorkspaceMode = (value: unknown): WorkspaceMode | undefined =>
   Value.Check(WorkspaceModeSchema, value) ? value : undefined;
 
+const validWorkspaceDefault = (value: unknown): WorkspaceDefault | undefined =>
+  Value.Check(WorkspaceDefaultSchema, value) ? value : undefined;
+
+const validLastWorkspaceModes = (value: unknown): Record<string, WorkspaceMode> => {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return {};
+  const modes: Record<string, WorkspaceMode> = {};
+  for (const [projectId, mode] of Object.entries(value)) {
+    const valid = validWorkspaceMode(mode);
+    if (valid) modes[projectId] = valid;
+  }
+  return modes;
+};
+
 const validMcpServers = (value: unknown): McpServerConfig[] =>
   Array.isArray(value)
     ? value.filter((item): item is McpServerConfig => Value.Check(McpServerConfigSchema, item))
@@ -74,9 +90,11 @@ function parseStored(text: string | undefined): StoredSettings {
   if (fastThinkingLevel) stored.fastThinkingLevel = fastThinkingLevel;
   if (projectsFolder) stored.projectsFolder = projectsFolder;
   const messageMode = validMessageMode(raw.messageMode);
-  const workspaceDefault = validWorkspaceMode(raw.workspaceDefault);
+  const workspaceDefault = validWorkspaceDefault(raw.workspaceDefault);
   if (messageMode) stored.messageMode = messageMode;
   if (workspaceDefault) stored.workspaceDefault = workspaceDefault;
+  if (raw.lastWorkspaceModes !== undefined)
+    stored.lastWorkspaceModes = validLastWorkspaceModes(raw.lastWorkspaceModes);
   if (raw.mcpServers !== undefined) stored.mcpServers = validMcpServers(raw.mcpServers);
   return stored;
 }
@@ -88,7 +106,7 @@ const withDefaults = (stored: StoredSettings, defaultProjectsFolder: string): Se
   fastThinkingLevel: stored.fastThinkingLevel ?? null,
   projectsFolder: stored.projectsFolder ?? defaultProjectsFolder,
   messageMode: stored.messageMode ?? "steer",
-  workspaceDefault: stored.workspaceDefault ?? "worktree",
+  workspaceDefault: stored.workspaceDefault ?? "per-project",
 });
 
 export interface SettingsStore {
@@ -102,7 +120,9 @@ export interface SettingsStore {
   /** The caller has already validated and resolved the path. */
   setProjectsFolder(path: string): Promise<void>;
   setMessageMode(mode: MessageMode): Promise<void>;
-  setWorkspaceDefault(mode: WorkspaceMode): Promise<void>;
+  setWorkspaceDefault(mode: WorkspaceDefault): Promise<void>;
+  lastWorkspaceMode(projectId: string): Promise<WorkspaceMode | undefined>;
+  setLastWorkspaceMode(projectId: string, mode: WorkspaceMode): Promise<void>;
   /** Servers added in Settings. The real values (env, headers) stay here and never reach `Settings`. */
   mcpServers(): Promise<McpServerConfig[]>;
   /** Replaces the server with the same name, or appends. */
@@ -145,6 +165,12 @@ export function createSettingsStore(settingsFile: string, defaultProjectsFolder:
     setProjectsFolder: (path) => update((stored) => ({ ...stored, projectsFolder: path })),
     setMessageMode: (mode) => update((stored) => ({ ...stored, messageMode: mode })),
     setWorkspaceDefault: (mode) => update((stored) => ({ ...stored, workspaceDefault: mode })),
+    lastWorkspaceMode: async (projectId) => (await readStored()).lastWorkspaceModes?.[projectId],
+    setLastWorkspaceMode: (projectId, mode) =>
+      update((stored) => ({
+        ...stored,
+        lastWorkspaceModes: { ...stored.lastWorkspaceModes, [projectId]: mode },
+      })),
     mcpServers: () => enqueue(async () => (await readStored()).mcpServers ?? []),
     saveMcpServer: (config) =>
       update((stored) => ({

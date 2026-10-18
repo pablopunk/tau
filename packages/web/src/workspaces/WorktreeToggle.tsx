@@ -11,7 +11,8 @@ export interface WorktreeToggleProps {
 
 export function WorktreeToggle({ projectId, value, onChange, disabled }: WorktreeToggleProps) {
   const project = useProjects().data?.find((candidate) => candidate.id === projectId);
-  const defaultMode = useSettings().data?.workspaceDefault ?? "worktree";
+  const setting = useSettings().data?.workspaceDefault ?? "per-project";
+  const defaultMode = setting === "per-project" ? (project?.lastWorkspaceMode ?? "worktree") : setting;
   if (!project?.isGitRepo) return null;
   return (
     <ToggleGroup

@@ -26,6 +26,7 @@ import type {
   SuggestedCodeFolder,
   ThinkingLevel,
   UseGithubRepoInput,
+  WorkspaceDefault,
   WorkspaceMode,
 } from "./entities";
 import type {
@@ -63,6 +64,7 @@ export type {
   SuggestDirectoriesInput,
   SuggestedCodeFolder,
   UseGithubRepoInput,
+  WorkspaceDefault,
   WorkspaceMode,
 } from "./entities";
 
@@ -100,7 +102,7 @@ export interface Core {
     /** Whether messages sent while the agent works steer it or queue behind it. */
     setMessageMode(mode: MessageMode): Promise<void>;
     /** Where new threads in git projects start. */
-    setWorkspaceDefault(mode: WorkspaceMode): Promise<void>;
+    setWorkspaceDefault(mode: WorkspaceDefault): Promise<void>;
   };
   github: {
     /** Cached for a minute. Never rejects for a missing or logged-out `gh`: that is a state. */

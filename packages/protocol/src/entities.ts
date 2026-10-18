@@ -37,6 +37,9 @@ export type MessageMode = Type.Static<typeof MessageModeSchema>;
 export const WorkspaceModeSchema = Type.Union([Type.Literal("worktree"), Type.Literal("checkout")]);
 export type WorkspaceMode = Type.Static<typeof WorkspaceModeSchema>;
 
+export const WorkspaceDefaultSchema = Type.Union([WorkspaceModeSchema, Type.Literal("per-project")]);
+export type WorkspaceDefault = Type.Static<typeof WorkspaceDefaultSchema>;
+
 export const ThreadWorkspaceSchema = Type.Object({
   mode: WorkspaceModeSchema,
   path: Type.String(),
@@ -55,7 +58,7 @@ export const SettingsSchema = Type.Object({
   fastThinkingLevel: Type.Union([ThinkingLevelSchema, Type.Null()]),
   projectsFolder: Type.String(),
   messageMode: MessageModeSchema,
-  workspaceDefault: WorkspaceModeSchema,
+  workspaceDefault: WorkspaceDefaultSchema,
 });
 export type Settings = Type.Static<typeof SettingsSchema>;
 
@@ -151,6 +154,7 @@ export const ProjectSchema = Type.Object({
   isGitRepo: Type.Boolean(),
   error: Type.Optional(Type.String()),
   iconUrl: Type.Optional(Type.Union([Type.String(), Type.Null()])),
+  lastWorkspaceMode: Type.Optional(WorkspaceModeSchema),
 });
 export type Project = Type.Static<typeof ProjectSchema>;
 
