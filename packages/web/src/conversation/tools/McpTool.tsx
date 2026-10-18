@@ -3,6 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { argText, resultText } from "../model/tool-state";
 import { GenericTool } from "./GenericTool";
 import { OutputBlock } from "./OutputBlock";
+import { resultImagesOf } from "./ResultImages";
 import { ToolCard } from "./ToolCard";
 import type { ToolRendererProps } from "./types";
 
@@ -27,6 +28,7 @@ function CallCard({ state }: ToolRendererProps) {
     >
       {args ? <OutputBlock text={args} label="Arguments" /> : null}
       {output ? <OutputBlock text={output} label="Result" /> : null}
+      {resultImagesOf(state)}
     </ToolCard>
   );
 }

@@ -2,6 +2,7 @@ import { Plug } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { argText, resultText } from "../model/tool-state";
 import { OutputBlock } from "./OutputBlock";
+import { resultImagesOf } from "./ResultImages";
 import { ToolCard } from "./ToolCard";
 import type { ToolRendererProps } from "./types";
 
@@ -31,6 +32,7 @@ export function ClaudeConnectorTool({ state }: ToolRendererProps) {
     >
       {args ? <OutputBlock text={args} label="Arguments" /> : null}
       {output ? <OutputBlock text={output} label="Result" /> : null}
+      {resultImagesOf(state)}
     </ToolCard>
   );
 }

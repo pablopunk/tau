@@ -1,6 +1,7 @@
 import { FileText } from "lucide-react";
 import { argText, resultText } from "../model/tool-state";
 import { OutputBlock } from "./OutputBlock";
+import { resultImagesOf } from "./ResultImages";
 import { ToolCard } from "./ToolCard";
 import type { ToolRendererProps } from "./types";
 
@@ -22,6 +23,7 @@ export function ReadTool({ state }: ToolRendererProps) {
       status={state.status}
     >
       {text ? <OutputBlock text={text} label="File content" /> : null}
+      {resultImagesOf(state)}
     </ToolCard>
   );
 }

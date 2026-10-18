@@ -1,4 +1,4 @@
-import type { ToolCall, ToolSlot } from "@tau/protocol";
+import type { ImageContent, ToolCall, ToolSlot } from "@tau/protocol";
 import type { ToolResultInfo } from "./transcript";
 
 /** `interrupted`: the call has no result and nothing is running it (a stopped or crashed run). */
@@ -44,6 +44,10 @@ export function resultText(result: ToolResultInfo | undefined): string {
   return result.message.content
     .flatMap((block) => (block.type === "text" && !block.text.startsWith("<harness>") ? [block.text] : []))
     .join("");
+}
+
+export function resultImages(result: ToolResultInfo | undefined): readonly ImageContent[] {
+  return (result?.message.content ?? []).filter((block): block is ImageContent => block.type === "image");
 }
 
 export function resultDetails(state: ToolCallState): Record<string, unknown> {
