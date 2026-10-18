@@ -1,5 +1,6 @@
 import { type Core, routes } from "@tau/protocol";
 import type { FastifyInstance } from "fastify";
+import { registerTerminalStream } from "../terminals/register-stream";
 import { defineRoute } from "./define-route";
 
 /**
@@ -13,4 +14,5 @@ export function registerTerminalRoutes(app: FastifyInstance, core: Core): void {
   defineRoute(app, routes.listTerminals, ({ params }) => terminals.list(params.id));
   defineRoute(app, routes.openTerminal, ({ params, body }) => terminals.open(params.id, body));
   defineRoute(app, routes.closeTerminal, ({ params }) => terminals.close(params.id));
+  registerTerminalStream(app, core);
 }
