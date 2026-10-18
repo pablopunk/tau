@@ -1,6 +1,6 @@
 import type { Tool } from "@earendil-works/pi-ai";
 import type { ClaudeInput } from "../claude-input";
-import type { ClaudeEffort, ClaudeQuery, ClaudeSdkMessage } from "../sdk-types";
+import type { ClaudeQuery, ClaudeReasoning, ClaudeSdkMessage } from "../sdk-types";
 import { type CallMap, createCallMap } from "./deferred";
 import type { Turn } from "./turn";
 
@@ -31,7 +31,7 @@ export interface Binding {
   checkpoints: Checkpoint[];
   head: Head | null;
   model: string;
-  effort: ClaudeEffort | undefined;
+  reasoning: ClaudeReasoning | undefined;
   tools: readonly Tool[];
   listener: Turn | null;
   /** `result` messages still to come for turns that already ended or were interrupted. */
@@ -73,7 +73,7 @@ export function createBinding(id: string, model: string): Binding {
     checkpoints: [],
     head: null,
     model,
-    effort: undefined,
+    reasoning: undefined,
     tools: [],
     listener: null,
     owedResults: 0,

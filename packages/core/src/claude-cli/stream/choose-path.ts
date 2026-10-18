@@ -1,4 +1,4 @@
-import type { ClaudeEffort } from "../sdk-types";
+import type { ClaudeReasoning } from "../sdk-types";
 import type { Binding, Checkpoint } from "./binding";
 import type { Entry } from "./normalize";
 
@@ -14,7 +14,7 @@ export interface PathInput {
   readonly binding: Binding | undefined;
   readonly entries: readonly Entry[];
   readonly hashes: readonly string[];
-  readonly effort: ClaudeEffort | undefined;
+  readonly reasoning: ClaudeReasoning | undefined;
 }
 
 interface Anchor {
@@ -42,8 +42,8 @@ function resumeAtPlan(checkpoint: Checkpoint, entries: readonly Entry[]): Plan {
 function atHeadPlan(input: PathInput, suffix: readonly Entry[]): Plan {
   if (hasForeignEntry(suffix)) return { kind: "rebind" };
   const live = input.binding?.query != null;
-  const sameEffort = input.binding?.effort === input.effort;
-  return live && sameEffort ? { kind: "continue", suffix } : { kind: "resume", suffix };
+  const sameReasoning = input.binding?.reasoning === input.reasoning;
+  return live && sameReasoning ? { kind: "continue", suffix } : { kind: "resume", suffix };
 }
 
 /** Picks one of the five paths for one Pi request. */

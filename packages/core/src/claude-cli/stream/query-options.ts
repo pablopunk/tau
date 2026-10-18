@@ -3,6 +3,7 @@ import type {
   ClaudeEffort,
   ClaudeInputStream,
   ClaudeQueryOptions,
+  ClaudeReasoning,
   ClaudeToolHost,
 } from "../sdk-types";
 import { TOOL_NAME_PREFIX } from "../tool-server";
@@ -28,7 +29,7 @@ export interface QueryOptionsInput {
   readonly systemPrompt: string;
   readonly env: Readonly<Record<string, string | undefined>>;
   readonly title: string;
-  readonly effort?: ClaudeEffort;
+  readonly reasoning?: ClaudeReasoning;
   readonly resume?: string;
   readonly resumeSessionAt?: string;
   readonly forkSession?: boolean;
@@ -58,6 +59,13 @@ const connectorOptions = (tauTools: readonly string[], connectors: ConnectorQuer
   ...(connectors.disallowedTools.length > 0 && { disallowedTools: connectors.disallowedTools }),
 });
 
+const reasoningOptions = (
+  reasoning: ClaudeReasoning | undefined,
+): Pick<ClaudeQueryOptions, "effort" | "thinking"> => {
+  if (reasoning === "off") return { thinking: { type: "disabled" } };
+  return reasoning ? { effort: reasoning } : {};
+};
+
 /** The options every query gets, whatever the path. Connectors loosen the MCP lock only when chosen. */
 export function buildQueryOptions(input: QueryOptionsInput): ClaudeQueryOptions {
   const tauTools = input.toolHost ? [`${TOOL_NAME_PREFIX}*`] : [];
@@ -72,7 +80,7 @@ export function buildQueryOptions(input: QueryOptionsInput): ClaudeQueryOptions 
     settingSources: [],
     includePartialMessages: true,
     ...(input.connectors ? connectorOptions(tauTools, input.connectors) : lockedDownOptions(tauTools)),
-    ...optional("effort", input.effort),
+    ...reasoningOptions(input.reasoning),
     ...optional("resume", input.resume),
     ...optional("resumeSessionAt", input.resumeSessionAt),
     ...optional("forkSession", input.forkSession),

@@ -49,7 +49,7 @@ export async function runOneShot(
           systemPrompt: call.systemPrompt,
           env: rt.deps.env,
           title: "tau · one-shot",
-          effort: call.effort,
+          reasoning: call.reasoning,
           persistSession: false,
           maxTurns: 1,
         }),

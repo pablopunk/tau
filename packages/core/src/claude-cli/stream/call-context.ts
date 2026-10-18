@@ -1,6 +1,7 @@
 import type { Api, Model, SimpleStreamOptions, Tool, TranscriptContext } from "@earendil-works/pi-ai";
+import { getSupportedThinkingLevels } from "@earendil-works/pi-ai/models";
 import { CONNECTOR_TOOL_NAME } from "../connectors/names";
-import type { ClaudeEffort } from "../sdk-types";
+import type { ClaudeReasoning } from "../sdk-types";
 import { abortedToolCallIds, type Entry, normalize, prefixHashes } from "./normalize";
 import { effortOf } from "./query-options";
 import { readSystemState } from "./system-state";
@@ -9,7 +10,7 @@ import { readSystemState } from "./system-state";
 export interface CallContext {
   readonly model: Model<Api>;
   readonly modelValue: string;
-  readonly effort: ClaudeEffort | undefined;
+  readonly reasoning: ClaudeReasoning | undefined;
   readonly systemPrompt: string;
   readonly tools: readonly Tool[];
   readonly entries: readonly Entry[];
@@ -18,6 +19,15 @@ export interface CallContext {
   readonly abortedToolCallIds: readonly string[];
   readonly sessionId: string | undefined;
   readonly signal: AbortSignal | undefined;
+}
+
+/**
+ * Pi Durable drops `reasoning` for Off, so a missing level means off: disable thinking where
+ * the model can, and leave the SDK default where it cannot. A level we cannot map stays unset.
+ */
+export function reasoningOf(model: Model<Api>, reasoning: string | undefined): ClaudeReasoning | undefined {
+  if (reasoning) return effortOf(reasoning);
+  return getSupportedThinkingLevels(model).includes("off") ? "off" : undefined;
 }
 
 export function readCallContext(
@@ -30,7 +40,7 @@ export function readCallContext(
   return {
     model,
     modelValue: model.id,
-    effort: effortOf(options?.reasoning),
+    reasoning: reasoningOf(model, options?.reasoning),
     systemPrompt: system.prompt,
     tools: system.tools.filter((tool) => tool.name !== CONNECTOR_TOOL_NAME),
     entries,

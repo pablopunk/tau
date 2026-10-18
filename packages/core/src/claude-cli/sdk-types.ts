@@ -11,6 +11,8 @@ export interface ClaudeAccountInfo {
 }
 
 export type ClaudeEffort = "low" | "medium" | "high" | "xhigh";
+/** `off` is an explicit choice to disable thinking; `undefined` leaves the SDK default. */
+export type ClaudeReasoning = ClaudeEffort | "off";
 
 export interface ClaudeModelOption {
   readonly value: string;
@@ -106,6 +108,7 @@ export interface ClaudeQueryOptions {
   readonly env: Readonly<Record<string, string | undefined>>;
   readonly title: string;
   readonly effort?: ClaudeEffort;
+  readonly thinking?: { readonly type: "disabled" };
   readonly resume?: string;
   readonly resumeSessionAt?: string;
   readonly forkSession?: boolean;

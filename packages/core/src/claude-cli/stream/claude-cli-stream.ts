@@ -89,7 +89,7 @@ async function runCall(
     binding: existing,
     entries: call.entries,
     hashes: call.hashes,
-    effort: call.effort,
+    reasoning: call.reasoning,
   });
   if (plan.kind === "oneShot") return runOneShot(rt, call, message, stream, sequence);
   const id = call.sessionId ?? `anonymous-${sequence}`;

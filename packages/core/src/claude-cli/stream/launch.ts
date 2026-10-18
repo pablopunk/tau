@@ -108,7 +108,7 @@ export async function launchQuery(
   const input = createClaudeInput();
   binding.tools = call.tools;
   binding.model = call.modelValue;
-  binding.effort = call.effort;
+  binding.reasoning = call.reasoning;
   binding.input = input;
   binding.owedResults = 0;
   binding.resultSeen = false;
@@ -124,7 +124,7 @@ export async function launchQuery(
       systemPrompt: call.systemPrompt,
       env: rt.deps.env,
       title: titleOf(binding),
-      effort: call.effort,
+      reasoning: call.reasoning,
       resume: launch.resume,
       resumeSessionAt: launch.resumeSessionAt,
       forkSession: launch.forkSession,
