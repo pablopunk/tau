@@ -1,5 +1,5 @@
 import type { ToolExecutionApi, ToolRegistration } from "@earendil-works/pi-durable";
-import type { ModelRef, ThinkingLevel } from "@tau/protocol";
+import { AppError, type ModelRef, type ThinkingLevel } from "@tau/protocol";
 import { type AgentType, GENERAL_PURPOSE } from "../../agents/agent-types";
 import type { SubagentServices } from "../subagent-services";
 import { isSubagentTool } from "../subagent-tool-names";
@@ -59,6 +59,18 @@ async function resolveModel(requested: string | undefined, input: PlanInput): Pr
   return input.services.resolveModelAlias(requested, { parent, fast, connected: input.connected });
 }
 
+async function resolveTypeModel(requested: string | undefined, input: PlanInput): Promise<ModelRef> {
+  try {
+    return await resolveModel(requested, input);
+  } catch (error) {
+    if (!(error instanceof AppError) || !input.parent.model) throw error;
+    return input.parent.model;
+  }
+}
+
+const resolveChildModel = (type: AgentType | undefined, input: PlanInput) =>
+  input.model === undefined ? resolveTypeModel(type?.model, input) : resolveModel(input.model, input);
+
 const FALLBACK_LEVEL: ThinkingLevel = "medium";
 
 /** Order: the tool argument, then the agent type, then the parent's level; clamped to the child's model. */
@@ -71,7 +83,7 @@ export async function planChild(input: PlanInput): Promise<ChildPlan> {
   const fork = input.subagentType === FORK;
   const type =
     fork || isDefaultType(input.subagentType) ? undefined : await typeNamed(input.subagentType!, input);
-  const model = await resolveModel(input.model ?? type?.model, input);
+  const model = await resolveChildModel(type, input);
   return {
     type: fork ? FORK : (type?.name ?? GENERAL_PURPOSE),
     model,

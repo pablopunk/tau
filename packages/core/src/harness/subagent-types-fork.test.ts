@@ -1,6 +1,7 @@
 import { mkdir, mkdtemp, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { AppError } from "@tau/protocol";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { AgentType } from "../agents/agent-types";
 import { BACKGROUND } from "./open";
@@ -64,6 +65,36 @@ describe("agent types", () => {
     expect((await (await r.conversationOf(child.id))?.agent(BACKGROUND))?.model).toMatchObject({
       modelId: "faux-1",
     });
+  });
+
+  it("falls back to the parent's model when the type's model has no match on its provider", async () => {
+    const refuse = () => {
+      throw new AppError("invalid_request", "No connected model matches.");
+    };
+    rig = await openRig(root, join(root, "project"), {
+      services: { agentTypes: typesDouble([reader]), resolveModelAlias: refuse },
+    });
+    const parent = await rig.start(
+      callPrompt("agent", { description: "x", prompt: "hello", subagent_type: "reader" }),
+    );
+    const child = await rig.firstChild(parent.id);
+    const childModel = (await (await rig.conversationOf(child.id))?.agent(BACKGROUND))?.model;
+    const parentModel = (await (await rig.conversationOf(parent.id))?.agent(BACKGROUND))?.model;
+    expect(childModel).toEqual(parentModel);
+  });
+
+  it("still refuses the model argument when it has no match", async () => {
+    const refuse = () => {
+      throw new AppError("invalid_request", "Subagents use the parent's provider (faux).");
+    };
+    rig = await openRig(root, join(root, "project"), {
+      services: { agentTypes: typesDouble([reader]), resolveModelAlias: refuse },
+    });
+    const parent = await rig.start(
+      callPrompt("agent", { description: "x", prompt: "hi", subagent_type: "reader", model: "other/x" }),
+    );
+    await rig.idle(parent.id);
+    expect(await transcript(rig, parent.id)).toContain("Subagents use the parent's provider (faux)");
   });
 
   it("rejects an unknown type and lists the available ones", async () => {

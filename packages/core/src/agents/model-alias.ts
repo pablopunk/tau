@@ -7,9 +7,9 @@ export interface ModelAliasContext {
 }
 
 /**
- * `inherit` or empty: the parent's model. `fast`: the settings fast model. `provider/modelId`: that model when
- * connected. Anything else is an alias (`sonnet`, `opus`, any substring): prefer the parent's provider, then the
- * highest version by natural sort. Throws a tool error that lists the options when nothing matches.
+ * Subagents stay on the parent's provider. `inherit` or empty: the parent's model. `fast`: the settings fast model
+ * when it is on the parent's provider, else the parent's model. `provider/modelId` of another provider and aliases
+ * with no match throw a tool error that lists the parent provider's models.
  */
 export type ResolveModelAlias = (requested: string | undefined, context: ModelAliasContext) => ModelRef;
 
@@ -31,28 +31,38 @@ function naturalCompare(a: string, b: string): number {
 
 const containsText = (ref: ModelRef, needle: string) => refId(ref).toLowerCase().includes(needle);
 
-const rankByParentThenVersion = (parent: ModelRef) => (a: ModelRef, b: ModelRef) => {
-  const providerOrder = Number(b.provider === parent.provider) - Number(a.provider === parent.provider);
-  if (providerOrder !== 0) return providerOrder;
-  return naturalCompare(b.modelId, a.modelId) || refId(a).localeCompare(refId(b));
-};
+const byVersionDescending = (a: ModelRef, b: ModelRef) =>
+  naturalCompare(b.modelId, a.modelId) || refId(a).localeCompare(refId(b));
 
-function noMatchError(requested: string, connected: readonly ModelRef[]) {
-  const options = connected.slice(0, MAX_LISTED_OPTIONS).map(refId).join(", ");
-  return new AppError(
+const listOptions = (models: readonly ModelRef[]) =>
+  models.slice(0, MAX_LISTED_OPTIONS).map(refId).join(", ") || "none";
+
+const noMatchError = (requested: string, models: readonly ModelRef[]) =>
+  new AppError(
     "invalid_request",
-    `No connected model matches "${requested}". Options: ${options || "none"}.`,
+    `No connected model matches "${requested}". Options: ${listOptions(models)}.`,
   );
-}
+
+const otherProviderError = (provider: string, models: readonly ModelRef[]) =>
+  new AppError(
+    "invalid_request",
+    `Subagents use the parent's provider (${provider}). Options: ${listOptions(models)}.`,
+  );
+
+const startsWithOtherProvider = (lower: string, provider: string) =>
+  lower.includes("/") && !lower.startsWith(`${provider.toLowerCase()}/`);
 
 export const resolveModelAlias: ResolveModelAlias = (requested, { parent, fast, connected }) => {
   const input = (requested ?? "").trim();
   const lower = input.toLowerCase();
   if (lower === "" || lower === "inherit") return parent;
-  if (lower === "fast") return fast ?? parent;
+  if (lower === "fast") return fast?.provider === parent.provider ? fast : parent;
+  const own = connected.filter((ref) => ref.provider === parent.provider);
   const exact = connected.find((ref) => refId(ref).toLowerCase() === lower);
+  if (exact && exact.provider !== parent.provider) throw otherProviderError(parent.provider, own);
   if (exact) return exact;
-  const [best] = connected.filter((ref) => containsText(ref, lower)).sort(rankByParentThenVersion(parent));
-  if (!best) throw noMatchError(input, connected);
-  return best;
+  const [best] = own.filter((ref) => containsText(ref, lower)).sort(byVersionDescending);
+  if (best) return best;
+  if (startsWithOtherProvider(lower, parent.provider)) throw otherProviderError(parent.provider, own);
+  throw noMatchError(input, own);
 };

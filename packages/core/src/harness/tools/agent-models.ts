@@ -23,6 +23,9 @@ export function modelsGuidance(models: readonly ModelRef[], parent: ModelRef | u
     `Subagent models: a subagent uses your model (${parent ? modelName(parent) : "unknown"}) unless you pass \`model\` to the agent tool. Pick another one only when the user asked for it in this conversation, for example "use DeepSeek for the workers".`,
     `Subagent effort: ${THINKING_GUIDANCE}`,
     "Connected models:",
-    ...connectedModelLines(models, parent),
+    ...connectedModelLines(
+      parent ? models.filter((model) => model.provider === parent.provider) : models,
+      parent,
+    ),
   ].join("\n");
 }
