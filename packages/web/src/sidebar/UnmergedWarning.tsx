@@ -1,3 +1,4 @@
+import { unmergedBadgeLabel } from "@pi-everywhere/protocol";
 import { TriangleAlertIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -8,7 +9,7 @@ export function UnmergedWarning({ message }: { message: string }) {
       <TooltipTrigger asChild>
         <Badge variant="destructive" className="mx-2 mb-1" data-testid="unmerged-warning">
           <TriangleAlertIcon />
-          Unmerged work
+          {unmergedBadgeLabel(message)}
         </Badge>
       </TooltipTrigger>
       <TooltipContent>{message}</TooltipContent>

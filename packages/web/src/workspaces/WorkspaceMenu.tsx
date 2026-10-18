@@ -6,6 +6,7 @@ interface WorkspaceMenuProps {
   status: WorkspaceStatus | undefined;
   disabled: boolean;
   onMerge(): void;
+  onAskToCommit(): void;
   onCreatePullRequest(): void;
   onRemove(): void;
 }
@@ -17,16 +18,23 @@ export function WorkspaceMenu({
   status,
   disabled,
   onMerge,
+  onAskToCommit,
   onCreatePullRequest,
   onRemove,
 }: WorkspaceMenuProps) {
   const { base, path, pullRequestUrl } = thread.workspace;
-  const alreadyMerged = thread.workspace.state === "merged" && status?.canMerge === false;
+  const nothingToMerge = status !== undefined && status.unmergedCommits === 0;
+  const dirty = (status?.dirtyFiles.length ?? 0) > 0;
   return (
     <DropdownMenuContent align="start">
-      <DropdownMenuItem disabled={disabled || alreadyMerged} onSelect={onMerge}>
+      <DropdownMenuItem disabled={disabled || nothingToMerge} onSelect={onMerge}>
         Merge into {base}
       </DropdownMenuItem>
+      {dirty && (
+        <DropdownMenuItem disabled={disabled} onSelect={onAskToCommit}>
+          Ask agent to commit
+        </DropdownMenuItem>
+      )}
       {pullRequestUrl ? (
         <DropdownMenuItem asChild>
           <a href={pullRequestUrl} target="_blank" rel="noreferrer">

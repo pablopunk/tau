@@ -54,7 +54,32 @@ describe("WorkspaceChip", () => {
     expect(await screen.findByText("pi/fix")).toBeTruthy();
     expect(await screen.findByLabelText("2 ahead")).toBeTruthy();
     expect(screen.getByLabelText("1 behind")).toBeTruthy();
-    expect(screen.getByLabelText("1 changed files")).toBeTruthy();
+    expect(screen.getByText("1 uncommitted")).toBeTruthy();
+  });
+
+  it("shows uncommitted, not merged, when the stored state is merged but files are dirty", async () => {
+    mocked.conversations.listAll.mockResolvedValue([
+      { ...worktreeThread, workspace: { ...worktreeThread.workspace, state: "merged" } },
+    ]);
+    mocked.workspaces.status.mockResolvedValue({ ...status, ahead: 0, unmergedCommits: 0, behind: 0 });
+    renderAt("/", <WorkspaceChip conversationId="c1" />);
+    expect(await screen.findByText("1 uncommitted")).toBeTruthy();
+    expect(screen.queryByText("merged")).toBeNull();
+  });
+
+  it("shows merged when the stored state is merged and the worktree is clean", async () => {
+    mocked.conversations.listAll.mockResolvedValue([
+      { ...worktreeThread, workspace: { ...worktreeThread.workspace, state: "merged" } },
+    ]);
+    mocked.workspaces.status.mockResolvedValue({
+      ...status,
+      ahead: 0,
+      unmergedCommits: 0,
+      behind: 0,
+      dirtyFiles: [],
+    });
+    renderAt("/", <WorkspaceChip conversationId="c1" />);
+    expect(await screen.findByText("merged")).toBeTruthy();
   });
 
   it("renders nothing for a checkout thread", async () => {

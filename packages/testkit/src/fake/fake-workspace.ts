@@ -72,3 +72,8 @@ export function applyEffect(changes: WorktreeChanges, effect: MessageEffect): vo
     changes.unmergedCommits++;
   }
 }
+
+export const unmergedKindsOfChanges = ({ dirtyFiles, unmergedCommits }: WorktreeChanges) => ({
+  uncommitted: dirtyFiles.length > 0,
+  commits: unmergedCommits > 0,
+});

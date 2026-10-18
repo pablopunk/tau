@@ -1,5 +1,6 @@
 import { type Core, unmergedWarningFor } from "@pi-everywhere/protocol";
 import type { FakeConversation } from "./fake-conversation";
+import { unmergedKindsOfChanges } from "./fake-workspace";
 import { hasUnmergedWork } from "./fake-workspaces";
 
 interface DeleteArchivedContext {
@@ -20,7 +21,13 @@ export function createFakeDeleteArchived(
       if (conversation.isBusy()) {
         result.kept.push({ id: conversation.id, reason: "The thread is running." });
       } else if (!force && hasUnmergedWork(conversation)) {
-        result.kept.push({ id: conversation.id, reason: unmergedWarningFor(conversation.workspace.branch) });
+        result.kept.push({
+          id: conversation.id,
+          reason: unmergedWarningFor(
+            conversation.workspace.branch,
+            unmergedKindsOfChanges(conversation.changes),
+          ),
+        });
       } else {
         await ctx.remove(conversation);
         ctx.announce(conversation);

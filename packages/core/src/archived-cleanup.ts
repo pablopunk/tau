@@ -2,6 +2,7 @@ import {
   type ConversationSummary,
   type DeleteArchivedInput,
   type DeleteArchivedResult,
+  unmergedKindsOf,
   unmergedWarningFor,
 } from "@pi-everywhere/protocol";
 import type { ConversationRemoval } from "./conversation-removal";
@@ -52,7 +53,8 @@ export function createArchivedCleanup(deps: CleanupDeps): ArchivedCleanup {
   async function decide(thread: ConversationSummary, force: boolean): Promise<string | null> {
     if (thread.status === "running") return "The thread is running.";
     const lost = await hooks.unmergedWork(thread);
-    const warning = lost.length > 0 ? unmergedWarningFor(thread.workspace.branch) : null;
+    const warning =
+      lost.length > 0 ? unmergedWarningFor(thread.workspace.branch, unmergedKindsOf(lost)) : null;
     await rememberWarning(thread, warning);
     return warning !== null && !force ? warning : null;
   }

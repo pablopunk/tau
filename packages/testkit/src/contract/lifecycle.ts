@@ -90,10 +90,8 @@ export function lifecycleCases(make: MakeContractTarget, test: CaseRunner): void
       const live = await startConversation(target, { text: "hello" });
       const result = await core.conversations.deleteArchived({ force: false });
       expect(result.deleted).toEqual([clean.conversation.id]);
-      expect(result.kept).toEqual([
-        { id: dirty.conversation.id, reason: expect.stringContaining("Unmerged work") },
-      ]);
-      expect((await summaryOf(core, dirty.conversation)).unmergedWarning).toContain("not cleaned up");
+      expect(result.kept).toEqual([{ id: dirty.conversation.id, reason: expect.stringContaining(" in ") }]);
+      expect((await summaryOf(core, dirty.conversation)).unmergedWarning).toMatch(/^(Uncommitted|Unmerged)/);
       expect((await summaryOf(core, live.conversation)).unmergedWarning).toBeNull();
     });
 

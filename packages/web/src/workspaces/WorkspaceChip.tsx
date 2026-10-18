@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useAllConversations, useWorkspaceStatus } from "@/lib/queries";
+import { ASK_TO_COMMIT } from "./canned-messages";
 import { RemoveWorktreeDialog } from "./RemoveWorktreeDialog";
 import { useWorkspaceActions } from "./use-workspace-actions";
 import { WorkspaceError } from "./WorkspaceError";
@@ -12,8 +13,18 @@ import { WorkspaceMenu } from "./WorkspaceMenu";
 const hasWorktree = (thread: ConversationSummary | undefined): thread is ConversationSummary =>
   thread?.workspace?.mode === "worktree" && thread.workspace.state !== "removed";
 
-function ChipCounts({ status }: { status: WorkspaceStatus | undefined }) {
+function ChipCounts({
+  status,
+  storedMerged,
+}: {
+  status: WorkspaceStatus | undefined;
+  storedMerged: boolean;
+}) {
   if (!status) return null;
+  const dirty = status.dirtyFiles.length;
+  if (storedMerged && status.ahead === 0 && dirty === 0) {
+    return <span className="text-muted-foreground">merged</span>;
+  }
   return (
     <span className="flex gap-1 text-muted-foreground">
       {status.ahead > 0 && (
@@ -26,11 +37,7 @@ function ChipCounts({ status }: { status: WorkspaceStatus | undefined }) {
           ↓{status.behind}
         </span>
       )}
-      {status.dirtyFiles.length > 0 && (
-        <span role="img" aria-label={`${status.dirtyFiles.length} changed files`}>
-          ●{status.dirtyFiles.length}
-        </span>
-      )}
+      {dirty > 0 && <span>{dirty} uncommitted</span>}
     </span>
   );
 }
@@ -50,11 +57,7 @@ export function WorkspaceChip({ conversationId }: { conversationId: string }) {
           <Button variant="outline" size="xs" aria-label="Workspace">
             <GitBranchIcon />
             <span className="max-w-40 truncate">{branch}</span>
-            {state === "merged" ? (
-              <span className="text-muted-foreground">merged</span>
-            ) : (
-              <ChipCounts status={status} />
-            )}
+            <ChipCounts status={status} storedMerged={state === "merged"} />
           </Button>
         </DropdownMenuTrigger>
         <WorkspaceMenu
@@ -62,6 +65,7 @@ export function WorkspaceChip({ conversationId }: { conversationId: string }) {
           status={status}
           disabled={actions.pending}
           onMerge={actions.merge}
+          onAskToCommit={() => actions.sendMessage(ASK_TO_COMMIT)}
           onCreatePullRequest={actions.createPullRequest}
           onRemove={() => setConfirmingRemove(true)}
         />

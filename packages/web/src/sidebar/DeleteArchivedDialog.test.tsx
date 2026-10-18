@@ -15,7 +15,7 @@ const archived = [
     id: "3",
     title: "Dirty one",
     archivedAt: 1,
-    unmergedWarning: "Unmerged work in pi/dirty, not cleaned up",
+    unmergedWarning: "Uncommitted changes in pi/dirty",
   }),
 ];
 
@@ -28,7 +28,7 @@ describe("DeleteArchivedDialog", () => {
   it("counts what will be deleted and lists threads kept for unmerged work", () => {
     renderAt("/", <DeleteArchivedDialog archived={archived} onClose={() => {}} />);
     expect(screen.getByText(/2 archived threads will be deleted/)).toBeInTheDocument();
-    expect(screen.getByText("Dirty one")).toBeInTheDocument();
+    expect(screen.getByText("Dirty one: Uncommitted changes in pi/dirty")).toBeInTheDocument();
   });
 
   it("deletes without force by default", async () => {

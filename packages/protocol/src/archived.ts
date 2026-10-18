@@ -9,5 +9,33 @@ export const DeleteArchivedResultSchema = Type.Object({
 });
 export type DeleteArchivedResult = Type.Static<typeof DeleteArchivedResultSchema>;
 
-export const unmergedWarningFor = (branch: string | null) =>
-  `Unmerged work in ${branch ?? "this worktree"}, not cleaned up`;
+export interface UnmergedKinds {
+  readonly uncommitted: boolean;
+  readonly commits: boolean;
+}
+
+const UNMERGED_COMMITS_LINE = /unmerged commit/;
+
+export const unmergedKindsOf = (lines: readonly string[]): UnmergedKinds => ({
+  commits: lines.some((line) => UNMERGED_COMMITS_LINE.test(line)),
+  uncommitted: lines.some((line) => !UNMERGED_COMMITS_LINE.test(line)),
+});
+
+const describeKinds = ({ uncommitted, commits }: UnmergedKinds) =>
+  uncommitted && commits
+    ? "Uncommitted changes and unmerged commits"
+    : uncommitted
+      ? "Uncommitted changes"
+      : "Unmerged commits";
+
+export const unmergedWarningFor = (branch: string | null, kinds: UnmergedKinds) =>
+  `${describeKinds(kinds)} in ${branch ?? "this worktree"}`;
+
+export const unmergedBadgeLabel = (warning: string) =>
+  warning.startsWith("Uncommitted changes and")
+    ? "Uncommitted + unmerged"
+    : warning.startsWith("Uncommitted changes")
+      ? "Uncommitted changes"
+      : warning.startsWith("Unmerged commits")
+        ? "Unmerged commits"
+        : "Unmerged work";

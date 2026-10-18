@@ -96,7 +96,16 @@ describe("archived cleanup pass", () => {
     const { cleanup, alive, warnings } = setUp([thread("dirty")], { dirty: ["a.txt"] });
     await sweepOnce(cleanup);
     expect(alive.has("dirty")).toBe(true);
-    expect(warnings.get("dirty")).toBe("Unmerged work in pi/dirty, not cleaned up");
+    expect(warnings.get("dirty")).toBe("Uncommitted changes in pi/dirty");
+  });
+
+  it.each([
+    [["1 unmerged commit(s)"], "Unmerged commits in pi/dirty"],
+    [["a.txt", "2 unmerged commit(s)"], "Uncommitted changes and unmerged commits in pi/dirty"],
+  ])("words the warning for %j", async (lines, expected) => {
+    const { cleanup, warnings } = setUp([thread("dirty")], { dirty: lines });
+    await sweepOnce(cleanup);
+    expect(warnings.get("dirty")).toBe(expected);
   });
 
   it("skips running threads", async () => {
@@ -141,7 +150,7 @@ describe("deleteArchived", () => {
     });
     const result = await cleanup.deleteArchived({ force: false });
     expect(result.deleted).toEqual(["young"]);
-    expect(result.kept).toEqual([{ id: "dirty", reason: "Unmerged work in pi/dirty, not cleaned up" }]);
+    expect(result.kept).toEqual([{ id: "dirty", reason: "Uncommitted changes in pi/dirty" }]);
     expect(alive.has("dirty")).toBe(true);
   });
 

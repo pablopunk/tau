@@ -53,7 +53,9 @@ export function DeleteArchivedDialog({ archived, onClose }: DeleteArchivedDialog
             <p>Kept because of unmerged work ({unmerged.length}):</p>
             <ul className="list-disc pl-5 text-muted-foreground">
               {unmerged.map((thread) => (
-                <li key={thread.id}>{thread.title}</li>
+                <li key={thread.id}>
+                  {thread.title}: {thread.unmergedWarning}
+                </li>
               ))}
             </ul>
           </div>

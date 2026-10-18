@@ -24,7 +24,13 @@ import { fixtureForMessage, triggerOf } from "../fixtures/triggers";
 import type { Fixture } from "../fixtures/types";
 import { fixtureViews } from "../fixtures/views";
 import { FakeCheckpoints } from "./fake-checkpoints";
-import { applyEffect, effectOf, type MessageEffect, type WorktreeChanges } from "./fake-workspace";
+import {
+  applyEffect,
+  effectOf,
+  type MessageEffect,
+  unmergedKindsOfChanges,
+  type WorktreeChanges,
+} from "./fake-workspace";
 import {
   diffViews,
   emptyView,
@@ -206,7 +212,9 @@ export class FakeConversation {
     const { workspace, changes } = this;
     const unmerged = changes.dirtyFiles.length > 0 || changes.unmergedCommits > 0;
     const live = workspace.mode === "worktree" && workspace.state === "ready";
-    return this.archivedAt !== null && live && unmerged ? unmergedWarningFor(workspace.branch) : null;
+    return this.archivedAt !== null && live && unmerged
+      ? unmergedWarningFor(workspace.branch, unmergedKindsOfChanges(changes))
+      : null;
   }
 
   setAgentStatus(status: AgentStatus): void {
