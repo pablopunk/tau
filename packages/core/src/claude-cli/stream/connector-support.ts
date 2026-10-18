@@ -24,7 +24,13 @@ export const connectedStatuses = async (): Promise<readonly ClaudeMcpServerStatu
 export const LINEAR = "claude.ai Linear";
 export const SLACK = "claude.ai Slack";
 
-export const linearOnly: ClaudeConnectorSettings = { enabled: [LINEAR], alwaysAllow: [] };
+export const linearOnly: ClaudeConnectorSettings = {
+  enabled: [LINEAR],
+  alwaysAllow: [],
+  askBeforeWrites: false,
+};
+
+export const linearAsking: ClaudeConnectorSettings = { ...linearOnly, askBeforeWrites: true };
 
 export const connectorHarness = (options: HarnessOptions = {}): Harness =>
   createHarness({

@@ -2,6 +2,7 @@ import type { Message, ToolCall } from "@earendil-works/pi-ai";
 import { describe, expect, it } from "vitest";
 import { CONNECTOR_TOOL_NAME } from "../connectors/names";
 import { scriptOf } from "../testing/fake-claude-script";
+import { optionsKeyOf } from "./connector-choice";
 import { toolResultsOf } from "./connector-results";
 import { connectorHarness, connectorStep, LINEAR } from "./connector-support";
 import { connectorStatusErrorText, neutralText } from "./errors";
@@ -137,5 +138,12 @@ describe("adapter paths with connectors", () => {
     const first = await ask(harness, [systemMessage(), userMessage("go")]);
     expect(first.message.stopReason).toBe("toolUse");
     await waitFor(() => harness.observed.settled.size === 1);
+  });
+});
+
+describe("optionsKeyOf askBeforeWrites", () => {
+  it("changes when askBeforeWrites flips", () => {
+    const off = { enabled: ["claude.ai Linear"], alwaysAllow: [], askBeforeWrites: false };
+    expect(optionsKeyOf({ ...off, askBeforeWrites: true })).not.toBe(optionsKeyOf(off));
   });
 });

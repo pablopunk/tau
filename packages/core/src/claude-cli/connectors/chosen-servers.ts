@@ -5,7 +5,7 @@ import { connectorAllowGlobOf, connectorToolPrefixOf, isClaudeAiServer } from ".
 export interface ChosenServers {
   /** Status names (`claude.ai Linear`) the user switched on and that are connected. */
   readonly names: readonly string[];
-  /** `allowedTools` for the query: the `tau` glob, the read-only tools of the chosen servers, the always-allowed tools. */
+  /** `allowedTools` for the query: the `tau` glob, the exact tools of the chosen servers (read-only ones when writes ask first), the always-allowed tools. */
   readonly allowedTools: readonly string[];
 }
 
@@ -19,6 +19,14 @@ const readOnlyToolNamesOf = (server: ClaudeMcpServerStatus): string[] =>
     .filter((tool) => tool.readOnly)
     .map((tool) => `${connectorToolPrefixOf(server.name)}${tool.name}`);
 
+const allToolNamesOf = (server: ClaudeMcpServerStatus): string[] =>
+  server.tools.map((tool) => `${connectorToolPrefixOf(server.name)}${tool.name}`);
+
+const autoAllowedToolNamesOf = (
+  settings: ClaudeConnectorSettings,
+  server: ClaudeMcpServerStatus,
+): string[] => (settings.askBeforeWrites ? readOnlyToolNamesOf(server) : allToolNamesOf(server));
+
 const belongsTo = (chosen: readonly ClaudeMcpServerStatus[], cliToolName: string): boolean =>
   chosen.some((server) => cliToolName.startsWith(connectorToolPrefixOf(server.name)));
 
@@ -29,7 +37,11 @@ export function chooseServers(
   const chosen = status.filter((server) => isChosen(settings, server));
   if (chosen.length === 0) return { names: [], allowedTools: [] };
   const alwaysAllowed = settings.alwaysAllow.filter((name) => belongsTo(chosen, name));
-  const allowedTools = [TAU_TOOLS_GLOB, ...chosen.flatMap(readOnlyToolNamesOf), ...alwaysAllowed];
+  const allowedTools = [
+    TAU_TOOLS_GLOB,
+    ...chosen.flatMap((server) => autoAllowedToolNamesOf(settings, server)),
+    ...alwaysAllowed,
+  ];
   return { names: chosen.map((server) => server.name), allowedTools: [...new Set(allowedTools)] };
 }
 

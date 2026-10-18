@@ -148,6 +148,7 @@ export function createHarness(options: HarnessOptions = {}): Harness {
   let connectorSettings: ClaudeConnectorSettings = options.connectorSettings ?? {
     enabled: [],
     alwaysAllow: [],
+    askBeforeWrites: false,
   };
   const streamer = createClaudeCliStream({
     sdk: async () => port,

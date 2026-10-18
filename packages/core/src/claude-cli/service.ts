@@ -4,6 +4,7 @@ import type { ClaudeCliStatus, ClaudeConnectorSettings } from "@tau/protocol";
 import type { Approvals } from "../approvals/approvals-port";
 import { type ClaudeCliClock, systemClaudeCliClock } from "./clock";
 import { createConnectorProbe } from "./connectors/connector-probe";
+import { lateConnectorsMessage } from "./connectors/late-message";
 import type { ObservedResultStore } from "./connectors/observed-results";
 import { createClaudeCliDetector } from "./detect/claude-cli-detector";
 import { createClaudeCliModels } from "./models/claude-cli-models";
@@ -129,7 +130,12 @@ export function createClaudeCliService(deps: ClaudeCliServiceDeps): ClaudeCliSer
     isReady: () => isClaudeCliReady(detector.status()),
     onChange: deps.onChange,
   });
+  let lateNotes: readonly string[] = [];
   const streamer = createClaudeCliStream({
+    onConnectorsLate: (notes) => {
+      lateNotes = notes;
+      deps.onChange();
+    },
     sdk,
     planUsage,
     clock,
@@ -150,10 +156,12 @@ export function createClaudeCliService(deps: ClaudeCliServiceDeps): ClaudeCliSer
   });
   const statusWithProcesses = (): ClaudeCliStatus => ({
     ...detector.status(),
+    ...(lateNotes.length > 0 && { message: lateConnectorsMessage(lateNotes) }),
     processCount: streamer.processCount(),
     connectors: isClaudeCliReady(detector.status()) ? connectorProbe.current() : null,
   });
   const refresh = async (): Promise<ClaudeCliStatus> => {
+    lateNotes = [];
     await detector.refresh();
     await models.refresh();
     if (isClaudeCliReady(detector.status())) await connectorProbe.refresh();

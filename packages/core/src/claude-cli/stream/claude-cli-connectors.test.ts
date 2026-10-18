@@ -10,6 +10,7 @@ import {
   connectorStep,
   createFakeApprovals,
   LINEAR,
+  linearAsking,
   linearOnly,
   SLACK,
 } from "./connector-support";
@@ -45,7 +46,7 @@ describe("query options", () => {
 
   it("opens the connectors with exact read-only names, no server glob and the others disallowed", async () => {
     const harness = connectorHarness({
-      connectorSettings: { enabled: [LINEAR], alwaysAllow: ["mcp__claude_ai_Linear__save_comment"] },
+      connectorSettings: { ...linearAsking, alwaysAllow: ["mcp__claude_ai_Linear__save_comment"] },
     });
     await ask(harness, base());
     const options = harness.fake.queries[0]?.options as ClaudeQueryOptions;
@@ -63,9 +64,18 @@ describe("query options", () => {
     expect(harness.fake.queries[0]?.toggles).toEqual([]);
   });
 
+  it("allows every exact tool of the chosen servers when writes do not ask", async () => {
+    const harness = connectorHarness({ connectorSettings: linearOnly });
+    await ask(harness, base());
+    const options = harness.fake.queries[0]?.options as ClaudeQueryOptions;
+    expect(options.allowedTools).toContain("mcp__claude_ai_Linear__save_comment");
+    expect(options.allowedTools.some((name) => name.includes("Slack"))).toBe(false);
+    expect(options.allowedTools.some((name) => name.includes("*") && name !== "mcp__tau__*")).toBe(false);
+  });
+
   it("leaves always-allowed tools of servers that are not chosen out of allowedTools", async () => {
     const harness = connectorHarness({
-      connectorSettings: { enabled: [LINEAR], alwaysAllow: ["mcp__claude_ai_Slack__slack_send_message"] },
+      connectorSettings: { ...linearOnly, alwaysAllow: ["mcp__claude_ai_Slack__slack_send_message"] },
     });
     await ask(harness, base());
     const options = harness.fake.queries[0]?.options;
@@ -237,7 +247,7 @@ describe("hash and options", () => {
 
   it("closes an idle query when the chosen servers change and resumes with the new options", async () => {
     const harness = connectorHarness({
-      connectorSettings: { enabled: [], alwaysAllow: [] },
+      connectorSettings: { enabled: [], alwaysAllow: [], askBeforeWrites: false },
       script: scriptOf([[{ kind: "text", text: "a" }], [{ kind: "text", text: "b" }]]),
     });
     const messages = base();
@@ -253,7 +263,7 @@ describe("hash and options", () => {
 
   it("never closes a busy query for a changed choice", async () => {
     const harness = connectorHarness({
-      connectorSettings: { enabled: [], alwaysAllow: [] },
+      connectorSettings: { enabled: [], alwaysAllow: [], askBeforeWrites: false },
       script: scriptOf([
         [
           { kind: "tools", calls: [{ name: "get_word" }] },
@@ -316,7 +326,7 @@ describe("approvals bridge", () => {
 
   it("asks the approvals port for a tool that is not read-only", async () => {
     const approvals = createFakeApprovals();
-    const harness = connectorHarness({ script: writeCall, approvals });
+    const harness = connectorHarness({ script: writeCall, approvals, connectorSettings: linearAsking });
     await ask(harness, base());
     await waitFor(() => harness.fake.queries[0]?.permissionRequests.length === 1);
     expect(approvals.requests[0]).toMatchObject({
@@ -327,10 +337,18 @@ describe("approvals bridge", () => {
     expect(harness.fake.queries[0]?.permissionRequests[0]?.decision).toBe("allow");
   });
 
+  it("allows a write without asking when writes do not ask", async () => {
+    const approvals = createFakeApprovals();
+    const harness = connectorHarness({ script: writeCall, approvals });
+    await ask(harness, base());
+    await waitFor(() => harness.fake.queries[0]?.connectorCalls[0]?.ran === true);
+    expect(approvals.requests).toHaveLength(0);
+  });
+
   it("returns the denial to the CLI", async () => {
     const approvals = createFakeApprovals();
     approvals.answer = "deny";
-    const harness = connectorHarness({ script: writeCall, approvals });
+    const harness = connectorHarness({ script: writeCall, approvals, connectorSettings: linearAsking });
     await ask(harness, base());
     await waitFor(() => harness.fake.queries[0]?.permissionRequests.length === 1);
     expect(harness.fake.queries[0]?.permissionRequests[0]?.decision).toBe("deny");
@@ -343,6 +361,7 @@ describe("approvals bridge", () => {
     const harness = connectorHarness({
       script: writeCall,
       approvals,
+      connectorSettings: linearAsking,
       connectorStatus: connectedStatuses,
     });
     await ask(harness, base());
@@ -372,7 +391,7 @@ describe("approvals bridge", () => {
         release = () => resolve({ allowed: true });
       });
     };
-    const harness = connectorHarness({ script: writeCall, approvals });
+    const harness = connectorHarness({ connectorSettings: linearAsking, script: writeCall, approvals });
     await ask(harness, base());
     await waitFor(() => approvals.requests.length === 1);
     harness.clock.advance(16 * 60 * 1000);

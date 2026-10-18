@@ -28,7 +28,7 @@ async function rememberAlwaysAllowed(deps: ApprovalsDeps, cliToolName: string): 
   const current = (await deps.settings.get()).claudeConnectors;
   if (current.alwaysAllow.includes(cliToolName)) return;
   await deps.settings.setClaudeConnectors({
-    enabled: current.enabled,
+    ...current,
     alwaysAllow: [...current.alwaysAllow, cliToolName],
   });
 }

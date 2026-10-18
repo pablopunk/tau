@@ -74,9 +74,15 @@ const validLastWorkspaceModes = (value: unknown): Record<string, WorkspaceMode> 
   return modes;
 };
 
+const copyConnectorSettings = (value: ClaudeConnectorSettings): ClaudeConnectorSettings => ({
+  enabled: [...value.enabled],
+  alwaysAllow: [...value.alwaysAllow],
+  askBeforeWrites: value.askBeforeWrites,
+});
+
 const validClaudeConnectors = (value: unknown): ClaudeConnectorSettings | undefined =>
-  Value.Check(ClaudeConnectorSettingsSchema, value)
-    ? { enabled: [...value.enabled], alwaysAllow: [...value.alwaysAllow] }
+  Value.Check(ClaudeConnectorSettingsSchema, { askBeforeWrites: false, ...(value as object) })
+    ? copyConnectorSettings({ askBeforeWrites: false, ...(value as object) } as ClaudeConnectorSettings)
     : undefined;
 
 const validMcpServers = (value: unknown): McpServerConfig[] =>
@@ -120,7 +126,7 @@ const withDefaults = (stored: StoredSettings, defaultProjectsFolder: string): Se
   messageMode: stored.messageMode ?? "steer",
   workspaceDefault: stored.workspaceDefault ?? "per-project",
   claudeCliNoticeAt: stored.claudeCliNoticeAt ?? null,
-  claudeConnectors: stored.claudeConnectors ?? { enabled: [], alwaysAllow: [] },
+  claudeConnectors: stored.claudeConnectors ?? { enabled: [], alwaysAllow: [], askBeforeWrites: false },
 });
 
 export interface SettingsStore {
@@ -185,7 +191,7 @@ export function createSettingsStore(settingsFile: string, defaultProjectsFolder:
     setClaudeConnectors: (value) =>
       update((stored) => ({
         ...stored,
-        claudeConnectors: { enabled: [...value.enabled], alwaysAllow: [...value.alwaysAllow] },
+        claudeConnectors: copyConnectorSettings(value),
       })),
     lastWorkspaceMode: async (projectId) => (await readStored()).lastWorkspaceModes?.[projectId],
     setLastWorkspaceMode: (projectId, mode) =>

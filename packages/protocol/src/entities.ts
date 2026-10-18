@@ -55,6 +55,7 @@ export type ThreadWorkspace = Type.Static<typeof ThreadWorkspaceSchema>;
 export const ClaudeConnectorSettingsSchema = Type.Object({
   enabled: Type.Array(Type.String()),
   alwaysAllow: Type.Array(Type.String()),
+  askBeforeWrites: Type.Boolean(),
 });
 export type ClaudeConnectorSettings = Type.Static<typeof ClaudeConnectorSettingsSchema>;
 

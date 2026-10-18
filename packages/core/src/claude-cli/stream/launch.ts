@@ -71,7 +71,7 @@ const connectorQueryInput = (
 ): ConnectorQueryInput => ({
   allowedTools: choice.allowedTools,
   disallowedTools: choice.disallowedTools,
-  canUseTool: createCanUseTool(rt, binding, choice.names),
+  canUseTool: createCanUseTool(rt, binding, choice.names, choice.askBeforeWrites),
 });
 
 /** Connectors load a few seconds after the process starts; the first input waits for them. */

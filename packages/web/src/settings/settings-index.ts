@@ -96,6 +96,13 @@ export const SETTINGS_INDEX: readonly SettingEntry[] = [
     description: "Let Claude CLI threads use the connectors of your Claude login.",
     keywords: ["claude", "connectors", "claude.ai", "linear", "slack", "mcp"],
   },
+  {
+    id: "claude-ask-before-writes",
+    section: "tools",
+    label: "Ask before writes",
+    description: "When on, tools that change things ask you first.",
+    keywords: ["claude", "connectors", "approve", "approval", "permission", "prompt", "write", "confirm"],
+  },
 ];
 
 /** Row ids built from data, such as `provider:openai`. Entries for them come from `dynamicEntries`. */

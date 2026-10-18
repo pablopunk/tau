@@ -7,24 +7,36 @@ import type { ClaudeMcpServerStatus } from "../sdk-types";
 export interface ConnectorChoice {
   /** Status names (`claude.ai Linear`). */
   readonly names: readonly string[];
+  /** When true, tools that change things ask the user; when false, every tool of a chosen server is allowed. */
+  readonly askBeforeWrites: boolean;
   /** Exact read-only tool names of the chosen servers, then the always-allowed tools of those servers. */
   readonly allowedTools: readonly string[];
   /** One glob for every claude.ai server that is not chosen. */
   readonly disallowedTools: readonly string[];
 }
 
-export const NO_CONNECTORS: ConnectorChoice = { names: [], allowedTools: [], disallowedTools: [] };
+export const NO_CONNECTORS: ConnectorChoice = {
+  names: [],
+  askBeforeWrites: false,
+  allowedTools: [],
+  disallowedTools: [],
+};
 
 /** Changes when the user switches a server on or off. */
 export const optionsKeyOf = (settings: ClaudeConnectorSettings | null): string =>
-  [...(settings?.enabled ?? [])].sort().join("|");
+  [...(settings?.enabled ?? [])].sort().join("|") + (settings?.askBeforeWrites ? "|ask" : "");
 
 function chooseFromStatus(
   settings: ClaudeConnectorSettings,
   status: readonly ClaudeMcpServerStatus[],
 ): ConnectorChoice {
   const { names, allowedTools } = chooseServers(settings, status);
-  return { names, allowedTools, disallowedTools: disallowedToolsOf(names, status) };
+  return {
+    names,
+    askBeforeWrites: settings.askBeforeWrites,
+    allowedTools,
+    disallowedTools: disallowedToolsOf(names, status),
+  };
 }
 
 const belongsTo = (cliToolName: string, servers: readonly string[]): boolean => {
@@ -35,6 +47,7 @@ const belongsTo = (cliToolName: string, servers: readonly string[]): boolean => 
 /** Without a status list, every enabled server counts as chosen and only the always-allowed tools skip the ask. */
 const chooseWithoutStatus = (settings: ClaudeConnectorSettings): ConnectorChoice => ({
   names: [...settings.enabled],
+  askBeforeWrites: settings.askBeforeWrites,
   allowedTools: settings.alwaysAllow.filter((tool) => belongsTo(tool, settings.enabled)),
   disallowedTools: [],
 });

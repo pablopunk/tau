@@ -15,11 +15,31 @@ const DEFAULTS = {
   messageMode: "steer",
   workspaceDefault: "per-project",
   claudeCliNoticeAt: null,
-  claudeConnectors: { enabled: [], alwaysAllow: [] },
+  claudeConnectors: { enabled: [], alwaysAllow: [], askBeforeWrites: false },
 };
 const ref = { provider: "openrouter", modelId: "x/y" };
 
 describe("settings store", () => {
+  it("defaults askBeforeWrites to false for connector settings stored without it", async () => {
+    const file = join(await tempDir(), "settings.json");
+    await writeFile(
+      file,
+      JSON.stringify({ claudeConnectors: { enabled: ["claude.ai Linear"], alwaysAllow: [] } }),
+    );
+    const store = createSettingsStore(file, PROJECTS);
+    expect((await store.get()).claudeConnectors).toEqual({
+      enabled: ["claude.ai Linear"],
+      alwaysAllow: [],
+      askBeforeWrites: false,
+    });
+  });
+
+  it("stores askBeforeWrites", async () => {
+    const store = createSettingsStore(join(await tempDir(), "settings.json"), PROJECTS);
+    await store.setClaudeConnectors({ enabled: [], alwaysAllow: [], askBeforeWrites: true });
+    expect((await store.get()).claudeConnectors.askBeforeWrites).toBe(true);
+  });
+
   it("starts without a default model", async () => {
     const store = createSettingsStore(join(await tempDir(), "settings.json"), PROJECTS);
     expect(await store.get()).toEqual(DEFAULTS);

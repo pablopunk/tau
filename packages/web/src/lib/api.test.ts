@@ -42,7 +42,7 @@ describe("http transport", () => {
       messageMode: "steer",
       workspaceDefault: "per-project",
       claudeCliNoticeAt: null,
-      claudeConnectors: { enabled: [], alwaysAllow: [] },
+      claudeConnectors: { enabled: [], alwaysAllow: [], askBeforeWrites: false },
     };
     stubFetch(respond(200, settings));
     expect(await api.settings.get()).toEqual(settings);

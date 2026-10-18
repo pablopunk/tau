@@ -20,7 +20,10 @@ const STATUS = [FAKE_LINEAR, FAKE_SLACK, FAKE_NEEDS_AUTH].map(statusOf);
 
 describe("chooseServers", () => {
   it("chooses nothing when nothing is on", () => {
-    expect(chooseServers({ enabled: [], alwaysAllow: [] }, STATUS)).toEqual({ names: [], allowedTools: [] });
+    expect(chooseServers({ enabled: [], alwaysAllow: [], askBeforeWrites: false }, STATUS)).toEqual({
+      names: [],
+      allowedTools: [],
+    });
   });
 
   it("allows tau, exact read-only names and always-allowed tools of chosen servers only", () => {
@@ -28,6 +31,7 @@ describe("chooseServers", () => {
       {
         enabled: ["claude.ai Linear"],
         alwaysAllow: ["mcp__claude_ai_Linear__save_comment", "mcp__claude_ai_Slack__slack_send_message"],
+        askBeforeWrites: true,
       },
       STATUS,
     );
@@ -40,9 +44,22 @@ describe("chooseServers", () => {
     ]);
   });
 
+  it("allows the exact name of every tool of chosen servers when writes do not ask", () => {
+    const chosen = chooseServers(
+      { enabled: ["claude.ai Linear"], alwaysAllow: [], askBeforeWrites: false },
+      STATUS,
+    );
+    expect(chosen.allowedTools).toEqual(
+      expect.arrayContaining(["mcp__claude_ai_Linear__save_comment", "mcp__claude_ai_Linear__get_issue"]),
+    );
+    expect(chosen.allowedTools.some((name) => name.includes("Slack") || name.includes("Linear__*"))).toBe(
+      false,
+    );
+  });
+
   it("skips enabled servers that are not connected or not listed", () => {
     const chosen = chooseServers(
-      { enabled: ["claude.ai Notion", "claude.ai Gone"], alwaysAllow: [] },
+      { enabled: ["claude.ai Notion", "claude.ai Gone"], alwaysAllow: [], askBeforeWrites: false },
       STATUS,
     );
     expect(chosen).toEqual({ names: [], allowedTools: [] });

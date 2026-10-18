@@ -39,13 +39,19 @@ async function askUser(
 
 /**
  * The `canUseTool` of a query with connectors: (1) deny a server that is not chosen,
- * (2) allow a tool the user always allowed, (3) ask the user.
+ * (2) allow everything else unless writes ask first, (3) allow a tool the user always allowed, (4) ask the user.
  */
-export function createCanUseTool(rt: Runtime, binding: Binding, chosen: readonly string[]): ClaudeCanUseTool {
+export function createCanUseTool(
+  rt: Runtime,
+  binding: Binding,
+  chosen: readonly string[],
+  askBeforeWrites: boolean,
+): ClaudeCanUseTool {
   return async (request) => {
     const server = request.mcpServer?.name;
     const call = parseConnectorToolName(request.toolName);
     if (!server || !call || !chosen.includes(server)) return deny(NOT_CHOSEN_MESSAGE);
+    if (!askBeforeWrites) return allow(request);
     if (await rt.deps.approvals?.isAlwaysAllowed(request.toolName)) return allow(request);
     return askUser(rt, binding, request, call);
   };

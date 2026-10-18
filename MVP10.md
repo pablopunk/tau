@@ -11,7 +11,7 @@ Status: APPROVED v6 (review rounds 1–5 applied), with the Phase 0 gate results
 In:
 1. **Connector list** in Settings → Tools, section "Claude connectors": every server from `mcpServerStatus()` with its state (connected, needs auth, failed, disabled) and tool count. A switch per server. Default: off.
 2. **Connector tools in Claude CLI threads**: the CLI runs them; tau shows each call as a normal tool card with its result.
-3. **Approval** for tools that are not read-only: an inline card in the thread with "Allow once", "Always allow this tool", "Deny". Read-only tools (MCP `annotations.readOnly`, `sdk.d.ts:1263-1300`) run with no prompt.
+3. **Approval** is opt-in. By default (`Settings.claudeConnectors.askBeforeWrites` false) every tool of a chosen server runs with no prompt. When the setting is on, tools that are not read-only get an inline card in the thread with "Allow once", "Always allow this tool", "Deny"; read-only tools (MCP `annotations.readOnly`, `sdk.d.ts:1263-1300`) run with no prompt.
 
 Out (later): own `claude mcp` servers (user scope; pin (m) failed: the only option that loads them also loads CLAUDE.md and the user settings); connectors in threads on other providers; logging in to a "needs auth" connector from tau (the user does it on claude.ai); claude.ai connectors on a remote runtime; per-project connector sets.
 
@@ -61,6 +61,8 @@ A connector `tool_use` is a call that Pi must show but not run.
 
 ### Approval
 
+Prompts are opt-in: with `askBeforeWrites` false (default), `allowedTools` lists the exact name of every tool of the chosen servers (still never a glob) and `canUseTool` allows chosen-server tools and still denies other servers. The rest of this section applies when `askBeforeWrites` is true.
+
 - `canUseTool(toolName, input, { signal, toolUseID })` (pin n) for non-read-only connector tools. tau keeps the approval in an **in-memory side store** (`core/src/approvals/`), keyed by `toolUseId`, not in the thread document (no hash or checkpoint effect), and emits `changes.emit({ resource: "approvals", conversationId })`. `GET /conversations/:id/approvals` lists pending ones. A tau restart drops pending approvals; the CLI process is gone too, so the call ends as aborted.
 - `hasLiveWork` gets a third input, `hasPendingApproval(conversationId)` (owner C edits `harness/live-work.ts`).
 - The thread shows an approval card under the tool card: tool name, arguments (collapsed JSON), "Allow once", "Always allow this tool", "Deny". REST: `POST /conversations/:id/approvals/:toolUseId` `{ decision: "allow" | "allow_always" | "deny" }`. CLI command table: `threads approve <id> <toolUseId> --allow|--always|--deny`.
@@ -69,7 +71,7 @@ A connector `tool_use` is a call that Pi must show but not run.
 
 ### Settings and status
 
-- `Settings.claudeConnectors: { enabled: string[]; alwaysAllow: string[] }`.
+- `Settings.claudeConnectors: { enabled: string[]; alwaysAllow: string[]; askBeforeWrites: boolean }` (default `askBeforeWrites: false`). Changing it marks Claude CLI bindings stale like a server toggle.
 - `ClaudeCliStatus.connectors: { name, source: "claudeai" | "user", status, toolCount, readOnlyCount }[] | null`, from a cached `mcpServerStatus()` probe (one short-lived query with `maxTurns: 0` or no input, pin q), refreshed on Settings open and "Check again". No tool schemas over the wire.
 - Settings → Tools → "Claude connectors" (only when the Claude CLI row is `ready`): one row per server: name, status badge for non-connected states, "N tools · M read-only", switch. "needs auth" rows say "Connect it on claude.ai" and have no switch.
 
@@ -107,7 +109,7 @@ Gates: (n), (q) and (r) run **first** in Phase 0. If (n) fails, writes are Out (
 
 - Context and cost: each chosen server adds its schemas to every request; the Settings row shows the tool count.
 - Late connectors: the 5 s wait slows the first message of a new query; Continue paths do not wait.
-- Writes run in the user's org (Slack posts, Linear changes). Approval is on by default for every non-read-only tool; a missing `annotations.readOnly` counts as a write.
+- Writes run in the user's org (Slack posts, Linear changes). Approval is opt-in (`askBeforeWrites`); when on, it covers every non-read-only tool; a missing `annotations.readOnly` counts as a write.
 - The CLI's MCP behaviour can change on SDK bumps; pins (k)–(r) run on each bump.
 
 ## Phase 0 results

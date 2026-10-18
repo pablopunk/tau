@@ -64,7 +64,13 @@ const STATIC_NOTE: Partial<Record<ClaudeCliStatus["state"], string>> = {
 
 function readyNote(cli: ClaudeCliStatus): string | null {
   const usage = cli.usage ? claudeCliUsageNote(cli.usage) : null;
-  const parts = [usage, cli.cliVersion ? `CLI ${cli.cliVersion}` : null, versionNote(cli), processNote(cli)];
+  const parts = [
+    usage,
+    cli.cliVersion ? `CLI ${cli.cliVersion}` : null,
+    versionNote(cli),
+    processNote(cli),
+    cli.message && withoutProductName(cli.message),
+  ];
   return joinParts(parts) || null;
 }
 

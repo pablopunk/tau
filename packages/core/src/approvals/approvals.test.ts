@@ -4,7 +4,7 @@ import { createChangeEmitter } from "../change-emitter";
 import { createApprovals } from "./approvals";
 import type { ApprovalRequest } from "./approvals-port";
 
-function setup(initial: ClaudeConnectorSettings = { enabled: [], alwaysAllow: [] }) {
+function setup(initial: ClaudeConnectorSettings = { enabled: [], alwaysAllow: [], askBeforeWrites: false }) {
   let connectors = initial;
   const changes = createChangeEmitter();
   const seen: Change[] = [];
