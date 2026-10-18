@@ -15,6 +15,7 @@ import {
   type WorkspaceMode,
 } from "@tau/protocol";
 import { clampFakeThinkingLevel, FAKE_MODELS, findFakeModel } from "./catalog";
+import { createFakeConnectors, type FakeConnectors } from "./fake-connectors";
 import { FakeConversation, type FakeInput } from "./fake-conversation";
 import { createFakeDeleteArchived } from "./fake-delete-archived";
 import { suggestFakeFiles } from "./fake-files";
@@ -63,7 +64,9 @@ const TITLE_WORDS = 3;
 
 const firstWords = (text: string) => text.trim().split(/\s+/).slice(0, TITLE_WORDS).join(" ");
 
-export function createFakeCore(options: FakeCoreOptions = {}): Core {
+export type FakeCore = Core & { readonly seedApproval: FakeConnectors["seedApproval"] };
+
+export function createFakeCore(options: FakeCoreOptions = {}): FakeCore {
   const now = options.now ?? Date.now;
   const speed = options.speed ?? 1;
   const fs = options.fs ?? FAKE_FS;
@@ -247,6 +250,7 @@ export function createFakeCore(options: FakeCoreOptions = {}): Core {
   });
 
   const mvp8 = createFakeMvp8({ emit, now, requireConversation });
+  const connectors = createFakeConnectors({ emit, now, requireConversation });
 
   function workspaceModeFor(projectId: string, requested: WorkspaceMode | undefined): WorkspaceMode {
     if (requested) {
@@ -345,6 +349,7 @@ export function createFakeCore(options: FakeCoreOptions = {}): Core {
           messageMode,
           workspaceDefault,
           claudeCliNoticeAt: connections.claudeCliNoticeAt(),
+          claudeConnectors: connectors.settings(),
         };
       },
       async setDefaultModel(ref) {
@@ -377,6 +382,9 @@ export function createFakeCore(options: FakeCoreOptions = {}): Core {
       },
       async setWorkspaceDefault(mode) {
         workspaceDefault = mode;
+      },
+      async setClaudeConnectors(value) {
+        connectors.setSettings(value);
       },
       async setProjectsFolder(typedPath) {
         const path = expandFakeHome(typedPath);
@@ -529,6 +537,8 @@ export function createFakeCore(options: FakeCoreOptions = {}): Core {
     },
     workspaces: mvp5.workspaces,
     processes: mvp5.processes,
+    approvals: connectors.approvals,
+    seedApproval: connectors.seedApproval,
     timers: mvp8.timers,
     goals: mvp8.goals,
     mcp: mvp5.mcp,

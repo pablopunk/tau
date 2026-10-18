@@ -15,6 +15,7 @@ const DEFAULTS = {
   messageMode: "steer",
   workspaceDefault: "per-project",
   claudeCliNoticeAt: null,
+  claudeConnectors: { enabled: [], alwaysAllow: [] },
 };
 const ref = { provider: "openrouter", modelId: "x/y" };
 

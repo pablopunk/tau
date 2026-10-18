@@ -1,6 +1,11 @@
+import type { FakeConnectorRun } from "./fake-claude-connectors";
+
 export interface FakeToolUse {
+  /** A `tau` tool name, or with `connector` the tool name inside that server (`list_teams`). */
   readonly name: string;
   readonly arguments?: Record<string, unknown>;
+  /** Set: the fake CLI runs this call itself (a connector). The next steps follow with no input, as the real CLI does. */
+  readonly connector?: FakeConnectorRun;
 }
 
 export interface FakeRateLimit {

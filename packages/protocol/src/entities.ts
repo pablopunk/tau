@@ -52,6 +52,12 @@ export const ThreadWorkspaceSchema = Type.Object({
 });
 export type ThreadWorkspace = Type.Static<typeof ThreadWorkspaceSchema>;
 
+export const ClaudeConnectorSettingsSchema = Type.Object({
+  enabled: Type.Array(Type.String()),
+  alwaysAllow: Type.Array(Type.String()),
+});
+export type ClaudeConnectorSettings = Type.Static<typeof ClaudeConnectorSettingsSchema>;
+
 export const SettingsSchema = Type.Object({
   defaultModel: Type.Union([ModelRefSchema, Type.Null()]),
   defaultThinkingLevel: Type.Union([ThinkingLevelSchema, Type.Null()]),
@@ -61,6 +67,7 @@ export const SettingsSchema = Type.Object({
   messageMode: MessageModeSchema,
   workspaceDefault: WorkspaceDefaultSchema,
   claudeCliNoticeAt: Type.Union([Type.Number(), Type.Null()]),
+  claudeConnectors: ClaudeConnectorSettingsSchema,
 });
 export type Settings = Type.Static<typeof SettingsSchema>;
 
@@ -108,6 +115,25 @@ export const ClaudeCliUsageSchema = Type.Object({
 });
 export type ClaudeCliUsage = Type.Static<typeof ClaudeCliUsageSchema>;
 
+export const ClaudeConnectorStatusSchema = Type.Union([
+  Type.Literal("connected"),
+  Type.Literal("needs_auth"),
+  Type.Literal("failed"),
+  Type.Literal("disabled"),
+  Type.Literal("pending"),
+]);
+export type ClaudeConnectorStatus = Type.Static<typeof ClaudeConnectorStatusSchema>;
+
+/** No tool schemas over the wire. */
+export const ClaudeConnectorSchema = Type.Object({
+  name: Type.String(),
+  source: Type.Union([Type.Literal("claudeai"), Type.Literal("user")]),
+  status: ClaudeConnectorStatusSchema,
+  toolCount: Type.Number(),
+  readOnlyCount: Type.Number(),
+});
+export type ClaudeConnector = Type.Static<typeof ClaudeConnectorSchema>;
+
 /** No email, no ids, no tokens. */
 export const ClaudeCliStatusSchema = Type.Object({
   state: ClaudeCliStateSchema,
@@ -118,6 +144,8 @@ export const ClaudeCliStatusSchema = Type.Object({
   message: Type.Union([Type.String(), Type.Null()]),
   usage: Type.Union([ClaudeCliUsageSchema, Type.Null()]),
   processCount: Type.Number(),
+  /** `null` until a probe ran, or when the probe failed. */
+  connectors: Type.Union([Type.Array(ClaudeConnectorSchema), Type.Null()]),
 });
 export type ClaudeCliStatus = Type.Static<typeof ClaudeCliStatusSchema>;
 
@@ -258,6 +286,7 @@ export const ChangeSchema = Type.Union([
   Type.Object({ resource: Type.Literal("processes"), conversationId: Type.String() }),
   Type.Object({ resource: Type.Literal("timers"), conversationId: Type.String() }),
   Type.Object({ resource: Type.Literal("mcp") }),
+  Type.Object({ resource: Type.Literal("approvals"), conversationId: Type.String() }),
 ]);
 export type Change = Type.Static<typeof ChangeSchema>;
 

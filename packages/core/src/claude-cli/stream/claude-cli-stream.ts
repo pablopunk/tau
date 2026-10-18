@@ -6,8 +6,11 @@ import {
   type SimpleStreamOptions,
   type TranscriptContext,
 } from "@earendil-works/pi-ai";
+import type { ClaudeConnectorSettings } from "@tau/protocol";
+import type { Approvals } from "../../approvals/approvals-port";
 import type { ClaudeCliClock } from "../clock";
 import type { PlanUsage } from "../plan-usage";
+import type { InterruptConversationPort } from "../ports";
 import type { ClaudeSdkLoader } from "../sdk-types";
 import { createBinding } from "./binding";
 import { type CallContext, readCallContext } from "./call-context";
@@ -30,9 +33,13 @@ export interface ClaudeCliStreamDeps {
   readonly onAuthError: () => void;
   /** The number of live SDK processes changed. */
   readonly onProcessCount: (count: number) => void;
+  /** The connector choice and the always-allowed tools. Absent: no connector, the locked-down options. */
+  readonly connectorSettings?: () => Promise<ClaudeConnectorSettings>;
+  /** Where `canUseTool` asks the user. Absent: every ask is denied. */
+  readonly approvals?: Approvals;
 }
 
-export interface ClaudeCliStreamer {
+export interface ClaudeCliStreamer extends InterruptConversationPort {
   streamSimple(
     model: Model<Api>,
     context: TranscriptContext,
@@ -114,5 +121,6 @@ export function createClaudeCliStream(deps: ClaudeCliStreamDeps): ClaudeCliStrea
       for (const binding of rt.bindings.values()) cancelIdle(binding);
     },
     processCount: () => rt.live.size,
+    interruptConversation: async () => undefined,
   };
 }

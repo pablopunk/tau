@@ -32,6 +32,7 @@ const status = (state: ClaudeCliState, extra: Partial<ClaudeCliStatus> = {}): Cl
   message: null,
   usage: null,
   processCount: 0,
+  connectors: null,
   ...extra,
 });
 

@@ -1,7 +1,9 @@
 import type { Api } from "@earendil-works/pi-ai";
 import type { Provider } from "@earendil-works/pi-ai/models";
-import type { ClaudeCliStatus } from "@tau/protocol";
+import type { ClaudeCliStatus, ClaudeConnectorSettings } from "@tau/protocol";
+import type { Approvals } from "../approvals/approvals-port";
 import { type ClaudeCliClock, systemClaudeCliClock } from "./clock";
+import { createConnectorProbe } from "./connectors/connector-probe";
 import { createClaudeCliDetector } from "./detect/claude-cli-detector";
 import { createClaudeCliModels } from "./models/claude-cli-models";
 import { createPlanUsage } from "./plan-usage";
@@ -44,6 +46,8 @@ export interface ClaudeCliServiceDeps {
   /** `<tau home>/claude-sdk`. Where the SDK is installed and loaded from. */
   readonly sdkHome?: string;
   readonly installer?: ClaudeSdkInstaller;
+  readonly connectorSettings?: () => Promise<ClaudeConnectorSettings>;
+  readonly approvals?: Approvals;
 }
 
 export const claudeCliDisabled = (env: Environment): boolean => env[KILL_SWITCH_VARIABLE] === "1";
@@ -126,7 +130,10 @@ export function createClaudeCliService(deps: ClaudeCliServiceDeps): ClaudeCliSer
     noteContextWindow: (value, window) => models.noteContextWindow(value, window),
     onAuthError: () => void detector.refresh(),
     onProcessCount: deps.onChange,
+    ...(deps.connectorSettings && { connectorSettings: deps.connectorSettings }),
+    ...(deps.approvals && { approvals: deps.approvals }),
   });
+  const connectorProbe = createConnectorProbe({ sdk, onChange: deps.onChange });
   detector.start();
   const provider = createClaudeCliProvider({
     models,
@@ -136,10 +143,12 @@ export function createClaudeCliService(deps: ClaudeCliServiceDeps): ClaudeCliSer
   const statusWithProcesses = (): ClaudeCliStatus => ({
     ...detector.status(),
     processCount: streamer.processCount(),
+    connectors: connectorProbe.current(),
   });
   const refresh = async (): Promise<ClaudeCliStatus> => {
     await detector.refresh();
     await models.refresh();
+    await connectorProbe.refresh();
     return statusWithProcesses();
   };
   return {

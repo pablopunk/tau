@@ -1,4 +1,4 @@
-import type { ModelInfo, ProviderInfo, ThinkingLevel } from "@tau/protocol";
+import type { ClaudeConnector, ModelInfo, ProviderInfo, ThinkingLevel } from "@tau/protocol";
 
 export const FAKE_PROVIDERS: readonly Omit<ProviderInfo, "connection" | "cli">[] = [
   { id: "openrouter", name: "OpenRouter", methods: ["api_key"], keyUrl: "https://openrouter.ai/keys" },
@@ -41,6 +41,12 @@ export const FAKE_CLAUDE_CLI_MODELS: readonly ModelInfo[] = [
 ];
 
 export const FAKE_CLAUDE_CLI_RESETS_AT = 1_800_000_000_000;
+
+export const FAKE_CLAUDE_CONNECTORS: readonly ClaudeConnector[] = [
+  { name: "claude.ai Linear", source: "claudeai", status: "connected", toolCount: 76, readOnlyCount: 41 },
+  { name: "claude.ai Slack", source: "claudeai", status: "connected", toolCount: 19, readOnlyCount: 12 },
+  { name: "claude.ai Notion", source: "claudeai", status: "needs_auth", toolCount: 0, readOnlyCount: 0 },
+];
 
 export const FAKE_AUTH_URL = "https://auth.fake.test/authorize?state=faux";
 export const FAKE_VALID_CALLBACK_URL = "http://127.0.0.1:1455/auth/callback?code=ok&state=faux";

@@ -39,7 +39,17 @@ export function claudeCliCases(make: MakeContractTarget, test: CaseRunner): void
       expect(CLI_STATES).toContain(info?.cli?.state);
       expect(info?.cli?.state).toBe("needs_notice");
       expect(Object.keys(info?.cli ?? {}).sort()).toEqual(
-        ["cliVersion", "message", "org", "plan", "processCount", "sdkCliVersion", "state", "usage"].sort(),
+        [
+          "cliVersion",
+          "connectors",
+          "message",
+          "org",
+          "plan",
+          "processCount",
+          "sdkCliVersion",
+          "state",
+          "usage",
+        ].sort(),
       );
     });
 

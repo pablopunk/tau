@@ -1,6 +1,7 @@
 import { dirname, join } from "node:path";
 import type { Models } from "@earendil-works/pi-ai/models";
 import { AppError, type ModelInfo, type ModelRef, type ProviderId, type ProviderInfo } from "@tau/protocol";
+import type { Approvals } from "../approvals/approvals-port";
 import { FileCredentialStore } from "../auth/file-credential-store";
 import type { ChangeEmitter } from "../change-emitter";
 import { type ClaudeSdkInstaller, sdkHomeOf } from "../claude-cli/sdk-install";
@@ -29,6 +30,7 @@ export interface ProviderServiceOptions {
   readonly settings: SettingsStore;
   /** Tests inject a fake installer; production runs npm. */
   readonly claudeSdkInstaller?: ClaudeSdkInstaller;
+  readonly approvals?: Approvals;
 }
 
 export interface ProviderService {
@@ -59,6 +61,8 @@ export function createProviderService(options: ProviderServiceOptions): Provider
     recordNotice: () => options.settings.setClaudeCliNoticeAt(Date.now()),
     sdkHome: sdkHomeOf(dirname(options.credentialsFile)),
     installer: options.claudeSdkInstaller,
+    connectorSettings: async () => (await options.settings.get()).claudeConnectors,
+    ...(options.approvals && { approvals: options.approvals }),
   });
   const models = options.faux
     ? createFauxSetup({ credentials, claudeCli: claudeCli.provider }).models

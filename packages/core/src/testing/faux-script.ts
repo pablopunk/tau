@@ -27,6 +27,7 @@ export const SCRIPT_USAGE = [
   "repeat <every> <prompt>",
   "timers",
   "timer-delete <id>",
+  "connector <server> <tool>",
   "think",
   "fail",
   "flaky",
@@ -155,6 +156,10 @@ function scriptedReply(input: string, attempt: number, user: UserMessage | undef
       return toolCallReply("timers_list", {});
     case "timer-delete":
       return toolCallReply("timer_delete", { id: rest });
+    case "connector": {
+      const [server = "", tool = ""] = splitOnce(rest, " ");
+      return toolCallReply("claude_connector", { server, tool, arguments: {} });
+    }
     case "think":
       return fauxAssistantMessage([
         fauxThinking("Let me think about this for a moment. The question is simple, so the answer is too."),

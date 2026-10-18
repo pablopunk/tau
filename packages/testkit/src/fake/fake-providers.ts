@@ -11,6 +11,7 @@ import {
   FAKE_AUTH_URL,
   FAKE_CLAUDE_CLI_MODELS,
   FAKE_CLAUDE_CLI_RESETS_AT,
+  FAKE_CLAUDE_CONNECTORS,
   FAKE_MODELS,
   FAKE_PROVIDERS,
   FAKE_VALID_CALLBACK_URL,
@@ -85,6 +86,7 @@ export function createFakeProviders(deps: {
             }
           : null,
       processCount: 0,
+      connectors: updatedAt !== null ? FAKE_CLAUDE_CONNECTORS.map((connector) => ({ ...connector })) : null,
     };
   };
 

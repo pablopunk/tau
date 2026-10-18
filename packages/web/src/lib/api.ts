@@ -1,5 +1,8 @@
 import type {
+  Approval,
+  ApprovalDecision,
   Checkpoint,
+  ClaudeConnectorSettings,
   CompactInput,
   ConfigureConversationInput,
   ConversationSummary,
@@ -59,6 +62,7 @@ export interface Api {
     setProjectsFolder(path: string): Promise<void>;
     setMessageMode(mode: MessageMode): Promise<void>;
     setWorkspaceDefault(mode: WorkspaceDefault): Promise<void>;
+    setClaudeConnectors(value: ClaudeConnectorSettings): Promise<void>;
     suggestedCodeFolder(): Promise<SuggestedCodeFolder>;
   };
   github: {
@@ -134,6 +138,10 @@ export interface Api {
     logs(id: string, tail?: number): Promise<string>;
     stop(id: string): Promise<void>;
   };
+  approvals: {
+    list(conversationId: string): Promise<Approval[]>;
+    decide(conversationId: string, toolUseId: string, decision: ApprovalDecision): Promise<void>;
+  };
   timers: {
     list(conversationId: string): Promise<Timer[]>;
     delete(id: string): Promise<void>;
@@ -172,6 +180,7 @@ export function createApi(transport: Transport): Api {
       suggestedCodeFolder: () => request("getSuggestedCodeFolder", {}),
       setMessageMode: (mode) => request("setMessageMode", { body: { mode } }),
       setWorkspaceDefault: (mode) => request("setWorkspaceDefault", { body: { mode } }),
+      setClaudeConnectors: (value) => request("setClaudeConnectors", { body: value }),
     },
     github: {
       status: () => request("getGithubStatus", {}),
@@ -247,6 +256,11 @@ export function createApi(transport: Transport): Api {
       logs: async (id, tail) =>
         (await request("getProcessLogs", { params: { id }, query: tail ? { tail: String(tail) } : {} })).logs,
       stop: (id) => request("stopProcess", { params: { id } }),
+    },
+    approvals: {
+      list: (id) => request("listApprovals", { params: { id } }),
+      decide: (id, toolUseId, decision) =>
+        request("decideApproval", { params: { id, toolUseId }, body: { decision } }),
     },
     timers: {
       list: (id) => request("listTimers", { params: { id } }),

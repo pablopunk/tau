@@ -51,6 +51,36 @@ export interface ClaudeToolHost {
   onToolsChanged(listener: () => void): () => void;
 }
 
+export type ClaudeMcpState = "connected" | "failed" | "needs-auth" | "pending" | "disabled";
+
+export interface ClaudeMcpTool {
+  readonly name: string;
+  readonly readOnly: boolean;
+}
+
+export interface ClaudeMcpServerStatus {
+  readonly name: string;
+  readonly status: ClaudeMcpState;
+  readonly source: string | null;
+  readonly error: string | null;
+  readonly tools: readonly ClaudeMcpTool[];
+}
+
+export interface ClaudePermissionRequest {
+  readonly toolName: string;
+  readonly input: Record<string, unknown>;
+  readonly toolUseId: string;
+  readonly signal: AbortSignal;
+  readonly mcpServer: { readonly name: string; readonly source: string } | null;
+}
+
+export type ClaudePermissionDecision =
+  | { readonly behavior: "allow"; readonly updatedInput: Record<string, unknown> }
+  | { readonly behavior: "deny"; readonly message: string };
+
+/** The SDK parks the tool until this settles; permission prompts have no deadline. */
+export type ClaudeCanUseTool = (request: ClaudePermissionRequest) => Promise<ClaudePermissionDecision>;
+
 export interface ClaudeUserMessage {
   readonly type: "user";
   readonly message: { readonly role: "user"; readonly content: string | readonly ClaudeContentBlock[] };
@@ -76,9 +106,10 @@ export interface ClaudeQueryOptions {
   readonly maxTurns?: number;
   readonly tools: readonly string[];
   readonly strictMcpConfig: boolean;
+  readonly canUseTool?: ClaudeCanUseTool;
   readonly settingSources: readonly string[];
   readonly settings: { readonly disableClaudeAiConnectors: boolean; readonly autoCompactEnabled?: boolean };
-  readonly permissionMode: "dontAsk";
+  readonly permissionMode: "dontAsk" | "default";
   readonly allowedTools: readonly string[];
   readonly includePartialMessages: boolean;
   readonly toolHost?: ClaudeToolHost;
@@ -93,7 +124,26 @@ export interface ClaudeSdkMessage {
   readonly [field: string]: unknown;
 }
 
-export interface ClaudeQuery extends AsyncIterable<ClaudeSdkMessage> {
+export interface ClaudeMcpControl {
+  mcpServerStatus(): Promise<readonly ClaudeMcpServerStatus[]>;
+  toggleMcpServer(name: string, enabled: boolean): Promise<void>;
+}
+
+export interface ClaudeContextSummary {
+  readonly memoryFileCount: number;
+  readonly loadedMcpToolCounts: Readonly<Record<string, number>>;
+}
+
+export interface ClaudeProbeOptions {
+  readonly settingSources?: readonly string[];
+}
+
+export interface ClaudeProbe extends ClaudeMcpControl {
+  contextSummary(): Promise<ClaudeContextSummary>;
+  close(): void;
+}
+
+export interface ClaudeQuery extends AsyncIterable<ClaudeSdkMessage>, ClaudeMcpControl {
   /** Ends the running turn. Never replace it with an abort: the CLI retries a tool call it lost. */
   interrupt(): Promise<void>;
   setModel(model: string): Promise<void>;
@@ -111,6 +161,8 @@ export interface ClaudeSdkPort {
   /** The version of the CLI that ships inside the pinned SDK. */
   bundledCliVersion(): Promise<string>;
   startQuery(options: ClaudeQueryOptions): ClaudeQuery;
+  /** A query that never sends a prompt: no model call, no API usage. Connectors load as in a thread. */
+  startProbe(options?: ClaudeProbeOptions): ClaudeProbe;
   deleteSession(sessionId: string): Promise<void>;
 }
 

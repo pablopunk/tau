@@ -41,6 +41,7 @@ export function createSettingsApi(deps: {
     suggestedCodeFolder: () => suggestCodeFolder(codeFolder),
     setMessageMode: (mode) => settings.setMessageMode(mode),
     setWorkspaceDefault: (mode) => settings.setWorkspaceDefault(mode),
+    setClaudeConnectors: (value) => settings.setClaudeConnectors(value),
     async setDefaultModel(ref) {
       await requireListedModel(ref);
       await settings.setDefaultModel(ref, clampForModel(ref, (await settings.get()).defaultThinkingLevel));

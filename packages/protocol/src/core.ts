@@ -1,6 +1,7 @@
 import type { DeleteArchivedInput, DeleteArchivedResult } from "./archived";
 import type {
   Change,
+  ClaudeConnectorSettings,
   CompactInput,
   ConfigureConversationInput,
   ConversationSummary,
@@ -38,6 +39,7 @@ import type {
   WorkspaceStatus,
 } from "./mvp5";
 import type { Goal, LoopInput, Timer } from "./mvp8";
+import type { Approval, ApprovalDecision } from "./mvp10";
 import type { Op } from "./view";
 
 export type {
@@ -104,6 +106,8 @@ export interface Core {
     setMessageMode(mode: MessageMode): Promise<void>;
     /** Where new threads in git projects start. */
     setWorkspaceDefault(mode: WorkspaceDefault): Promise<void>;
+    /** Replaces the chosen connectors and the always-allowed tools. Takes effect at the next idle call of each thread. */
+    setClaudeConnectors(value: ClaudeConnectorSettings): Promise<void>;
   };
   github: {
     /** Cached for a minute. Never rejects for a missing or logged-out `gh`: that is a state. */
@@ -260,6 +264,12 @@ export interface Core {
     logs(id: string, tail: number): Promise<string>;
     /** Idempotent for a stopped process; rejects `not_found`. */
     stop(id: string): Promise<void>;
+  };
+  approvals: {
+    /** The tool calls of this thread that wait for the user, oldest first. Rejects `not_found` for an unknown thread. */
+    list(conversationId: string): Promise<Approval[]>;
+    /** Rejects `not_found` for an unknown thread or a call that is not waiting. `allow_always` also stores the tool in `Settings.claudeConnectors.alwaysAllow`. */
+    decide(conversationId: string, toolUseId: string, decision: ApprovalDecision): Promise<void>;
   };
   timers: {
     /** This thread's timers, soonest first. Rejects `not_found` for an unknown thread. */

@@ -2,9 +2,12 @@ import type {
   ClaudeAccountInfo,
   ClaudeAuthStatus,
   ClaudeModelOption,
+  ClaudeProbe,
+  ClaudeProbeOptions,
   ClaudeQueryOptions,
   ClaudeSdkPort,
 } from "../sdk-types";
+import { createFakeMcpState, type FakeConnectorServer } from "./fake-claude-connectors";
 import { createMessageIds } from "./fake-claude-events";
 import { FAKE_CLAUDE_MODELS } from "./fake-claude-models";
 import { createFakeQuery, type QueryRecord } from "./fake-claude-query";
@@ -25,12 +28,18 @@ export interface FakeClaudeSdkOptions {
   readonly bundledCliVersion?: string;
   /** What `init.apiKeySource` reports. Anything but `"none"` must stop the run. */
   readonly apiKeySource?: string;
+  /** The servers `mcpServerStatus()` lists when connectors are not locked down. */
+  readonly connectors?: readonly FakeConnectorServer[];
+  /** The first N status calls report every connector as `pending`. */
+  readonly pendingPolls?: number;
 }
 
 export interface FakeClaudeSdk {
   readonly port: ClaudeSdkPort;
   readonly queries: readonly QueryRecord[];
   readonly deletedSessions: readonly string[];
+  /** One entry per `startProbe()` call. */
+  readonly probes: readonly { readonly settingSources: readonly string[] }[];
   readonly loadCount: () => number;
   /** A loader for code that takes `ClaudeSdkLoader`; counts how often the SDK was "imported". */
   readonly load: () => Promise<ClaudeSdkPort>;
@@ -46,6 +55,15 @@ export function createFakeClaudeSdk(options: FakeClaudeSdkOptions = {}): FakeCla
   let auth: ClaudeAuthStatus | Error = options.auth ?? FAKE_LOGGED_IN;
   let sessions = 0;
   let loads = 0;
+  const probes: { readonly settingSources: readonly string[] }[] = [];
+  const connectors = options.connectors ?? [];
+  const pendingPolls = options.pendingPolls ?? 0;
+
+  const startProbe = (probeOptions: ClaudeProbeOptions = {}): ClaudeProbe => {
+    probes.push({ settingSources: probeOptions.settingSources ?? [] });
+    const mcp = createFakeMcpState({ open: true, connectors, tauTools: () => [], pendingPolls, toggles: [] });
+    return { ...mcp.control, contextSummary: async () => mcp.context(), close: () => undefined };
+  };
 
   const sessionFor = (query: ClaudeQueryOptions): string =>
     query.resume && !query.forkSession ? query.resume : `fake-session-${++sessions}`;
@@ -64,6 +82,7 @@ export function createFakeClaudeSdk(options: FakeClaudeSdkOptions = {}): FakeCla
     async bundledCliVersion() {
       return options.bundledCliVersion ?? "0.0.0-fake";
     },
+    startProbe,
     startQuery(queryOptions) {
       const record: QueryRecord = {
         options: queryOptions,
@@ -76,6 +95,9 @@ export function createFakeClaudeSdk(options: FakeClaudeSdkOptions = {}): FakeCla
         flags: [],
         interrupts: 0,
         closed: false,
+        permissionRequests: [],
+        connectorCalls: [],
+        toggles: [],
       };
       queries.push(record);
       return createFakeQuery({
@@ -84,6 +106,8 @@ export function createFakeClaudeSdk(options: FakeClaudeSdkOptions = {}): FakeCla
         script: (turn, text, hasTools) => script(turn, text, hasTools),
         ids,
         apiKeySource: options.apiKeySource ?? "none",
+        connectors,
+        pendingPolls,
       });
     },
     async deleteSession(sessionId) {
@@ -95,6 +119,7 @@ export function createFakeClaudeSdk(options: FakeClaudeSdkOptions = {}): FakeCla
     port,
     queries,
     deletedSessions,
+    probes,
     loadCount: () => loads,
     async load() {
       loads += 1;

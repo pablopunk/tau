@@ -1,5 +1,5 @@
 export { FAKE_MODELS } from "./fake/catalog";
-export { createFakeCore, type FakeCoreOptions } from "./fake/fake-core";
+export { createFakeCore, type FakeCore, type FakeCoreOptions } from "./fake/fake-core";
 export { FAKE_FS, type FakeFs } from "./fake/fake-fs";
 export {
   FAKE_GITHUB_STATUS,

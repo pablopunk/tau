@@ -25,6 +25,7 @@ export function settingsAndProviderCases(make: MakeContractTarget, test: CaseRun
         messageMode: "steer",
         workspaceDefault: "per-project",
         claudeCliNoticeAt: null,
+        claudeConnectors: { enabled: [], alwaysAllow: [] },
       });
       expect(await hasConnectedProvider(core)).toBe(false);
       expect(await core.models.list()).toEqual([]);

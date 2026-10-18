@@ -12,6 +12,7 @@ export const claudeCliStatusOf = (
   message: null,
   usage: null,
   processCount: 0,
+  connectors: null,
   ...fields,
 });
 

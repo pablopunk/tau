@@ -5,7 +5,12 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
-import type { ConversationSummary, ProviderId } from "@tau/protocol";
+import type {
+  ApprovalDecision,
+  ClaudeConnectorSettings,
+  ConversationSummary,
+  ProviderId,
+} from "@tau/protocol";
 import { api } from "./api";
 
 export const queryKeys = {
@@ -26,6 +31,7 @@ export const queryKeys = {
   processes: (conversationId: string) => ["processes", conversationId] as const,
   allProcesses: ["processes"] as const,
   timers: (conversationId: string) => ["timers", conversationId] as const,
+  approvals: (conversationId: string) => ["approvals", conversationId] as const,
   goal: (conversationId: string) => ["goal", conversationId] as const,
   processLogs: (processId: string, tail?: number) => ["process-logs", processId, tail ?? null] as const,
   mcpServers: (projectId: string | null) => ["mcp", "servers", projectId] as const,
@@ -164,6 +170,30 @@ export const useTimers = (conversationId: string, enabled = true) =>
     queryFn: () => api.timers.list(conversationId),
     enabled,
   });
+
+export const useApprovals = (conversationId: string, enabled = true) =>
+  useQuery({
+    queryKey: queryKeys.approvals(conversationId),
+    queryFn: () => api.approvals.list(conversationId),
+    enabled,
+  });
+
+export function useDecideApproval(conversationId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { toolUseId: string; decision: ApprovalDecision }) =>
+      api.approvals.decide(conversationId, input.toolUseId, input.decision),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.approvals(conversationId) }),
+  });
+}
+
+export function useSetClaudeConnectors() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (value: ClaudeConnectorSettings) => api.settings.setClaudeConnectors(value),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.settings }),
+  });
+}
 
 export const useGoal = (conversationId: string, enabled = true) =>
   useQuery({

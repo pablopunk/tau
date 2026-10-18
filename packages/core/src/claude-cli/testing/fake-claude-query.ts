@@ -1,4 +1,5 @@
 import type {
+  ClaudePermissionDecision,
   ClaudeQuery,
   ClaudeQueryOptions,
   ClaudeSdkMessage,
@@ -6,6 +7,13 @@ import type {
   ClaudeUserMessage,
 } from "../sdk-types";
 import { TOOL_NAME_PREFIX } from "../tool-server";
+import {
+  connectorCliName,
+  connectorsAreOpen,
+  createFakeMcpState,
+  type FakeConnectorServer,
+  isAllowedByList,
+} from "./fake-claude-connectors";
 import {
   type ApiMessage,
   apiMessageEvents,
@@ -24,6 +32,19 @@ export interface FoldRecord {
   readonly texts: readonly string[];
 }
 
+export interface PermissionRecord {
+  readonly toolName: string;
+  readonly toolUseId: string;
+  readonly decision: "allow" | "deny" | "aborted";
+}
+
+export interface ConnectorCallRecord {
+  readonly toolName: string;
+  readonly toolUseId: string;
+  /** False when the call was denied, unavailable or interrupted before it ran. */
+  ran: boolean;
+}
+
 export interface QueryRecord {
   readonly options: ClaudeQueryOptions;
   sessionId: string;
@@ -35,6 +56,12 @@ export interface QueryRecord {
   readonly flags: Record<string, unknown>[];
   interrupts: number;
   closed: boolean;
+  /** Every `canUseTool` ask, in order. */
+  readonly permissionRequests: PermissionRecord[];
+  /** Every connector call the fake CLI ran or refused. */
+  readonly connectorCalls: ConnectorCallRecord[];
+  /** `toggleMcpServer` calls on this query. */
+  readonly toggles: { name: string; enabled: boolean }[];
 }
 
 export interface FakeQueryDeps {
@@ -43,6 +70,8 @@ export interface FakeQueryDeps {
   readonly script: FakeScript;
   readonly ids: MessageIds;
   readonly apiKeySource: string;
+  readonly connectors: readonly FakeConnectorServer[];
+  readonly pendingPolls: number;
 }
 
 const INTERRUPTED_TEXT = "The tool call was interrupted by the user.";
@@ -60,6 +89,15 @@ const textOfResult = (result: ClaudeToolResult): string =>
 
 const nextTick = () => new Promise<void>((resolve) => setImmediate(resolve));
 
+const sleepMs = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+const deniedText = (toolName: string) => `Permission to use ${toolName} has been denied.`;
+
+const unavailableText = (toolName: string) => `Error: No such tool available: ${toolName}`;
+
+const cliNameOf = (use: FakeToolUse): string =>
+  use.connector ? connectorCliName(use.connector.server, use.name) : `${TOOL_NAME_PREFIX}${use.name}`;
+
 export function createFakeQuery(deps: FakeQueryDeps): ClaudeQuery {
   const { options, record, script, ids } = deps;
   const out = createMessageChannel<ClaudeSdkMessage>();
@@ -71,6 +109,13 @@ export function createFakeQuery(deps: FakeQueryDeps): ClaudeQuery {
   let wake: (() => void) | undefined;
   let interruptTurn: (() => void) | undefined;
   let turnInterrupted: Promise<"interrupted"> | undefined;
+  const mcp = createFakeMcpState({
+    open: connectorsAreOpen(options),
+    connectors: deps.connectors,
+    tauTools: () => (options.toolHost?.listTools() ?? []).map((tool) => `${TOOL_NAME_PREFIX}${tool.name}`),
+    pendingPolls: deps.pendingPolls,
+    toggles: record.toggles,
+  });
 
   const emit = (message: ClaudeSdkMessage) => out.push(message);
   const sessionId = () => record.sessionId;
@@ -123,6 +168,60 @@ export function createFakeQuery(deps: FakeQueryDeps): ClaudeQuery {
     return turnInterrupted ? Promise.race([call, turnInterrupted]) : call;
   }
 
+  async function askPermission(
+    use: FakeToolUse,
+    toolName: string,
+    toolUseId: string,
+  ): Promise<ClaudePermissionDecision | "interrupted"> {
+    if (isAllowedByList(options.allowedTools, toolName))
+      return { behavior: "allow", updatedInput: use.arguments ?? {} };
+    if (!options.canUseTool || options.permissionMode === "dontAsk")
+      return { behavior: "deny", message: deniedText(toolName) };
+    const controller = new AbortController();
+    const asked = options.canUseTool({
+      toolName,
+      input: use.arguments ?? {},
+      toolUseId,
+      signal: controller.signal,
+      mcpServer: { name: use.connector?.server ?? "", source: "claudeai" },
+    });
+    const decision = await Promise.race([asked, turnInterrupted ?? asked]);
+    const settled = decision === "interrupted" ? "aborted" : decision.behavior;
+    record.permissionRequests.push({ toolName, toolUseId, decision: settled });
+    if (decision === "interrupted") controller.abort();
+    return decision;
+  }
+
+  async function runConnector(use: FakeToolUse, toolUseId: string): Promise<"done" | "interrupted"> {
+    const run = use.connector;
+    if (!run) return "done";
+    const toolName = cliNameOf(use);
+    const call: ConnectorCallRecord = { toolName, toolUseId, ran: false };
+    record.connectorCalls.push(call);
+    if (!mcp.activeToolNames().includes(toolName)) {
+      emitToolResult(toolUseId, unavailableText(toolName), true);
+      return "done";
+    }
+    const decision = await askPermission(use, toolName, toolUseId);
+    if (decision === "interrupted") return "interrupted";
+    if (decision.behavior === "deny") {
+      emitToolResult(toolUseId, decision.message, true);
+      return "done";
+    }
+    const waited = await Promise.race([sleepMs(run.delayMs ?? 0), turnInterrupted ?? sleepMs(0)]);
+    if (waited === "interrupted") return "interrupted";
+    call.ran = true;
+    emitToolResult(toolUseId, run.result, run.isError ?? false);
+    return "done";
+  }
+
+  async function runTauTool(use: FakeToolUse, toolUseId: string): Promise<"done" | "interrupted"> {
+    const result = await runTool(use, toolUseId);
+    if (result === "interrupted") return "interrupted";
+    emitToolResult(toolUseId, textOfResult(result), result.isError);
+    return "done";
+  }
+
   function emitToolResult(toolUseId: string, text: string, isError: boolean): void {
     record.toolResults.push({ toolUseId, text, isError });
     emit(toolResultEvent(sessionId(), toolUseId, text, isError, ids.uuid()));
@@ -135,7 +234,7 @@ export function createFakeQuery(deps: FakeQueryDeps): ClaudeQuery {
     const blocks = uses.map(({ call, toolUseId }) => ({
       type: "tool_use" as const,
       id: toolUseId,
-      name: `${TOOL_NAME_PREFIX}${call.name}`,
+      name: cliNameOf(call),
       input: call.arguments ?? {},
     }));
     emitApiMessage(
@@ -143,12 +242,13 @@ export function createFakeQuery(deps: FakeQueryDeps): ClaudeQuery {
       "tool_use",
     );
     for (const [index, { call, toolUseId }] of uses.entries()) {
-      const result = await runTool(call, toolUseId);
-      if (result === "interrupted") {
+      const outcome = call.connector
+        ? await runConnector(call, toolUseId)
+        : await runTauTool(call, toolUseId);
+      if (outcome === "interrupted") {
         for (const open of uses.slice(index)) emitToolResult(open.toolUseId, INTERRUPTED_TEXT, true);
         return "interrupted";
       }
-      emitToolResult(toolUseId, textOfResult(result), result.isError);
     }
     return "continue";
   }
@@ -178,7 +278,8 @@ export function createFakeQuery(deps: FakeQueryDeps): ClaudeQuery {
     });
     if (!initSent) {
       initSent = true;
-      const names = (options.toolHost?.listTools() ?? []).map((tool) => `${TOOL_NAME_PREFIX}${tool.name}`);
+      const tauNames = (options.toolHost?.listTools() ?? []).map((tool) => `${TOOL_NAME_PREFIX}${tool.name}`);
+      const names = [...tauNames, ...mcp.activeToolNames()];
       emit(initEvent(sessionId(), resolvedModel(model), names, deps.apiKeySource));
     }
     const steps = script(turnIndex, firstUserText, options.toolHost !== undefined);
@@ -213,6 +314,7 @@ export function createFakeQuery(deps: FakeQueryDeps): ClaudeQuery {
       record.interrupts += 1;
       interruptTurn?.();
     },
+    ...mcp.control,
     async setModel(next) {
       record.models.push(next);
       model = next;

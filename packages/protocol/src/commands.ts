@@ -94,6 +94,15 @@ export const commands: readonly CommandDef[] = [
     destructive: false,
   },
   {
+    command: "settings set-claude-connectors",
+    route: "setClaudeConnectors",
+    summary:
+      "Choose the Claude connectors threads may use and the tools always allowed (the body goes in --json)",
+    positionals: [],
+    json: true,
+    destructive: false,
+  },
+  {
     command: "settings set-projects-folder",
     route: "setProjectsFolder",
     summary: "Set the folder for new projects",
@@ -409,6 +418,20 @@ export const commands: readonly CommandDef[] = [
     route: "stopProcess",
     summary: "Stop a background process",
     positionals: ["params.id"],
+    destructive: false,
+  },
+  {
+    command: "threads approvals",
+    route: "listApprovals",
+    summary: "List the tool calls of a thread that wait for approval",
+    positionals: ["params.id"],
+    destructive: false,
+  },
+  {
+    command: "threads approve",
+    route: "decideApproval",
+    summary: "Answer a waiting tool call: allow, allow_always or deny",
+    positionals: ["params.id", "params.toolUseId", "body.decision"],
     destructive: false,
   },
   {

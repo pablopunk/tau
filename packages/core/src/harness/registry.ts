@@ -4,6 +4,7 @@ import { createTauCodingTools } from "./coding-tools";
 import { piWebAccessToolFile } from "./pi-extension-adapter/pi-extension-adapter";
 import { subagentRuntimeExtension } from "./subagent-runtime";
 import { agentToolFile } from "./tools/agent";
+import { claudeConnectorToolFile } from "./tools/claude-connector";
 import { listAgentsToolFile } from "./tools/list-agents";
 import { mcpCallToolFile } from "./tools/mcp-call";
 import { mcpSearchToolFile } from "./tools/mcp-search";
@@ -44,6 +45,7 @@ export const TOOL_FILES: readonly ToolFileFactory[] = [
   scheduleRepeatToolFile,
   timersListToolFile,
   timerDeleteToolFile,
+  claudeConnectorToolFile,
   piWebAccessToolFile,
 ];
 

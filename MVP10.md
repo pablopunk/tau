@@ -1,10 +1,10 @@
 # MVP10 plan: Claude connectors in Claude CLI threads
 
-Status: APPROVED v6 (review rounds 1–5 applied). Builds on MVP9 (Claude CLI provider, architecture A) and the spike `scratchpad/connectors-spike/notes.md` (CLI 2.1.302, SDK 0.3.302, 5 Haiku turns, read-only).
+Status: APPROVED v6 (review rounds 1–5 applied), with the Phase 0 gate results and design changes below (`Phase 0 results`). Builds on MVP9 (Claude CLI provider, architecture A) and the spike `scratchpad/connectors-spike/notes.md` (CLI 2.1.302, SDK 0.3.302, 5 Haiku turns, read-only).
 
 ## Goal
 
-> In a Claude CLI thread, the agent can use the MCP servers my `claude` login has: my org's claude.ai connectors (Linear, Slack…) and my own `claude mcp` servers. I pick which ones in Settings. Tools that write ask me first.
+> In a Claude CLI thread, the agent can use the MCP servers my `claude` login has: my org's claude.ai connectors (Linear, Slack…). I pick which ones in Settings. Tools that write ask me first.
 
 ## Scope
 
@@ -12,9 +12,8 @@ In:
 1. **Connector list** in Settings → Tools, section "Claude connectors": every server from `mcpServerStatus()` with its state (connected, needs auth, failed, disabled) and tool count. A switch per server. Default: off.
 2. **Connector tools in Claude CLI threads**: the CLI runs them; tau shows each call as a normal tool card with its result.
 3. **Approval** for tools that are not read-only: an inline card in the thread with "Allow once", "Always allow this tool", "Deny". Read-only tools (MCP `annotations.readOnly`, `sdk.d.ts:1263-1300`) run with no prompt.
-4. **Own `claude mcp` servers** (user scope), if pin (m) shows a safe way to load them.
 
-Out (later): connectors in threads on other providers; logging in to a "needs auth" connector from tau (the user does it on claude.ai); claude.ai connectors on a remote runtime; per-project connector sets.
+Out (later): own `claude mcp` servers (user scope; pin (m) failed: the only option that loads them also loads CLAUDE.md and the user settings); connectors in threads on other providers; logging in to a "needs auth" connector from tau (the user does it on claude.ai); claude.ai connectors on a remote runtime; per-project connector sets.
 
 Changes to MVP9 conditions: "Every SDK query sets `strictMcpConfig: true` and `disableClaudeAiConnectors: true`" becomes "…unless the user turned on at least one connector; then only the chosen servers' tools are allowed (`allowedTools`), everything else is denied by `dontAsk`". The other conditions stay (no tokens, no "Claude Code" text, kill switch, personal use).
 
@@ -32,8 +31,8 @@ Changes to MVP9 conditions: "Every SDK query sets `strictMcpConfig: true` and `d
 ### Query options
 
 - No connector on: unchanged (MVP9 locked-down options).
-- One or more on: `strictMcpConfig: false`, `disableClaudeAiConnectors: false`, `permissionMode: "default"` (not `dontAsk`: under `dontAsk` the CLI denies unlisted tools without asking, spike item 6), `allowedTools: [mcp__tau__*, …read-only tools of chosen servers, …always-allowed tools]`, and a `canUseTool` callback (`sdk.d.ts:228`: gets `signal`, `toolUseID`, `mcpServer { name, source }`) that (1) denies at once when `mcpServer.name` is not a chosen server, (2) allows when the tool is in the always-allow store (`allowedTools` is fixed per query, so a new "Always allow" takes effect through this check), (3) asks the user for the rest (pin n). Permission prompts have no park deadline (`sdk.d.ts` ~225). `tools: []` stays, so no built-in tool can reach `canUseTool`. Servers that are not chosen are switched off with `toggleMcpServer(name, false)` right after init (pin o), so their schemas do not fill the context.
-- **Wait for connectors**: before the first input of a new query, poll `mcpServerStatus()` every 250 ms until no chosen server is `pending`, cap 5 s. On timeout the turn goes on; the status note says which servers were late.
+- One or more on: `strictMcpConfig: false`, `disableClaudeAiConnectors: false`, `permissionMode: "default"` (not `dontAsk`: under `dontAsk` the CLI denies unlisted tools without asking, spike item 6), `allowedTools: [mcp__tau__*, …the read-only tools of the chosen servers by exact name (never a server glob: a glob also allows the write tools, pin l), …always-allowed tools]`, and a `canUseTool` callback (`sdk.d.ts:228`: gets `signal`, `toolUseID`, `mcpServer { name, source }`) that (1) denies at once when `mcpServer.name` is not a chosen server, (2) allows when the tool is in the always-allow store (`allowedTools` is fixed per query, so a new "Always allow" takes effect through this check), (3) asks the user for the rest (pin n). Permission prompts have no park deadline (`sdk.d.ts` ~225). `tools: []` stays, so no built-in tool can reach `canUseTool`. Servers that are not chosen are switched off with `toggleMcpServer(name, false)` right after init (pin o), so their schemas do not fill the context. The toggle outlived its query in the pins (a fresh probe saw the server `disabled` minutes later), so the adapter switches every server it turned off back on when the query closes, and a probe never toggles.
+- **Wait for connectors**: before the first input of a new query, poll `mcpServerStatus()` every 250 ms until at least one non-`sdk` server is listed and none is `pending` (the `tau` server is listed at once, and the connectors appear about 4 s after start), cap 10 s (the pins settled after 4 s). On timeout the turn goes on; the status note says which servers were late.
 
 ### Observed tool calls (the core change)
 
@@ -80,7 +79,7 @@ Gates: (n), (q) and (r) run **first** in Phase 0. If (n) fails, writes are Out (
 
 - (k) A connector call and a parked tau handler in one message: does the connector run while ours is parked, and does a late tau result still give a correct turn?
 - (l) `allowedTools` with `mcp__claude_ai_Linear__*` glob works.
-- (m) Loading user-scope `claude mcp` servers: which option does it (`settingSources: ["user"]`, `mcpServers` passthrough) and what else it loads (hooks, CLAUDE.md, permissions). If it brings hooks or CLAUDE.md, user servers are Out.
+- (m) (FAILED, user servers are Out) Loading user-scope `claude mcp` servers: which option does it (`settingSources: ["user"]`, `mcpServers` passthrough) and what else it loads (hooks, CLAUDE.md, permissions). If it brings hooks or CLAUDE.md, user servers are Out.
 - (n) `canUseTool` is called for connector tools not in `allowedTools` under the permission mode we use, and `deny` / `allow` work; a long wait (5 min) for the user does not time out.
 - (o) `toggleMcpServer(name, false)` removes that server's tools from the next request.
 - (p) Pi Durable: a `ToolCall` named `claude_connector` in a thread where the tool is not offered gives an error result, not a crash.
@@ -110,3 +109,35 @@ Gates: (n), (q) and (r) run **first** in Phase 0. If (n) fails, writes are Out (
 - Late connectors: the 5 s wait slows the first message of a new query; Continue paths do not wait.
 - Writes run in the user's org (Slack posts, Linear changes). Approval is on by default for every non-read-only tool; a missing `annotations.readOnly` counts as a write.
 - The CLI's MCP behaviour can change on SDK bumps; pins (k)–(r) run on each bump.
+
+## Phase 0 results
+
+Run on the author's own login: CLI 2.1.302, SDK 0.3.302, Haiku. Pins live in `core/src/claude-cli/pins/` (`real-connector-pins.test.ts`, gated by `TAU_REAL_CLAUDE=1`; `TAU_PINS_ONLY` picks scenarios; `TAU_PINS_OUT` names the verdict file). Pin (p) is an ordinary test (`pin-p-unoffered-connector-tool.test.ts`). **8 Haiku turns in total**, 4 of them lost to harness bugs I fixed (the connectors had not loaded yet; later the `tau` server was switched off with the others); the verdicts below come from the 4 good turns (n-allow, n-deny, l and o together, k). Connector calls: `list_teams` (read-only) three times; one `save_comment` on the issue `ZZZ-0` was asked for and **denied** (it never ran). Nothing was created, changed, sent or deleted. The pin harness switches back on every server it toggled; a final status probe showed 14 connected, 37 needs-auth, none disabled.
+
+| Pin | Result | Evidence |
+|---|---|---|
+| (q) status probe, no model turn | PASS | An idle query (a prompt stream that never yields) answers `mcpServerStatus()`: 51 servers (14 connected, 37 needs-auth), all settled after 3,977 ms, 0 model turns. The list is empty for about 4 s, so the wait needs "at least one non-`sdk` server". `ClaudeSdkPort.startProbe()` is this probe. |
+| (r) `annotations.readOnly` | PASS | Linear: 41 of 76 tools `readOnly`; Slack: 12 of 19. Write tools carry `destructive: true` or no flag. |
+| (n) `canUseTool` | PASS | Under `permissionMode: "default"` and `allowedTools: []`, `canUseTool` was asked for `mcp__claude_ai_Linear__save_comment` with `mcpServer { name: "claude.ai Linear", source: "claudeai" }`. A deny after a **300,000 ms** wait reached the model as an `is_error` tool result with our text; the signal never aborted; no timeout. A read-only tool outside `allowedTools` (`list_teams`) was also asked, and `allow` ran it (reply "33"). So `allowedTools` must list the read-only tools; nothing is auto-allowed by `readOnly`. |
+| (l) `allowedTools` glob | PASS, with a warning | `mcp__claude_ai_Linear__*` ran `list_teams` with no `canUseTool` call. The glob covers the write tools of the server too, so the design lists exact tool names. |
+| (o) `toggleMcpServer(name, false)` | PASS | Slack went from `connected` with 19 tools to `disabled` with 0 tools; a model with Slack switched off answered `slack=no`. The toggle outlived the query in one run (see the design change above). |
+| (k) connector and parked tau handler in one message | PASS | The connector result did **not** arrive while the tau handler was parked (4 s): the CLI runs them one after the other, as in the spike. After the tau result was released late, the turn was correct ("word=banana; teams=33"). The deferred map already covers this order. |
+| (m) user-scope `claude mcp` servers | **FAIL** | `settingSources: ["user"]` adds the 3 user servers (agent-browser, jean, grep_app) but also **3 memory files (CLAUDE.md)**, and it reads the user settings (hooks, permissions). A `mcpServers` passthrough would need tau to read `~/.claude.json`, which holds credentials, so it is not allowed. |
+| (p) Pi Durable, unoffered tool | PASS | A `claude_connector` call in a thread without the tool gets the result "Tool claude_connector is not available" (`tool_unavailable`) and the run ends. The faux script has `connector <server> <tool>` for it. |
+
+### Gate fallbacks applied
+
+- Gates (n), (q), (r) all passed: no fallback for them.
+- (m) failed: user servers are Out. The scope, goal and Out sections above say so; `Settings.claudeConnectors` and `ClaudeConnector.source` keep the value `"user"` in the schema for later, but nothing produces it.
+
+### Notes for the owners
+
+- **A**: the status probe is `port.startProbe()`; wait until a non-`sdk` server exists and none is `pending` (cap 10 s). `ClaudeMcpTool.readOnly` is `false` when the flag is missing. `allowedTools` holds exact read-only names. Settings store status names (`claude.ai Linear`); `alwaysAllow` stores CLI tool names (`mcp__claude_ai_Linear__save_comment`). `names.ts` has the mapping.
+- **B**: `ClaudeQueryOptions` has `canUseTool` and `permissionMode: "default"`. A tool that is not in `allowedTools` reaches `canUseTool`, read-only or not. A parked tau handler delays connector execution, so the observed result may come late. Switch back on every server you toggled when the query closes.
+- **C**: `Approvals` (`approvals/approvals-port.ts`) is the port; `createApprovals` denies every request until you replace it. `conversationOfSession` in `create-core.ts` is a stub: Pi session id to thread id is yours (or integration's) to write.
+- **D**: the fake core has `seedApproval(conversationId, { server, tool, arguments })` to show an approval card; the fake status lists Linear, Slack and a needs-auth Notion.
+- **Integration**: `ToolServices.claudeConnectors` and `settings.setClaudeConnectors` have no change hook yet (marking bindings "options stale" needs one).
+
+### What Phase 0 froze
+
+See `CONTRACT-CHANGES.md`, section "MVP10 Phase 0".

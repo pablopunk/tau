@@ -274,3 +274,37 @@ Every stub is inert and never throws, so the real core and the contract keep pas
 * `ComboboxOption.triggerLabel` (web ui): what the trigger shows for the selected option.
 * `FakeScript` gets a third argument `hasTools`; `TAU_FAKE_CLAUDE_CLI=1` uses `fakeThreadScript` (`bash <cmd>`, `read <path>`, else a reply). Faux mode registers the Claude CLI provider so such a thread runs through the adapter.
 * Archive and delete close the thread's SDK query (`providerSessionOf` maps a thread to its Pi session id); core shutdown closes all.
+
+## MVP10 Phase 0
+
+Phase 0 is done. Paths are under `packages/` unless noted. Nobody edits a file another owner owns; needs go in a note for the integrator. `MVP10.md` has the plan, the pin results (`Phase 0 results`) and the design changes they caused.
+
+### Protocol and routes (frozen)
+
+* `Settings.claudeConnectors: { enabled: string[]; alwaysAllow: string[] }` (`ClaudeConnectorSettingsSchema`). `enabled` holds status names (`claude.ai Linear`), `alwaysAllow` holds CLI tool names (`mcp__claude_ai_Linear__save_comment`). Default `{ enabled: [], alwaysAllow: [] }`.
+* `ClaudeCliStatus.connectors: ClaudeConnector[] | null` (`name`, `source` `"claudeai" | "user"`, `status` `"connected" | "needs_auth" | "failed" | "disabled" | "pending"`, `toolCount`, `readOnlyCount`; `null` until a probe ran). `claudeCliStatusOf` fills `null`.
+* `Core.settings.setClaudeConnectors(value)`: route `setClaudeConnectors` (`PUT /settings/claude-connectors`, 204), command `settings set-claude-connectors` (`--json`). It replaces both lists.
+* `Core.approvals.list(conversationId)` and `decide(conversationId, toolUseId, decision)` with `ApprovalDecision` = `allow | allow_always | deny` (`protocol/src/mvp10.ts`: `ApprovalSchema` has `toolUseId`, `conversationId`, `server`, `tool`, `arguments`, `requestedAt`). Routes `listApprovals` (`GET /conversations/:id/approvals`) and `decideApproval` (`POST /conversations/:id/approvals/:toolUseId`, 204). Commands `threads approvals <id>` and `threads approve <id> <toolUseId> <decision>`: the plan said `--allow|--always|--deny` flags, but the command table maps a literal union to a positional, so the decision is the third positional.
+* `Change` += `{ resource: "approvals", conversationId }`.
+* Server: `server/src/rest/register-connector-routes.ts`. Web: `api.settings.setClaudeConnectors`, `api.approvals`, hooks `useApprovals`, `useDecideApproval`, `useSetClaudeConnectors`, `queryKeys.approvals`, and the `approvals` change invalidates `["approvals", id]`. The fake transport handles the three routes.
+
+### Core (frozen)
+
+* `claude-cli/sdk-types.ts` and `sdk-port.ts`: `ClaudeMcpControl` (`mcpServerStatus()`, `toggleMcpServer(name, enabled)`) on `ClaudeQuery`; `ClaudeMcpServerStatus` (`readOnly` is `false` when the flag is missing); `ClaudeSdkPort.startProbe(options?)` returns a `ClaudeProbe` (status, toggle, `contextSummary()`, `close()`); `ClaudeQueryOptions.canUseTool` (`ClaudeCanUseTool`: `{ toolName, input, toolUseId, signal, mcpServer }` to allow with `updatedInput` or deny with a message) and `permissionMode: "dontAsk" | "default"`.
+* `claude-cli/connectors/names.ts` (**frozen**, shared by A and B): `CONNECTOR_TOOL_NAME`, `parseConnectorToolName`, `cliToolNameOf`, `isConnectorToolName`, `connectorServerOf`, `connectorToolPrefixOf`, `connectorAllowGlobOf`, `serverLabelOf`. Only claude.ai connectors map to `claude_connector`; the `server` argument is the name without `claude.ai ` (`Linear`, `Google_Calendar`).
+* `harness/tools/claude-connector.ts`: the `claude_connector` tool (`server`, `tool`, `arguments`), `implemented: false` until A writes `execute`. It is in `TOOL_FILES`. `ToolServices.claudeConnectors` (`observed`, `interruptConversation`) is an inert stub.
+* `approvals/approvals-port.ts` (**frozen**): `Approvals` (`request`, `list`, `decide`, `denyAll`, `hasPending`, `isAlwaysAllowed`). `approvals/approvals.ts` denies every request; `approvals-api.ts` implements `Core["approvals"]`. `create-core.ts` builds it and passes it to the provider service, which passes it to the stream (`ClaudeCliStreamDeps.approvals`, `connectorSettings`).
+* `claude-cli/ports.ts` (**frozen**): `InterruptConversationPort.interruptConversation(piSessionId)`. `ClaudeCliStreamer` has it; the body is inert (owner B).
+* Stubs: A `connectors/connector-probe.ts` (`createConnectorProbe`, `null` until written; the service already calls `refresh()` and puts `current()` in the status), `connectors/observed-results.ts`, `connectors/chosen-servers.ts`, `connectors/connector-tool-services.ts`; B `stream/claude-cli-stream.ts` (`interruptConversation`); C `approvals/approvals.ts`; D has no stub (new files).
+* Settings store: `claudeConnectors` is validated field by field; `SettingsStore.setClaudeConnectors`.
+* Fake SDK (`claude-cli/testing/`): `createFakeClaudeSdk({ connectors, pendingPolls })`, `FAKE_LINEAR`, `FAKE_SLACK`, `FAKE_NEEDS_AUTH`; `FakeToolUse.connector` makes the fake CLI run a call itself (`result`, `isError`, `delayMs`: 0 is early, more is late); the next steps play with no input; calls outside `allowedTools` ask `canUseTool` (or are denied under `dontAsk`); `QueryRecord` has `permissionRequests`, `connectorCalls`, `toggles`; `probes` records `startProbe`. Faux script command `connector <server> <tool>`.
+
+### Testkit
+
+* Fake core: `settings.claudeConnectors`, `setClaudeConnectors`, `approvals`, and `seedApproval(conversationId, { server, tool, arguments })` (`FakeCore` type); `allow_always` stores `mcp__claude_ai_<server>__<tool>`. The `claude-cli` status lists Linear, Slack and a needs-auth Notion after the notice, `null` before. `FAKE_CLAUDE_CONNECTORS` is in `fake/catalog.ts`.
+* Contract tag `claude-connectors` (`contract/claude-connectors.ts`, five cases) is pending for the real core (`PENDING_TAGS` in `core/src/contract.test.ts`). Owner A and C remove it when the real core passes it (the real target runs with `TAU_FAKE_CLAUDE_CLI=1`).
+
+### For the integrator
+
+* Existing tests changed only for the new required fields (`claudeConnectors`, `connectors: null`, the `toolUseId` param in the fake transport).
+* The real pins: `TAU_REAL_CLAUDE=1 TAU_PINS_OUT=<file> pnpm --filter @tau/core exec vitest run src/claude-cli/pins/real-connector-pins.test.ts` (at most 8 Haiku turns, read-only; rerun on every SDK bump).

@@ -1,6 +1,7 @@
 import { type TSchema, Type } from "typebox";
 import { DeleteArchivedInputSchema, DeleteArchivedResultSchema } from "./archived";
 import {
+  ClaudeConnectorSettingsSchema,
   CompactInputSchema,
   ConfigureConversationInputSchema,
   ConversationSummarySchema,
@@ -37,6 +38,7 @@ import {
   WorkspaceStatusSchema,
 } from "./mvp5";
 import { GoalInputSchema, GoalSchema, LoopInputSchema, TimerSchema } from "./mvp8";
+import { ApprovalDecisionSchema, ApprovalSchema } from "./mvp10";
 
 export const API_PREFIX = "/api";
 export const LIVE_PATH = `${API_PREFIX}/live`;
@@ -69,6 +71,10 @@ const QueueItemParams = Type.Object({
 const CheckpointParams = Type.Object({
   id: Type.String({ minLength: 1 }),
   cid: Type.String({ minLength: 1 }),
+});
+const ApprovalParams = Type.Object({
+  id: Type.String({ minLength: 1 }),
+  toolUseId: Type.String({ minLength: 1 }),
 });
 const ForceQuery = Type.Object({
   force: Type.Optional(Type.Union([Type.Literal("true"), Type.Literal("false")])),
@@ -113,6 +119,12 @@ export const routes = {
     path: `${API_PREFIX}/settings/workspace-default`,
     status: 204,
     body: Type.Object({ mode: WorkspaceDefaultSchema }),
+  },
+  setClaudeConnectors: {
+    method: "PUT",
+    path: `${API_PREFIX}/settings/claude-connectors`,
+    status: 204,
+    body: ClaudeConnectorSettingsSchema,
   },
   setProjectsFolder: {
     method: "PUT",
@@ -498,6 +510,20 @@ export const routes = {
     response: Type.Object({ logs: Type.String() }),
   },
   stopProcess: { method: "DELETE", path: `${API_PREFIX}/processes/:id`, status: 204, params: IdParams },
+  listApprovals: {
+    method: "GET",
+    path: `${API_PREFIX}/conversations/:id/approvals`,
+    status: 200,
+    params: IdParams,
+    response: Type.Array(ApprovalSchema),
+  },
+  decideApproval: {
+    method: "POST",
+    path: `${API_PREFIX}/conversations/:id/approvals/:toolUseId`,
+    status: 204,
+    params: ApprovalParams,
+    body: Type.Object({ decision: ApprovalDecisionSchema }),
+  },
   listTimers: {
     method: "GET",
     path: `${API_PREFIX}/conversations/:id/timers`,

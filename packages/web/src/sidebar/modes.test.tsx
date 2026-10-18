@@ -53,6 +53,7 @@ beforeEach(() => {
     messageMode: "steer",
     workspaceDefault: "per-project",
     claudeCliNoticeAt: null,
+    claudeConnectors: { enabled: [], alwaysAllow: [] },
   });
   mocked.projects.list.mockResolvedValue([project(), repo]);
   mocked.conversations.listAll.mockResolvedValue([

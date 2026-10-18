@@ -3,9 +3,12 @@ import { join } from "node:path";
 import type { Core, CreateCore, CreateCoreOptions } from "@tau/protocol";
 import { createAgentTypeLoader } from "./agents/agent-types";
 import { resolveModelAlias } from "./agents/model-alias";
+import { createApprovals } from "./approvals/approvals";
+import { createApprovalsApi } from "./approvals-api";
 import { createArchivedCleanup } from "./archived-cleanup";
 import { createChangeEmitter } from "./change-emitter";
 import { createCheckpointService } from "./checkpoints/checkpoint-service";
+import { createConnectorToolServices } from "./claude-cli/connectors/connector-tool-services";
 import { writeTauShim } from "./cli-shim/write-shim";
 import { createConversationRecovery } from "./conversation-recovery";
 import { createConversationRemoval } from "./conversation-removal";
@@ -67,6 +70,8 @@ const exitAfterLogging = (error: unknown) => {
   process.exit(1);
 };
 
+const noConversationYet = async (): Promise<string | undefined> => undefined;
+
 export const defaultCoreDependencies = (): CoreDependencies => {
   const ghPath = resolveGhPath(process.env);
   return {
@@ -86,12 +91,14 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
     const changes = createChangeEmitter();
     const defaultProjectsFolder = join(home.root, "projects");
     const settings = createSettingsStore(home.settingsFile, defaultProjectsFolder);
+    const approvals = createApprovals({ settings, changes, conversationOfSession: noConversationYet });
     const provider = createProviderService({
       credentialsFile: home.credentialsFile,
       faux: options.faux ?? false,
       env: deps.env,
       changes,
       settings,
+      approvals,
     });
     const status = createStatusTracker({ changes, now: deps.now });
     const toolServices = createToolServicesRef();
@@ -192,6 +199,7 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
       notifications,
       scheduler,
       liveWork,
+      claudeConnectors: createConnectorToolServices(),
       timers: createTimerToolServices(harness, clock, announceTimerChange),
       subagents: {
         agentTypes: createAgentTypeLoader(),
@@ -293,6 +301,7 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
         logs: (id, tail) => processes.logs(id, tail),
         stop: (id) => processes.stop(id),
       },
+      approvals: createApprovalsApi(approvals),
       timers: timersApi,
       goals: createGoalsApi(goals),
       mcp: createMcpApi({ settings, mcp, changes }),

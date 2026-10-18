@@ -7,8 +7,14 @@ import { runAuthStatus } from "./auth-status";
 import { ClaudeSdkMissingError } from "./sdk-missing";
 import type {
   ClaudeAccountInfo,
+  ClaudeCanUseTool,
+  ClaudeContextSummary,
   ClaudeEffort,
+  ClaudeMcpServerStatus,
+  ClaudeMcpState,
   ClaudeModelOption,
+  ClaudeProbe,
+  ClaudeProbeOptions,
   ClaudeQuery,
   ClaudeQueryOptions,
   ClaudeSdkMessage,
@@ -19,12 +25,43 @@ import { buildToolServer, type CreateSdkMcpServer, TOOL_SERVER_NAME } from "./to
 const SDK_PACKAGE = "@anthropic-ai/claude-agent-sdk";
 const API_KEY_VARIABLES = ["ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN"];
 
+interface SdkMcpStatus {
+  name: string;
+  status: ClaudeMcpState;
+  source?: string;
+  scope?: string;
+  error?: string;
+  tools?: { name: string; annotations?: { readOnly?: boolean } }[];
+}
+
+interface SdkContextUsage {
+  isAutoCompactEnabled: boolean;
+  memoryFiles: { tokens: number }[];
+  mcpTools: { serverName: string; isLoaded?: boolean }[];
+}
+
+const toContextSummary = (usage: SdkContextUsage): ClaudeContextSummary => {
+  const loadedMcpToolCounts: Record<string, number> = {};
+  for (const tool of usage.mcpTools)
+    if (tool.isLoaded !== false)
+      loadedMcpToolCounts[tool.serverName] = (loadedMcpToolCounts[tool.serverName] ?? 0) + 1;
+  return { memoryFileCount: usage.memoryFiles.length, loadedMcpToolCounts };
+};
+
+interface SdkPermissionOptions {
+  signal: AbortSignal;
+  toolUseID: string;
+  mcpServer?: { name: string; source: string };
+}
+
 interface SdkQuery extends AsyncIterable<ClaudeSdkMessage> {
   interrupt(): Promise<unknown>;
   setModel(model?: string): Promise<void>;
   applyFlagSettings(settings: Record<string, unknown>): Promise<void>;
   close(): void;
-  getContextUsage(): Promise<{ isAutoCompactEnabled: boolean }>;
+  mcpServerStatus(): Promise<SdkMcpStatus[]>;
+  toggleMcpServer(name: string, enabled: boolean): Promise<void>;
+  getContextUsage(): Promise<SdkContextUsage>;
   accountInfo(): Promise<{ organization?: string; subscriptionType?: string }>;
   supportedModels(): Promise<
     {
@@ -47,11 +84,39 @@ interface SdkModule {
 const withoutApiKeys = (env: Readonly<Record<string, string | undefined>>) =>
   Object.fromEntries(Object.entries(env).filter(([name]) => !API_KEY_VARIABLES.includes(name)));
 
+const toServerStatus = (server: SdkMcpStatus): ClaudeMcpServerStatus => ({
+  name: server.name,
+  status: server.status,
+  source: server.source ?? server.scope ?? null,
+  error: server.error ?? null,
+  tools: (server.tools ?? []).map((tool) => ({
+    name: tool.name,
+    readOnly: tool.annotations?.readOnly === true,
+  })),
+});
+
+const toSdkCanUseTool =
+  (canUseTool: ClaudeCanUseTool) =>
+  (toolName: string, input: Record<string, unknown>, options: SdkPermissionOptions) =>
+    canUseTool({
+      toolName,
+      input,
+      toolUseId: options.toolUseID,
+      signal: options.signal,
+      mcpServer: options.mcpServer ?? null,
+    });
+
+const mcpControlOf = (query: SdkQuery) => ({
+  mcpServerStatus: async () => (await query.mcpServerStatus()).map(toServerStatus),
+  toggleMcpServer: (name: string, enabled: boolean) => query.toggleMcpServer(name, enabled),
+});
+
 function sdkOptions(sdk: SdkModule, options: ClaudeQueryOptions): Record<string, unknown> {
   const toolServer = options.toolHost ? buildToolServer(sdk.createSdkMcpServer, options.toolHost) : undefined;
-  const { prompt: _prompt, toolHost: _host, env, ...rest } = options;
+  const { prompt: _prompt, toolHost: _host, canUseTool, env, ...rest } = options;
   return {
     ...rest,
+    ...(canUseTool && { canUseTool: toSdkCanUseTool(canUseTool) }),
     env: withoutApiKeys(env),
     ...(toolServer && { mcpServers: { [TOOL_SERVER_NAME]: toolServer.config } }),
   };
@@ -64,7 +129,34 @@ function wrapQuery(query: SdkQuery): ClaudeQuery {
     setModel: (model) => query.setModel(model),
     applyFlagSettings: (settings) => query.applyFlagSettings({ ...settings }),
     isAutoCompactEnabled: async () => (await query.getContextUsage()).isAutoCompactEnabled,
+    ...mcpControlOf(query),
     close: () => query.close(),
+  };
+}
+
+const probeOptions = (options: ClaudeProbeOptions): Record<string, unknown> => ({
+  cwd: tmpdir(),
+  settingSources: options.settingSources ?? [],
+  tools: [],
+  strictMcpConfig: false,
+  settings: { disableClaudeAiConnectors: false },
+  permissionMode: "dontAsk",
+  env: withoutApiKeys(process.env),
+});
+
+function startProbe(sdk: SdkModule, options: ClaudeProbeOptions): ClaudeProbe {
+  let release: () => void = () => undefined;
+  const neverSendsAPrompt = (async function* () {
+    await new Promise<void>((resolve) => (release = resolve));
+  })();
+  const query = sdk.query({ prompt: neverSendsAPrompt, options: probeOptions(options) });
+  return {
+    ...mcpControlOf(query),
+    contextSummary: async () => toContextSummary(await query.getContextUsage()),
+    close() {
+      release();
+      query.close();
+    },
   };
 }
 
@@ -122,6 +214,7 @@ function portOf(sdk: SdkModule, entry: string): ClaudeSdkPort {
     supportedModels: () =>
       withIdleQuery(sdk, async (query) => (await query.supportedModels()).map(toModelOption)),
     bundledCliVersion: () => readBundledCliVersion(entry),
+    startProbe: (options = {}) => startProbe(sdk, options),
     startQuery(options) {
       return wrapQuery(sdk.query({ prompt: options.prompt, options: sdkOptions(sdk, options) }));
     },

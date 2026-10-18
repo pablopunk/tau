@@ -1,4 +1,6 @@
 import {
+  type ClaudeConnectorSettings,
+  ClaudeConnectorSettingsSchema,
   type McpServerConfig,
   McpServerConfigSchema,
   type MessageMode,
@@ -27,6 +29,7 @@ type StoredSettings = {
   messageMode?: MessageMode;
   workspaceDefault?: WorkspaceDefault;
   claudeCliNoticeAt?: number;
+  claudeConnectors?: ClaudeConnectorSettings;
   lastWorkspaceModes?: Record<string, WorkspaceMode>;
   mcpServers?: McpServerConfig[];
 };
@@ -71,6 +74,11 @@ const validLastWorkspaceModes = (value: unknown): Record<string, WorkspaceMode> 
   return modes;
 };
 
+const validClaudeConnectors = (value: unknown): ClaudeConnectorSettings | undefined =>
+  Value.Check(ClaudeConnectorSettingsSchema, value)
+    ? { enabled: [...value.enabled], alwaysAllow: [...value.alwaysAllow] }
+    : undefined;
+
 const validMcpServers = (value: unknown): McpServerConfig[] =>
   Array.isArray(value)
     ? value.filter((item): item is McpServerConfig => Value.Check(McpServerConfigSchema, item))
@@ -95,6 +103,8 @@ function parseStored(text: string | undefined): StoredSettings {
   if (messageMode) stored.messageMode = messageMode;
   if (workspaceDefault) stored.workspaceDefault = workspaceDefault;
   if (typeof raw.claudeCliNoticeAt === "number") stored.claudeCliNoticeAt = raw.claudeCliNoticeAt;
+  const claudeConnectors = validClaudeConnectors(raw.claudeConnectors);
+  if (claudeConnectors) stored.claudeConnectors = claudeConnectors;
   if (raw.lastWorkspaceModes !== undefined)
     stored.lastWorkspaceModes = validLastWorkspaceModes(raw.lastWorkspaceModes);
   if (raw.mcpServers !== undefined) stored.mcpServers = validMcpServers(raw.mcpServers);
@@ -110,6 +120,7 @@ const withDefaults = (stored: StoredSettings, defaultProjectsFolder: string): Se
   messageMode: stored.messageMode ?? "steer",
   workspaceDefault: stored.workspaceDefault ?? "per-project",
   claudeCliNoticeAt: stored.claudeCliNoticeAt ?? null,
+  claudeConnectors: stored.claudeConnectors ?? { enabled: [], alwaysAllow: [] },
 });
 
 export interface SettingsStore {
@@ -125,6 +136,7 @@ export interface SettingsStore {
   setMessageMode(mode: MessageMode): Promise<void>;
   setWorkspaceDefault(mode: WorkspaceDefault): Promise<void>;
   setClaudeCliNoticeAt(at: number): Promise<void>;
+  setClaudeConnectors(value: ClaudeConnectorSettings): Promise<void>;
   lastWorkspaceMode(projectId: string): Promise<WorkspaceMode | undefined>;
   setLastWorkspaceMode(projectId: string, mode: WorkspaceMode): Promise<void>;
   /** Servers added in Settings. The real values (env, headers) stay here and never reach `Settings`. */
@@ -170,6 +182,11 @@ export function createSettingsStore(settingsFile: string, defaultProjectsFolder:
     setMessageMode: (mode) => update((stored) => ({ ...stored, messageMode: mode })),
     setWorkspaceDefault: (mode) => update((stored) => ({ ...stored, workspaceDefault: mode })),
     setClaudeCliNoticeAt: (at) => update((stored) => ({ ...stored, claudeCliNoticeAt: at })),
+    setClaudeConnectors: (value) =>
+      update((stored) => ({
+        ...stored,
+        claudeConnectors: { enabled: [...value.enabled], alwaysAllow: [...value.alwaysAllow] },
+      })),
     lastWorkspaceMode: async (projectId) => (await readStored()).lastWorkspaceModes?.[projectId],
     setLastWorkspaceMode: (projectId, mode) =>
       update((stored) => ({

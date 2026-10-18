@@ -15,7 +15,7 @@ import { createFakeCore } from "@tau/testkit";
 import type { LiveHandlers, LiveSocket, RouteRequest, RouteResponse, Transport } from "./types";
 
 type Input = {
-  params: { id: string; sid: string; itemId: string; cid: string; name: string };
+  params: { id: string; sid: string; itemId: string; toolUseId: string; cid: string; name: string };
   query: { projectId?: string; path: string; tail?: string; force?: "true" | "false" };
   body: Record<string, unknown>;
 };
@@ -114,6 +114,10 @@ const handlers: Handlers = {
   removeMcpServer: (core, { params }) => core.mcp.remove(params.name),
   setMessageMode: (core, { body }) => core.settings.setMessageMode(body.mode as never),
   setWorkspaceDefault: (core, { body }) => core.settings.setWorkspaceDefault(body.mode as never),
+  setClaudeConnectors: (core, { body }) => core.settings.setClaudeConnectors(body as never),
+  listApprovals: (core, { params }) => core.approvals.list(params.id),
+  decideApproval: (core, { params, body }) =>
+    core.approvals.decide(params.id, params.toolUseId, body.decision as never),
 };
 
 function detach<T>(value: T): T {

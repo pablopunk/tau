@@ -1,6 +1,7 @@
 import { type Core, PROCESS_LOG_TAIL_DEFAULT, routes } from "@tau/protocol";
 import type { FastifyInstance } from "fastify";
 import { defineRoute } from "./define-route";
+import { registerConnectorRoutes } from "./register-connector-routes";
 
 function registerThreadRoutes(app: FastifyInstance, core: Core): void {
   const { conversations, workspaces } = core;
@@ -51,4 +52,5 @@ function registerToolRoutes(app: FastifyInstance, core: Core): void {
 export function registerWorkspaceRoutes(app: FastifyInstance, core: Core): void {
   registerThreadRoutes(app, core);
   registerToolRoutes(app, core);
+  registerConnectorRoutes(app, core);
 }

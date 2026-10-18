@@ -1,6 +1,7 @@
 import { defineTool, type Extension, type ToolRegistration } from "@earendil-works/pi-durable";
 import type { ModelRef } from "@tau/protocol";
 import type { TSchema } from "typebox";
+import type { ClaudeConnectorToolServices } from "../../claude-cli/connectors/connector-tool-services";
 import type { McpService } from "../../mcp/mcp-service";
 import { notImplemented } from "../../not-implemented";
 import type { ProcessService } from "../../processes/process-service";
@@ -21,6 +22,7 @@ export interface ToolServices {
   readonly scheduler: Scheduler;
   readonly timers: TimerToolServices;
   readonly liveWork: LiveWork;
+  readonly claudeConnectors: ClaudeConnectorToolServices;
 }
 
 /** The tools are built before the services exist (the Harness needs the registry first), so they read this lazily. */

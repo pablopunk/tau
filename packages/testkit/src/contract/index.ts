@@ -3,6 +3,7 @@ import { type ContractOptions, caseRunner } from "./case-runner";
 import { chatCases } from "./chat";
 import { checkpointCases } from "./checkpoints";
 import { claudeCliCases } from "./claude-cli";
+import { claudeConnectorCases } from "./claude-connectors";
 import { cloneCases } from "./clone";
 import { compactCases } from "./compact";
 import { configureCases } from "./configure";
@@ -77,5 +78,6 @@ export function runCoreContract(
     monitorCases(makeTarget, test);
     goalCases(makeTarget, test);
     claudeCliCases(makeTarget, test);
+    claudeConnectorCases(makeTarget, test);
   });
 }

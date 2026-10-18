@@ -29,6 +29,10 @@ function invalidateChange(queryClient: QueryClient, change: Change) {
     void queryClient.invalidateQueries({ queryKey: queryKeys.timers(change.conversationId) });
     return;
   }
+  if (change.resource === "approvals") {
+    void queryClient.invalidateQueries({ queryKey: queryKeys.approvals(change.conversationId) });
+    return;
+  }
   if (change.resource === "mcp") {
     void queryClient.invalidateQueries({ queryKey: queryKeys.allMcpServers });
     return;
