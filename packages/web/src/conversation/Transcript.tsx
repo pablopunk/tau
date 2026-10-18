@@ -1,5 +1,5 @@
 import type { AssistantMessage as AssistantMessageData, ConversationView, ToolCall } from "@tau/protocol";
-import { isRetryable } from "@tau/protocol";
+import { isRetryable, type LiveInfo, readLive } from "@tau/protocol";
 import { Loader2 } from "lucide-react";
 import { Fragment } from "react";
 import { TurnChanges } from "./checkpoints/TurnChanges";
@@ -7,7 +7,6 @@ import { AssistantMessage, markdownOf } from "./messages/AssistantMessage";
 import { CompactedDivider, CompactingNotice, RetriedDivider, RetryNotice } from "./messages/notices";
 import { QueuedMessages } from "./messages/QueuedMessages";
 import { UserMessage } from "./messages/UserMessage";
-import { type LiveInfo, readLive } from "./model/live";
 import { isActive, resolveToolCall } from "./model/tool-state";
 import { buildTranscript } from "./model/transcript";
 import { SubagentNotificationRow } from "./notifications/SubagentNotificationRow";

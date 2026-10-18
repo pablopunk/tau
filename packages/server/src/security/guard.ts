@@ -41,11 +41,34 @@ function sendUnauthenticated(request: FastifyRequest, reply: FastifyReply) {
   return reply.code(401).type("text/html; charset=utf-8").send(UNAUTHORIZED_PAGE);
 }
 
+const BEARER = /^Bearer ([^\s]+)$/i;
+
+function bearerOf(request: FastifyRequest): string | undefined {
+  return BEARER.exec(request.headers.authorization ?? "")?.[1];
+}
+
+function hasForeignOrigin(allowList: AllowList, request: FastifyRequest): boolean {
+  const { origin } = request.headers;
+  return origin !== undefined && !isAllowedOrigin(allowList, origin);
+}
+
+function rejectContentType(request: FastifyRequest, reply: FastifyReply): void {
+  if (!hasBody(request) || JSON_CONTENT_TYPE.test(request.headers["content-type"] ?? "")) return;
+  rejectApi(reply, new AppError("invalid_request", "Content-Type must be application/json"));
+}
+
 /** Runs before routing: Host, Origin, token exchange, cookie, then content type. */
 export function createGuard({ allowList, session }: GuardOptions) {
   return async function guard(request: FastifyRequest, reply: FastifyReply): Promise<void> {
     if (!isAllowedHost(allowList, request.headers.host)) {
       return void reply.code(403).type("text/plain").send("Forbidden host");
+    }
+    if (request.headers.authorization !== undefined) {
+      if (!session.isValidToken(bearerOf(request))) return void sendUnauthenticated(request, reply);
+      if (hasForeignOrigin(allowList, request)) {
+        return void reply.code(403).type("text/plain").send("Forbidden origin");
+      }
+      return rejectContentType(request, reply);
     }
     if (needsOriginCheck(request) && !isAllowedOrigin(allowList, request.headers.origin)) {
       return void reply.code(403).type("text/plain").send("Forbidden origin");
@@ -61,8 +84,6 @@ export function createGuard({ allowList, session }: GuardOptions) {
     if (!session.isValidToken(request.cookies[session.cookieName])) {
       return void sendUnauthenticated(request, reply);
     }
-    if (hasBody(request) && !JSON_CONTENT_TYPE.test(request.headers["content-type"] ?? "")) {
-      return void rejectApi(reply, new AppError("invalid_request", "Content-Type must be application/json"));
-    }
+    rejectContentType(request, reply);
   };
 }

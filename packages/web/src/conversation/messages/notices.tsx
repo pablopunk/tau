@@ -1,6 +1,6 @@
+import type { RetryInfo } from "@tau/protocol";
 import { AlertTriangle, Loader2, RotateCw } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
-import type { RetryInfo } from "../model/live";
 import { useNow } from "../use-now";
 
 export function ErrorNotice({ message }: { message: string | undefined }) {

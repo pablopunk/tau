@@ -10,15 +10,19 @@ describe("parseCliOptions", () => {
       open: true,
       home: join(homedir(), ".tau"),
       faux: false,
+      service: false,
     });
   });
 
   it("reads flags", () => {
-    expect(parseCliOptions(["--port", "9000", "--no-open", "--home", "/h", "--faux"], {})).toEqual({
+    expect(
+      parseCliOptions(["--port", "9000", "--no-open", "--home", "/h", "--faux", "--service"], {}),
+    ).toEqual({
       port: 9000,
       open: false,
       home: "/h",
       faux: true,
+      service: true,
     });
   });
 

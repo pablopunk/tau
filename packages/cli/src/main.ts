@@ -1,41 +1,66 @@
-import { createCore } from "@tau/core";
-import { createServer } from "@tau/server";
-import { migrateLegacyHome } from "./migrate-legacy-home";
-import { parseCliOptions } from "./options";
-import { run } from "./run";
-import { findStaticDir } from "./static-dir";
+import { COMMAND_NOUNS } from "@tau/protocol";
+import { runHelp } from "./commands/help";
+import { runApiCommand } from "./commands/run-command";
+import { runSkill } from "./commands/skill";
+import { runBare } from "./lifecycle/bare";
+import { runLogs } from "./lifecycle/logs";
+import { runOpen } from "./lifecycle/open";
+import { runRestart } from "./lifecycle/restart";
+import { runStart } from "./lifecycle/start";
+import { runStatus } from "./lifecycle/status";
+import { runStop } from "./lifecycle/stop";
+import { commandWordOf } from "./options";
+import { serveInForeground } from "./serve";
+import { runServiceCommand } from "./service/service-command";
 
-async function openBrowser(url: string): Promise<void> {
-  const { default: open } = await import("open");
-  await open(url);
+/** `argv` is what follows the command word; for bare `tau` it is everything. */
+export type CommandHandler = (argv: readonly string[]) => Promise<void>;
+
+const apiCommandHandlers = Object.fromEntries(
+  COMMAND_NOUNS.map((noun): [string, CommandHandler] => [noun, (argv) => runApiCommand(noun, argv)]),
+);
+
+/** The one dispatch table: command word to handler. */
+export const commandTable: Readonly<Record<string, CommandHandler>> = {
+  serve: serveInForeground,
+  start: runStart,
+  stop: runStop,
+  restart: runRestart,
+  status: runStatus,
+  open: runOpen,
+  logs: runLogs,
+  service: runServiceCommand,
+  skill: runSkill,
+  help: runHelp,
+  ...apiCommandHandlers,
+};
+
+export const bareHandler: CommandHandler = (argv) => runBare(argv, serveInForeground);
+
+const wantsHelp = (argv: readonly string[]) => argv.includes("--help") || argv.includes("-h");
+
+export class UnknownCommandError extends Error {
+  constructor(word: string) {
+    super(`Unknown command: ${word}. Run \`tau --help\`.`);
+    this.name = "UnknownCommandError";
+  }
 }
 
-function closeOnSignals(close: () => Promise<void>): void {
-  let closing = false;
-  const shutDown = () => {
-    if (closing) return;
-    closing = true;
-    close().then(
-      () => process.exit(0),
-      (error: unknown) => {
-        console.error(error);
-        process.exit(1);
-      },
-    );
-  };
-  process.on("SIGINT", shutDown);
-  process.on("SIGTERM", shutDown);
+/** Picks the handler and the argv it receives. */
+export function resolveCommand(
+  argv: readonly string[],
+  table: Readonly<Record<string, CommandHandler>> = commandTable,
+  bare: CommandHandler = bareHandler,
+): { readonly handler: CommandHandler; readonly argv: readonly string[] } {
+  const { word, rest } = commandWordOf(argv);
+  if (word === undefined)
+    return wantsHelp(argv) ? { handler: table.help ?? bare, argv } : { handler: bare, argv };
+  const handler = table[word];
+  if (!handler) throw new UnknownCommandError(word);
+  return { handler, argv: rest };
 }
 
 export async function main(argv: readonly string[]): Promise<void> {
-  const options = parseCliOptions(argv);
-  await migrateLegacyHome(options);
-  const app = await run(options, {
-    createCore,
-    createServer,
-    openBrowser,
-    log: (message) => console.log(message),
-    staticDir: findStaticDir(),
-  });
-  if (app) closeOnSignals(app.close);
+  const { handler, argv: rest } = resolveCommand(argv);
+  await handler(rest);
 }

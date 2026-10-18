@@ -1,4 +1,4 @@
-import type { QueuedMessage } from "../model/live";
+import type { QueuedMessage } from "@tau/protocol";
 import { QueuedItemActions } from "../queue/QueuedItemActions";
 import { UserMessage } from "./UserMessage";
 

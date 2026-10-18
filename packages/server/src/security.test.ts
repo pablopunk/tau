@@ -149,3 +149,39 @@ describe("Token and cookie", () => {
     expect(response.body).not.toContain("id=root");
   });
 });
+
+describe("Bearer auth", () => {
+  const bearer = (token: string) => ({ authorization: `Bearer ${token}` });
+  const hostOnly = () => ({ host: ctx.headers.host as string });
+
+  it("accepts a valid Bearer on REST with no cookie and no Origin, for GET and POST", async () => {
+    ctx = await startTestServer();
+    const get = await rawRequest("/api/settings", { ...hostOnly(), ...bearer(TOKEN) });
+    expect(get.statusCode).toBe(200);
+    const post = await ctx.server.app.inject({
+      method: "POST",
+      url: "/api/projects",
+      payload: { path: "/Users/demo/project" },
+      headers: { ...hostOnly(), ...bearer(TOKEN) },
+    });
+    expect([201, 409]).toContain(post.statusCode);
+  });
+
+  it("answers 401 for a wrong or malformed Bearer, even with a valid cookie", async () => {
+    ctx = await startTestServer();
+    for (const authorization of ["Bearer wrong", "Basic abc", "Bearer", TOKEN]) {
+      const response = await ctx.request({ url: "/api/settings", headers: { authorization } });
+      expect(response.statusCode).toBe(401);
+    }
+  });
+
+  it("answers 403 for a Bearer with a foreign Origin", async () => {
+    ctx = await startTestServer();
+    const response = await rawRequest("/api/settings", {
+      ...hostOnly(),
+      ...bearer(TOKEN),
+      origin: "http://evil.example",
+    });
+    expect(response.statusCode).toBe(403);
+  });
+});

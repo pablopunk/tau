@@ -1,0 +1,526 @@
+import type { TSchema } from "typebox";
+import { type JsonRouteName, type RouteDef, type RouteName, routes } from "./rest";
+
+/**
+ * One CLI command per JSON route. A positional is a field path (`params.id`, `body.text`, `query.path`).
+ * Every other top-level primitive field of the route is a flag, named by `flagNameOf`.
+ */
+export interface CommandDef {
+  /** `<noun> <verb>`, for example `threads send`. */
+  readonly command: string;
+  readonly route: JsonRouteName;
+  readonly summary: string;
+  readonly positionals: readonly string[];
+  /** Needs `--yes`. */
+  readonly destructive: boolean;
+  /** Field paths set by the command itself (`threads archive` sets `body.archived`). */
+  readonly fixed?: Readonly<Record<string, string | boolean>>;
+  /** Field paths written as `provider/modelId`. The path `body` means the whole body is a model reference. */
+  readonly modelRefs?: readonly string[];
+  /** The body has nested required fields, so the user must pass `--json '<body>'`. */
+  readonly json?: boolean;
+}
+
+export const COMMAND_NOUNS = [
+  "settings",
+  "providers",
+  "models",
+  "skills",
+  "projects",
+  "github",
+  "threads",
+  "workspaces",
+  "checkpoints",
+  "processes",
+  "mcp",
+] as const;
+export type CommandNoun = (typeof COMMAND_NOUNS)[number];
+
+/** Body fields the CLI fills with a random id when the user gives none. */
+export const AUTO_FIELDS: readonly string[] = ["requestId"];
+
+export const commands: readonly CommandDef[] = [
+  {
+    command: "settings get",
+    route: "getSettings",
+    summary: "Show the settings",
+    positionals: [],
+    destructive: false,
+  },
+  {
+    command: "settings set-default-model",
+    route: "setDefaultModel",
+    summary: "Set the default model (provider/modelId)",
+    positionals: ["body"],
+    modelRefs: ["body"],
+    destructive: false,
+  },
+  {
+    command: "settings set-default-thinking",
+    route: "setDefaultThinking",
+    summary: "Set the default thinking level, or none",
+    positionals: ["body.thinkingLevel"],
+    destructive: false,
+  },
+  {
+    command: "settings set-fast-model",
+    route: "setFastModel",
+    summary: "Set the fast model (provider/modelId), or none",
+    positionals: ["body.model"],
+    modelRefs: ["body.model"],
+    destructive: false,
+  },
+  {
+    command: "settings set-fast-thinking",
+    route: "setFastThinking",
+    summary: "Set the fast thinking level, or none",
+    positionals: ["body.thinkingLevel"],
+    destructive: false,
+  },
+  {
+    command: "settings set-message-mode",
+    route: "setMessageMode",
+    summary: "Set what a message does while a run is busy (steer or queue)",
+    positionals: ["body.mode"],
+    destructive: false,
+  },
+  {
+    command: "settings set-workspace-default",
+    route: "setWorkspaceDefault",
+    summary: "Set the default workspace for new threads (worktree or checkout)",
+    positionals: ["body.mode"],
+    destructive: false,
+  },
+  {
+    command: "settings set-projects-folder",
+    route: "setProjectsFolder",
+    summary: "Set the folder for new projects",
+    positionals: ["body.path"],
+    destructive: false,
+  },
+  {
+    command: "providers list",
+    route: "listProviders",
+    summary: "List the providers",
+    positionals: [],
+    destructive: false,
+  },
+  {
+    command: "providers set-key",
+    route: "setProviderKey",
+    summary: "Save a provider API key",
+    positionals: ["params.id", "body.key"],
+    destructive: false,
+  },
+  {
+    command: "providers disconnect",
+    route: "disconnectProvider",
+    summary: "Remove a provider's saved key",
+    positionals: ["params.id"],
+    destructive: false,
+  },
+  {
+    command: "models list",
+    route: "listModels",
+    summary: "List the connected models",
+    positionals: [],
+    destructive: false,
+  },
+  {
+    command: "skills list",
+    route: "listSkills",
+    summary: "List the skills, for a project with --project",
+    positionals: [],
+    destructive: false,
+  },
+  {
+    command: "projects list",
+    route: "listProjects",
+    summary: "List the projects",
+    positionals: [],
+    destructive: false,
+  },
+  {
+    command: "projects add",
+    route: "addProject",
+    summary: "Add a folder as a project",
+    positionals: ["body.path"],
+    destructive: false,
+  },
+  {
+    command: "projects clone",
+    route: "cloneProject",
+    summary: "Clone a repository as a project",
+    positionals: ["body.url"],
+    destructive: false,
+  },
+  {
+    command: "projects retry-clone",
+    route: "retryClone",
+    summary: "Retry a failed clone",
+    positionals: ["params.id"],
+    destructive: false,
+  },
+  {
+    command: "projects rename",
+    route: "renameProject",
+    summary: "Rename a project",
+    positionals: ["params.id", "body.name"],
+    destructive: false,
+  },
+  {
+    command: "projects remove",
+    route: "removeProject",
+    summary: "Remove a project from tau",
+    positionals: ["params.id"],
+    destructive: true,
+  },
+  {
+    command: "github status",
+    route: "getGithubStatus",
+    summary: "Show the GitHub connection",
+    positionals: [],
+    destructive: false,
+  },
+  {
+    command: "github repos",
+    route: "listGithubRepos",
+    summary: "List your GitHub repositories",
+    positionals: [],
+    destructive: false,
+  },
+  {
+    command: "github refresh-repos",
+    route: "refreshGithubRepos",
+    summary: "Fetch the repository list again",
+    positionals: [],
+    destructive: false,
+  },
+  {
+    command: "github use",
+    route: "useGithubRepo",
+    summary: "Make a GitHub repository a project (mode: local, clone or folder)",
+    positionals: ["body.nameWithOwner", "body.mode"],
+    destructive: false,
+  },
+  {
+    command: "threads list",
+    route: "listAllConversations",
+    summary: "List the threads of every project",
+    positionals: [],
+    destructive: false,
+  },
+  {
+    command: "threads list-project",
+    route: "listConversations",
+    summary: "List the threads of one project",
+    positionals: ["params.id"],
+    destructive: false,
+  },
+  {
+    command: "threads start",
+    route: "startConversation",
+    summary: "Start a thread in a project with a first message",
+    positionals: ["body.text"],
+    destructive: false,
+  },
+  {
+    command: "threads rename",
+    route: "renameConversation",
+    summary: "Rename a thread",
+    positionals: ["params.id", "body.title"],
+    destructive: false,
+  },
+  {
+    command: "threads send",
+    route: "sendMessage",
+    summary: "Send a message to a thread",
+    positionals: ["params.id", "body.text"],
+    destructive: false,
+  },
+  {
+    command: "threads archive",
+    route: "archiveConversation",
+    summary: "Archive a thread",
+    positionals: ["params.id"],
+    fixed: { "body.archived": true },
+    destructive: false,
+  },
+  {
+    command: "threads unarchive",
+    route: "archiveConversation",
+    summary: "Bring an archived thread back",
+    positionals: ["params.id"],
+    fixed: { "body.archived": false },
+    destructive: false,
+  },
+  {
+    command: "threads delete",
+    route: "removeConversation",
+    summary: "Delete a thread for good",
+    positionals: ["params.id"],
+    destructive: true,
+  },
+  {
+    command: "threads delete-archived",
+    route: "deleteArchivedConversations",
+    summary: "Delete every archived thread",
+    positionals: [],
+    destructive: true,
+  },
+  {
+    command: "threads configure",
+    route: "configureConversation",
+    summary: "Change the model or thinking level of a thread",
+    positionals: ["params.id"],
+    modelRefs: ["body.model"],
+    destructive: false,
+  },
+  {
+    command: "threads retry",
+    route: "retryConversation",
+    summary: "Retry the last run of a thread",
+    positionals: ["params.id"],
+    destructive: false,
+  },
+  {
+    command: "threads compact",
+    route: "compactConversation",
+    summary: "Compact the context of a thread",
+    positionals: ["params.id"],
+    destructive: false,
+  },
+  {
+    command: "threads abort",
+    route: "abortConversation",
+    summary: "Stop the run of a thread",
+    positionals: ["params.id"],
+    destructive: false,
+  },
+  {
+    command: "threads stop-agent",
+    route: "stopAgent",
+    summary: "Stop a subagent thread",
+    positionals: ["params.id"],
+    destructive: false,
+  },
+  {
+    command: "threads fork",
+    route: "forkConversation",
+    summary: "Fork a thread at an entry",
+    positionals: ["params.id", "body.entryId"],
+    destructive: false,
+  },
+  {
+    command: "threads rewind-preview",
+    route: "rewindPreview",
+    summary: "Show what a rewind to an entry would change",
+    positionals: ["params.id", "body.entryId"],
+    destructive: false,
+  },
+  {
+    command: "threads rewind",
+    route: "rewindConversation",
+    summary: "Rewind a thread to an entry",
+    positionals: ["params.id", "body.entryId"],
+    destructive: false,
+  },
+  {
+    command: "threads cancel-queued",
+    route: "cancelQueued",
+    summary: "Cancel a queued message",
+    positionals: ["params.id", "params.itemId"],
+    destructive: false,
+  },
+  {
+    command: "workspaces get",
+    route: "getWorkspace",
+    summary: "Show the workspace state of a thread",
+    positionals: ["params.id"],
+    destructive: false,
+  },
+  {
+    command: "workspaces merge",
+    route: "mergeWorkspace",
+    summary: "Merge the worktree of a thread",
+    positionals: ["params.id"],
+    destructive: false,
+  },
+  {
+    command: "workspaces pull-request",
+    route: "createPullRequest",
+    summary: "Open a pull request for the worktree of a thread",
+    positionals: ["params.id"],
+    destructive: false,
+  },
+  {
+    command: "workspaces remove",
+    route: "removeWorkspace",
+    summary: "Remove the worktree of a thread",
+    positionals: ["params.id"],
+    destructive: true,
+  },
+  {
+    command: "checkpoints list",
+    route: "listCheckpoints",
+    summary: "List the checkpoints of a thread",
+    positionals: ["params.id"],
+    destructive: false,
+  },
+  {
+    command: "checkpoints diff",
+    route: "getCheckpointDiff",
+    summary: "Show the diff of a file at a checkpoint",
+    positionals: ["params.id", "params.cid", "query.path"],
+    destructive: false,
+  },
+  {
+    command: "processes list",
+    route: "listProcesses",
+    summary: "List the background processes of a thread",
+    positionals: ["params.id"],
+    destructive: false,
+  },
+  {
+    command: "processes logs",
+    route: "getProcessLogs",
+    summary: "Show the log tail of a process",
+    positionals: ["params.id"],
+    destructive: false,
+  },
+  {
+    command: "processes stop",
+    route: "stopProcess",
+    summary: "Stop a background process",
+    positionals: ["params.id"],
+    destructive: false,
+  },
+  {
+    command: "mcp list",
+    route: "listMcpServers",
+    summary: "List the MCP servers, for a project with --project",
+    positionals: [],
+    destructive: false,
+  },
+  {
+    command: "mcp save",
+    route: "saveMcpServer",
+    summary: "Add or change an MCP server (the body goes in --json)",
+    positionals: ["params.name"],
+    json: true,
+    destructive: false,
+  },
+  {
+    command: "mcp remove",
+    route: "removeMcpServer",
+    summary: "Remove an MCP server",
+    positionals: ["params.name"],
+    destructive: false,
+  },
+];
+
+const IMAGES = "Images are not text; agents have no use for them here.";
+const BROWSER_LOGIN = "Browser sign-in needs a person at the browser.";
+const TYPING_HELPER = "A typing helper for the UI; agents have `ls`.";
+
+export const COMMAND_EXCLUSIONS = {
+  getProjectIcon: IMAGES,
+  getIconCandidate: IMAGES,
+  listIconCandidates: IMAGES,
+  setProjectIcon: IMAGES,
+  resetProjectIcon: IMAGES,
+  startLogin: BROWSER_LOGIN,
+  getLogin: BROWSER_LOGIN,
+  submitLoginUrl: BROWSER_LOGIN,
+  cancelLogin: BROWSER_LOGIN,
+  suggestDirectories: TYPING_HELPER,
+  getSuggestedCodeFolder: TYPING_HELPER,
+  suggestProjectFiles: TYPING_HELPER,
+} as const satisfies Partial<Record<RouteName, string>>;
+
+export type ExcludedRoute = keyof typeof COMMAND_EXCLUSIONS;
+
+export const commandOf = (name: string): CommandDef | undefined =>
+  commands.find((entry) => entry.command === name);
+
+/** `projectId` is `--project`; any other field is its kebab-case name (`thinkingLevel` is `--thinking-level`). */
+export function flagNameOf(field: string): string {
+  if (field === "projectId") return "project";
+  return field.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`);
+}
+
+interface SchemaNode {
+  readonly type?: string;
+  readonly const?: unknown;
+  readonly properties?: Readonly<Record<string, SchemaNode>>;
+  readonly required?: readonly string[];
+  readonly anyOf?: readonly SchemaNode[];
+}
+
+export interface RouteField {
+  /** `params.id`, `query.force`, `body.text`. */
+  readonly path: string;
+  readonly source: "params" | "query" | "body";
+  readonly name: string;
+  readonly required: boolean;
+  /** A string, number, boolean or literal, possibly `null`: it can be a positional or a flag. */
+  readonly primitive: boolean;
+  readonly boolean: boolean;
+  readonly nullable: boolean;
+  readonly node: SchemaNode;
+}
+
+const PRIMITIVE_TYPES = ["string", "number", "integer", "boolean", "null"];
+
+function isPrimitive(node: SchemaNode): boolean {
+  if (node.anyOf) return node.anyOf.every(isPrimitive);
+  return node.const !== undefined || PRIMITIVE_TYPES.includes(node.type ?? "");
+}
+
+const variantsOf = (node: SchemaNode): readonly SchemaNode[] => {
+  const objects = node.anyOf?.filter((member) => member.properties) ?? [];
+  return objects.length > 0 ? objects : [node];
+};
+
+function fieldsOfSchema(source: RouteField["source"], schema: TSchema | undefined): RouteField[] {
+  if (!schema) return [];
+  const found = new Map<string, RouteField>();
+  for (const variant of variantsOf(schema as SchemaNode)) {
+    for (const [name, node] of Object.entries(variant.properties ?? {})) {
+      const required = variant.required?.includes(name) ?? false;
+      const previous = found.get(name);
+      found.set(name, {
+        path: `${source}.${name}`,
+        source,
+        name,
+        required: required || (previous?.required ?? false),
+        primitive: isPrimitive(node),
+        boolean: node.type === "boolean",
+        nullable: node.anyOf?.some((member) => member.type === "null") ?? false,
+        node,
+      });
+    }
+  }
+  return [...found.values()];
+}
+
+/** The top-level fields of a route's params, query and body. For a union body, a field is required when any variant requires it. */
+export function routeFields(route: RouteName): RouteField[] {
+  const def: RouteDef = routes[route];
+  return [
+    ...fieldsOfSchema("params", def.params),
+    ...fieldsOfSchema("query", def.query),
+    ...fieldsOfSchema("body", def.body),
+  ];
+}
+
+/** Whether the body (or a body field) holds a `{ provider, modelId }` object. */
+export function isModelRefNode(node: SchemaNode): boolean {
+  return variantsOf(node).some((variant) => variant.properties?.provider && variant.properties?.modelId);
+}
+
+/** `body` when the whole body is a model reference, else the node of a field path. */
+export function nodeAtPath(route: RouteName, path: string): SchemaNode | undefined {
+  if (path === "body") return (routes[route] as RouteDef).body as SchemaNode | undefined;
+  return routeFields(route).find((field) => field.path === path)?.node;
+}

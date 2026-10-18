@@ -10,6 +10,6 @@ export function readRunningInstance(home: string): Promise<LockInfo | undefined>
 }
 
 /** The process that created the core records where its server listens. */
-export function publishServerUrl(home: string, url: string): Promise<void> {
-  return writeFileAtomic(lockFileOf(home), JSON.stringify({ pid: process.pid, url }));
+export function publishServerUrl(home: string, url: string, version?: string): Promise<void> {
+  return writeFileAtomic(lockFileOf(home), JSON.stringify({ pid: process.pid, url, version }));
 }

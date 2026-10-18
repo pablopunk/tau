@@ -1,5 +1,4 @@
-import type { MessageMode } from "@tau/protocol";
-import type { QueuedMessage } from "../model/live";
+import type { MessageMode, QueuedMessage } from "@tau/protocol";
 
 export type WhenBusy = QueuedMessage["mode"];
 

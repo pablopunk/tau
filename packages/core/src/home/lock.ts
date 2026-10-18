@@ -5,6 +5,8 @@ export interface LockInfo {
   readonly pid: number;
   /** Set by the process that owns the lock once its server listens. */
   readonly url?: string;
+  /** The tau version that owns the lock. */
+  readonly version?: string;
 }
 
 /** Another live process already uses this data home. */
@@ -19,7 +21,7 @@ export class HomeLockedError extends Error {
 }
 
 export interface HomeLock {
-  publishUrl(url: string): Promise<void>;
+  publishUrl(url: string, version?: string): Promise<void>;
   release(): Promise<void>;
 }
 
@@ -37,7 +39,11 @@ function parseLockInfo(text: string | undefined): LockInfo | undefined {
   try {
     const value = JSON.parse(text) as Partial<LockInfo>;
     if (typeof value.pid !== "number") return undefined;
-    return { pid: value.pid, url: typeof value.url === "string" ? value.url : undefined };
+    return {
+      pid: value.pid,
+      url: typeof value.url === "string" ? value.url : undefined,
+      version: typeof value.version === "string" ? value.version : undefined,
+    };
   } catch {
     return undefined;
   }
@@ -61,7 +67,8 @@ async function tryCreateLock(lockFile: string): Promise<boolean> {
 
 function lockHandle(lockFile: string): HomeLock {
   return {
-    publishUrl: (url) => writeFileAtomic(lockFile, JSON.stringify({ pid: process.pid, url })),
+    publishUrl: (url, version) =>
+      writeFileAtomic(lockFile, JSON.stringify({ pid: process.pid, url, version })),
     release: () => rm(lockFile, { force: true }),
   };
 }

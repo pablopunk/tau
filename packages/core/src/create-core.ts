@@ -1,6 +1,6 @@
 import { homedir } from "node:os";
 import { join } from "node:path";
-import type { Core, CreateCore } from "@tau/protocol";
+import type { Core, CreateCore, CreateCoreOptions } from "@tau/protocol";
 import { createAgentTypeLoader } from "./agents/agent-types";
 import { resolveModelAlias } from "./agents/model-alias";
 import { createArchivedCleanup } from "./archived-cleanup";
@@ -36,13 +36,6 @@ import { createSkillsApi } from "./skills/skills-api";
 import { createStatusTracker } from "./status/status-tracker";
 import { createTitleService } from "./titles/title-service";
 import { createWorkspaceService } from "./workspaces/workspace-service";
-
-export interface CreateCoreOptions {
-  /** Data home directory (`~/.tau` by default in the CLI). */
-  readonly home: string;
-  /** Use pi-ai's faux provider with the faux script instead of OpenRouter. */
-  readonly faux?: boolean;
-}
 
 export interface CoreDependencies {
   readonly env: Environment;
@@ -87,7 +80,7 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
     const status = createStatusTracker({ changes, now: deps.now });
     const toolServices = createToolServicesRef();
     const harness = await openAgentHarness({
-      registry: createAgentRegistry(toolServices),
+      registry: createAgentRegistry(toolServices, undefined, home.root),
       storage: await openSqliteStorage(home.agentDatabase),
       models: provider.models,
       onReport: (error) => console.error("tau: agent report", error),

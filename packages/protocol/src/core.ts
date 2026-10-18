@@ -265,4 +265,11 @@ export interface Core {
   close(): Promise<void>;
 }
 
-export type CreateCore = (options: { home: string; faux?: boolean }) => Promise<Core>;
+export interface CreateCoreOptions {
+  readonly home: string;
+  readonly faux?: boolean;
+  /** The CLI entry file; core writes the `<home>/bin/tau` shim from it. */
+  readonly cliEntry?: string;
+}
+
+export type CreateCore = (options: CreateCoreOptions) => Promise<Core>;

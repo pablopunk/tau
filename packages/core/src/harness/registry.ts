@@ -1,6 +1,6 @@
 import { createRegistry } from "@earendil-works/pi-durable";
-import { CodingTools } from "@earendil-works/pi-durable/tools";
 import { codingExtension } from "./coding-extension";
+import { createTauCodingTools } from "./coding-tools";
 import { piWebAccessToolFile } from "./pi-extension-adapter/pi-extension-adapter";
 import { subagentRuntimeExtension } from "./subagent-runtime";
 import { agentToolFile } from "./tools/agent";
@@ -42,9 +42,10 @@ export const LEGACY_TOOL_FILES: readonly ToolFileFactory[] = TOOL_FILES.map((fil
 export function createAgentRegistry(
   services: ToolServicesRef = createToolServicesRef(),
   toolFiles: readonly ToolFileFactory[] = TOOL_FILES,
+  home?: string,
 ) {
   const registry = createRegistry();
-  registry.install(CodingTools);
+  registry.install(createTauCodingTools(home));
   registry.install(codingExtension);
   registry.install(subagentRuntimeExtension);
   for (const build of toolFiles) {

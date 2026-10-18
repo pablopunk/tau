@@ -1,3 +1,4 @@
+import { readLive } from "@tau/protocol";
 import { ArrowDown } from "lucide-react";
 import { useRef } from "react";
 import { Link } from "react-router";
@@ -11,7 +12,6 @@ import { WorkspaceChip } from "@/workspaces/WorkspaceChip";
 import { Composer } from "./Composer";
 import { useThreadCommands } from "./composer/use-thread-commands";
 import { imagesAllowedFor } from "./model/agent";
-import { readLive } from "./model/live";
 import { BusyModeHint } from "./queue/BusyModeHint";
 import { whenBusyOf } from "./queue/queued-mode";
 import { ThreadHeader } from "./ThreadHeader";

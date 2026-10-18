@@ -11,7 +11,7 @@ import { createFakeCore } from "@tau/testkit";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import WebSocket from "ws";
 import { waitForDrain } from "./live/backpressure";
-import { startTestServer, type TestServer } from "./testing/harness";
+import { startTestServer, type TestServer, TOKEN } from "./testing/harness";
 
 let ctx: TestServer;
 const sockets: WebSocket[] = [];
@@ -102,6 +102,18 @@ describe("WebSocket security", () => {
     ctx = await startTestServer();
     expect(await rejectedStatus(connect({ cookie: "" }))).toBe(401);
     expect(await rejectedStatus(connect({ cookie: `tau_${ctx.server.port}=wrong` }))).toBe(401);
+  });
+
+  it("accepts a Bearer upgrade with no cookie and no Origin, and rejects a wrong Bearer", async () => {
+    ctx = await startTestServer();
+    const url = `ws://127.0.0.1:${ctx.server.port}${LIVE_PATH}`;
+    const good = new WebSocket(url, { headers: { authorization: `Bearer ${TOKEN}` } });
+    const bad = new WebSocket(url, {
+      headers: { authorization: "Bearer wrong", cookie: ctx.cookie, origin: ctx.server.origin },
+    });
+    sockets.push(good, bad);
+    await opened(good);
+    expect(await rejectedStatus(bad)).toBe(401);
   });
 });
 

@@ -1,6 +1,6 @@
 import type { Change, ClientFrame, ConversationView, Op, ServerFrame } from "@tau/protocol";
+import { nextViewState, type ViewState } from "@tau/protocol";
 import type { LiveHandlers, LiveSocket, LiveTransport } from "@/lib/api";
-import { nextViewState, type ViewState } from "./apply-view-ops";
 import type { LiveClient, LiveStatus } from "./live-client";
 import { reconnectDelayMs } from "./reconnect-delay";
 

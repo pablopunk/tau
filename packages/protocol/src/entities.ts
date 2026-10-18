@@ -115,7 +115,7 @@ export type FileSuggestion = Type.Static<typeof FileSuggestionSchema>;
 export const SkillSchema = Type.Object({
   name: Type.String(),
   description: Type.String(),
-  scope: Type.Union([Type.Literal("project"), Type.Literal("user")]),
+  scope: Type.Union([Type.Literal("project"), Type.Literal("user"), Type.Literal("app")]),
   path: Type.String(),
 });
 export type Skill = Type.Static<typeof SkillSchema>;

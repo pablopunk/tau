@@ -12,6 +12,10 @@ export interface RunDependencies {
   readonly openBrowser: (url: string) => Promise<void>;
   readonly log: (message: string) => void;
   readonly staticDir: string | undefined;
+  /** The CLI entry file, for core's `<home>/bin/tau` shim. */
+  readonly cliEntry?: string;
+  /** Written to the lock file. */
+  readonly version?: string;
 }
 
 export interface RunningApp {
@@ -48,12 +52,16 @@ export async function run(
   const token = await readOrCreateToken(options.home);
   if (await reportExistingInstance(options, dependencies, token)) return undefined;
 
-  const core: Core = await dependencies.createCore({ home: options.home, faux: options.faux });
+  const core: Core = await dependencies.createCore({
+    home: options.home,
+    faux: options.faux,
+    cliEntry: dependencies.cliEntry,
+  });
   try {
     const server = await listenOnFreePort(options.port, (port) =>
       dependencies.createServer({ core, port, token, staticDir: dependencies.staticDir }),
     );
-    await publishServerUrl(options.home, server.origin);
+    await publishServerUrl(options.home, server.origin, dependencies.version);
     dependencies.log(`tau is running: ${server.url}`);
     if (options.open) await openBrowserSafely(server.url, dependencies);
     return {

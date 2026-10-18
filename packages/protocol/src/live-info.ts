@@ -6,7 +6,7 @@ import type {
   InboxState,
   LiveState,
   ToolSlot,
-} from "@tau/protocol";
+} from "./view";
 
 export interface RetryInfo {
   readonly attempt: number;

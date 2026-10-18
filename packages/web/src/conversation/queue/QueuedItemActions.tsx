@@ -1,9 +1,9 @@
+import type { QueuedMessage } from "@tau/protocol";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api";
 import { errorMessage } from "@/lib/error-message";
-import type { QueuedMessage } from "../model/live";
 import { queuedModeLabel } from "./queued-mode";
 
 const DELIVERED_NOTICE = "Too late to cancel: the agent already received that message.";
