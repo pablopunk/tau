@@ -1,11 +1,5 @@
 import { type RefObject, useMemo } from "react";
-import {
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-  CommandShortcut,
-} from "@/components/ui/command";
+import { CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { HighlightedText } from "@/components/ui/highlighted-text";
 import { useHotkey } from "@/lib/hotkeys";
 import { highlightRanges } from "./search-rank";
@@ -59,7 +53,6 @@ function ResultRow({ result, query, onOpen }: { result: SettingResult; query: st
           ranges={highlightRanges(result.description, query)}
         />
       </div>
-      <CommandShortcut className="shrink-0 tracking-normal">{result.sectionLabel}</CommandShortcut>
     </CommandItem>
   );
 }
