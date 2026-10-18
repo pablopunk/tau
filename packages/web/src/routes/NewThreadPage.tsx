@@ -1,12 +1,13 @@
 import { useQueryClient } from "@tanstack/react-query";
 import type { ImageInput, ModelRef, ThinkingLevel, WorkspaceMode } from "@tau/protocol";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 import { ModelThinkingPickers, type PickersHandle } from "@/components/ModelThinkingPickers";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Composer } from "@/conversation";
 import type { CommandHandlers } from "@/conversation/composer/slash-commands";
 import { api } from "@/lib/api";
+import { clearNewThreadDraft, loadNewThreadDraft, saveNewThreadDraft } from "@/lib/new-thread-draft";
 import { findModel, pickModel, pickProjectId, pickThinkingLevel } from "@/lib/new-thread-defaults";
 import { conversationPath } from "@/lib/paths";
 import { preferences } from "@/lib/preferences";
@@ -24,11 +25,22 @@ export function NewThreadPage() {
   const projects = useProjects();
   const models = useModels();
   const settings = useSettings();
-  const [chosenProject, setProject] = useState<string | null>(null);
-  const [chosenModel, setModel] = useState<ModelRef | null>(null);
-  const [chosenLevel, setLevel] = useState<ThinkingLevel | null>(null);
-  const [workspace, setWorkspace] = useState<WorkspaceMode | null>(null);
+  const [initialDraft] = useState(loadNewThreadDraft);
+  const [chosenProject, setProject] = useState<string | null>(initialDraft.projectId);
+  const [chosenModel, setModel] = useState<ModelRef | null>(initialDraft.model);
+  const [chosenLevel, setLevel] = useState<ThinkingLevel | null>(initialDraft.thinkingLevel);
+  const [workspace, setWorkspace] = useState<WorkspaceMode | null>(initialDraft.workspace);
   const [busy, setBusy] = useState(false);
+  const paramProject = params.get("project");
+
+  useEffect(() => {
+    saveNewThreadDraft({
+      projectId: paramProject ?? chosenProject,
+      model: chosenModel,
+      thinkingLevel: chosenLevel,
+      workspace,
+    });
+  }, [paramProject, chosenProject, chosenModel, chosenLevel, workspace]);
   const pickers = useRef<PickersHandle>(null);
   const commands = useMemo<CommandHandlers>(
     () => ({
@@ -40,7 +52,7 @@ export function NewThreadPage() {
 
   if (!projects.data || !models.data || !settings.data) return <NewThreadSkeleton />;
 
-  const wantedProject = chosenProject ?? params.get("project") ?? preferences.getLastProjectId();
+  const wantedProject = paramProject ?? chosenProject ?? preferences.getLastProjectId();
   const projectId = pickProjectId(projects.data, wantedProject);
   const lastModel = chosenModel ?? preferences.getLastModel();
   const model = pickModel(models.data, lastModel, settings.data.defaultModel);
@@ -65,6 +77,7 @@ export function NewThreadPage() {
         ...(images.length > 0 && { images }),
       });
       clearDraftRequestId();
+      clearNewThreadDraft();
       void queryClient.invalidateQueries({ queryKey: queryKeys.projects });
       preferences.setLastProjectId(created.projectId);
       if (model) preferences.setLastModel(toRef(model));
