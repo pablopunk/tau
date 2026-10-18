@@ -14,6 +14,8 @@ interface SidebarThreadRowProps extends Omit<React.ComponentProps<"li">, "title"
   projectIcon?: React.ReactNode
   /** The time of the last activity, usually a `RelativeTime`. */
   time: React.ReactNode
+  /** A worktree state mirror shown at the row's bottom right, e.g. a `WorktreeIndicator`. */
+  worktree?: React.ReactNode
   /** Buttons that take the time's place on hover, focus or while a menu is open; always shown on touch screens. */
   actions?: React.ReactNode
   /** Keeps the actions visible, e.g. while their menu is open. */
@@ -66,6 +68,7 @@ function SidebarThreadRow({
   context,
   projectIcon,
   time,
+  worktree,
   actions,
   actionsOpen = false,
   current = false,
@@ -147,6 +150,14 @@ function SidebarThreadRow({
           </div>
         ) : null}
       </div>
+      {worktree && !compact ? (
+        <div
+          data-slot="thread-worktree"
+          className="pointer-events-auto absolute right-2 bottom-1.5 flex h-4 items-center justify-end"
+        >
+          {worktree}
+        </div>
+      ) : null}
       {decoration}
     </Item>
   )

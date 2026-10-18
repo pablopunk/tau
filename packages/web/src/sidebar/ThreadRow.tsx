@@ -33,6 +33,7 @@ import { GoalBadge, hasActiveGoal } from "./GoalBadge";
 import { NameDialog } from "./NameDialog";
 import { ThreadMenuItems } from "./ThreadMenuItems";
 import { hasTimer, TimerBadge } from "./TimerBadge";
+import { WorktreeIndicator } from "./WorktreeIndicator";
 
 interface ThreadRowProps {
   conversation: ConversationSummary;
@@ -149,6 +150,7 @@ export function ThreadRow({
             }
             context={depth === 0 && showProject ? project?.name : undefined}
             projectIcon={depth > 0 ? undefined : projectIcon(17)}
+            worktree={depth === 0 ? <WorktreeIndicator conversation={conversation} /> : undefined}
             time={<RelativeTime at={conversation.lastActivityAt} />}
             actions={
               <>
