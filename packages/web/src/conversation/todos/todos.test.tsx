@@ -70,22 +70,22 @@ describe("<TodoPanel>", () => {
 });
 
 describe("<TodoTool>", () => {
-  it("renders the checklist from the call arguments", () => {
+  it("renders a one-line summary instead of the full checklist", () => {
     render(<TodoTool state={callState("todo_write", { todos: TODOS })} />);
-    expect(screen.getByText("Ship it")).toBeInTheDocument();
-    expect(screen.getByText("0/2 done")).toBeInTheDocument();
+    expect(screen.getByText("0/2 done \u2192 Write tests")).toBeInTheDocument();
+    expect(screen.queryByText("Ship it")).not.toBeInTheDocument();
   });
 });
 
 describe("<TodoTool> history", () => {
-  it("collapses an earlier todo_write to an Updated todos row", () => {
+  it("labels an earlier todo_write as an Updated todos row", () => {
     render(
       <LatestTodoCallProvider value="newer">
         <TodoTool state={callState("todo_write", { todos: TODOS })} />
       </LatestTodoCallProvider>,
     );
     expect(screen.getByText("Updated todos")).toBeInTheDocument();
-    expect(screen.queryByText("Ship it")).not.toBeInTheDocument();
+    expect(screen.getByText("0/2 done \u2192 Write tests")).toBeInTheDocument();
   });
 
   it("finds the newest todo_write call id", () => {
