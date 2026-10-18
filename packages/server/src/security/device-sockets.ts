@@ -6,8 +6,8 @@ const OWNER = "owner";
 
 /** Open sockets by the device that opened them, so a revoke can cut them at once. */
 export interface DeviceSockets {
-  /** Forgets the socket when it closes. A socket of an empty `deviceId` is closed at once. */
-  add(deviceId: string, socket: WebSocket): void;
+  /** Forgets the socket when it closes. A socket of an empty `deviceId` is closed at once and `add` answers false: callers must not attach. */
+  add(deviceId: string, socket: WebSocket): boolean;
   closeDevice(deviceId: string): void;
   /** Closes every socket whose device is not in `liveIds` (the owner is never closed). */
   closeExcept(liveIds: ReadonlySet<string>): void;
@@ -21,7 +21,10 @@ export function createDeviceSockets(): DeviceSockets {
   };
   return {
     add(deviceId, socket) {
-      if (deviceId === "") return void socket.close(POLICY_VIOLATION, "unauthorized");
+      if (deviceId === "") {
+        socket.close(POLICY_VIOLATION, "unauthorized");
+        return false;
+      }
       const set = byDevice.get(deviceId) ?? new Set<WebSocket>();
       set.add(socket);
       byDevice.set(deviceId, set);
@@ -29,6 +32,7 @@ export function createDeviceSockets(): DeviceSockets {
         set.delete(socket);
         if (set.size === 0) byDevice.delete(deviceId);
       });
+      return true;
     },
     closeDevice(deviceId) {
       closeAll([...(byDevice.get(deviceId) ?? [])]);
