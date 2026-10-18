@@ -38,9 +38,6 @@ export function AppSidebar() {
     <Sidebar aria-label="Projects and threads">
       <SidebarHeader className="gap-2 px-4 py-3">
         <div className="flex items-center justify-between">
-          <span className="text-sm font-semibold">tau</span>
-        </div>
-        <div className="flex items-center justify-between">
           <Button variant="outline" size="sm" onClick={() => navigate(newThreadPath())}>
             <MessageSquarePlusIcon />
             New thread
