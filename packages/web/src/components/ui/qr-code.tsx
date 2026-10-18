@@ -22,7 +22,7 @@ function modulePath(value: string): { size: number; path: string } {
   return { size: modules.size + QUIET_ZONE * 2, path: parts.join("") }
 }
 
-/** A QR code as an inline SVG in the current text colour on the background colour. Placeholder styling: owner D finishes it. */
+/** A QR code as an inline SVG in the current text colour on the background colour. Always dark on white so every scanner reads it, in any theme. */
 function QrCode({ value, label = "QR code", className, ...props }: QrCodeProps) {
   const { size, path } = React.useMemo(() => modulePath(value), [value])
   return (
@@ -32,7 +32,7 @@ function QrCode({ value, label = "QR code", className, ...props }: QrCodeProps) 
       aria-label={label}
       viewBox={`0 0 ${size} ${size}`}
       shapeRendering="crispEdges"
-      className={cn("size-48 rounded-lg bg-background text-foreground", className)}
+      className={cn("size-48 rounded-lg bg-white text-black", className)}
       {...props}
     >
       <path d={path} fill="currentColor" />
