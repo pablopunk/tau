@@ -1,6 +1,6 @@
 # MVP10 plan: Claude connectors in Claude CLI threads
 
-Status: DRAFT v2 (review round 1 applied). Builds on MVP9 (Claude CLI provider, architecture A) and the spike `scratchpad/connectors-spike/notes.md` (CLI 2.1.302, SDK 0.3.302, 5 Haiku turns, read-only).
+Status: DRAFT v3 (review rounds 1–2 applied). Builds on MVP9 (Claude CLI provider, architecture A) and the spike `scratchpad/connectors-spike/notes.md` (CLI 2.1.302, SDK 0.3.302, 5 Haiku turns, read-only).
 
 ## Goal
 
@@ -11,7 +11,7 @@ Status: DRAFT v2 (review round 1 applied). Builds on MVP9 (Claude CLI provider, 
 In:
 1. **Connector list** in Settings → Tools, section "Claude connectors": every server from `mcpServerStatus()` with its state (connected, needs auth, failed, disabled) and tool count. A switch per server. Default: off.
 2. **Connector tools in Claude CLI threads**: the CLI runs them; tau shows each call as a normal tool card with its result.
-3. **Approval** for tools that are not read-only: an inline card in the thread with "Allow once", "Always allow this tool", "Deny". Read-only tools (MCP `readOnlyHint`) run with no prompt.
+3. **Approval** for tools that are not read-only: an inline card in the thread with "Allow once", "Always allow this tool", "Deny". Read-only tools (MCP `annotations.readOnly`, `sdk.d.ts:1263-1300`) run with no prompt.
 4. **Own `claude mcp` servers** (user scope), if pin (m) shows a safe way to load them.
 
 Out (later): connectors in threads on other providers; logging in to a "needs auth" connector from tau (the user does it on claude.ai); claude.ai connectors on a remote runtime; per-project connector sets.
@@ -32,7 +32,7 @@ Changes to MVP9 conditions: "Every SDK query sets `strictMcpConfig: true` and `d
 ### Query options
 
 - No connector on: unchanged (MVP9 locked-down options).
-- One or more on: `strictMcpConfig: false`, `disableClaudeAiConnectors: false`, `permissionMode: "default"` (not `dontAsk`: under `dontAsk` the CLI denies unlisted tools without asking, spike item 6), `allowedTools: [mcp__tau__*, …read-only tools of chosen servers, …always-allowed tools]`, and a `canUseTool` callback that (1) denies at once any tool of a server that is not chosen, (2) asks the user for the rest (pin n). `tools: []` stays, so no built-in tool can reach `canUseTool`. Servers that are not chosen are switched off with `toggleMcpServer(name, false)` right after init (pin o), so their schemas do not fill the context.
+- One or more on: `strictMcpConfig: false`, `disableClaudeAiConnectors: false`, `permissionMode: "default"` (not `dontAsk`: under `dontAsk` the CLI denies unlisted tools without asking, spike item 6), `allowedTools: [mcp__tau__*, …read-only tools of chosen servers, …always-allowed tools]`, and a `canUseTool` callback (`sdk.d.ts:228`: gets `signal`, `toolUseID`, `mcpServer { name, source }`) that (1) denies at once when `mcpServer.name` is not a chosen server, (2) allows when the tool is in the always-allow store (`allowedTools` is fixed per query, so a new "Always allow" takes effect through this check), (3) asks the user for the rest (pin n). Permission prompts have no park deadline (`sdk.d.ts` ~225). `tools: []` stays, so no built-in tool can reach `canUseTool`. Servers that are not chosen are switched off with `toggleMcpServer(name, false)` right after init (pin o), so their schemas do not fill the context.
 - **Wait for connectors**: before the first input of a new query, poll `mcpServerStatus()` every 250 ms until no chosen server is `pending`, cap 5 s. On timeout the turn goes on; the status note says which servers were late.
 
 ### Observed tool calls (the core change)
@@ -42,9 +42,11 @@ A connector `tool_use` is a call that Pi must show but not run.
 - **Mapping**: the adapter turns a CLI `tool_use` `mcp__claude_ai_<Server>__<tool>` into a Pi `ToolCall` `claude_connector({ server, tool, arguments })` with the same id, and back (`core/src/claude-cli/connectors/names.ts`, frozen in Phase 0, shared by A and B).
 - **Execute**: `claude_connector.execute()` awaits an **observed result** deferred keyed by `toolUseId` and returns the CLI's result **unchanged** (same text, images and `isError`; no truncation), so the transcript hash stays stable across calls.
 - **Pump**: a CLI `user` `tool_result` whose id is a connector call never goes to `binding.listener.feed`; it resolves (or creates, already resolved) the observed deferred, so it works whether it arrives before the Pi `ToolCall` exists, during the stream, or after the stream ended with no listener.
-- **Delivery**: on the next `streamSimple`, results of connector ids are **not** delivered to the CLI; they still count in the hash (`normalize.ts` `keyOf`). Connector ids are never added to `binding.expected`, so `hasUnansweredCalls` ignores them and an aborted connector call does not trigger `interruptAndSettle`.
+- **Inbox**: after a connector-only message the CLI starts the next API message by itself, before Pi calls `streamSimple` again. Today `dispatch` drops messages when `binding.listener` is null (`pump.ts`). New: the binding keeps an `inbox`; with no listener, every non-system message (stream events, `assistant`, `result`) is queued, and the next turn's listener drains the inbox before live messages. That next Pi stream is that next API message (one Pi stream = one API message still holds). `result` and `owedResults` bookkeeping read from the drained messages the same way.
+- **Delivery**: the binding keeps `connectorIds` (a set). `resolveDeferreds` skips those ids **entirely** (today a result not in `binding.expected` goes to `asText` and would be sent as user text, `deliver.ts`). Connector ids are never in `binding.expected`, so `hasUnansweredCalls` ignores them. The results still count in the hash. Same rule in the Resume and Resume-at paths; Rebind renders them as transcript text.
+- **Hash**: `claude_connector` is left out of the system-message key in `normalize.ts` (tools added/removed), so turning the first connector on or off does not force a Rebind by itself. A change of the chosen server set closes the live query; the next call takes the **Resume** path with the new options (same SDK session).
 - **Tool definitions to the CLI**: the adapter filters `claude_connector` out of the `tau` MCP server.
-- **Wrong provider**: if the thread switches away from Claude CLI, `claude_connector` is no longer offered; a stray call returns an error result "Claude connectors need a Claude CLI model".
+- **Wrong provider**: if the thread switches away from Claude CLI, `claude_connector` is no longer offered; Pi Durable already answers a stray call with `tool_unavailable` (`pi-durable/dist/harness/generation.js:466-468`). The web card shows "Claude connectors need a Claude CLI model" for that error on this tool.
 - **Mixed message**: tau results go to MCP deferreds (MVP9), connector results come from the CLI. Order does not matter (deferred map).
 - **Abort**: Pi aborting a passthrough tool → `q.interrupt()`; the observed deferred rejects with `aborted`.
 - **Rebind / Resume-at**: the rebind transcript renders connector calls and results as text (the new session never ran them). Resume-at to a checkpoint before a connector call is fine (the SDK history has it).
@@ -74,11 +76,11 @@ Gates: (n), (q) and (r) run **first** in Phase 0. If (n) fails, writes are Out (
 - (o) `toggleMcpServer(name, false)` removes that server's tools from the next request.
 - (p) Pi Durable: a `ToolCall` named `claude_connector` in a thread where the tool is not offered gives an error result, not a crash.
 - (q) A status probe query that never calls the model (no API usage) and returns `mcpServerStatus()`; time to all non-pending.
-- (r) `readOnlyHint` is present in `mcpServerStatus().tools[]` annotations for Linear and Slack.
+- (r) `tools[].annotations.readOnly` is set in `mcpServerStatus()` for Linear and Slack read tools.
 
 ## Phases and owners
 
-0. **Foundation** (one agent): gate pins (n), (q), (r) first, then (k)–(p); results in this doc and the design adjusted per the gates. Protocol (`Settings.claudeConnectors`, `ClaudeCliStatus.connectors`, approvals list and decide routes in `rest.ts`, CLI command in `commands.ts` with the coverage test), settings store field, server routes, testkit fake core + contract tag `claude-connectors` (pending), web hooks. Fake SDK: connectors in `mcpServerStatus`, CLI-executed tool results (early and late), `canUseTool`. `connectors/names.ts` (frozen), the `claude_connector` tool definition stub and its extension, the approvals port interface, and stubs for every owner.
+0. **Foundation** (one agent): gate pins (n), (q), (r) first, then (k)–(p); results in this doc and the design adjusted per the gates. Protocol (`Settings.claudeConnectors`, `ClaudeCliStatus.connectors`, approvals list and decide routes in `rest.ts`, CLI command in `commands.ts` with the coverage test), settings store field, server routes, testkit fake core + contract tag `claude-connectors` (pending), web hooks. `claude-cli/sdk-types.ts` and `sdk-port.ts` gain `mcpServerStatus()`, `toggleMcpServer()`, the `canUseTool` option and `permissionMode: "default"`. Fake SDK: connectors in `mcpServerStatus`, CLI-executed tool results (early and late), the CLI starting the next message by itself, `canUseTool`. `connectors/names.ts` (frozen), the `claude_connector` tool definition stub and its extension, the approvals port interface, and stubs for every owner.
 1. **Parallel**:
    - **A: Connectors core** owns `core/src/claude-cli/connectors/**` except `names.ts` (probe, cache, observed-result store, chosen-server settings logic), `core/src/harness/tools/claude-connector.ts` (execute), `core/src/provider/provider-service.ts` connector status.
    - **B: Adapter** owns `core/src/claude-cli/stream/**` (query options, wait for connectors, mapping in the reader, pump routing, skip delivery, `expected` exclusion, filter, abort, rebind text, `canUseTool` bridge to the approvals port).
@@ -89,7 +91,7 @@ Gates: (n), (q) and (r) run **first** in Phase 0. If (n) fails, writes are Out (
 
 ## Testing
 
-- Core: name mapping round-trip; observed result early (before the Pi `ToolCall`), during, and after the stream with no listener; result content unchanged; connector results not delivered to the CLI; connector ids not in `expected`; Continue after a connector-only message; Resume-at a checkpoint between a connector call and its result; mixed message; abort interrupts; rebind transcript renders observed calls; locked-down options when nothing is on; allowlist content and `canUseTool` denying non-chosen servers; wait-for-connectors with a fake clock and the 5 s cap; connector status errors pass `neutralText`.
+- Core: the inbox (the CLI result and the next message both arrive before the next `streamSimple`; drained in order); connector results never sent as user text in Continue, Resume, Resume-at; toggling a connector does not change the hash and takes Resume; name mapping round-trip; observed result early (before the Pi `ToolCall`), during, and after the stream with no listener; result content unchanged; connector results not delivered to the CLI; connector ids not in `expected`; Continue after a connector-only message; Resume-at a checkpoint between a connector call and its result; mixed message; abort interrupts; rebind transcript renders observed calls; locked-down options when nothing is on; allowlist content and `canUseTool` denying non-chosen servers; wait-for-connectors with a fake clock and the 5 s cap; connector status errors pass `neutralText`.
 - Approvals: pending → allow/deny/always; Stop denies; always-allow persists; goal/timer turns wait.
 - Web: connector rows per state, switch, approval card actions, no "Claude Code" text.
 
@@ -97,5 +99,5 @@ Gates: (n), (q) and (r) run **first** in Phase 0. If (n) fails, writes are Out (
 
 - Context and cost: each chosen server adds its schemas to every request; the Settings row shows the tool count.
 - Late connectors: the 5 s wait slows the first message of a new query; Continue paths do not wait.
-- Writes run in the user's org (Slack posts, Linear changes). Approval is on by default for every non-read-only tool; a missing `readOnlyHint` counts as a write.
+- Writes run in the user's org (Slack posts, Linear changes). Approval is on by default for every non-read-only tool; a missing `annotations.readOnly` counts as a write.
 - The CLI's MCP behaviour can change on SDK bumps; pins (k)–(r) run on each bump.
