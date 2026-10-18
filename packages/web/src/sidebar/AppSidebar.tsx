@@ -13,6 +13,7 @@ import {
   SidebarRail,
   SidebarTrigger,
 } from "@/components/ui/sidebar";
+import { TauLogo } from "@/components/ui/tau-logo";
 import { errorMessage } from "@/lib/error-message";
 import { newThreadPath } from "@/lib/paths";
 import type { SidebarMode } from "@/lib/preferences";
@@ -40,13 +41,14 @@ export function AppSidebar() {
     <Sidebar aria-label="Projects and threads">
       <SidebarHeader className="gap-2 px-4 py-3">
         <div className="flex items-center justify-between gap-2">
+          <TauLogo />
+          <SidebarTrigger className="hidden shrink-0 md:inline-flex" />
+        </div>
+        <div className="flex items-center justify-between gap-2">
           <Button variant="outline" size="sm" className="min-w-0" onClick={() => navigate(newThreadPath())}>
             <MessageSquarePlusIcon />
             <span className="truncate">New thread</span>
           </Button>
-          <SidebarTrigger className="hidden shrink-0 md:inline-flex" />
-        </div>
-        <div className="flex items-center justify-between">
           <SegmentedControl
             value={mode}
             onChange={setMode}
