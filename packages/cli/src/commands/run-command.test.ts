@@ -1,7 +1,17 @@
 import { describe, expect, it } from "vitest";
 import { CliExit } from "./cli-exit";
-import { executeApiCommand } from "./run-command";
+import { executeApiCommand, takeHomeFlag } from "./run-command";
 import { FakeTau, makeHome, summary } from "./test-support";
+
+describe("takeHomeFlag", () => {
+  it("lifts --home from before or after the verb", () => {
+    expect(takeHomeFlag(["--home", "/h", "list"])).toEqual({ home: "/h", rest: ["list"] });
+    expect(takeHomeFlag(["list", "--home=/h", "--json", "{}"])).toEqual({
+      home: "/h",
+      rest: ["list", "--json", "{}"],
+    });
+  });
+});
 
 const exitOf = async (promise: Promise<unknown>): Promise<CliExit> => {
   const error = await promise.then(

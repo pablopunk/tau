@@ -57,11 +57,29 @@ export async function executeApiCommand(
   await runWithWait(server, scoped, parsed);
 }
 
+/** `--home` may come before the verb (`tau --home X threads list`); it is lifted out of argv. */
+export function takeHomeFlag(argv: readonly string[]): { home: string | undefined; rest: string[] } {
+  const rest: string[] = [];
+  let home: string | undefined;
+  for (let index = 0; index < argv.length; index++) {
+    const token = argv[index] as string;
+    if (token === "--") {
+      rest.push(...argv.slice(index));
+      break;
+    }
+    if (token === "--home" && argv[index + 1] !== undefined) home = argv[++index];
+    else if (token.startsWith("--home=")) home = token.slice("--home=".length);
+    else rest.push(token);
+  }
+  return { home, rest };
+}
+
 /** The `tau <noun> …` entry point. `argv` starts after the noun. */
 export async function runApiCommand(noun: string, argv: readonly string[]): Promise<void> {
   const env = processEnv();
   try {
-    await executeApiCommand(noun, argv, env);
+    const { home, rest } = takeHomeFlag(argv);
+    await executeApiCommand(noun, rest, home === undefined ? env : { ...env, home });
   } catch (error) {
     if (!(error instanceof CliExit)) throw error;
     env.stderr(error.message);

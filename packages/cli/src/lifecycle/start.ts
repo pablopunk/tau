@@ -11,7 +11,13 @@ export async function startAndWait(deps: LifecycleDeps, home: string): Promise<s
   return instance.url;
 }
 
+/** A detached server reads `TAU_FAUX`; the service definition never carries `--faux`. */
+function forwardFauxToServer(deps: LifecycleDeps, argv: readonly string[]): void {
+  if (argv.includes("--faux")) deps.context.env.TAU_FAUX = "1";
+}
+
 export async function runStartWith(deps: LifecycleDeps, argv: readonly string[]): Promise<void> {
+  forwardFauxToServer(deps, argv);
   const flags = lifecycleFlagsOf(argv, deps.context);
   if (flags.explicitPort !== undefined) writeStoredPort(flags.home, flags.explicitPort);
   const url = await startAndWait(deps, flags.home);

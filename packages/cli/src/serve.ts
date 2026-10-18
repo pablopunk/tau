@@ -1,7 +1,11 @@
 import { createCore } from "@tau/core";
 import { createServer } from "@tau/server";
 import { cliEntry } from "./cli-entry";
-import { parseCliOptions } from "./options";
+import { lifecycleFlagsOf } from "./lifecycle/flags";
+import { resolvePort, writeStoredPort } from "./lifecycle/port-store";
+import { waitForFreeHome } from "./lifecycle/wait-for-lock";
+import { mirrorConsoleToLogFile } from "./logging/file-logging";
+import { defaultHome, parseCliOptions } from "./options";
 import { run } from "./run";
 import { findStaticDir } from "./static-dir";
 import { cliVersion } from "./version";
@@ -28,9 +32,14 @@ function closeOnSignals(close: () => Promise<void>): void {
   process.on("SIGTERM", shutDown);
 }
 
-/** `tau serve`: the server in the foreground. `argv` holds only the server flags. */
-export async function serveInForeground(argv: readonly string[]): Promise<void> {
-  const options = parseCliOptions(argv);
+const portOfUrl = (url: string): number => Number(new URL(url).port);
+
+async function serveOnce(argv: readonly string[]): Promise<void> {
+  const parsed = parseCliOptions(argv);
+  const { explicitPort } = lifecycleFlagsOf(argv, { defaultHome: defaultHome(), env: process.env });
+  mirrorConsoleToLogFile(parsed.home);
+  if (parsed.service) await waitForFreeHome(parsed.home, { log: (message) => console.log(message) });
+  const options = { ...parsed, port: resolvePort(parsed.home, explicitPort) };
   const app = await run(options, {
     createCore,
     createServer,
@@ -40,5 +49,17 @@ export async function serveInForeground(argv: readonly string[]): Promise<void> 
     cliEntry: cliEntry().entry,
     version: cliVersion(),
   });
-  if (app) closeOnSignals(app.close);
+  if (!app) return options.service ? process.exit(1) : undefined;
+  writeStoredPort(options.home, portOfUrl(app.url));
+  closeOnSignals(app.close);
+}
+
+/** `tau serve`: the server in the foreground. `argv` holds only the server flags. */
+export async function serveInForeground(argv: readonly string[]): Promise<void> {
+  try {
+    await serveOnce(argv);
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : error);
+    process.exit(1);
+  }
 }
