@@ -1,6 +1,6 @@
 import type { ModelInfo, ProviderInfo, ThinkingLevel } from "@tau/protocol";
 
-export const FAKE_PROVIDERS: readonly Omit<ProviderInfo, "connection">[] = [
+export const FAKE_PROVIDERS: readonly Omit<ProviderInfo, "connection" | "cli">[] = [
   { id: "openrouter", name: "OpenRouter", methods: ["api_key"], keyUrl: "https://openrouter.ai/keys" },
   {
     id: "openai",
@@ -16,7 +16,31 @@ export const FAKE_PROVIDERS: readonly Omit<ProviderInfo, "connection">[] = [
   },
   { id: "google", name: "Google", methods: ["api_key"], keyUrl: "https://aistudio.google.com/apikey" },
   { id: "opencode", name: "OpenCode", methods: ["api_key"], keyUrl: "https://opencode.ai/auth" },
+  { id: "claude-cli", name: "Claude CLI", methods: ["claude_cli"], keyUrl: "" },
 ];
+
+const CLAUDE_CLI_NAME = "Claude CLI";
+const CLAUDE_CLI_LEVELS: ThinkingLevel[] = ["off", "low", "medium", "high", "xhigh"];
+
+const claudeModel = (modelId: string, name: string, levels: ThinkingLevel[]): ModelInfo => ({
+  provider: "claude-cli",
+  modelId,
+  name,
+  contextWindow: 1_000_000,
+  reasoning: levels.length > 1,
+  images: true,
+  thinkingLevels: levels,
+  providerName: CLAUDE_CLI_NAME,
+});
+
+/** Listed once the Claude CLI notice is accepted. */
+export const FAKE_CLAUDE_CLI_MODELS: readonly ModelInfo[] = [
+  claudeModel("opus", "Opus 5.5 (opus)", CLAUDE_CLI_LEVELS),
+  claudeModel("sonnet", "Sonnet 5.5 (sonnet)", CLAUDE_CLI_LEVELS),
+  claudeModel("haiku", "Haiku 5.5 (haiku)", ["off"]),
+];
+
+export const FAKE_CLAUDE_CLI_RESETS_AT = 1_800_000_000_000;
 
 export const FAKE_AUTH_URL = "https://auth.fake.test/authorize?state=faux";
 export const FAKE_VALID_CALLBACK_URL = "http://127.0.0.1:1455/auth/callback?code=ok&state=faux";

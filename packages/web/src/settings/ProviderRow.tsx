@@ -21,6 +21,7 @@ import {
 import { SettingRow } from "@/components/ui/settings-layout";
 import { useDisconnectProvider } from "@/lib/queries";
 import { ChatGptLoginDialog } from "./ChatGptLoginDialog";
+import { ClaudeCliRow } from "./ClaudeCliRow";
 import { ProviderKeyForm } from "./ProviderKeyForm";
 import {
   actionLabel,
@@ -111,7 +112,7 @@ function ProviderActions({ provider, onAction }: ActionsProps) {
   );
 }
 
-export function ProviderRow({ provider }: { provider: ProviderInfo }) {
+function ApiProviderRow({ provider }: { provider: ProviderInfo }) {
   const [editingKey, setEditingKey] = useState(false);
   const [signingIn, setSigningIn] = useState(false);
   const [disconnecting, setDisconnecting] = useState(false);
@@ -142,4 +143,8 @@ export function ProviderRow({ provider }: { provider: ProviderInfo }) {
       </ProviderListRow>
     </SettingRow>
   );
+}
+
+export function ProviderRow({ provider }: { provider: ProviderInfo }) {
+  return provider.cli ? <ClaudeCliRow provider={provider} /> : <ApiProviderRow provider={provider} />;
 }

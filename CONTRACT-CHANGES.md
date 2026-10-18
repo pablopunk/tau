@@ -227,3 +227,42 @@ Owns `core/src/timers/**` (besides the scheduler API files above, which stay sta
 ### Owner D: goals
 
 Owns `core/src/goals/**`, `core/src/goals-api.ts` (every method throws "not implemented"; `createGoalsApi()` in `create-core.ts`), the judge prompt, the web `/goal` handler, the goal chip, the avatar target badge, `conversation/notifications/GoalVerdictRow.tsx`. `queryKeys.goal` and `useGoal` exist; the `conversations` change invalidates `["goal"]`. Use `status.onRunEnded`, `ToolServices.liveWork` (build your own from the same `createLiveWork`), `notifications`, and `scheduler`.
+
+## MVP9 Phase 0
+
+Phase 0 is done. Paths are under `packages/` unless noted. Nobody edits a file another owner owns; needs go in a note for the integrator. `MVP9.md` has the plan, the pin results and the packaging decision.
+
+### Protocol and routes (frozen)
+
+* `ProviderId` += `"claude-cli"`, `ProviderMethod` += `"claude_cli"`, `ProviderConnection.source` += `"cli"`. `ProviderInfo.cli: ClaudeCliStatus | null` (`state`, `plan`, `org`, `cliVersion`, `sdkCliVersion`, `message`, `usage`; schemas `ClaudeCliStateSchema`, `ClaudeCliUsageSchema`, `ClaudeCliStatusSchema` in `protocol/src/entities.ts`). Only the `claude-cli` row has a `cli`; the others have `null`. `Settings.claudeCliNoticeAt: number | null`.
+* `Core.providers.acknowledgeClaudeCli()` and `refreshClaudeCli()` return the `claude-cli` `ProviderInfo`. Routes `acknowledgeClaudeCli` (`POST /providers/claude-cli/notice`) and `refreshClaudeCli` (`POST /providers/claude-cli/refresh`). Command `providers claude-cli refresh`; `acknowledgeClaudeCli` is in `COMMAND_EXCLUSIONS` (a person reads the notice). Server routes, `web/src/lib/api.ts`, the fake transport and the hooks `useAcknowledgeClaudeCli` and `useRefreshClaudeCli` (`web/src/lib/queries.ts`) are wired.
+* `setApiKey` and `disconnect` on `claude-cli` reject `invalid_request`. The plan says `invalid_input`; no such code exists, and `invalid_request` is the one every other bad input uses.
+* The row is listed last. Its `keyUrl` is `""`.
+
+### Core (frozen)
+
+* `core/src/claude-cli/sdk-types.ts`: `ClaudeSdkPort` (`authStatus`, `accountInfo`, `supportedModels`, `bundledCliVersion`, `startQuery`, `deleteSession`), `ClaudeQuery` (async iterable of SDK messages, `interrupt`, `setModel`, `applyFlagSettings`, `isAutoCompactEnabled`, `close`), `ClaudeQueryOptions`, `ClaudeToolHost` (the in-process `tau` MCP server: `listTools`, `callTool`, `onToolsChanged`), `ClaudeSdkLoader`. The types are tau's own: only `sdk-port.ts` imports the SDK.
+* `sdk-port.ts`: `loadClaudeSdkPort()` with a dynamic `import()`. It strips `ANTHROPIC_API_KEY` and `ANTHROPIC_AUTH_TOKEN` from every child env and builds the MCP server (`tool-server.ts`: raw JSON Schemas, `alwaysLoad`, 24 h timeout, `toolUseId` from `_meta["claudecode/toolUseId"]`, `tools/list_changed` on `onToolsChanged`). `auth-status.ts` runs `claude auth status --json` (`TAU_CLAUDE_PATH`, 5 s) and keeps four fields only. `claude-input.ts` is the streaming-input channel (`createClaudeInput`: `stream`, `push`, `close`).
+* `service.ts`: `createClaudeCliService(deps)` builds detector, models, plan usage, stream and provider from the stubs below. `provider-service.ts` creates it, registers its provider in `createRealModels(credentials, env, claudeCli.provider)`, lists the row, and closes it with the core. `TAU_DISABLE_CLAUDE_CLI=1`: no provider, no row, no models, no SDK import (`service.test.ts`). Faux mode and `TAU_FAKE_CLAUDE_CLI=1` use the fake SDK; faux alone is logged out, with the variable it is logged in (so the row starts at `needs_notice`).
+* `providers-table.ts`: entries have `kind: "key" | "cli"`; `requireKeyProvider(id)` throws for the CLI entry; `visibleProviders(enabled)`. `connections.ts` and `model-list.ts` read the CLI entry from the service (a `ready` status is `{ method: "claude_cli", source: "cli", valid: true }`).
+* `SettingsStore.setClaudeCliNoticeAt(at)`. `createProviderService` takes `settings`; `create-core.ts` builds the store before the provider service.
+* **Fake SDK** `core/src/claude-cli/testing/fake-claude-sdk.ts`: `createFakeClaudeSdk({ script, auth, models, account, bundledCliVersion, apiKeySource })` gives `port`, `load` (counts imports), `queries` (a record per query: options, inputs, folded messages, tool calls and results, models set, flags, interrupts, closed), `deletedSessions`, `setScript`, `setAuth`. Scripts (`fake-claude-script.ts`): `scriptOf([[steps]])`; steps `text`, `tools`, `error` (an SDK error code on the assistant message), `rateLimit`. It calls handlers one after the other; ends a turn on `interrupt()` with error tool results and `result` `error_during_execution` / `aborted_tools` (the real values); folds user messages that arrive during a tool round (`record.folded`); starts a new turn for a message after `end_turn`; forks sessions for `forkSession`; reports the `apiKeySource` it is told. `fake-claude-models.ts` has the spike's 14 model rows. Tests: `fake-claude-sdk.test.ts`.
+* **Pins** `core/src/claude-cli/pins/`: `TAU_REAL_CLAUDE=1` runs pins (a) to (j) against the real CLI (6 Haiku turns, verdicts to `TAU_PINS_OUT`). Rerun on every SDK bump.
+
+### Stubs for the Phase 1 owners (exported names are frozen; replace the bodies)
+
+Every stub is inert and never throws, so the real core and the contract keep passing.
+
+* **Owner A**: `claude-cli/detect/claude-cli-detector.ts` (`createClaudeCliDetector`: `status`, `refresh`, `start`, `stop`; always `missing` today), `claude-cli/models/claude-cli-models.ts` (`createClaudeCliModels`: `getModels`, `refresh`, `noteContextWindow`; empty today), `claude-cli/plan-usage.ts` (`createPlanUsage`: `current`, `record(RateLimitInfo)`). The wiring in `provider/{connections,model-list,provider-service}.ts` is already done. `status.ts` has `claudeCliStatusOf(state, fields)` and `isClaudeCliReady`. Remove `claude-cli` from `PENDING_TAGS` in `core/src/contract.test.ts` when the real core passes it; the real target needs `TAU_FAKE_CLAUDE_CLI=1` in its env so the row starts at `needs_notice`.
+* **Owner B**: `claude-cli/stream/claude-cli-stream.ts` (`createClaudeCliStream(deps)`: `streamSimple`, `closeThread`, `closeAll`, `processCount`; ends every stream with an error today) and `claude-cli/provider.ts` (`createClaudeCliProvider`, complete: it forwards to the streamer and the models). Pin (j) failed: use Resume with the new `effort`, not `applyFlagSettings`.
+* **Owner C**: `web/src/settings/ClaudeCliRow.tsx` (`ProviderRow` hands every provider with a `cli` to it), `ClaudeCliNotice.tsx`, `ClaudeCliText.ts` (`CLAUDE_CLI_NOTICE`, `claudeCliBadge`, `claudeCliNote`, `claudeCliAction`, `claudeCliActionLabel`; first-cut bodies). `setup/ModelCombobox.tsx` is untouched.
+
+### Testkit
+
+* Fake core: the `claude-cli` row starts at `needs_notice` with no connection. `acknowledgeClaudeCli` sets `Settings.claudeCliNoticeAt`, connects the row (`claude_cli` / `cli`), emits `providers`, and lists three `claude-cli` models (`opus`, `sonnet`, `haiku`) in `models.list()`. `refreshClaudeCli` emits `providers`. `FAKE_CLAUDE_CLI_MODELS` and `FAKE_CLAUDE_CLI_RESETS_AT` are in `fake/catalog.ts`.
+* Contract tag `claude-cli` (`contract/claude-cli.ts`, six cases) is pending for the real core. The `[providers]` cases list `claude-cli` last and no longer demand an https `keyUrl` from a provider without `api_key`.
+
+### For the integrator
+
+* `cli/tsdown.config.ts` has `neverBundle` for the SDK (packaging decision); the cli `package.json` does not list the SDK on purpose.
+* Existing tests changed only for the new required fields (`cli: null`, `claudeCliNoticeAt: null`, a sixth provider, a `settings` option for `createProviderService`).

@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createChangeEmitter } from "./change-emitter";
 import { BACKGROUND, openAgentHarness, openSqliteStorage } from "./harness/open";
 import { openDataHome } from "./home/data-home";
+import { createSettingsStore } from "./home/settings-store";
 import { createProviderService } from "./provider/provider-service";
 import { type FauxWorld, openFauxWorld } from "./test-support/faux-core";
 import { useTempDir } from "./test-support/temp-dir";
@@ -36,6 +37,7 @@ async function writeMvpProject(home: string, path: string) {
     faux: true,
     env: {},
     changes: createChangeEmitter(),
+    settings: createSettingsStore(dataHome.settingsFile, home),
   });
   const harness = await openAgentHarness({
     storage: await openSqliteStorage(dataHome.agentDatabase),

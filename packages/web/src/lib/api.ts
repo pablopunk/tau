@@ -71,6 +71,8 @@ export interface Api {
     list(): Promise<ProviderInfo[]>;
     setKey(id: ProviderId, key: string): Promise<ProviderInfo>;
     disconnect(id: ProviderId): Promise<ProviderInfo>;
+    acknowledgeClaudeCli(): Promise<ProviderInfo>;
+    refreshClaudeCli(): Promise<ProviderInfo>;
   };
   logins: {
     start(): Promise<LoginSession>;
@@ -180,6 +182,8 @@ export function createApi(transport: Transport): Api {
       list: () => request("listProviders", {}),
       setKey: (id, key) => request("setProviderKey", { params: { id }, body: { key } }),
       disconnect: (id) => request("disconnectProvider", { params: { id } }),
+      acknowledgeClaudeCli: () => request("acknowledgeClaudeCli", {}),
+      refreshClaudeCli: () => request("refreshClaudeCli", {}),
     },
     logins: {
       start: () => request("startLogin", { params: { id: "openai" } }),

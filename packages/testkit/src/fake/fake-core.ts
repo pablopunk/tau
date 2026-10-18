@@ -344,6 +344,7 @@ export function createFakeCore(options: FakeCoreOptions = {}): Core {
           projectsFolder,
           messageMode,
           workspaceDefault,
+          claudeCliNoticeAt: connections.claudeCliNoticeAt(),
         };
       },
       async setDefaultModel(ref) {

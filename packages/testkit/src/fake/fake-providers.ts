@@ -7,7 +7,14 @@ import {
   type ProviderId,
   type ProviderInfo,
 } from "@tau/protocol";
-import { FAKE_AUTH_URL, FAKE_MODELS, FAKE_PROVIDERS, FAKE_VALID_CALLBACK_URL } from "./catalog";
+import {
+  FAKE_AUTH_URL,
+  FAKE_CLAUDE_CLI_MODELS,
+  FAKE_CLAUDE_CLI_RESETS_AT,
+  FAKE_MODELS,
+  FAKE_PROVIDERS,
+  FAKE_VALID_CALLBACK_URL,
+} from "./catalog";
 
 const MAX_LOGIN_ATTEMPTS = 5;
 const CALLBACK_PREFIX = "http://127.0.0.1:1455/auth/callback";
@@ -33,6 +40,7 @@ export interface FakeProviders {
   readonly providers: Core["providers"];
   readonly models: Core["models"];
   isConnected(): boolean;
+  claudeCliNoticeAt(): number | null;
 }
 
 export function createFakeProviders(deps: {
@@ -42,6 +50,7 @@ export function createFakeProviders(deps: {
   const connections = new Map<ProviderId, Connection>();
   if (deps.connectOpenRouter)
     connections.set("openrouter", { method: "api_key", source: "file", valid: true });
+  let claudeCliNoticeAt: number | null = null;
   const logins = new Map<string, FakeLogin>();
   let activeLoginId: string | undefined;
   let nextLoginId = 1;
@@ -49,7 +58,37 @@ export function createFakeProviders(deps: {
   const infoOf = (id: ProviderId): ProviderInfo => {
     const provider = FAKE_PROVIDERS.find((candidate) => candidate.id === id);
     if (!provider) throw new AppError("not_found", `Unknown provider: ${id}`);
-    return { ...provider, methods: [...provider.methods], connection: connections.get(id) ?? null };
+    return {
+      ...provider,
+      methods: [...provider.methods],
+      connection: connections.get(id) ?? null,
+      cli: id === "claude-cli" ? claudeCliStatus() : null,
+    };
+  };
+
+  const claudeCliStatus = (): NonNullable<ProviderInfo["cli"]> => {
+    const updatedAt = claudeCliNoticeAt;
+    return {
+      state: updatedAt !== null ? "ready" : "needs_notice",
+      plan: "Team",
+      org: "Fake Org",
+      cliVersion: "2.1.302",
+      sdkCliVersion: "2.1.302",
+      message: null,
+      usage:
+        updatedAt !== null
+          ? {
+              status: "allowed",
+              fiveHour: 0.43,
+              resetsAt: FAKE_CLAUDE_CLI_RESETS_AT,
+              updatedAt,
+            }
+          : null,
+    };
+  };
+
+  const refuseKeyOperationsOnCli = (id: ProviderId) => {
+    if (id === "claude-cli") throw new AppError("invalid_request", "Claude CLI has no API key.");
   };
 
   const changed = () => deps.emit({ resource: "providers" });
@@ -79,12 +118,14 @@ export function createFakeProviders(deps: {
 
   return {
     isConnected: () => connections.size > 0,
+    claudeCliNoticeAt: () => claudeCliNoticeAt,
     providers: {
       async list() {
         return FAKE_PROVIDERS.map((provider) => infoOf(provider.id));
       },
       async setApiKey(id, key) {
         infoOf(id);
+        refuseKeyOperationsOnCli(id);
         if (key.trim() === "") throw new AppError("invalid_key", "The key is empty");
         connections.set(id, { method: "api_key", source: "file", valid: true });
         changed();
@@ -92,9 +133,20 @@ export function createFakeProviders(deps: {
       },
       async disconnect(id) {
         infoOf(id);
+        refuseKeyOperationsOnCli(id);
         connections.delete(id);
         changed();
         return infoOf(id);
+      },
+      async acknowledgeClaudeCli() {
+        claudeCliNoticeAt = Date.now();
+        connections.set("claude-cli", { method: "claude_cli", source: "cli", valid: true });
+        changed();
+        return infoOf("claude-cli");
+      },
+      async refreshClaudeCli() {
+        changed();
+        return infoOf("claude-cli");
       },
       async startLogin() {
         cancelActiveLogin();
@@ -132,7 +184,8 @@ export function createFakeProviders(deps: {
     },
     models: {
       async list() {
-        return connections.size > 0 ? FAKE_MODELS.map(copyModel) : [];
+        const claudeModels = connections.has("claude-cli") ? FAKE_CLAUDE_CLI_MODELS.map(copyModel) : [];
+        return connections.size > 0 ? [...FAKE_MODELS.map(copyModel), ...claudeModels] : [];
       },
     },
   };

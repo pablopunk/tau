@@ -41,6 +41,7 @@ describe("http transport", () => {
       projectsFolder: "/data/projects",
       messageMode: "steer",
       workspaceDefault: "per-project",
+      claudeCliNoticeAt: null,
     };
     stubFetch(respond(200, settings));
     expect(await api.settings.get()).toEqual(settings);

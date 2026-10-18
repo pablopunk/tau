@@ -125,6 +125,10 @@ export interface Core {
     setApiKey(id: ProviderId, key: string): Promise<ProviderInfo>;
     /** Removes the stored credential only; an env key keeps the provider connected (`source: "env"`). */
     disconnect(id: ProviderId): Promise<ProviderInfo>;
+    /** Records that the user read the Claude CLI notice (`Settings.claudeCliNoticeAt`) and re-checks. Rejects `invalid_request` when the provider is hidden. */
+    acknowledgeClaudeCli(): Promise<ProviderInfo>;
+    /** Checks `claude auth status` again and reloads the model list. Never rejects for a missing or logged-out CLI: that is a state. */
+    refreshClaudeCli(): Promise<ProviderInfo>;
     /** One active session; starting one awaits the cancel of the old. Rejects `invalid_request` for a provider without ChatGPT sign-in. */
     startLogin(id: "openai"): Promise<LoginSession>;
     /** Rejects `not_found` for an unknown or expired session. */

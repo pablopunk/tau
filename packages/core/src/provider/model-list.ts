@@ -3,7 +3,7 @@ import { personalizeOpenRouterCatalog } from "@earendil-works/pi-ai/providers/op
 import { AppError, type ModelInfo } from "@tau/protocol";
 import { FAUX_PROVIDER_ID } from "../testing/faux-provider";
 import type { ConnectionReader } from "./connections";
-import { type PiProviderRef, PROVIDERS, type ProviderEntry } from "./providers-table";
+import type { PiProviderRef, ProviderEntry } from "./providers-table";
 
 const FAUX_PROVIDER_NAME = "Faux";
 
@@ -29,13 +29,14 @@ export interface ModelLister {
 export function createModelLister(deps: {
   models: Models;
   connections: ConnectionReader;
+  entries: readonly ProviderEntry[];
   faux: boolean;
 }): ModelLister {
   const { models, connections } = deps;
 
   async function connectedEntries(): Promise<ProviderEntry[]> {
     const connected: ProviderEntry[] = [];
-    for (const entry of PROVIDERS) if (await connections.read(entry)) connected.push(entry);
+    for (const entry of deps.entries) if (await connections.read(entry)) connected.push(entry);
     return connected;
   }
 

@@ -1,4 +1,5 @@
-import type { ProviderId, ProviderMethod } from "@tau/protocol";
+import { AppError, type ProviderId, type ProviderMethod } from "@tau/protocol";
+import { CLAUDE_CLI_PROVIDER_ID, CLAUDE_CLI_PROVIDER_NAME } from "../claude-cli/provider";
 import {
   type KeyValidator,
   validateAnthropicKey,
@@ -15,7 +16,8 @@ export interface PiProviderRef {
   readonly label: string;
 }
 
-export interface ProviderEntry {
+export interface KeyProviderEntry {
+  readonly kind: "key";
   readonly id: ProviderId;
   readonly name: string;
   readonly methods: readonly ProviderMethod[];
@@ -26,7 +28,19 @@ export interface ProviderEntry {
   readonly validate: KeyValidator;
 }
 
-export const PROVIDERS: readonly ProviderEntry[] = [
+/** Connected by a local CLI login, not a key: no key URL, no validator, nothing to store or remove. */
+export interface CliProviderEntry {
+  readonly kind: "cli";
+  readonly id: ProviderId;
+  readonly name: string;
+  readonly methods: readonly ProviderMethod[];
+  readonly keyUrl: "";
+  readonly piProviders: readonly PiProviderRef[];
+}
+
+export type ProviderEntry = KeyProviderEntry | CliProviderEntry;
+
+const KEY_PROVIDERS: readonly Omit<KeyProviderEntry, "kind">[] = [
   {
     id: "openrouter",
     name: "OpenRouter",
@@ -77,9 +91,36 @@ export const PROVIDERS: readonly ProviderEntry[] = [
   },
 ];
 
+const CLAUDE_CLI_ENTRY: CliProviderEntry = {
+  kind: "cli",
+  id: "claude-cli",
+  name: "Claude CLI",
+  methods: ["claude_cli"],
+  keyUrl: "",
+  piProviders: [{ piId: CLAUDE_CLI_PROVIDER_ID, label: CLAUDE_CLI_PROVIDER_NAME }],
+};
+
+export const PROVIDERS: readonly ProviderEntry[] = [
+  ...KEY_PROVIDERS.map((entry): KeyProviderEntry => ({ ...entry, kind: "key" })),
+  CLAUDE_CLI_ENTRY,
+];
+
+/** The providers a user can see. The kill switch removes the CLI entry. */
+export const visibleProviders = (claudeCliEnabled: boolean): readonly ProviderEntry[] =>
+  claudeCliEnabled ? PROVIDERS : PROVIDERS.filter((entry) => entry.kind !== "cli");
+
 export function requireProvider(id: ProviderId): ProviderEntry {
   const entry = PROVIDERS.find((candidate) => candidate.id === id);
   if (!entry) throw new Error(`Unknown provider: ${id}`);
+  return entry;
+}
+
+/** Keys are written and removed only for key providers; a CLI provider has no key to touch. */
+export function requireKeyProvider(id: ProviderId): KeyProviderEntry {
+  const entry = requireProvider(id);
+  if (entry.kind === "cli") {
+    throw new AppError("invalid_request", `${entry.name} has no API key. It uses your claude CLI login.`);
+  }
   return entry;
 }
 

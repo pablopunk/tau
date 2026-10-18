@@ -14,6 +14,7 @@ const DEFAULTS = {
   projectsFolder: PROJECTS,
   messageMode: "steer",
   workspaceDefault: "per-project",
+  claudeCliNoticeAt: null,
 };
 const ref = { provider: "openrouter", modelId: "x/y" };
 

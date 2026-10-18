@@ -179,6 +179,18 @@ export const routes = {
     params: ProviderParams,
     response: ProviderInfoSchema,
   },
+  acknowledgeClaudeCli: {
+    method: "POST",
+    path: `${API_PREFIX}/providers/claude-cli/notice`,
+    status: 200,
+    response: ProviderInfoSchema,
+  },
+  refreshClaudeCli: {
+    method: "POST",
+    path: `${API_PREFIX}/providers/claude-cli/refresh`,
+    status: 200,
+    response: ProviderInfoSchema,
+  },
   startLogin: {
     method: "POST",
     path: `${API_PREFIX}/providers/:id/login`,

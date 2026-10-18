@@ -48,6 +48,7 @@ beforeEach(() => {
     projectsFolder: "/projects",
     messageMode: "steer",
     workspaceDefault: "per-project",
+    claudeCliNoticeAt: null,
   });
   mocked.projects.list.mockResolvedValue([project()]);
   mocked.conversations.listAll.mockResolvedValue([]);

@@ -82,14 +82,15 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
   try {
     if (options.cliEntry !== undefined) await writeTauShim(home.root, process.execPath, options.cliEntry);
     const changes = createChangeEmitter();
+    const defaultProjectsFolder = join(home.root, "projects");
+    const settings = createSettingsStore(home.settingsFile, defaultProjectsFolder);
     const provider = createProviderService({
       credentialsFile: home.credentialsFile,
       faux: options.faux ?? false,
       env: deps.env,
       changes,
+      settings,
     });
-    const defaultProjectsFolder = join(home.root, "projects");
-    const settings = createSettingsStore(home.settingsFile, defaultProjectsFolder);
     const status = createStatusTracker({ changes, now: deps.now });
     const toolServices = createToolServicesRef();
     const harness = await openAgentHarness({
@@ -298,6 +299,7 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
             await status.settled();
             await mcp.closeAll();
             await harness.close(BACKGROUND);
+            await provider.close();
             await github.settled();
           } finally {
             await lock.release();

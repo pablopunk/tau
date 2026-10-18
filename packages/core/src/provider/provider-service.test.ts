@@ -3,6 +3,7 @@ import type { Change } from "@tau/protocol";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { FileCredentialStore } from "../auth/file-credential-store";
 import { createChangeEmitter } from "../change-emitter";
+import { createSettingsStore } from "../home/settings-store";
 import { openRouterCatalogIds, stubOpenRouter } from "../test-support/stub-openrouter";
 import { useTempDir } from "../test-support/temp-dir";
 import { createProviderService, type ProviderService } from "./provider-service";
@@ -13,7 +14,8 @@ afterEach(() => vi.unstubAllGlobals());
 const catalogIds = openRouterCatalogIds();
 
 async function serviceWith(options: { faux?: boolean; env?: Record<string, string> } = {}) {
-  const credentialsFile = join(await tempDir(), "credentials.json");
+  const directory = await tempDir();
+  const credentialsFile = join(directory, "credentials.json");
   const changes: Change[] = [];
   const emitter = createChangeEmitter();
   emitter.subscribe((change) => changes.push(change));
@@ -22,6 +24,7 @@ async function serviceWith(options: { faux?: boolean; env?: Record<string, strin
     faux: options.faux ?? false,
     env: options.env ?? {},
     changes: emitter,
+    settings: createSettingsStore(join(directory, "settings.json"), directory),
   });
   const store = new FileCredentialStore(credentialsFile);
   const connectionOf = async (id: string) =>
@@ -39,6 +42,7 @@ describe("provider service (OpenRouter)", () => {
       "anthropic",
       "google",
       "opencode",
+      "claude-cli",
     ]);
     expect(providers.every((provider) => provider.connection === null)).toBe(true);
     expect(await service.listModels()).toEqual([]);

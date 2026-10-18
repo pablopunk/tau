@@ -1,7 +1,9 @@
 import type { CredentialStore } from "@earendil-works/pi-ai";
 import type { Models } from "@earendil-works/pi-ai/models";
 import type { ProviderInfo } from "@tau/protocol";
-import { type ProviderEntry, primaryPiId } from "./providers-table";
+import type { ClaudeCliService } from "../claude-cli/service";
+import { isClaudeCliReady } from "../claude-cli/status";
+import { type KeyProviderEntry, type ProviderEntry, primaryPiId } from "./providers-table";
 
 export type Connection = ProviderInfo["connection"];
 
@@ -17,11 +19,12 @@ export function createConnectionReader(deps: {
   credentials: CredentialStore;
   models: Models;
   faux: boolean;
+  claudeCli: ClaudeCliService;
 }): ConnectionReader {
   const unchecked = new Set<string>();
   const envChecks = new Map<string, Promise<boolean | null>>();
 
-  function checkEnvKeyOnce(entry: ProviderEntry, key: string): Promise<boolean | null> {
+  function checkEnvKeyOnce(entry: KeyProviderEntry, key: string): Promise<boolean | null> {
     const cacheKey = `${entry.id}:${key}`;
     let check = envChecks.get(cacheKey);
     if (!check) {
@@ -34,15 +37,22 @@ export function createConnectionReader(deps: {
     return check;
   }
 
-  async function readEnvironmentConnection(entry: ProviderEntry): Promise<Connection> {
+  async function readEnvironmentConnection(entry: KeyProviderEntry): Promise<Connection> {
     const auth = await deps.models.getAuth(primaryPiId(entry)).catch(() => undefined);
     const key = auth?.auth.apiKey;
     if (!key) return null;
     return { method: "api_key", source: "env", valid: await checkEnvKeyOnce(entry, key) };
   }
 
+  function readCliConnection(): Connection {
+    const status = deps.claudeCli.status();
+    if (!status || !isClaudeCliReady(status)) return null;
+    return { method: "claude_cli", source: "cli", valid: true };
+  }
+
   return {
     async read(entry) {
+      if (entry.kind === "cli") return readCliConnection();
       const stored = await deps.credentials.read(primaryPiId(entry));
       if (stored?.type === "oauth") return { method: "chatgpt", source: "file", valid: true };
       if (stored?.key)

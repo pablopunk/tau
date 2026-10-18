@@ -1,7 +1,7 @@
 import { access } from "node:fs/promises";
 import { homedir } from "node:os";
-import type { CredentialStore } from "@earendil-works/pi-ai";
-import { createModels, type Models } from "@earendil-works/pi-ai/models";
+import type { Api, CredentialStore } from "@earendil-works/pi-ai";
+import { createModels, type Models, type Provider } from "@earendil-works/pi-ai/models";
 import { anthropicProvider } from "@earendil-works/pi-ai/providers/anthropic";
 import { googleProvider } from "@earendil-works/pi-ai/providers/google";
 import { openaiProvider } from "@earendil-works/pi-ai/providers/openai";
@@ -17,7 +17,11 @@ const fileExists = async (path: string) =>
     () => false,
   );
 
-export function createRealModels(credentials: CredentialStore, env: Environment): Models {
+export function createRealModels(
+  credentials: CredentialStore,
+  env: Environment,
+  claudeCli: Provider<Api> | null,
+): Models {
   const models = createModels({ credentials, authContext: { env: async (name) => env[name], fileExists } });
   for (const provider of [
     openrouterProvider(),
@@ -29,5 +33,6 @@ export function createRealModels(credentials: CredentialStore, env: Environment)
   ]) {
     models.setProvider(provider);
   }
+  if (claudeCli) models.setProvider(claudeCli);
   return models;
 }

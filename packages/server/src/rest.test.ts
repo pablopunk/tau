@@ -17,6 +17,7 @@ describe("REST routes", () => {
       null,
       null,
       null,
+      null,
     ]);
     expect((await ctx.request({ url: "/api/models" })).json()).toEqual([]);
     const put = await ctx.request({
@@ -38,6 +39,19 @@ describe("REST routes", () => {
     expect((await ctx.request({ url: "/api/settings" })).json()).toMatchObject({
       defaultModel: { provider, modelId },
     });
+  });
+
+  it("maps the Claude CLI notice and refresh routes to core", async () => {
+    ctx = await startTestServer({ fake: { configured: false } });
+    const refreshed = await ctx.request({ method: "POST", url: "/api/providers/claude-cli/refresh" });
+    expect(refreshed.statusCode).toBe(200);
+    expect(refreshed.json()).toMatchObject({ id: "claude-cli", cli: { state: "needs_notice" } });
+    const noticed = await ctx.request({ method: "POST", url: "/api/providers/claude-cli/notice" });
+    expect(noticed.statusCode).toBe(200);
+    expect(noticed.json()).toMatchObject({ id: "claude-cli", cli: { state: "ready" } });
+    expect((await ctx.request({ url: "/api/settings" })).json().claudeCliNoticeAt).toEqual(
+      expect.any(Number),
+    );
   });
 
   it("runs the project and conversation lifecycle", async () => {

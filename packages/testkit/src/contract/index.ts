@@ -2,6 +2,7 @@ import { describe } from "vitest";
 import { type ContractOptions, caseRunner } from "./case-runner";
 import { chatCases } from "./chat";
 import { checkpointCases } from "./checkpoints";
+import { claudeCliCases } from "./claude-cli";
 import { cloneCases } from "./clone";
 import { compactCases } from "./compact";
 import { configureCases } from "./configure";
@@ -75,5 +76,6 @@ export function runCoreContract(
     timerCases(makeTarget, test);
     monitorCases(makeTarget, test);
     goalCases(makeTarget, test);
+    claudeCliCases(makeTarget, test);
   });
 }

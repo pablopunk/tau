@@ -140,6 +140,7 @@ describe("provider status", () => {
     name: "Anthropic",
     methods: ["api_key"],
     keyUrl: "https://example.test/keys",
+    cli: null,
     connection: null,
   };
   const withConnection = (connection: ProviderInfo["connection"]) => ({ ...base, connection });

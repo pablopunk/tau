@@ -60,6 +60,7 @@ export const SettingsSchema = Type.Object({
   projectsFolder: Type.String(),
   messageMode: MessageModeSchema,
   workspaceDefault: WorkspaceDefaultSchema,
+  claudeCliNoticeAt: Type.Union([Type.Number(), Type.Null()]),
 });
 export type Settings = Type.Static<typeof SettingsSchema>;
 
@@ -69,18 +70,54 @@ export const ProviderIdSchema = Type.Union([
   Type.Literal("anthropic"),
   Type.Literal("google"),
   Type.Literal("opencode"),
+  Type.Literal("claude-cli"),
 ]);
 export type ProviderId = Type.Static<typeof ProviderIdSchema>;
 
-export const ProviderMethodSchema = Type.Union([Type.Literal("api_key"), Type.Literal("chatgpt")]);
+export const ProviderMethodSchema = Type.Union([
+  Type.Literal("api_key"),
+  Type.Literal("chatgpt"),
+  Type.Literal("claude_cli"),
+]);
 export type ProviderMethod = Type.Static<typeof ProviderMethodSchema>;
 
 export const ProviderConnectionSchema = Type.Object({
   method: ProviderMethodSchema,
-  source: Type.Union([Type.Literal("file"), Type.Literal("env")]),
+  source: Type.Union([Type.Literal("file"), Type.Literal("env"), Type.Literal("cli")]),
   valid: Type.Union([Type.Boolean(), Type.Null()]),
 });
 export type ProviderConnection = Type.Static<typeof ProviderConnectionSchema>;
+
+export const ClaudeCliStateSchema = Type.Union([
+  Type.Literal("ready"),
+  Type.Literal("needs_notice"),
+  Type.Literal("missing"),
+  Type.Literal("logged_out"),
+  Type.Literal("not_plan"),
+  Type.Literal("blocked"),
+  Type.Literal("error"),
+]);
+export type ClaudeCliState = Type.Static<typeof ClaudeCliStateSchema>;
+
+export const ClaudeCliUsageSchema = Type.Object({
+  status: Type.Union([Type.Literal("allowed"), Type.Literal("allowed_warning"), Type.Literal("rejected")]),
+  fiveHour: Type.Union([Type.Number(), Type.Null()]),
+  resetsAt: Type.Union([Type.Number(), Type.Null()]),
+  updatedAt: Type.Number(),
+});
+export type ClaudeCliUsage = Type.Static<typeof ClaudeCliUsageSchema>;
+
+/** No email, no ids, no tokens. */
+export const ClaudeCliStatusSchema = Type.Object({
+  state: ClaudeCliStateSchema,
+  plan: Type.Union([Type.String(), Type.Null()]),
+  org: Type.Union([Type.String(), Type.Null()]),
+  cliVersion: Type.Union([Type.String(), Type.Null()]),
+  sdkCliVersion: Type.Union([Type.String(), Type.Null()]),
+  message: Type.Union([Type.String(), Type.Null()]),
+  usage: Type.Union([ClaudeCliUsageSchema, Type.Null()]),
+});
+export type ClaudeCliStatus = Type.Static<typeof ClaudeCliStatusSchema>;
 
 export const ProviderInfoSchema = Type.Object({
   id: ProviderIdSchema,
@@ -88,6 +125,7 @@ export const ProviderInfoSchema = Type.Object({
   methods: Type.Array(ProviderMethodSchema),
   keyUrl: Type.String(),
   connection: Type.Union([ProviderConnectionSchema, Type.Null()]),
+  cli: Type.Union([ClaudeCliStatusSchema, Type.Null()]),
 });
 export type ProviderInfo = Type.Static<typeof ProviderInfoSchema>;
 

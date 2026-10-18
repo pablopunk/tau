@@ -122,6 +122,13 @@ export const commands: readonly CommandDef[] = [
     destructive: false,
   },
   {
+    command: "providers claude-cli refresh",
+    route: "refreshClaudeCli",
+    summary: "Check the claude CLI login again",
+    positionals: [],
+    destructive: false,
+  },
+  {
     command: "models list",
     route: "listModels",
     summary: "List the connected models",
@@ -484,6 +491,7 @@ export const COMMAND_EXCLUSIONS = {
   getLogin: BROWSER_LOGIN,
   submitLoginUrl: BROWSER_LOGIN,
   cancelLogin: BROWSER_LOGIN,
+  acknowledgeClaudeCli: "The notice is read by a person in Settings.",
   suggestDirectories: TYPING_HELPER,
   getSuggestedCodeFolder: TYPING_HELPER,
   suggestProjectFiles: TYPING_HELPER,

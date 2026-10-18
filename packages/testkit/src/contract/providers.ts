@@ -3,7 +3,7 @@ import type { CaseRunner } from "./case-runner";
 import { collectChanges, rejectsWithCode } from "./helpers";
 import type { ContractTarget, MakeContractTarget } from "./types";
 
-const PROVIDER_IDS = ["openrouter", "openai", "anthropic", "google", "opencode"];
+const PROVIDER_IDS = ["openrouter", "openai", "anthropic", "google", "opencode", "claude-cli"];
 
 export function providerCases(make: MakeContractTarget, test: CaseRunner): void {
   describe("providers", () => {
@@ -22,7 +22,7 @@ export function providerCases(make: MakeContractTarget, test: CaseRunner): void 
       for (const provider of providers) {
         expect(provider.connection).toBeNull();
         expect(provider.name).not.toBe("");
-        expect(provider.keyUrl).toMatch(/^https:\/\//);
+        if (provider.methods.includes("api_key")) expect(provider.keyUrl).toMatch(/^https:\/\//);
       }
       expect(providers.find((provider) => provider.id === "openai")?.methods).toEqual(["api_key", "chatgpt"]);
       expect(providers.find((provider) => provider.id === "anthropic")?.methods).toEqual(["api_key"]);

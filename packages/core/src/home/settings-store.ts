@@ -26,6 +26,7 @@ type StoredSettings = {
   projectsFolder?: string;
   messageMode?: MessageMode;
   workspaceDefault?: WorkspaceDefault;
+  claudeCliNoticeAt?: number;
   lastWorkspaceModes?: Record<string, WorkspaceMode>;
   mcpServers?: McpServerConfig[];
 };
@@ -93,6 +94,7 @@ function parseStored(text: string | undefined): StoredSettings {
   const workspaceDefault = validWorkspaceDefault(raw.workspaceDefault);
   if (messageMode) stored.messageMode = messageMode;
   if (workspaceDefault) stored.workspaceDefault = workspaceDefault;
+  if (typeof raw.claudeCliNoticeAt === "number") stored.claudeCliNoticeAt = raw.claudeCliNoticeAt;
   if (raw.lastWorkspaceModes !== undefined)
     stored.lastWorkspaceModes = validLastWorkspaceModes(raw.lastWorkspaceModes);
   if (raw.mcpServers !== undefined) stored.mcpServers = validMcpServers(raw.mcpServers);
@@ -107,6 +109,7 @@ const withDefaults = (stored: StoredSettings, defaultProjectsFolder: string): Se
   projectsFolder: stored.projectsFolder ?? defaultProjectsFolder,
   messageMode: stored.messageMode ?? "steer",
   workspaceDefault: stored.workspaceDefault ?? "per-project",
+  claudeCliNoticeAt: stored.claudeCliNoticeAt ?? null,
 });
 
 export interface SettingsStore {
@@ -121,6 +124,7 @@ export interface SettingsStore {
   setProjectsFolder(path: string): Promise<void>;
   setMessageMode(mode: MessageMode): Promise<void>;
   setWorkspaceDefault(mode: WorkspaceDefault): Promise<void>;
+  setClaudeCliNoticeAt(at: number): Promise<void>;
   lastWorkspaceMode(projectId: string): Promise<WorkspaceMode | undefined>;
   setLastWorkspaceMode(projectId: string, mode: WorkspaceMode): Promise<void>;
   /** Servers added in Settings. The real values (env, headers) stay here and never reach `Settings`. */
@@ -165,6 +169,7 @@ export function createSettingsStore(settingsFile: string, defaultProjectsFolder:
     setProjectsFolder: (path) => update((stored) => ({ ...stored, projectsFolder: path })),
     setMessageMode: (mode) => update((stored) => ({ ...stored, messageMode: mode })),
     setWorkspaceDefault: (mode) => update((stored) => ({ ...stored, workspaceDefault: mode })),
+    setClaudeCliNoticeAt: (at) => update((stored) => ({ ...stored, claudeCliNoticeAt: at })),
     lastWorkspaceMode: async (projectId) => (await readStored()).lastWorkspaceModes?.[projectId],
     setLastWorkspaceMode: (projectId, mode) =>
       update((stored) => ({

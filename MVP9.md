@@ -198,3 +198,46 @@ The Providers rebuild is already on main (`a579ae0`): `components/ui/provider-li
 - Policy: Anthropic may move third-party use to usage credits or change the rules. tau stays personal, never touches tokens, shows the notice, and has the kill switch.
 - Each live query is one CLI process. Many Claude CLI subagents cost memory (no cap in the first cut).
 - SDK sessions show in the user's `claude --resume` list (title "tau · …"). tau deletes the sessions it abandons (Resume-at, Rebind, thread delete) with `deleteSession()`; a crash can leave a few behind.
+
+## Phase 0 results
+
+### Packaging decision: optional install on first use
+
+Measured on macOS arm64 with `pnpm --filter tau deploy --prod` (`du -sh node_modules`) and the installed SDK packages:
+
+| Part | Size |
+|---|---|
+| `tau` production install today | 159 MB |
+| `@anthropic-ai/claude-agent-sdk` (JS, 0.3.302) | 4.6 MB |
+| `@anthropic-ai/claude-agent-sdk-darwin-arm64` (the CLI binary) | 256 MiB (268 MB) |
+| `@anthropic-ai/sdk` (peer dependency) | 14 MB |
+| With the SDK installed | about 434 MB, 2.7 times today |
+
+npm installs only the binary of the host platform, so the number is the same on Linux and Windows. Bundling does not work either: tsdown inlined `sdk.mjs` as a 1.5 MB chunk, and an inlined SDK cannot find the binary package.
+
+**Decision**: tau does not depend on the SDK. Settings gets an "Install Claude Agent SDK" action that runs `npm install --prefix <tau home>/claude-sdk @anthropic-ai/claude-agent-sdk@0.3.302` (exact pin), and the loader resolves the package from there. Users who never use the Claude CLI never pay 275 MB. Done in Phase 0: `core/package.json` pins the SDK exactly (development and tests); `cli/tsdown.config.ts` has `neverBundle` for it, so the built CLI keeps a plain `import()`. Not done, for a later plan: the install action, the loader path, and a `ClaudeCliState` for "SDK not installed" (a protocol change). Until then the production row reports `error` when the import fails.
+
+### Real-CLI pins (CLI 2.1.302, SDK 0.3.302, Haiku, 6 turns)
+
+Run with `TAU_REAL_CLAUDE=1 TAU_PINS_OUT=<file> pnpm --filter @tau/core exec vitest run src/claude-cli/pins` (skipped otherwise). The six turns were: parallel tools, new tool, steer, interrupt, resume, fork. The pins created three sessions and deleted them with `deleteSession()` (all three deleted).
+
+| Pin | Result | Evidence |
+|---|---|---|
+| (a) init tools, servers, key source | PASS | tools `mcp__tau__get_number`, `mcp__tau__get_word` only; servers `["tau"]`; `apiKeySource: "none"` |
+| (b) parked handler round-trip | PASS | handler parked 2,051 ms; reply "banana 42" |
+| (c) reverse order, before the second handler parks | PASS | result 2 existed 2,011 ms before handler 2 was called; handler 2 held 0 ms; handlers called get_word, then get_number |
+| (d) `interrupt()` with a parked handler | PASS | result in 27 ms: `subtype: "error_during_execution"`, `is_error: true`, `terminal_reason: "aborted_tools"`; 8 s later still 1 handler call and 1 `tool_use` (no retry loop) |
+| (e) resume after a killed process | PASS | the resumed session kept its id; reply "kiwi" from the user text |
+| (f) `autoCompactEnabled: false` | PASS | `getContextUsage().isAutoCompactEnabled === false` |
+| (g) `tools/list_changed` mid-session | PASS | a tool added after init was called by the model |
+| (h) `resumeSessionAt` + `forkSession` | PASS | new session id; reply "banana no": history up to the fork point kept, the later get_color turn gone |
+| (i) steer folds into the same turn | PASS | steer pushed while a handler was parked: 2 `result` messages in total for 2 turns; final reply "teal / kiwi" |
+| (j) `applyFlagSettings` changes effort live | **FAIL (not observable)** | `applyFlagSettings({ effortLevel: "low" })` did not throw, but `init.effort` stayed `null` (the field is only published to Remote Control hosts), and no turn was left to see the effect. Haiku lists `low`, `medium`, `high`, `xhigh`, `max` as effort levels. |
+
+**Fallback for (j)**: the one this doc already names. An effort change goes through Resume with the new `effort` option, not `applyFlagSettings`. Owner B must not use `applyFlagSettings` for effort until a pin shows an effect (for example a thinking-token count that changes between two turns). Pins (b) to (i) hold, so the other paths in the table stay.
+
+For owner B: an interrupted turn ends with `result` `subtype: "error_during_execution"` and `terminal_reason: "aborted_tools"`; the fake SDK uses the same values.
+
+### What Phase 0 froze
+
+See `CONTRACT-CHANGES.md`, section "MVP9 Phase 0".
