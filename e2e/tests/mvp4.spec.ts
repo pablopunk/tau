@@ -9,6 +9,12 @@ const DESKTOP = { width: 1280, height: 800 };
 
 const readToken = () => readFileSync(tokenFile(), "utf8").trim();
 const providerRow = (page: Page, name: string) => page.getByRole("listitem", { name, exact: true });
+
+async function disconnect(page: Page, row: ReturnType<typeof providerRow>, name: string) {
+  await row.getByRole("button", { name: `More actions for ${name}` }).click();
+  await page.getByRole("menuitem", { name: `Disconnect for ${name}` }).click();
+  await row.getByRole("button", { name: "Confirm disconnect" }).click();
+}
 const sendButton = (page: Page) => page.getByRole("button", { name: "Send", exact: true });
 
 async function openSettings(page: Page) {
@@ -74,8 +80,7 @@ test.describe("MVP4", () => {
     await row.getByLabel("Anthropic API key").fill("sk-ant-faux");
     await row.getByRole("button", { name: "Save" }).click();
     await expect(row.getByText("Connected")).toBeVisible();
-    await row.getByRole("button", { name: "Disconnect" }).click();
-    await row.getByRole("button", { name: "Confirm disconnect" }).click();
+    await disconnect(page, row, "Anthropic");
     await expect(row.getByText("Not connected")).toBeVisible();
     await page.keyboard.press("Escape");
   });
@@ -95,8 +100,7 @@ test.describe("MVP4", () => {
   test("a wrong ChatGPT address shows an error", async () => {
     await openProviders(page);
     const row = providerRow(page, "OpenAI");
-    await row.getByRole("button", { name: "Disconnect" }).click();
-    await row.getByRole("button", { name: "Confirm disconnect" }).click();
+    await disconnect(page, row, "OpenAI");
     await row.getByRole("button", { name: "Sign in with ChatGPT" }).click();
     const dialog = page.getByRole("dialog", { name: "Sign in with ChatGPT" });
     await dialog.getByLabel("Sign-in address").fill("https://example.com/nope");

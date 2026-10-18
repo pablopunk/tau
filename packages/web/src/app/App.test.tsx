@@ -36,7 +36,7 @@ describe("setup", () => {
     const user = await renderApp({ ready: false });
 
     const row = within(await screen.findByRole("listitem", { name: "OpenRouter" }));
-    await user.click(row.getByRole("button", { name: "Add key" }));
+    await user.click(row.getByRole("button", { name: "Add key for OpenRouter" }));
     await user.type(row.getByLabelText("OpenRouter API key"), "sk-or-test");
     await user.click(row.getByRole("button", { name: "Save" }));
     await user.click(await screen.findByRole("button", { name: "Continue" }));

@@ -73,12 +73,12 @@ describe("providers", () => {
     wrap(<ProvidersSection />);
 
     const row = within(await rowOf("Anthropic"));
-    await user.click(row.getByRole("button", { name: "Add key" }));
+    await user.click(row.getByRole("button", { name: "Add key for Anthropic" }));
     await user.type(row.getByLabelText("Anthropic API key"), "sk-ant-test");
     await user.click(row.getByRole("button", { name: "Save" }));
 
     expect(await row.findByText("Connected · key")).toBeInTheDocument();
-    expect(row.getByRole("button", { name: "Replace key" })).toBeInTheDocument();
+    expect(row.getByRole("button", { name: "Replace key for Anthropic" })).toBeInTheDocument();
   });
 
   it("links to where to get a key", async () => {
@@ -87,7 +87,7 @@ describe("providers", () => {
     wrap(<ProvidersSection />);
 
     const row = within(await rowOf("OpenRouter"));
-    await user.click(row.getByRole("button", { name: "Add key" }));
+    await user.click(row.getByRole("button", { name: "Add key for OpenRouter" }));
     expect(row.getByRole("link", { name: "Get a key" })).toHaveAttribute(
       "href",
       "https://openrouter.ai/keys",
@@ -99,7 +99,7 @@ describe("providers", () => {
     const user = userEvent.setup();
     wrap(<ProvidersSection />);
     const row = within(await rowOf("Google"));
-    await user.click(row.getByRole("button", { name: "Add key" }));
+    await user.click(row.getByRole("button", { name: "Add key for Google" }));
     await user.type(row.getByLabelText("Google API key"), "bad");
     mocks.api = {
       ...(mocks.api as object),
@@ -123,10 +123,11 @@ describe("providers", () => {
     wrap(<ProvidersSection />);
 
     const row = within(await rowOf("OpenRouter"));
-    await user.click(row.getByRole("button", { name: "Add key" }));
+    await user.click(row.getByRole("button", { name: "Add key for OpenRouter" }));
     await user.type(row.getByLabelText("OpenRouter API key"), "sk-or");
     await user.click(row.getByRole("button", { name: "Save" }));
-    await user.click(await row.findByRole("button", { name: "Disconnect" }));
+    await user.click(await row.findByRole("button", { name: "More actions for OpenRouter" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Disconnect for OpenRouter" }));
     await user.click(row.getByRole("button", { name: "Confirm disconnect" }));
 
     expect(await row.findByText("Not connected")).toBeInTheDocument();
@@ -147,7 +148,17 @@ describe("provider status", () => {
     wrap(<ProviderRow provider={withConnection({ method: "api_key", source: "env", valid: null })} />);
     expect(screen.getByText("From environment")).toBeInTheDocument();
     expect(screen.getByText(/stored key overrides the environment/i)).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Disconnect" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /More actions/ })).not.toBeInTheDocument();
+  });
+
+  it("shows a long status in full in a tooltip and keeps a provider with no actions valid", async () => {
+    const user = userEvent.setup();
+    const cli: ProviderInfo = { ...base, id: "opencode", name: "Claude CLI", methods: [] };
+    wrap(<ProviderRow provider={cli} />);
+    const row = within(screen.getByRole("listitem", { name: "Claude CLI" }));
+    expect(row.queryByRole("button")).not.toBeInTheDocument();
+    await user.hover(row.getByText("Not connected"));
+    expect(await screen.findByRole("tooltip")).toHaveTextContent("Not connected");
   });
 
   it("labels unchecked and invalid stored keys", () => {
@@ -158,13 +169,45 @@ describe("provider status", () => {
   });
 });
 
+describe("provider list structure", () => {
+  it("gives every row the same parts and puts extra actions in the overflow menu", async () => {
+    installFakeBackend();
+    const user = userEvent.setup();
+    wrap(<ProvidersSection />);
+    const rows = await screen.findAllByRole("listitem");
+    for (const row of rows) {
+      const parts = row.querySelectorAll(
+        ":scope > [data-slot=provider-list-name], :scope > [data-slot=provider-list-status], :scope > [data-slot=provider-list-actions]",
+      );
+      expect(parts).toHaveLength(3);
+    }
+    const openai = within(await rowOf("OpenAI"));
+    expect(openai.getByRole("button", { name: "Sign in with ChatGPT for OpenAI" })).toBeInTheDocument();
+    expect(openai.queryByRole("button", { name: "Add key for OpenAI" })).not.toBeInTheDocument();
+    await user.click(openai.getByRole("button", { name: "More actions for OpenAI" }));
+    expect(await screen.findByRole("menuitem", { name: "Add key for OpenAI" })).toBeInTheDocument();
+  });
+
+  it("opens the overflow menu with the keyboard", async () => {
+    installFakeBackend();
+    const user = userEvent.setup();
+    wrap(<ProvidersSection />);
+    const row = within(await rowOf("OpenAI"));
+    row.getByRole("button", { name: "More actions for OpenAI" }).focus();
+    await user.keyboard("{Enter}");
+    expect(await screen.findByRole("menu")).toBeInTheDocument();
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+  });
+});
+
 describe("ChatGPT sign-in", () => {
   async function openDialog() {
     installFakeBackend();
     const user = userEvent.setup();
     wrap(<ProvidersSection />);
     const row = within(await rowOf("OpenAI"));
-    await user.click(row.getByRole("button", { name: "Sign in with ChatGPT" }));
+    await user.click(row.getByRole("button", { name: "Sign in with ChatGPT for OpenAI" }));
     const dialog = within(await screen.findByRole("dialog"));
     return { user, row, dialog };
   }
