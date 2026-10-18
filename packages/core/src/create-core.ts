@@ -14,6 +14,8 @@ import { suggestDirectories } from "./fs/suggest-directories";
 import { createCloneService } from "./git/clone-service";
 import { createGithubService } from "./github/github-service";
 import { createRunGh, type RunGh, resolveGhPath } from "./github/run-gh";
+import { checkinMinutesFrom, createGoalService } from "./goals/goal-service";
+import { createJudgeModel } from "./goals/judge-model";
 import { createGoalsApi } from "./goals-api";
 import { createConversationForker } from "./harness/conversation-fork";
 import { createConversationStore } from "./harness/conversation-store";
@@ -146,6 +148,19 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
       notifications,
       emitChange: (conversationId) => changes.emit({ resource: "processes", conversationId }),
     });
+    const liveWork = createLiveWork({ harness, processes });
+    const goals = createGoalService({
+      harness,
+      conversations,
+      notifications,
+      scheduler,
+      liveWork,
+      ask: createJudgeModel({ harness, models: provider.models, settings }),
+      changes,
+      now: deps.now,
+      checkinMinutes: checkinMinutesFrom(deps.env.TAU_GOAL_CHECKIN_MINUTES),
+    });
+    status.onRunEnded((end) => goals.onRunEnded(end));
     const mcp = createMcpService({
       settingsServers: () => settings.mcpServers(),
       projectPathOf: async (id) => (await projects.require(id)).path,
@@ -156,7 +171,7 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
       mcp,
       notifications,
       scheduler,
-      liveWork: createLiveWork({ harness, processes }),
+      liveWork,
       subagents: {
         agentTypes: createAgentTypeLoader(),
         resolveModelAlias,
@@ -174,6 +189,7 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
         (thread) => workspaces.onConversationRemoved(thread),
         (thread) => checkpoints.onConversationRemoved(thread),
         (thread) => processes.onConversationRemoved(thread),
+        async (thread) => goals.onConversationRemoved(thread.id),
       ],
       onProjectRemoved: [(id) => workspaces.onProjectRemoved(id)],
     };
@@ -201,6 +217,7 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
     await clones.recoverAtStartup();
     await recovery.recoverAtStartup();
     await processes.reapStaleAtStartup();
+    await goals.recoverAtStartup();
     archivedCleanup.start();
 
     let closing: Promise<void> | undefined;
@@ -246,7 +263,7 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
         stop: (id) => processes.stop(id),
       },
       timers: createTimersApi(),
-      goals: createGoalsApi(),
+      goals: createGoalsApi(goals),
       mcp: createMcpApi({ settings, mcp, changes }),
       onChange: (listener) => changes.subscribe(listener),
       close() {
@@ -255,6 +272,7 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
           await archivedCleanup.stop();
           clones.stopAll();
           try {
+            await goals.close();
             await scheduler.close();
             await processes.stopAll();
             await status.settled();

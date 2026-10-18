@@ -29,6 +29,7 @@ import { queryKeys } from "@/lib/queries";
 import { conversationDot } from "./conversation-dot";
 import { DeleteConversationDialog } from "./DeleteConversationDialog";
 import { ForkBadge, isFork } from "./ForkBadge";
+import { GoalBadge, hasActiveGoal } from "./GoalBadge";
 import { NameDialog } from "./NameDialog";
 import { ThreadMenuItems } from "./ThreadMenuItems";
 
@@ -139,6 +140,9 @@ export function ThreadRow({
                 working={conversation.status === "running"}
                 badge={dot && dot !== "running" ? <StatusDot status={dot} /> : undefined}
                 originBadge={isFork(conversation) ? <ForkBadge conversation={conversation} /> : undefined}
+                goalBadge={
+                  hasActiveGoal(conversation) ? <GoalBadge conversation={conversation} /> : undefined
+                }
               />
             }
             context={depth === 0 && showProject ? project?.name : undefined}

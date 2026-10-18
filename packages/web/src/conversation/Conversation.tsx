@@ -5,6 +5,7 @@ import { Link } from "react-router";
 import type { PickersHandle } from "@/components/ModelThinkingPickers";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { GoalChip } from "@/goal/GoalChip";
 import { useAllConversations, useModels, useSettings } from "@/lib/queries";
 import { NameDialog } from "@/sidebar/NameDialog";
 import { SubagentBanner } from "@/sidebar/subagents/SubagentBanner";
@@ -77,7 +78,17 @@ function ConversationPanel({ id }: ConversationProps) {
   const parentId = summary?.parentId ?? null;
   return (
     <div data-testid="conversation" className="relative flex h-full min-h-0 flex-col bg-background">
-      {view ? <ThreadHeader id={id} extras={<WorkspaceChip conversationId={id} />} /> : null}
+      {view ? (
+        <ThreadHeader
+          id={id}
+          extras={
+            <>
+              <GoalChip conversationId={id} />
+              <WorkspaceChip conversationId={id} />
+            </>
+          }
+        />
+      ) : null}
       {parentId ? <SubagentBanner parentId={parentId} childId={id} /> : null}
       <div ref={scrollRef} onScroll={onScroll} className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
         <div ref={contentRef} className="mx-auto w-full max-w-3xl px-4 py-6">

@@ -3,6 +3,7 @@ import type { Ref } from "react";
 import { toast } from "sonner";
 import { ModelThinkingPickers, type PickersHandle } from "@/components/ModelThinkingPickers";
 import { ContextMeter } from "@/components/ui/context-meter";
+import { GoalChip } from "@/goal/GoalChip";
 import { api } from "@/lib/api";
 import { errorMessage } from "@/lib/error-message";
 import { useModels } from "@/lib/queries";
@@ -40,6 +41,7 @@ export function ThreadToolbar({
         onLevel={(thinkingLevel: ThinkingLevel) => void configure(id, { thinkingLevel })}
       />
       {usage ? <ContextMeter used={usage.used} total={usage.total} label={usage.label} /> : null}
+      <GoalChip conversationId={id} />
       <ProcessesChip conversationId={id} />
     </>
   );

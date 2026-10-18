@@ -4,6 +4,7 @@ import { type RefObject, useMemo, useState } from "react";
 import { useNavigate } from "react-router";
 import { toast } from "sonner";
 import type { PickersHandle } from "@/components/ModelThinkingPickers";
+import { runGoalCommand } from "@/goal/goal-command";
 import { api } from "@/lib/api";
 import { errorMessage } from "@/lib/error-message";
 import { newThreadPath } from "@/lib/paths";
@@ -37,6 +38,7 @@ export function useThreadCommands({ conversationId, projectId, pickers }: Thread
       model: () => pickers.current?.openModel(),
       thinking: () => pickers.current?.openThinking(),
       rename: () => setRenaming(true),
+      goal: (args) => runGoalCommand(conversationId, args, queryClient),
       archive: async () => {
         await api.conversations.archive(conversationId, true);
         await refreshLists();

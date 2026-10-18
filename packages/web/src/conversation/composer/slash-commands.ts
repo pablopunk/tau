@@ -1,4 +1,4 @@
-export type CommandName = "compact" | "new" | "model" | "thinking" | "rename" | "archive";
+export type CommandName = "compact" | "new" | "model" | "thinking" | "rename" | "archive" | "goal";
 
 export interface SlashCommand {
   readonly name: CommandName;
@@ -14,6 +14,7 @@ export const SLASH_COMMANDS: readonly SlashCommand[] = [
   { name: "thinking", description: "Change the thinking level" },
   { name: "rename", description: "Rename this thread" },
   { name: "archive", description: "Archive this thread" },
+  { name: "goal", description: "Work until a condition is met [condition | clear]" },
 ];
 
 export function availableCommands(handlers: CommandHandlers): readonly SlashCommand[] {

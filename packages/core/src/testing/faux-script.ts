@@ -7,6 +7,8 @@ import {
   fauxToolCall,
 } from "@earendil-works/pi-ai/providers/faux";
 
+import { JUDGE_SYSTEM_MARKER } from "../goals/judge-prompt";
+
 export const SCRIPT_USAGE = [
   "write <path> <text>",
   "edit <path> <old> => <new>",
@@ -157,6 +159,24 @@ function scriptedReply(input: string, attempt: number, user: UserMessage | undef
   }
 }
 
+const systemTextOf = (message: Message): string => {
+  const { role, content } = message as { role: string; content?: unknown };
+  return role === "system" && typeof content === "string" ? content : "";
+};
+
+const isJudgeRequest = (messages: readonly Message[]) =>
+  messages.some((message) => systemTextOf(message).startsWith(JUDGE_SYSTEM_MARKER));
+
+const GOAL_MET_WORD = "goal-met";
+
+/** The scripted judge: `met` once a tool result in the transcript contains "goal-met", else `not_met`. */
+function judgeReply(messages: readonly Message[]): Reply {
+  const request = messages.map(messageText).join("\n");
+  const met = new RegExp(`result: [^\\n]*${GOAL_MET_WORD}`).test(request);
+  const reason = met ? "The transcript shows it." : "There is no sign of it yet.";
+  return fauxAssistantMessage(JSON.stringify({ verdict: met ? "met" : "not_met", reason }));
+}
+
 function withoutSectionUpdates(messages: readonly Message[]): Message[] {
   return messages.filter((message) => (message.role as string) !== "system");
 }
@@ -181,6 +201,7 @@ function lastUserMessage(messages: readonly Message[]): UserMessage | undefined 
 export function createFauxScript(): FauxResponseFactory {
   const attempts = new Map<string, number>();
   return (context, _options, _state, model) => {
+    if (isJudgeRequest(context.messages)) return judgeReply(context.messages);
     const user = lastUserMessage(context.messages);
     const input = user ? messageText(user) : "";
     if (model.id === FAST_MODEL_ID) return titleReply(input);
