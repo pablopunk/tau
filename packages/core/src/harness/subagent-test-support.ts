@@ -14,6 +14,8 @@ import { SUBAGENT_NOTIFICATION_KIND } from "@tau/protocol";
 import type { AgentTypeLoader } from "../agents/agent-types";
 import type { ResolveModelAlias } from "../agents/model-alias";
 import { createChangeEmitter } from "../change-emitter";
+import { createConversationRemoval } from "../conversation-removal";
+import type { RemovalHooks } from "../removal-hooks";
 import { createStatusTracker } from "../status/status-tracker";
 import { FAUX_MODELS } from "../testing/faux-provider";
 import { createFauxScript } from "../testing/faux-script";
@@ -22,6 +24,7 @@ import { legacyWorkspace } from "./conversation-index";
 import { createConversationStore } from "./conversation-store";
 import { BACKGROUND, openAgentHarness, openSqliteStorage } from "./open";
 import { createAgentRegistry } from "./registry";
+import { createSubagentRemover } from "./subagent-removal";
 import type { SubagentServices } from "./subagent-services";
 import { clampThinkingFor } from "./tools/agent-thinking";
 import { createToolServicesRef } from "./tools/tool-file";
@@ -111,6 +114,18 @@ export async function openRig(root: string, projectPath: string, options: RigOpt
   });
   const store = createConversationStore(harness, async () => project.path);
   const workspaces = createWorkspaceService({ home: join(root, "home"), conversations: store });
+  const hooks: RemovalHooks = {
+    unmergedWork: (thread) => workspaces.unmergedWork(thread),
+    onConversationRemoved: [(thread) => workspaces.onConversationRemoved(thread)],
+    onProjectRemoved: [],
+  };
+  const removal = createConversationRemoval({
+    conversations: store,
+    hooks,
+    now: Date.now,
+    announce: () => {},
+  });
+  const remover = createSubagentRemover({ conversations: store, hooks, removal });
   const connected = options.connected ?? [FAUX, FAUX_TWO];
   toolServices.set({
     connectedModels: async () => connected,
@@ -121,6 +136,7 @@ export async function openRig(root: string, projectPath: string, options: RigOpt
       clampThinking: (ref: ModelRef, level: ThinkingLevel) => clampThinkingFor(models, ref, level),
       projectOf: async () => project,
       workspaces,
+      removeSubagent: (id: string, force: boolean) => remover.remove(id, force),
       ...options.services,
     },
   } as never);

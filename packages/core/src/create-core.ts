@@ -24,6 +24,7 @@ import { harnessNotificationSubmitter } from "./harness/notification-submitter";
 import { BACKGROUND, openAgentHarness, openSqliteStorage } from "./harness/open";
 import { createProjectStore } from "./harness/project-store";
 import { createAgentRegistry } from "./harness/registry";
+import { createSubagentRemover } from "./harness/subagent-removal";
 import { clampThinkingFor } from "./harness/tools/agent-thinking";
 import { createToolServicesRef } from "./harness/tools/tool-file";
 import { openDataHome } from "./home/data-home";
@@ -197,6 +198,7 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
         fastModel: async () => (await settings.get()).fastModel ?? undefined,
         clampThinking: (ref, level) => clampThinkingFor(provider.models, ref, level),
         projectOf: (id) => projects.require(id),
+        removeSubagent: (id, force) => subagentRemover.remove(id, force),
         workspaces,
       },
       connectedModels: async () =>
@@ -219,6 +221,7 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
       now: deps.now,
       announce: (projectId) => changes.emit({ resource: "conversations", projectId }),
     });
+    const subagentRemover = createSubagentRemover({ conversations, hooks: removalHooks, removal });
     const archivedCleanup = createArchivedCleanup({
       conversations,
       removal,

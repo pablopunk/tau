@@ -4,7 +4,7 @@ import { ConversationDoc, type IndexedConversation, ProjectIndexDoc } from "./co
 type Context = Parameters<PromptSection["render"]>[1];
 
 export const SUBAGENTS_INTRO =
-  "These are your subagents. They are persistent threads the user can open from the sidebar. Continue one with send_message (pass its id as `to`), stop it with stop_agent, and see them all with list_agents. Their reports arrive as notifications: do not poll.";
+  "These are your subagents. They are persistent threads the user can open from the sidebar. Continue one with send_message (pass its id as `to`), stop it with stop_agent, delete finished ones with remove_agent, and see them all with list_agents. Their reports arrive as notifications: do not poll.";
 
 const activeAt = (entry: IndexedConversation) =>
   new Date(entry.lastRunEndedAt ?? entry.updatedAt).toISOString();

@@ -11,7 +11,7 @@ export const AGENT_DESCRIPTION = [
   "- Set `run_in_background: false` only when you cannot continue without the answer. The call then waits and returns the final report.",
   "- Launch independent subagents in the same turn so they run in parallel.",
   "- Never invent or guess a subagent's result. Until its notification arrives, say that it is still running. A notification can be queued until the user's next message when your last run failed.",
-  "- Subagents cannot start subagents. Use send_message to continue one, stop_agent to stop one, list_agents to see yours.",
+  "- Subagents cannot start subagents. Use send_message to continue one, stop_agent to stop one, remove_agent to delete finished ones, list_agents to see yours.",
 ].join("\n");
 
 export const SEND_MESSAGE_DESCRIPTION = [
@@ -30,4 +30,10 @@ export const MERGE_AGENT_DESCRIPTION = [
   "Merge the committed work of a subagent that has its own worktree into this thread's checkout (rebase, then fast-forward only).",
   "It refuses while the subagent is running: wait for its notification first.",
   "On a conflict it fails: use send_message to ask the subagent to rebase onto the base branch and resolve the conflicts, wait for its notification, then call merge_agent again.",
+].join("\n");
+
+export const REMOVE_AGENT_DESCRIPTION = [
+  "Delete subagent threads by id (`ids`, one or several) so they leave the sidebar. Use it for subagents that are done, stopped or failed and whose result you no longer need.",
+  "It refuses a subagent that is still running: call stop_agent first. It refuses a subagent whose worktree has unmerged work: call merge_agent first, or pass `force: true` only when the user agreed to discard that work.",
+  "Removal cannot be undone.",
 ].join("\n");

@@ -13,6 +13,7 @@ import { processListToolFile } from "./tools/process-list";
 import { processLogsToolFile } from "./tools/process-logs";
 import { processStartToolFile } from "./tools/process-start";
 import { processStopToolFile } from "./tools/process-stop";
+import { removeAgentToolFile } from "./tools/remove-agent";
 import { scheduleRepeatToolFile } from "./tools/schedule-repeat";
 import { scheduleWakeupToolFile } from "./tools/schedule-wakeup";
 import { sendMessageToolFile } from "./tools/send-message";
@@ -30,6 +31,7 @@ export const TOOL_FILES: readonly ToolFileFactory[] = [
   stopAgentToolFile,
   listAgentsToolFile,
   mergeAgentToolFile,
+  removeAgentToolFile,
   todoWriteToolFile,
   mcpSearchToolFile,
   mcpCallToolFile,

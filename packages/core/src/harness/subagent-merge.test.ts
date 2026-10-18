@@ -98,3 +98,23 @@ describe("merge_agent", () => {
     expect(await transcript(parent.id)).toContain("has no worktree");
   });
 });
+
+describe("remove_agent with a worktree", () => {
+  it("refuses unmerged work, then removes it with force", async () => {
+    const { parent, child } = await isolatedChild(writeAndCommit("note.txt", "hi"));
+    await rig.notified(parent.id);
+    await callOnParent(parent.id, "remove_agent", { ids: [child.id] });
+    expect(await transcript(parent.id)).toContain("force true");
+    expect(await rig.store.find(child.id)).toBeDefined();
+    await callOnParent(parent.id, "remove_agent", { ids: [child.id], force: true });
+    expect(await rig.store.find(child.id)).toBeUndefined();
+  });
+
+  it("removes a merged child without force", async () => {
+    const { parent, child } = await isolatedChild(writeAndCommit("note.txt", "hi"));
+    await rig.notified(parent.id);
+    await callOnParent(parent.id, "merge_agent", { id: child.id });
+    await callOnParent(parent.id, "remove_agent", { ids: [child.id] });
+    expect(await rig.store.find(child.id)).toBeUndefined();
+  });
+});

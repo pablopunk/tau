@@ -4,6 +4,7 @@ export const SUBAGENT_TOOL_NAMES: readonly string[] = [
   "stop_agent",
   "list_agents",
   "merge_agent",
+  "remove_agent",
 ];
 
 /** Timers belong to the parent thread; a subagent never gets them (MVP8.md section 4). */

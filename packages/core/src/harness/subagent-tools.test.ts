@@ -123,6 +123,44 @@ describe("stop_agent", () => {
   });
 });
 
+describe("remove_agent", () => {
+  it("deletes finished children, several at once, and forgets them", async () => {
+    const { parent, child } = await startParentWithChild("hello");
+    await rig.notified(parent.id);
+    await callOnParent(parent.id, "remove_agent", { ids: [child.id, "999"] });
+    const text = await transcript(parent.id);
+    expect(text).toContain(`Removed subagent ${child.id}`);
+    expect(text).toContain("is not one of this thread's subagents");
+    expect(await rig.store.find(child.id)).toBeUndefined();
+    expect(await rig.childrenOf(parent.id)).toEqual([]);
+  });
+
+  it("refuses a running child and says to stop it first", async () => {
+    const { parent, child } = await startParentWithChild("bash sleep 30");
+    await rig.until(async () => (await rig.store.find(child.id))?.status === "running");
+    await callOnParent(parent.id, "remove_agent", { ids: [child.id] });
+    expect(await transcript(parent.id)).toContain("Call stop_agent first");
+    expect(await rig.store.find(child.id)).toBeDefined();
+  });
+
+  it("removes a stopped child", async () => {
+    const { parent, child } = await startParentWithChild("bash sleep 30");
+    await rig.until(async () => (await rig.store.find(child.id))?.status === "running");
+    await callOnParent(parent.id, "stop_agent", { id: child.id });
+    await rig.notified(parent.id);
+    await callOnParent(parent.id, "remove_agent", { ids: [child.id] });
+    expect(await rig.store.find(child.id)).toBeUndefined();
+  });
+
+  it("refuses a thread that is not one of its subagents", async () => {
+    const parent = await rig.start("hello");
+    await rig.idle(parent.id);
+    await callOnParent(parent.id, "remove_agent", { ids: [parent.id] });
+    expect(await transcript(parent.id)).toContain("is not one of this thread's subagents");
+    expect(await rig.store.find(parent.id)).toBeDefined();
+  });
+});
+
 describe("list_agents", () => {
   it("lists id, description, type, model and status", async () => {
     const { parent, child } = await startParentWithChild("hello");

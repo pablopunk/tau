@@ -10,6 +10,7 @@ export interface SubagentServices {
   readonly fastModel: () => Promise<ModelRef | undefined>;
   readonly clampThinking: (model: ModelRef, level: ThinkingLevel) => ThinkingLevel;
   readonly projectOf: (projectId: string) => Promise<Project>;
+  readonly removeSubagent: (id: string, force: boolean) => Promise<void>;
   readonly workspaces: Pick<WorkspaceService, "create" | "merge">;
 }
 
