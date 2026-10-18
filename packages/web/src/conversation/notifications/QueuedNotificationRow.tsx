@@ -18,7 +18,9 @@ export function QueuedNotificationRow({ text }: { text: string }) {
   const status = attribute(attrs, "status");
   const summary =
     tag === "subagent-notification"
-      ? `Subagent ${title ?? ""} ${notificationVerb((status ?? "done") as Parameters<typeof notificationVerb>[0])}`
+      ? ["Subagent", title, notificationVerb((status ?? "done") as Parameters<typeof notificationVerb>[0])]
+          .filter(Boolean)
+          .join(" ")
       : tag.replace(/-/g, " ");
   return (
     <Collapsible data-testid="queued-notification" className="rounded-lg border bg-card text-sm opacity-70">
