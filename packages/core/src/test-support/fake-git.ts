@@ -5,8 +5,8 @@ const SCRIPT = `#!/bin/sh
 if [ "$1" = "--version" ]; then echo "git version 2.0.0"; exit 0; fi
 echo "$@" > "$FAKE_GIT_DIR/args"
 sleep 600 &
-echo $! > "$FAKE_GIT_DIR/sleeper.pid"
-echo $$ > "$FAKE_GIT_DIR/git.pid"
+echo $$ > "$FAKE_GIT_DIR/git.pid.tmp" && mv "$FAKE_GIT_DIR/git.pid.tmp" "$FAKE_GIT_DIR/git.pid"
+echo $! > "$FAKE_GIT_DIR/sleeper.pid.tmp" && mv "$FAKE_GIT_DIR/sleeper.pid.tmp" "$FAKE_GIT_DIR/sleeper.pid"
 wait
 `;
 
