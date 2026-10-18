@@ -1,5 +1,6 @@
 import { type LifecycleDeps, managerOf, realLifecycleDeps } from "./deps";
 import { lifecycleFlagsOf } from "./flags";
+import { NO_EXTRAS, renderExtras, type StatusExtras } from "./status-extras";
 
 export interface StatusReport {
   readonly installed: boolean;
@@ -12,6 +13,9 @@ export interface StatusReport {
   readonly node: string | null;
   readonly nodeMissing: boolean;
   readonly warnings: readonly string[];
+  readonly uptimeSeconds: StatusExtras["uptimeSeconds"];
+  readonly lastExit: StatusExtras["lastExit"];
+  readonly tunnel: StatusExtras["tunnel"];
 }
 
 export async function gatherStatus(deps: LifecycleDeps, home: string): Promise<StatusReport> {
@@ -21,6 +25,7 @@ export async function gatherStatus(deps: LifecycleDeps, home: string): Promise<S
     manager.state(),
     deps.readInstance(home),
   ]);
+  const extras = (await deps.extras?.(home, instance)) ?? NO_EXTRAS;
   const recorded = manager.recorded();
   const nodeMissing = installed && recorded !== undefined && !deps.fileExists(recorded.node);
   const cliVersion = deps.version();
@@ -42,6 +47,7 @@ export async function gatherStatus(deps: LifecycleDeps, home: string): Promise<S
     node: recorded?.node ?? null,
     nodeMissing,
     warnings,
+    ...extras,
   };
 }
 
@@ -55,6 +61,7 @@ export function renderStatus(report: StatusReport): string {
     `version: ${report.version ?? "-"}`,
     `home: ${report.home}`,
     `node: ${report.node ?? "-"}${report.nodeMissing ? " (missing)" : ""}`,
+    ...renderExtras(report),
     ...report.warnings.map((warning) => `warning: ${warning}`),
   ].join("\n");
 }

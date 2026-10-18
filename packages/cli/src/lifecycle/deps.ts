@@ -4,6 +4,7 @@ import { realContext, type ServiceContext } from "../service/context";
 import { createServiceManager, type ServiceManager } from "../service/manager";
 import { readOrCreateToken } from "../token";
 import { cliVersion } from "../version";
+import { realExtras, type StatusExtras } from "./status-extras";
 
 export interface LifecycleDeps {
   readonly context: ServiceContext;
@@ -15,6 +16,8 @@ export interface LifecycleDeps {
   readonly openBrowser: (url: string) => Promise<void>;
   readonly out: (message: string) => void;
   readonly fileExists: (path: string) => boolean;
+  /** Uptime, last exit and tunnel for `tau status`; absent in tests that do not need them. */
+  readonly extras?: (home: string, instance: LockInfo | undefined) => Promise<StatusExtras>;
 }
 
 export const withToken = (origin: string, token: string) => `${origin}/?token=${encodeURIComponent(token)}`;
@@ -40,5 +43,6 @@ export async function realLifecycleDeps(): Promise<LifecycleDeps> {
     },
     out: (message) => console.log(message),
     fileExists: existsSync,
+    extras: realExtras,
   };
 }

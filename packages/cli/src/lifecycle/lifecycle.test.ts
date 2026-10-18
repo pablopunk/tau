@@ -85,6 +85,22 @@ describe("status", () => {
     });
   });
 
+  it("adds uptime, last exit and tunnel state in text and JSON", async () => {
+    const { deps, output } = setup({ instance: RUNNING });
+    const extras = {
+      uptimeSeconds: 3700,
+      lastExit: { reason: "watchdog", at: 0 },
+      tunnel: { state: "online" as const, url: "https://x.opentunnel.xyz", message: null },
+    };
+    const withExtras = { ...deps, extras: async () => extras };
+    await runStatusWith(withExtras, []);
+    expect(output[0]).toContain("uptime: 1h 1m");
+    expect(output[0]).toContain("last exit: watchdog at 1970-01-01");
+    expect(output[0]).toContain("tunnel: online https://x.opentunnel.xyz");
+    await runStatusWith(withExtras, ["--json"]);
+    expect(JSON.parse(output[1] ?? "")).toMatchObject({ uptimeSeconds: 3700, tunnel: { state: "online" } });
+  });
+
   it("says running (foreground) when the manager runs another pid", async () => {
     const { machine, deps, output } = setup({ instance: { ...RUNNING, pid: 99 } });
     await createServiceManager(machine.context, CLI, machine.tauHome).install();
