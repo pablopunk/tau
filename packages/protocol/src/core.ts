@@ -351,7 +351,7 @@ export interface Core {
     revokeDevice(id: string): Promise<void>;
     /** Drops browsers, phones and cli devices, not machines. */
     signOutAll(): Promise<void>;
-    /** Single use, five minutes, at most five live; the oldest is dropped. Rejects `invalid_request` for a machine pairing without remote. */
+    /** Single use, five minutes, at most five live; the oldest is dropped. A machine pairing without remote has a `null` link (machines are Stage 2). */
     mintPairing(input: MintPairingInput): Promise<MintedPairing>;
     /** Takes the link code or the short code. Rejects `unauthorized` (generic text) for a wrong or burnt code and for a locked peer. */
     redeemPairing(input: RedeemPairingInput): Promise<RedeemedPairing>;

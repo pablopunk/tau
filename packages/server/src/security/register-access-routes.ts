@@ -31,7 +31,11 @@ function registerRedeem({ core, tunnel }: AccessRouteDeps, app: FastifyInstance)
     { schema: { body: routes.redeemPairing.body } },
     async (request: FastifyRequest<{ Body: { code: string; deviceName: string } }>, reply) => {
       const tag = tunnel.tagOf(request.raw.socket);
-      const redeemed = await core.access.redeemPairing({ ...request.body, peer: tag?.peer ?? LOCAL_PEER });
+      const redeemed = await core.access.redeemPairing({
+        ...request.body,
+        peer: tag?.peer ?? LOCAL_PEER,
+        userAgent: request.headers["user-agent"],
+      });
       if (redeemed.kind === "machine") return { deviceId: redeemed.deviceId, secret: redeemed.secret };
       setDeviceCookie(reply, redeemed.secret, tag !== undefined);
       return { deviceId: redeemed.deviceId };

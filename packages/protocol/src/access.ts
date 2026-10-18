@@ -26,8 +26,18 @@ export const PairingKindSchema = Type.Union([Type.Literal("device"), Type.Litera
 export type PairingKind = Type.Static<typeof PairingKindSchema>;
 
 /** The query of `POST /api/pair` (no body, so `tau pair new` needs none). */
-export const MintPairingInputSchema = Type.Object({ kind: Type.Optional(PairingKindSchema) });
+export const MintPairingInputSchema = Type.Object({
+  kind: Type.Optional(PairingKindSchema),
+  /** A label for the new device, carried in the link as `#<code>.<name>`. */
+  name: Type.Optional(Type.String({ maxLength: 120 })),
+});
 export type MintPairingInput = Type.Static<typeof MintPairingInputSchema>;
+
+/** The one place that builds a pairing link: `<url>/pair#<code>[.<name>]`. */
+export function pairingLink(url: string, code: string, name?: string): string {
+  const label = name?.trim();
+  return `${url}/pair#${code}${label ? `.${encodeURIComponent(label)}` : ""}`;
+}
 
 export const PAIRING_TTL_MS = 5 * 60 * 1000;
 export const MAX_LIVE_PAIRINGS = 5;
@@ -60,6 +70,8 @@ export type RedeemPairingResponse = Type.Static<typeof RedeemPairingResponseSche
 /** What `Core.access.redeemPairing` takes: the body plus where the request came from (PROXY peer or loopback). */
 export interface RedeemPairingInput extends RedeemPairingBody {
   readonly peer: string;
+  /** The `User-Agent`, used for the device name when the body has none. */
+  readonly userAgent?: string;
 }
 
 export interface RedeemedPairing {

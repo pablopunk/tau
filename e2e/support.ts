@@ -107,4 +107,5 @@ export const serverEnvironment = () => ({
   OPENCODE_API_KEY: "",
   TAU_ALLOW_FILE_CLONES: "1",
   TAU_FAKE_CLAUDE_CLI: "1",
+  TAU_FAKE_REMOTE: "1",
 });

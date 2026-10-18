@@ -1,4 +1,3 @@
-import { createHash, randomBytes } from "node:crypto";
 import {
   AppError,
   type Change,
@@ -9,6 +8,7 @@ import {
   type MintedPairing,
   PAIRING_TTL_MS,
   type PairingKind,
+  pairingLink,
 } from "@tau/protocol";
 
 export type FakeAccess = Core["access"] & {
@@ -42,10 +42,29 @@ const PEER_LOCK_MS = 10 * 60_000;
 const TOUCH_THROTTLE_MS = 60_000;
 const WRONG_CODE = "That code did not work.";
 
-const sha256 = (value: string) => createHash("sha256").update(value).digest("hex");
+/** Browser-safe random hex (this is a fake: no secrets are protected). */
+function randomHex(bytes: number): string {
+  return Array.from(crypto.getRandomValues(new Uint8Array(bytes)), (byte) =>
+    byte.toString(16).padStart(2, "0"),
+  ).join("");
+}
+
+/** A tiny non-cryptographic hash (FNV-1a, twice): enough for a fake store. */
+function sha256(value: string): string {
+  let a = 0x811c9dc5;
+  let b = 0x01000193;
+  for (let index = 0; index < value.length; index++) {
+    a = Math.imul(a ^ value.charCodeAt(index), 0x01000193) >>> 0;
+    b = Math.imul(b + value.charCodeAt(index), 0x85ebca6b) >>> 0;
+  }
+  return `${a.toString(16)}${b.toString(16)}`;
+}
 
 function shortCodeOf(): string {
-  return [...randomBytes(8)].map((byte) => SHORT_ALPHABET[byte % SHORT_ALPHABET.length]).join("");
+  return Array.from(
+    crypto.getRandomValues(new Uint8Array(8)),
+    (byte) => SHORT_ALPHABET[byte % SHORT_ALPHABET.length],
+  ).join("");
 }
 
 function kindForName(name: string): DeviceKind {
@@ -112,8 +131,8 @@ export function createFakeAccess({ now, emit, remoteUrl }: FakeAccessOptions): F
       for (const [id, { device }] of [...devices]) if (device.kind !== "machine") devices.delete(id);
       announce();
     },
-    async mintPairing({ kind = "device" }): Promise<MintedPairing> {
-      const code = randomBytes(16).toString("hex");
+    async mintPairing({ kind = "device", name }): Promise<MintedPairing> {
+      const code = randomHex(16);
       const entry: Pending = { kind, code, shortCode: shortCodeOf(), expiresAt: now() + PAIRING_TTL_MS };
       const live = livePairings();
       live.push(entry);
@@ -123,7 +142,7 @@ export function createFakeAccess({ now, emit, remoteUrl }: FakeAccessOptions): F
         kind,
         code,
         shortCode: entry.shortCode,
-        link: url === null ? null : `${url}/pair#${code}`,
+        link: url === null ? null : pairingLink(url, code, name),
         expiresAt: entry.expiresAt,
       };
     },
@@ -139,7 +158,7 @@ export function createFakeAccess({ now, emit, remoteUrl }: FakeAccessOptions): F
         throw new AppError("unauthorized", WRONG_CODE);
       }
       pending.splice(index, 1);
-      const secret = randomBytes(32).toString("hex");
+      const secret = randomHex(32);
       const kind: DeviceKind = found.kind === "machine" ? "machine" : kindForName(deviceName);
       const id = `device-${++counter}`;
       const at = now();

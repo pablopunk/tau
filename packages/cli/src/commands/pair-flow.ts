@@ -70,10 +70,6 @@ export async function ensureRemoteOnline(server: Server, env: CommandEnv): Promi
   await waitUntilOnline(server, env, status);
 }
 
-export function nameInLink(link: string, name: string): string {
-  return `${link}.${encodeURIComponent(name)}`;
-}
-
 async function printPairing(env: CommandEnv, pairing: MintedPairing, link: string): Promise<void> {
   const qr = await QRCode.toString(link, { type: "terminal", small: true });
   env.stdout(`\n${qr}`);
@@ -114,10 +110,10 @@ export async function runPairFlow(argv: readonly string[], env: CommandEnv): Pro
   const pairing = (await callRoute(
     server,
     "mintPairing",
-    { query: { kind: "device" } },
+    { query: { kind: "device", name } },
     env,
   )) as MintedPairing;
   if (pairing.link === null) throw new CliExit(1, "Remote access has no URL yet. Try again in a moment.");
-  await printPairing(env, pairing, nameInLink(pairing.link, name));
+  await printPairing(env, pairing, pairing.link);
   await waitForLinkedDevice(server, env, known, pairing.expiresAt);
 }

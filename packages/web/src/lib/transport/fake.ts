@@ -213,10 +213,12 @@ async function seedReadyState(core: Core): Promise<void> {
   await core.projects.add({ path: READY_PROJECT });
 }
 
-/** The in-browser backend of `VITE_FAKE=1`. Add `?fake=ready` to the URL to start past setup, with a project. */
+/** The in-browser backend of `VITE_FAKE=1`. Add `?fake=ready` to the URL to start past setup, with a project and remote on (`&remote=off` starts with it off). */
 export async function createDefaultFakeTransport(): Promise<Transport> {
-  const ready = new URLSearchParams(window.location.search).get("fake") === "ready";
-  const core = createFakeCore({ configured: ready });
+  const params = new URLSearchParams(window.location.search);
+  const ready = params.get("fake") === "ready";
+  const remote = ready && params.get("remote") !== "off";
+  const core = createFakeCore({ configured: ready, remote });
   if (ready) await seedReadyState(core);
   return createFakeTransport(core);
 }

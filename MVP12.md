@@ -242,3 +242,33 @@ Run on macOS arm64 (Darwin), Node 22.22.3, `@opentunnel/client` 0.5.2, `effect` 
 - **C** `server/src/security/**`: the guard split, `tunnel-listener.ts` (PROXY v2), `proxy-v2.ts`, `allow-list.ts`, `device-sockets.ts`, `pair-page.ts` and `register-access-routes.ts` already work and the suite passes. Left: the per-peer rate limiter belongs in `Core.access.redeemPairing` (A), but the machine-link limit (Stage 2) and a global backstop log are C's; `/live` subscribe and terminal attach should re-check the device (`DeviceSockets.count`) as a second line; polish the pair page (short-code field, error text, dark mode); `it.todo` machine-branch tests are written as todos.
 - **D** `web/src/settings/Remote*`: `RemoteSection.tsx` is a placeholder with the three `data-setting-id` rows (`remote-access`, `link-device`, `devices`); `components/ui/qr-code.tsx` works (inline SVG); hooks `useRemoteStatus`, `useDevices`, `useEnableRemote`, `useDisableRemote`, `useRecreateRemote`, `useMintPairing`, `useRenameDevice`, `useRevokeDevice`, `useSignOutAllDevices` and the `remote`/`devices` invalidation exist; `api.remote.*`, `api.access.*` (`redeemPairing` only for the fake) and the fake transport handlers work (fake core: `createFakeCore({ remote: true })`, `FakeCore.remoteControl.push`; the first redeemed fake device `device-1` is "this device").
 - **E** `cli/**`: `tau remote status|on|off`, `tau devices list|rename|revoke`, `tau pair new` come from the command table; `commands/pair-command.ts` is a stub for `tau pair` (QR with the `qrcode` text renderer, wait for "Linked: …", enable remote when needed). `tau status` uptime, last exit and tunnel state are E's (read `last-exit.json`, `/api/remote`).
+
+## Integration results (Stage 1)
+
+Integrator decisions (owner notes applied):
+
+- **Device name**: `RedeemPairingInput.userAgent` (set by the server from the `User-Agent` header); `core/src/access` defaults an empty `deviceName` with `nameFromUserAgent` ("Safari on iPhone").
+- **Link with the name, one place**: `pairingLink(url, code, name?)` in `protocol/src/access.ts` builds `<url>/pair#<code>[.<name>]`; `mintPairing` takes an optional `name` (query `?name=`). The CLI passes `name` and no longer appends it (`nameInLink` is gone); core and the testkit fake both call `pairingLink`.
+- **Machine pairing without remote**: kept as is for Stage 1 (link is `null`, no rejection; machines are Stage 2); the `Core.access.mintPairing` doc now says so.
+- **Revoke cuts sockets**: already wired (`create-server.ts` reaps sockets of gone devices on every `devices` change, and the revoke route closes them). New test with the real core and real server: `packages/cli/src/revoke-sockets.test.ts` (redeem with the User-Agent name, open `/api/live` with the device cookie, revoke, expect close 1008 and 401).
+- **Web fake mode**: `fake-access.ts` no longer imports `node:crypto` (Web Crypto and a tiny non-cryptographic hash). `?fake=ready` now starts with remote on (`&remote=off` starts it off).
+- **Fake tunnel for e2e**: `TAU_FAKE_REMOTE=1` makes `defaultCoreDependencies` use `createFakeRemoteAdapter` (hostnames `fake-<n>.tunnel.test`, no network). `e2e/support.ts` sets it for the e2e server. The fake tunnel has no tunnel listener route, so the "second device" redeems on the loopback pair page (`/pair`, untagged socket, same flow and cookie without `Secure`). Spec: `e2e/tests/mvp12-remote.spec.ts` (Settings switch, link dialog, short code, redeem from a second browser context, "Linked: …", revoke from the devices list, the second context's `/api/settings` becomes 401 and its WebSocket closes).
+- **Owner open points checked**: `Settings.remote.enabled` stays `true` while a crash-loop hold keeps the tunnel down for that run (status shows the hold reason; a later normal start reconnects). `running.json` is `{startedAt}`, `last-exit.json` is `{reason, at, detail?}`; `tau status` reads both (seen working below). The watchdog worker runs from the built bundle (`dist/watchdog.js`, the server process had 14 threads under `serve --service`). The tunnel target ref is set after the server binds (`run.ts`), and the real tunnel connected.
+- Biome ignores `components/ui` (only `tsc` covers it).
+
+Real tunnel run (macOS arm64, built CLI, scratch home under `/tmp`, random port, `serve --faux --service`), one tunnel created and removed:
+
+| Step | Result |
+|---|---|
+| `tau pair --name …` with remote off | enabled remote, printed "first time takes a few minutes", **online after 4 min 0 s** (certificate), then QR, link, short code `XXXX XXXX`, warning |
+| No cookie: `/`, `/api/settings`, `/assets/x.js` | 401 each |
+| `/api/health` | 200 `{"ok":true}` |
+| Master token over the public URL (Bearer and `?token=`) | 401 both |
+| `/pair` | 200 |
+| Fresh browser profile on the https URL, typed the short code, real clicks | linked in the browser, `tau pair` printed "Linked: Chrome on Mac" |
+| Through the tunnel: setup wizard, new thread (faux reply streamed over `/api/live`), terminal (typed `echo tun42`, output `tun42`, binary WebSocket both ways) | all worked |
+| Revoke (`tau devices revoke <id> --yes`) | the open `wss` `/api/live` closed with 1008 within 2 s; `/api/settings` and `/api/conversations` 401 |
+| Server restart with the same home (SIGTERM, start) | same URL, **online 2 s after start**; `last exit: signal`, `tunnel: online <url>` in `tau status` |
+| `tau remote off --yes` | 1 s; `<home>/remote/opentunnel/` empty, status `off`, public URL no longer answers, `pendingRemoval: false` |
+
+Notes: SIGTERM is recorded as `signal` (not `clean`); a first start on a fresh home prints "previous run ended: unknown". Neither blocks Stage 1. A real phone is pin (i), still the user's.

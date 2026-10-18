@@ -48,6 +48,7 @@ import { createPresentProject } from "./project-view";
 import { createProjectsApi } from "./projects-api";
 import { createProviderService, type Environment } from "./provider/provider-service";
 import { createProvidersApi } from "./providers-api";
+import { createFakeRemoteAdapter } from "./remote/fake-adapter";
 import { createOpenTunnelAdapter } from "./remote/opentunnel-adapter";
 import type { RemoteAdapter, RemoteAdapterDeps } from "./remote/ports";
 import { createRemoteService } from "./remote/remote-service";
@@ -100,6 +101,7 @@ export const defaultCoreDependencies = (): CoreDependencies => {
     ghPath,
     onFatal: exitAfterLogging,
     terminalDaemon: createLocalTerminalDaemon(process.env),
+    ...(process.env.TAU_FAKE_REMOTE === "1" && { remoteAdapter: () => createFakeRemoteAdapter() }),
   };
 };
 

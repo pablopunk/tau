@@ -1,3 +1,4 @@
+import { hostname } from "node:os";
 import { describe, expect, it } from "vitest";
 import { executePair } from "./pair-command";
 import { FakeTau, makeHome } from "./test-support";
@@ -35,7 +36,13 @@ function clockedEnv(tau: FakeTau, onSleep: (now: number) => void = () => undefin
 function scriptPairing(tau: FakeTau, remote: object = REMOTE_ON) {
   tau.answers.set("GET /api/remote", { status: 200, body: remote });
   tau.answers.set("GET /api/access/devices", { status: 200, body: [] });
-  tau.answers.set("POST /api/pair?kind=device", { status: 200, body: PAIRING });
+  for (const name of [hostname(), "my mac"]) {
+    const link = `${PAIRING.link}.${encodeURIComponent(name)}`;
+    tau.answers.set(`POST /api/pair?${new URLSearchParams({ kind: "device", name })}`, {
+      status: 200,
+      body: { ...PAIRING, link },
+    });
+  }
 }
 
 describe("tau pair", () => {

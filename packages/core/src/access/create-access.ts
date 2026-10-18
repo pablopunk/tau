@@ -1,5 +1,5 @@
-import { AppError, type Core, type Device, type DeviceKind } from "@tau/protocol";
-import { deviceKindFromName } from "./device-names";
+import { AppError, type Core, type Device, type DeviceKind, pairingLink } from "@tau/protocol";
+import { deviceKindFromName, nameFromUserAgent } from "./device-names";
 import { createPairingCodes, looksLikeShortCode } from "./pairing-codes";
 import type { AccessDeps, StoredDevice } from "./ports";
 import { createRedeemLimits } from "./redeem-limits";
@@ -57,7 +57,7 @@ export function createAccess(deps: AccessDeps): AccessService {
     const at = deps.now();
     const device: StoredDevice = {
       id: deps.randomBytes(8).toString("hex"),
-      name: input.deviceName.trim() || "Unnamed device",
+      name: input.deviceName.trim() || nameFromUserAgent(input.userAgent),
       kind,
       createdAt: at,
       lastSeenAt: at,
@@ -103,14 +103,14 @@ export function createAccess(deps: AccessDeps): AccessService {
       await save((await load()).filter((device) => device.kind === "machine"));
       deps.announce();
     },
-    async mintPairing({ kind = "device" }) {
+    async mintPairing({ kind = "device", name }) {
       const entry = codes.mint(kind);
       const url = deps.remoteUrl();
       return {
         kind,
         code: entry.code,
         shortCode: entry.shortCode,
-        link: url === null ? null : `${url}/pair#${entry.code}`,
+        link: url === null ? null : pairingLink(url, entry.code, name),
         expiresAt: entry.expiresAt,
       };
     },
