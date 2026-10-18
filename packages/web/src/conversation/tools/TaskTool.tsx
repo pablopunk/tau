@@ -43,7 +43,6 @@ export function TaskTool({ state }: ToolRendererProps) {
       title={cardTitle(continued, child?.title)}
       subtitle={argText(state, "description")}
       status={state.status}
-      defaultOpen
     >
       {child ? <OpenChildLink child={child} /> : null}
       {answer ? <OutputBlock text={answer} label="Answer" /> : null}

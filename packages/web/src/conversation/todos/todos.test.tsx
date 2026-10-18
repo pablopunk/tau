@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ConversationView } from "@tau/protocol";
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { MemoryRouter } from "react-router";
 import { describe, expect, it, vi } from "vitest";
@@ -44,7 +45,7 @@ function callState(name: string, args: Record<string, unknown>, details?: unknow
 }
 
 function renderWithClient(ui: ReactNode, children = [conversation({ id: "9", projectId: "p7" })]) {
-  const client = new QueryClient();
+  const client = new QueryClient({ defaultOptions: { queries: { staleTime: Infinity } } });
   client.setQueryData(queryKeys.allConversations, children);
   return render(
     <MemoryRouter>
@@ -95,12 +96,13 @@ describe("<TodoTool> history", () => {
 });
 
 describe("<TaskTool>", () => {
-  it("shows the description and links to the child thread", () => {
+  it("shows the description and links to the child thread", async () => {
     renderWithClient(
       <TaskTool state={callState("task", { description: "look around" }, { conversationId: "9" })} />,
     );
+    await userEvent.click(screen.getByRole("button"));
     expect(screen.getByText("look around")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Open" })).toHaveAttribute("href", "/p/p7/c/9");
+    expect(await screen.findByRole("link", { name: "Open" })).toHaveAttribute("href", "/p/p7/c/9");
   });
 
   it("labels a new subagent", () => {
@@ -108,12 +110,13 @@ describe("<TaskTool>", () => {
     expect(screen.getByText("New subagent")).toBeInTheDocument();
   });
 
-  it("labels a continued subagent and still links to it", () => {
+  it("labels a continued subagent and still links to it", async () => {
     renderWithClient(
       <TaskTool state={callState("task", { description: "more", subagent: "9" }, { conversationId: "9" })} />,
     );
+    await userEvent.click(screen.getByRole("button"));
     expect(screen.getByText(/^Continued/)).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Open" })).toHaveAttribute("href", "/p/p7/c/9");
+    expect(await screen.findByRole("link", { name: "Open" })).toHaveAttribute("href", "/p/p7/c/9");
   });
 
   it("has no link before the child exists", () => {

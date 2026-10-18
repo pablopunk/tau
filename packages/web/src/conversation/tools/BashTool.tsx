@@ -36,7 +36,6 @@ export function BashTool({ state }: ToolRendererProps) {
       subtitle={argText(state, "command")}
       status={state.status}
       badge={<ExitBadge state={state} />}
-      defaultOpen={isActive(state.status) || state.status === "error"}
     >
       {output ? <OutputBlock text={output} label="Command output" keep="end" /> : null}
       {wasTruncated(state) ? <p className="text-xs text-muted-foreground">Output was truncated.</p> : null}
