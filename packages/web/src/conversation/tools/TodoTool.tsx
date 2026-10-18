@@ -1,10 +1,10 @@
 import { ListChecks } from "lucide-react";
 import { useIsSupersededTodoCall } from "../todos/latest-todo-call";
-import { TodoList } from "../todos/TodoList";
-import { doneCount, parseTodos } from "../todos/todo-items";
+import { parseTodos, todoSummary } from "../todos/todo-items";
 import { ToolCard } from "./ToolCard";
 import type { ToolRendererProps } from "./types";
 
+/** Transcript shows only a one-line summary; the full list lives in the panel above the input. */
 export function TodoTool({ state }: ToolRendererProps) {
   const todos = parseTodos(state.call.arguments?.todos);
   const superseded = useIsSupersededTodoCall(state.call.id);
@@ -12,11 +12,8 @@ export function TodoTool({ state }: ToolRendererProps) {
     <ToolCard
       icon={<ListChecks />}
       title={superseded ? "Updated todos" : "Todos"}
-      subtitle={todos.length ? `${doneCount(todos)}/${todos.length} done` : undefined}
+      subtitle={todoSummary(todos)}
       status={state.status}
-      defaultOpen={!superseded}
-    >
-      {todos.length ? <TodoList todos={todos} /> : null}
-    </ToolCard>
+    />
   );
 }
