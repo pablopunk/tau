@@ -3,12 +3,31 @@ import { Combobox, type ComboboxOption, type ComboboxProps } from "@/components/
 
 const keyOf = (ref: ModelRef) => `${ref.provider}/${ref.modelId}`;
 
-const toOption = (model: ModelInfo): ComboboxOption => ({
-  value: keyOf(model),
-  label: model.name,
-  description: keyOf(model),
-  group: model.providerName,
-});
+const CLAUDE_CLI = "claude-cli";
+
+const ownAlias = (model: ModelInfo) => ` (${model.modelId})`;
+
+const bareName = (model: ModelInfo) =>
+  model.name.endsWith(ownAlias(model)) ? model.name.slice(0, -ownAlias(model).length) : model.name;
+
+export const claudeCliRowLabel = (model: ModelInfo) => `${bareName(model)}${ownAlias(model)}`;
+
+export const claudeCliHeaderLabel = (model: ModelInfo) => `${model.providerName} · ${bareName(model)}`;
+
+function labelOf(model: ModelInfo, selected: boolean): string {
+  if (model.provider !== CLAUDE_CLI) return model.name;
+  return selected ? claudeCliHeaderLabel(model) : claudeCliRowLabel(model);
+}
+
+const toOption =
+  (selectedKey: string | null) =>
+  (model: ModelInfo): ComboboxOption => ({
+    value: keyOf(model),
+    label: labelOf(model, keyOf(model) === selectedKey),
+    description: keyOf(model),
+    group: model.providerName,
+    keywords: [model.modelId],
+  });
 
 interface ModelComboboxProps {
   models: ModelInfo[];
@@ -44,7 +63,7 @@ export function ModelCombobox({
   clearLabel,
   onClear,
 }: ModelComboboxProps) {
-  const options = models.map(toOption);
+  const options = models.map(toOption(value ? keyOf(value) : null));
   const clearOption: ComboboxOption[] = clearLabel ? [{ value: CLEAR_KEY, label: clearLabel }] : [];
   return (
     <Combobox

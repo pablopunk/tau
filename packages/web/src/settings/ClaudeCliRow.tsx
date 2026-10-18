@@ -1,4 +1,4 @@
-import type { ProviderInfo } from "@tau/protocol";
+import type { ClaudeCliStatus, ProviderInfo } from "@tau/protocol";
 import { FormError } from "@/app/FormError";
 import { useSubmit } from "@/app/use-submit";
 import { Badge } from "@/components/ui/badge";
@@ -13,9 +13,19 @@ import {
 import { SettingRow } from "@/components/ui/settings-layout";
 import { useAcknowledgeClaudeCli, useRefreshClaudeCli } from "@/lib/queries";
 import { ClaudeCliNotice } from "./ClaudeCliNotice";
-import { claudeCliAction, claudeCliActionLabel, claudeCliBadge, claudeCliNote } from "./ClaudeCliText";
+import {
+  claudeCliAction,
+  claudeCliActionLabel,
+  claudeCliBadge,
+  claudeCliNote,
+  isUsageWarning,
+} from "./ClaudeCliText";
 
-/** Owner C. Frozen props; `ProviderRow` hands every provider with a `cli` status to this row. */
+function ClaudeCliNote({ cli }: { cli: ClaudeCliStatus }) {
+  const className = isUsageWarning(cli) ? "text-amber-600 dark:text-amber-400" : undefined;
+  return <span className={className}>{claudeCliNote(cli)}</span>;
+}
+
 export function ClaudeCliRow({ provider }: { provider: ProviderInfo }) {
   const acknowledge = useAcknowledgeClaudeCli();
   const refresh = useRefreshClaudeCli();
@@ -30,7 +40,7 @@ export function ClaudeCliRow({ provider }: { provider: ProviderInfo }) {
     <SettingRow id={`provider:${provider.id}`} asChild>
       <ProviderListRow aria-label={provider.name} className="rounded-none!">
         <ProviderListName name={provider.name} />
-        <ProviderListStatus label={badge.label} note={claudeCliNote(cli)}>
+        <ProviderListStatus label={badge.label} note={<ClaudeCliNote cli={cli} />}>
           <Badge variant={badge.destructive ? "destructive" : "secondary"} className="min-w-0 justify-start">
             <span className="truncate">{badge.label}</span>
           </Badge>

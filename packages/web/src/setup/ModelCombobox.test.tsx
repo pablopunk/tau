@@ -26,6 +26,29 @@ describe("ModelCombobox", () => {
     expect(screen.getByRole("group", { name: "Anthropic" })).toHaveTextContent("anthropic/claude-x");
   });
 
+  it("labels Claude CLI rows with the alias, matches it in search and shows the provider in the trigger", async () => {
+    Element.prototype.scrollIntoView = () => {};
+    const user = userEvent.setup();
+    const models = [
+      { ...model("claude-cli", "Claude CLI", "opus"), name: "Opus 5.5" },
+      { ...model("claude-cli", "Claude CLI", "sonnet"), name: "Sonnet 5.5" },
+    ];
+    render(
+      <ModelCombobox
+        models={models}
+        value={{ provider: "claude-cli", modelId: "opus" }}
+        onChange={() => {}}
+        ariaLabel="Model"
+      />,
+    );
+    const trigger = screen.getByRole("combobox", { name: "Model" });
+    expect(trigger).toHaveTextContent("Claude CLI · Opus 5.5");
+    await user.click(trigger);
+    expect(await screen.findByRole("option", { name: /Sonnet 5.5 \(sonnet\)/ })).toBeInTheDocument();
+    await user.keyboard("sonnet");
+    expect(screen.getAllByRole("option")).toHaveLength(1);
+  });
+
   it("highlights only one of two same-named models from different providers", async () => {
     Element.prototype.scrollIntoView = () => {};
     const user = userEvent.setup();
