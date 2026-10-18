@@ -40,7 +40,7 @@ export function useMentionItems(projectId: string | null | undefined, query: str
     .map((skill) => ({
       id: skillItemId(skill.name),
       label: skill.name,
-      description: skill.description,
+      description: skill.scope === "app" ? `App · ${skill.description}` : skill.description,
       group: "Skills",
     }));
   return [...fileItems, ...skillItems];

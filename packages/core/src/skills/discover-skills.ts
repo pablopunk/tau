@@ -1,6 +1,8 @@
+import { existsSync } from "node:fs";
 import { readdir, readFile, realpath, stat } from "node:fs/promises";
 import { homedir } from "node:os";
-import { join, relative, sep } from "node:path";
+import { dirname, join, relative, sep } from "node:path";
+import { fileURLToPath } from "node:url";
 import type { Skill } from "@tau/protocol";
 import { parseSkillFrontmatter } from "./frontmatter";
 
@@ -76,9 +78,24 @@ function firstByName(skills: Skill[]): Skill[] {
   return skills.filter((skill) => !seen.has(skill.name) && seen.add(skill.name));
 }
 
+const hereDirectory = dirname(fileURLToPath(import.meta.url));
+const BUILTIN_SKILL_LOCATIONS = [
+  join(hereDirectory, "builtin", "tau", "SKILL.md"),
+  join(hereDirectory, "skills", "builtin", "tau", "SKILL.md"),
+];
+
+async function builtinSkills(): Promise<Skill[]> {
+  const path = BUILTIN_SKILL_LOCATIONS.find((file) => existsSync(file));
+  const meta = path === undefined ? undefined : parseSkillFrontmatter(await readFile(path, "utf8"));
+  if (path === undefined || !meta) return [];
+  return [
+    { name: meta.name, description: meta.description.slice(0, MAX_DESCRIPTION_CHARS), scope: "app", path },
+  ];
+}
+
 async function scan(projectFolder: string | null, home: string): Promise<Skill[]> {
   const perRoot = await Promise.all(rootsFor(projectFolder, home).map(skillsInRoot));
-  return firstByName(perRoot.flat());
+  return firstByName([...perRoot.flat(), ...(await builtinSkills())]);
 }
 
 const cache = new Map<string, { at: number; skills: Promise<Skill[]> }>();

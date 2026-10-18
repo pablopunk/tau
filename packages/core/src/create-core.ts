@@ -6,6 +6,7 @@ import { resolveModelAlias } from "./agents/model-alias";
 import { createArchivedCleanup } from "./archived-cleanup";
 import { createChangeEmitter } from "./change-emitter";
 import { createCheckpointService } from "./checkpoints/checkpoint-service";
+import { writeTauShim } from "./cli-shim/write-shim";
 import { createConversationRecovery } from "./conversation-recovery";
 import { createConversationRemoval } from "./conversation-removal";
 import { createConversationsApi } from "./conversations-api";
@@ -68,6 +69,7 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
   const home = await openDataHome(options.home);
   const lock = await acquireHomeLock(home.lockFile);
   try {
+    if (options.cliEntry !== undefined) await writeTauShim(home.root, process.execPath, options.cliEntry);
     const changes = createChangeEmitter();
     const provider = createProviderService({
       credentialsFile: home.credentialsFile,
