@@ -41,8 +41,10 @@ import type { RemovalHooks } from "./removal-hooks";
 import { createSettingsApi } from "./settings-api";
 import { createSkillsApi } from "./skills/skills-api";
 import { createStatusTracker } from "./status/status-tracker";
-import { createKeyedScheduler } from "./timers/keyed-scheduler";
-import { systemClock } from "./timers/scheduler-api";
+import { clockFromEnvironment } from "./timers/scaled-clock";
+import { announceTimers, timerProjectIds } from "./timers/timer-ids";
+import { createTimerScheduler } from "./timers/timer-scheduler";
+import { createTimerToolServices } from "./timers/timer-tool-services";
 import { createTimersApi } from "./timers-api";
 import { createTitleService } from "./titles/title-service";
 import { createWorkspaceService } from "./workspaces/workspace-service";
@@ -142,7 +144,22 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
     status.onRunEnded(({ conversationId }) => checkpoints.snapshotAfter(conversationId, ""));
     forker.onForked(async (fork) => changes.emit({ resource: "conversations", projectId: fork.projectId }));
     const notifications = harnessNotificationSubmitter(harness);
-    const scheduler = createKeyedScheduler(systemClock);
+    const clock = clockFromEnvironment(deps.env, options.faux ?? false);
+    const announceTimerChange = announceTimers(changes);
+    const scheduler = createTimerScheduler({
+      harness,
+      notifications,
+      clock,
+      projectIds: timerProjectIds(harness),
+      announce: announceTimerChange,
+    });
+    const timersApi = createTimersApi({
+      harness,
+      conversations,
+      now: clock.now,
+      projectIds: timerProjectIds(harness),
+      announce: announceTimerChange,
+    });
     const processes = createProcessService({
       home: home.root,
       notifications,
@@ -172,6 +189,7 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
       notifications,
       scheduler,
       liveWork,
+      timers: createTimerToolServices(harness, clock, announceTimerChange),
       subagents: {
         agentTypes: createAgentTypeLoader(),
         resolveModelAlias,
@@ -190,6 +208,7 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
         (thread) => checkpoints.onConversationRemoved(thread),
         (thread) => processes.onConversationRemoved(thread),
         async (thread) => goals.onConversationRemoved(thread.id),
+        (thread) => timersApi.onConversationRemoved(thread),
       ],
       onProjectRemoved: [(id) => workspaces.onProjectRemoved(id)],
     };
@@ -218,6 +237,7 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
     await recovery.recoverAtStartup();
     await processes.reapStaleAtStartup();
     await goals.recoverAtStartup();
+    await scheduler.start();
     archivedCleanup.start();
 
     let closing: Promise<void> | undefined;
@@ -262,7 +282,7 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
         logs: (id, tail) => processes.logs(id, tail),
         stop: (id) => processes.stop(id),
       },
-      timers: createTimersApi(),
+      timers: timersApi,
       goals: createGoalsApi(goals),
       mcp: createMcpApi({ settings, mcp, changes }),
       onChange: (listener) => changes.subscribe(listener),

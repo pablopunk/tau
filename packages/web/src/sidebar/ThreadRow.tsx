@@ -32,6 +32,7 @@ import { ForkBadge, isFork } from "./ForkBadge";
 import { GoalBadge, hasActiveGoal } from "./GoalBadge";
 import { NameDialog } from "./NameDialog";
 import { ThreadMenuItems } from "./ThreadMenuItems";
+import { hasTimer, TimerBadge } from "./TimerBadge";
 
 interface ThreadRowProps {
   conversation: ConversationSummary;
@@ -143,6 +144,7 @@ export function ThreadRow({
                 goalBadge={
                   hasActiveGoal(conversation) ? <GoalBadge conversation={conversation} /> : undefined
                 }
+                timerBadge={hasTimer(conversation) ? <TimerBadge conversation={conversation} /> : undefined}
               />
             }
             context={depth === 0 && showProject ? project?.name : undefined}

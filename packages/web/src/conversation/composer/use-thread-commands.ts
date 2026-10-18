@@ -8,6 +8,7 @@ import { runGoalCommand } from "@/goal/goal-command";
 import { api } from "@/lib/api";
 import { errorMessage } from "@/lib/error-message";
 import { newThreadPath } from "@/lib/paths";
+import { LOOP_USAGE, parseLoopArgs } from "@/timers/loop-args";
 import type { CommandHandlers } from "./slash-commands";
 
 export interface ThreadCommandsInput {
@@ -39,6 +40,13 @@ export function useThreadCommands({ conversationId, projectId, pickers }: Thread
       thinking: () => pickers.current?.openThinking(),
       rename: () => setRenaming(true),
       goal: (args) => runGoalCommand(conversationId, args, queryClient),
+      loop: async (args) => {
+        const command = parseLoopArgs(args);
+        if (command.action === "usage") throw new Error(LOOP_USAGE);
+        if (command.action === "stop") await api.timers.stopLoop(conversationId);
+        else await api.timers.loop(conversationId, command.input);
+        await refreshLists();
+      },
       archive: async () => {
         await api.conversations.archive(conversationId, true);
         await refreshLists();

@@ -29,9 +29,21 @@ interface BotAvatarProps extends Omit<React.ComponentProps<"span">, "children"> 
   originBadge?: React.ReactNode
   /** A marker for an active goal, shown on the top right corner. */
   goalBadge?: React.ReactNode
+  /** A marker for a thread with timers (a clock), shown on the bottom right corner. */
+  timerBadge?: React.ReactNode
 }
 
-function BotAvatar({ avatarIndex, working = false, size = 24, badge, originBadge, goalBadge, className, ...props }: BotAvatarProps) {
+function BotAvatar({
+  avatarIndex,
+  working = false,
+  size = 24,
+  badge,
+  originBadge,
+  goalBadge,
+  timerBadge,
+  className,
+  ...props
+}: BotAvatarProps) {
   const reducedMotion = usePrefersReducedMotion()
   return (
     <span
@@ -55,6 +67,7 @@ function BotAvatar({ avatarIndex, working = false, size = 24, badge, originBadge
       {badge ? <span className="absolute -top-1 -left-1 flex">{badge}</span> : null}
       {goalBadge ? <span className="absolute -top-1 -right-1 flex">{goalBadge}</span> : null}
       {originBadge ? <span className="absolute -bottom-1 -left-1 flex">{originBadge}</span> : null}
+      {timerBadge ? <span className="absolute -right-1 -bottom-1 flex">{timerBadge}</span> : null}
     </span>
   )
 }

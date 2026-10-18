@@ -23,6 +23,10 @@ export const SCRIPT_USAGE = [
   "bg-quiet <command>",
   "monitor <command>",
   "todo <first> | <second> | ...",
+  "wakeup <seconds> <prompt>",
+  "repeat <every> <prompt>",
+  "timers",
+  "timer-delete <id>",
   "think",
   "fail",
   "flaky",
@@ -139,6 +143,18 @@ function scriptedReply(input: string, attempt: number, user: UserMessage | undef
       return toolCallReply("monitor", { command: rest, description: rest });
     case "todo":
       return toolCallReply("todo_write", todoArguments(rest));
+    case "wakeup": {
+      const [seconds, prompt = ""] = splitOnce(rest, " ");
+      return toolCallReply("schedule_wakeup", { delay_seconds: Number(seconds), prompt, reason: prompt });
+    }
+    case "repeat": {
+      const [every, prompt = ""] = splitOnce(rest, " ");
+      return toolCallReply("schedule_repeat", { every, prompt });
+    }
+    case "timers":
+      return toolCallReply("timers_list", {});
+    case "timer-delete":
+      return toolCallReply("timer_delete", { id: rest });
     case "think":
       return fauxAssistantMessage([
         fauxThinking("Let me think about this for a moment. The question is simple, so the answer is too."),

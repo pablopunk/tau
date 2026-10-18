@@ -5,6 +5,7 @@ import type { McpService } from "../../mcp/mcp-service";
 import { notImplemented } from "../../not-implemented";
 import type { ProcessService } from "../../processes/process-service";
 import type { Scheduler } from "../../timers/scheduler-api";
+import type { TimerToolServices } from "../../timers/timer-tool-services";
 import type { LiveWork } from "../live-work";
 import type { NotificationSubmitter } from "../notification-submitter";
 import type { SubagentServices } from "../subagent-services";
@@ -18,6 +19,7 @@ export interface ToolServices {
   /** The only way to put a notification into a thread (MVP8). */
   readonly notifications: NotificationSubmitter;
   readonly scheduler: Scheduler;
+  readonly timers: TimerToolServices;
   readonly liveWork: LiveWork;
 }
 

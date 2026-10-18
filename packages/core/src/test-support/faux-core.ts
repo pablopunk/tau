@@ -13,9 +13,13 @@ export interface FauxWorld {
   makeFolder(name: string): Promise<string>;
 }
 
-export async function openFauxWorld(root: string, now: () => number = Date.now): Promise<FauxWorld> {
+export async function openFauxWorld(
+  root: string,
+  now: () => number = Date.now,
+  env: NodeJS.ProcessEnv = process.env,
+): Promise<FauxWorld> {
   const home = join(root, "home");
-  const open = () => createCoreWith({ home, faux: true }, { ...defaultCoreDependencies(), now });
+  const open = () => createCoreWith({ home, faux: true }, { ...defaultCoreDependencies(), now, env });
   const world: FauxWorld = {
     root,
     home,

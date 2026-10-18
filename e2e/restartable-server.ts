@@ -21,9 +21,13 @@ export interface RestartableServer {
 }
 
 /** A detached faux server in its own temp home, so a test can kill it and see what survives. Never touches port 4317 or `~/.tau`. */
-export function createRestartableServer(options: { port: number; home?: string }): RestartableServer {
+export function createRestartableServer(options: {
+  port: number;
+  home?: string;
+  env?: Record<string, string>;
+}): RestartableServer {
   const home = options.home ?? realpathSync(mkdtempSync(join(tmpdir(), "tau-e2e-restart-")));
-  const env = { ...process.env, ...serverEnvironment(), TAU_HOME: home };
+  const env = { ...process.env, ...serverEnvironment(), TAU_HOME: home, ...options.env };
   const tau = async (...args: string[]) =>
     (await run("node", [CLI, ...args], { env, timeout: 60_000 })).stdout;
   const start = async () => {

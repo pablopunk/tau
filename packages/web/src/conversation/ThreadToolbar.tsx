@@ -8,6 +8,7 @@ import { api } from "@/lib/api";
 import { errorMessage } from "@/lib/error-message";
 import { useModels } from "@/lib/queries";
 import { ProcessesChip } from "@/processes/ProcessesChip";
+import { TimersChip } from "@/timers/TimersChip";
 import { contextUsage } from "./composer/context-usage";
 import { findModel, readAgent } from "./model/agent";
 
@@ -43,6 +44,7 @@ export function ThreadToolbar({
       {usage ? <ContextMeter used={usage.used} total={usage.total} label={usage.label} /> : null}
       <GoalChip conversationId={id} />
       <ProcessesChip conversationId={id} />
+      <TimersChip conversationId={id} />
     </>
   );
 }

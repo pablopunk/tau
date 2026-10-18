@@ -121,7 +121,7 @@ function ComposerForm({
     if (item.disabled) return;
     if (!item.id.startsWith(commandItemId(""))) return insertMention(insertionOf(item.id));
     const name = insertionOf(item.id) as CommandName;
-    if (name === "compact" || name === "goal") return setText(`/${name} `);
+    if (name === "compact" || name === "goal" || name === "loop") return setText(`/${name} `);
     runCommand(name, "");
   };
 
