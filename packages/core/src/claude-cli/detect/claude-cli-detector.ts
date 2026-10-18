@@ -1,5 +1,6 @@
 import type { ClaudeCliStatus, ClaudeCliUsage } from "@tau/protocol";
 import type { ClaudeCliClock } from "../clock";
+import { isSdkMissing } from "../sdk-missing";
 import type { ClaudeSdkLoader } from "../sdk-types";
 import { claudeCliStatusOf } from "../status";
 import { readCliVersion } from "./claude-cli-version";
@@ -73,6 +74,7 @@ export function createClaudeCliDetector(deps: ClaudeCliDetectorDeps): ClaudeCliD
         sdkCliVersion,
       });
     } catch (error) {
+      if (isSdkMissing(error)) return claudeCliStatusOf("sdk_missing");
       if (isMissingBinary(error)) return claudeCliStatusOf("missing");
       return { ...last, message: failureMessage(error) };
     }

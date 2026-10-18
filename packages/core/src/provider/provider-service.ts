@@ -3,6 +3,7 @@ import type { Models } from "@earendil-works/pi-ai/models";
 import { AppError, type ModelInfo, type ModelRef, type ProviderId, type ProviderInfo } from "@tau/protocol";
 import { FileCredentialStore } from "../auth/file-credential-store";
 import type { ChangeEmitter } from "../change-emitter";
+import { type ClaudeSdkInstaller, sdkHomeOf } from "../claude-cli/sdk-install";
 import { claudeCliDisabled, createClaudeCliService } from "../claude-cli/service";
 import type { SettingsStore } from "../home/settings-store";
 import { createFauxSetup } from "../testing/faux-provider";
@@ -26,6 +27,8 @@ export interface ProviderServiceOptions {
   readonly env: Environment;
   readonly changes: ChangeEmitter;
   readonly settings: SettingsStore;
+  /** Tests inject a fake installer; production runs npm. */
+  readonly claudeSdkInstaller?: ClaudeSdkInstaller;
 }
 
 export interface ProviderService {
@@ -40,6 +43,9 @@ export interface ProviderService {
   lists(ref: ModelRef): Promise<boolean>;
   acknowledgeClaudeCli(): Promise<ProviderInfo>;
   refreshClaudeCli(): Promise<ProviderInfo>;
+  installClaudeCliSdk(): Promise<ProviderInfo>;
+  /** Archive and delete: closes the Claude CLI query of a Pi session. */
+  closeClaudeCliThread(piSessionId: string): Promise<void>;
   close(): Promise<void>;
 }
 
@@ -51,9 +57,11 @@ export function createProviderService(options: ProviderServiceOptions): Provider
     onChange: () => options.changes.emit({ resource: "providers" }),
     noticeAt: async () => (await options.settings.get()).claudeCliNoticeAt,
     recordNotice: () => options.settings.setClaudeCliNoticeAt(Date.now()),
+    sdkHome: sdkHomeOf(dirname(options.credentialsFile)),
+    installer: options.claudeSdkInstaller,
   });
   const models = options.faux
-    ? createFauxSetup({ credentials }).models
+    ? createFauxSetup({ credentials, claudeCli: claudeCli.provider }).models
     : createRealModels(credentials, options.env, claudeCli.provider);
   const connections = createConnectionReader({ credentials, models, faux: options.faux, claudeCli });
   const entries = visibleProviders(!claudeCliDisabled(options.env));
@@ -140,6 +148,18 @@ export function createProviderService(options: ProviderServiceOptions): Provider
     return claudeCliInfo();
   }
 
+  async function installClaudeCliSdk(): Promise<ProviderInfo> {
+    if (claudeCliDisabled(options.env)) throw new AppError("invalid_request", "Claude CLI is turned off.");
+    try {
+      await claudeCli.installSdk();
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      throw new AppError("internal", `Could not install the Claude Agent SDK: ${reason}`);
+    }
+    options.changes.emit({ resource: "providers" });
+    return claudeCliInfo();
+  }
+
   return {
     models,
     logins,
@@ -156,6 +176,8 @@ export function createProviderService(options: ProviderServiceOptions): Provider
     },
     acknowledgeClaudeCli,
     refreshClaudeCli,
+    installClaudeCliSdk,
+    closeClaudeCliThread: (piSessionId) => claudeCli.closeThread(piSessionId),
     close: () => claudeCli.close(),
     async lists(ref) {
       await firstClaudeCliCheck();

@@ -73,6 +73,7 @@ export interface Api {
     disconnect(id: ProviderId): Promise<ProviderInfo>;
     acknowledgeClaudeCli(): Promise<ProviderInfo>;
     refreshClaudeCli(): Promise<ProviderInfo>;
+    installClaudeCliSdk(): Promise<ProviderInfo>;
   };
   logins: {
     start(): Promise<LoginSession>;
@@ -184,6 +185,7 @@ export function createApi(transport: Transport): Api {
       disconnect: (id) => request("disconnectProvider", { params: { id } }),
       acknowledgeClaudeCli: () => request("acknowledgeClaudeCli", {}),
       refreshClaudeCli: () => request("refreshClaudeCli", {}),
+      installClaudeCliSdk: () => request("installClaudeCliSdk", {}),
     },
     logins: {
       start: () => request("startLogin", { params: { id: "openai" } }),

@@ -1,5 +1,5 @@
-import type { CredentialStore } from "@earendil-works/pi-ai";
-import { createModels, type MutableModels } from "@earendil-works/pi-ai/models";
+import type { Api, CredentialStore } from "@earendil-works/pi-ai";
+import { createModels, type MutableModels, type Provider } from "@earendil-works/pi-ai/models";
 import {
   type FauxModelDefinition,
   type FauxProviderHandle,
@@ -36,6 +36,8 @@ function keepScriptRunning(faux: FauxProviderHandle, script: FauxResponseFactory
 export interface FauxSetupOptions {
   readonly tokensPerSecond?: number;
   readonly credentials?: CredentialStore;
+  /** The Claude CLI provider, backed by the fake Agent SDK, so a thread on one of its models runs in faux mode. */
+  readonly claudeCli?: Provider<Api> | null;
 }
 
 export function createFauxSetup(options: FauxSetupOptions = {}): FauxSetup {
@@ -45,5 +47,6 @@ export function createFauxSetup(options: FauxSetupOptions = {}): FauxSetup {
   const models = createModels({ credentials: options.credentials });
   models.setProvider(faux.provider);
   models.setProvider(withFauxChatGptLogin(faux.provider));
+  if (options.claudeCli) models.setProvider(options.claudeCli);
   return { models, faux };
 }

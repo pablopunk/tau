@@ -2,7 +2,9 @@ import { readFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
+import { pathToFileURL } from "node:url";
 import { runAuthStatus } from "./auth-status";
+import { ClaudeSdkMissingError } from "./sdk-missing";
 import type {
   ClaudeAccountInfo,
   ClaudeEffort,
@@ -89,8 +91,7 @@ async function withIdleQuery<T>(sdk: SdkModule, use: (query: SdkQuery) => Promis
   }
 }
 
-async function readBundledCliVersion(): Promise<string> {
-  const entry = createRequire(import.meta.url).resolve(SDK_PACKAGE);
+async function readBundledCliVersion(entry: string): Promise<string> {
   const manifest = JSON.parse(await readFile(join(dirname(entry), "package.json"), "utf8")) as {
     claudeCodeVersion?: string;
   };
@@ -114,13 +115,13 @@ const toAccountInfo = (info: Awaited<ReturnType<SdkQuery["accountInfo"]>>): Clau
   subscriptionType: info.subscriptionType ?? null,
 });
 
-function portOf(sdk: SdkModule): ClaudeSdkPort {
+function portOf(sdk: SdkModule, entry: string): ClaudeSdkPort {
   return {
     authStatus: () => runAuthStatus(process.env),
     accountInfo: () => withIdleQuery(sdk, async (query) => toAccountInfo(await query.accountInfo())),
     supportedModels: () =>
       withIdleQuery(sdk, async (query) => (await query.supportedModels()).map(toModelOption)),
-    bundledCliVersion: readBundledCliVersion,
+    bundledCliVersion: () => readBundledCliVersion(entry),
     startQuery(options) {
       return wrapQuery(sdk.query({ prompt: options.prompt, options: sdkOptions(sdk, options) }));
     },
@@ -128,8 +129,30 @@ function portOf(sdk: SdkModule): ClaudeSdkPort {
   };
 }
 
+const resolveInSdkHome = (sdkHome: string): string | null => {
+  try {
+    return createRequire(join(sdkHome, "package.json")).resolve(SDK_PACKAGE);
+  } catch {
+    return null;
+  }
+};
+
+const resolveInDevelopment = (): string | null => {
+  try {
+    return createRequire(import.meta.url).resolve(SDK_PACKAGE);
+  } catch {
+    return null;
+  }
+};
+
+async function importSdk(sdkHome: string | undefined): Promise<{ sdk: SdkModule; entry: string }> {
+  const entry = (sdkHome && resolveInSdkHome(sdkHome)) || resolveInDevelopment();
+  if (!entry) throw new ClaudeSdkMissingError();
+  return { sdk: (await import(pathToFileURL(entry).href)) as SdkModule, entry };
+}
+
 /** The only place the Agent SDK is loaded. Nothing imports it while the kill switch is on. */
-export async function loadClaudeSdkPort(): Promise<ClaudeSdkPort> {
-  const sdk = (await import("@anthropic-ai/claude-agent-sdk")) as unknown as SdkModule;
-  return portOf(sdk);
+export async function loadClaudeSdkPort(sdkHome?: string): Promise<ClaudeSdkPort> {
+  const { sdk, entry } = await importSdk(sdkHome);
+  return portOf(sdk, entry);
 }

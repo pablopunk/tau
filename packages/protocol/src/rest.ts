@@ -191,6 +191,12 @@ export const routes = {
     status: 200,
     response: ProviderInfoSchema,
   },
+  installClaudeCliSdk: {
+    method: "POST",
+    path: `${API_PREFIX}/providers/claude-cli/install`,
+    status: 200,
+    response: ProviderInfoSchema,
+  },
   startLogin: {
     method: "POST",
     path: `${API_PREFIX}/providers/:id/login`,

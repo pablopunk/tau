@@ -96,6 +96,7 @@ export const ClaudeCliStateSchema = Type.Union([
   Type.Literal("not_plan"),
   Type.Literal("blocked"),
   Type.Literal("error"),
+  Type.Literal("sdk_missing"),
 ]);
 export type ClaudeCliState = Type.Static<typeof ClaudeCliStateSchema>;
 
@@ -116,6 +117,7 @@ export const ClaudeCliStatusSchema = Type.Object({
   sdkCliVersion: Type.Union([Type.String(), Type.Null()]),
   message: Type.Union([Type.String(), Type.Null()]),
   usage: Type.Union([ClaudeCliUsageSchema, Type.Null()]),
+  processCount: Type.Number(),
 });
 export type ClaudeCliStatus = Type.Static<typeof ClaudeCliStatusSchema>;
 

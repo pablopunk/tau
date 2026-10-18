@@ -17,7 +17,8 @@ export type FakeStep =
   | { readonly kind: "rateLimit"; readonly limit: FakeRateLimit };
 
 /** Steps for one turn: the model keeps going through the list until a `text` or `error` step ends it. */
-export type FakeScript = (turnIndex: number, firstUserText: string) => readonly FakeStep[];
+/** `hasTools` is false for one-shot calls (titles, compaction, the goal judge). */
+export type FakeScript = (turnIndex: number, firstUserText: string, hasTools: boolean) => readonly FakeStep[];
 
 export const scriptOf =
   (turns: readonly (readonly FakeStep[])[]): FakeScript =>

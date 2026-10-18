@@ -1,6 +1,12 @@
 import type { ClaudeCliState, ClaudeCliStatus } from "@tau/protocol";
 import { describe, expect, it } from "vitest";
-import { claudeCliBadge, claudeCliNote, withoutProductName } from "./ClaudeCliText";
+import {
+  claudeCliAction,
+  claudeCliActionLabel,
+  claudeCliBadge,
+  claudeCliNote,
+  withoutProductName,
+} from "./ClaudeCliText";
 
 const STATES: ClaudeCliState[] = [
   "ready",
@@ -10,6 +16,7 @@ const STATES: ClaudeCliState[] = [
   "not_plan",
   "blocked",
   "error",
+  "sdk_missing",
 ];
 const CLI_ERRORS = [
   "oauth_org_not_allowed: Claude Code is not allowed",
@@ -24,6 +31,7 @@ const status = (state: ClaudeCliState, extra: Partial<ClaudeCliStatus> = {}): Cl
   sdkCliVersion: "2.1.302",
   message: null,
   usage: null,
+  processCount: 0,
   ...extra,
 });
 
@@ -46,6 +54,19 @@ describe("claude CLI text", () => {
     expect(claudeCliNote(status("ready", { usage: rejected }))).toMatch(
       /^Plan limit reached · resets \d\d:\d\d/,
     );
+  });
+
+  it("warns softly when more than 6 Claude processes run", () => {
+    expect(claudeCliNote(status("ready", { processCount: 6 }))).toBe("CLI 2.1.302");
+    expect(claudeCliNote(status("ready", { processCount: 8 }))).toBe(
+      "CLI 2.1.302 · 8 Claude processes running",
+    );
+  });
+
+  it("offers the SDK install when the SDK is missing", () => {
+    const cli = status("sdk_missing");
+    expect(claudeCliBadge(cli).label).toBe("Claude Agent SDK not installed");
+    expect(claudeCliActionLabel(claudeCliAction(cli))).toBe("Install Claude Agent SDK");
   });
 
   it("never says Claude Code in any state or CLI error", () => {

@@ -129,6 +129,8 @@ export interface Core {
     acknowledgeClaudeCli(): Promise<ProviderInfo>;
     /** Checks `claude auth status` again and reloads the model list. Never rejects for a missing or logged-out CLI: that is a state. */
     refreshClaudeCli(): Promise<ProviderInfo>;
+    /** Installs the pinned Claude Agent SDK under the tau home, then re-checks. Rejects `invalid_request` when the provider is hidden and `internal` when the install fails. */
+    installClaudeCliSdk(): Promise<ProviderInfo>;
     /** One active session; starting one awaits the cancel of the old. Rejects `invalid_request` for a provider without ChatGPT sign-in. */
     startLogin(id: "openai"): Promise<LoginSession>;
     /** Rejects `not_found` for an unknown or expired session. */

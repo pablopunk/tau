@@ -43,6 +43,7 @@ export function createConversationsApi(deps: {
   harness: Harness;
   removal: ConversationRemoval;
   archivedCleanup: ArchivedCleanup;
+  closeClaudeCliThread: (id: string) => Promise<void>;
   changes: ChangeEmitter;
   now: () => number;
 }): Core["conversations"] {
@@ -124,6 +125,7 @@ export function createConversationsApi(deps: {
     for (const child of children) {
       if (archived) await conversations.abort(child.id);
       await conversations.archive(child.id, archived, now());
+      if (archived) await deps.closeClaudeCliThread(child.id);
     }
   }
 
@@ -180,6 +182,7 @@ export function createConversationsApi(deps: {
     async archive(id, archived) {
       await archiveChildren(id, archived);
       announce(await conversations.archive(id, archived, now()));
+      if (archived) await deps.closeClaudeCliThread(id);
     },
     remove: (id, options) => removal.remove(id, options?.force === true),
     deleteArchived: (input) => archivedCleanup.deleteArchived(input),

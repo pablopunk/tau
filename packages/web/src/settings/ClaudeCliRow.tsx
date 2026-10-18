@@ -11,13 +11,14 @@ import {
   ProviderListStatus,
 } from "@/components/ui/provider-list";
 import { SettingRow } from "@/components/ui/settings-layout";
-import { useAcknowledgeClaudeCli, useRefreshClaudeCli } from "@/lib/queries";
+import { useAcknowledgeClaudeCli, useInstallClaudeCliSdk, useRefreshClaudeCli } from "@/lib/queries";
 import { ClaudeCliNotice } from "./ClaudeCliNotice";
 import {
   claudeCliAction,
   claudeCliActionLabel,
   claudeCliBadge,
   claudeCliNote,
+  claudeCliPendingLabel,
   isUsageWarning,
 } from "./ClaudeCliText";
 
@@ -29,13 +30,15 @@ function ClaudeCliNote({ cli }: { cli: ClaudeCliStatus }) {
 export function ClaudeCliRow({ provider }: { provider: ProviderInfo }) {
   const acknowledge = useAcknowledgeClaudeCli();
   const refresh = useRefreshClaudeCli();
+  const install = useInstallClaudeCliSdk();
   const { run, error, pending } = useSubmit();
   const cli = provider.cli;
   if (!cli) return null;
   const badge = claudeCliBadge(cli);
   const action = claudeCliAction(cli);
-  const perform = () =>
-    run(async () => void (await (action === "acknowledge" ? acknowledge : refresh).mutateAsync()));
+  const mutations = { acknowledge, refresh, install };
+  const perform = () => run(async () => void (await mutations[action].mutateAsync()));
+  const pendingLabel = pending ? claudeCliPendingLabel(action) : null;
   return (
     <SettingRow id={`provider:${provider.id}`} asChild>
       <ProviderListRow aria-label={provider.name} className="rounded-none!">
@@ -53,7 +56,7 @@ export function ClaudeCliRow({ provider }: { provider: ProviderInfo }) {
             aria-label={`${claudeCliActionLabel(action)} for ${provider.name}`}
             onClick={perform}
           >
-            {claudeCliActionLabel(action)}
+            {pendingLabel ?? claudeCliActionLabel(action)}
           </Button>
         </ProviderListActions>
         {cli.state === "needs_notice" ? (

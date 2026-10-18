@@ -23,6 +23,7 @@ import { createLiveWork } from "./harness/live-work";
 import { harnessNotificationSubmitter } from "./harness/notification-submitter";
 import { BACKGROUND, openAgentHarness, openSqliteStorage } from "./harness/open";
 import { createProjectStore } from "./harness/project-store";
+import { providerSessionOf } from "./harness/provider-session";
 import { createAgentRegistry } from "./harness/registry";
 import { createSubagentRemover } from "./harness/subagent-removal";
 import { clampThinkingFor } from "./harness/tools/agent-thinking";
@@ -204,9 +205,14 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
       connectedModels: async () =>
         (await provider.listModels()).map(({ provider: id, modelId }) => ({ provider: id, modelId })),
     });
+    const closeClaudeCliThread = async (id: string) => {
+      const sessionId = await providerSessionOf(harness, id);
+      if (sessionId) await provider.closeClaudeCliThread(sessionId).catch(() => undefined);
+    };
     const removalHooks: RemovalHooks = {
       unmergedWork: (thread) => workspaces.unmergedWork(thread),
       onConversationRemoved: [
+        (thread) => closeClaudeCliThread(thread.id),
         (thread) => workspaces.onConversationRemoved(thread),
         (thread) => checkpoints.onConversationRemoved(thread),
         (thread) => processes.onConversationRemoved(thread),
@@ -274,6 +280,7 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
         harness,
         removal,
         archivedCleanup,
+        closeClaudeCliThread,
       }),
       workspaces: {
         status: (id) => workspaces.status(id),

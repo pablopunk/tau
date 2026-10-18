@@ -11,6 +11,7 @@ export const claudeCliStatusOf = (
   sdkCliVersion: null,
   message: null,
   usage: null,
+  processCount: 0,
   ...fields,
 });
 

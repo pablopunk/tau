@@ -9,6 +9,7 @@ export function createProvidersApi(provider: ProviderService): Pick<Core, "provi
       disconnect: (id) => provider.disconnect(id),
       acknowledgeClaudeCli: () => provider.acknowledgeClaudeCli(),
       refreshClaudeCli: () => provider.refreshClaudeCli(),
+      installClaudeCliSdk: () => provider.installClaudeCliSdk(),
       async startLogin(id) {
         if (id !== "openai") throw new AppError("invalid_request", "This provider has no sign-in.");
         return provider.logins.start();

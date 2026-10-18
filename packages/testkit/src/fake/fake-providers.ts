@@ -84,6 +84,7 @@ export function createFakeProviders(deps: {
               updatedAt,
             }
           : null,
+      processCount: 0,
     };
   };
 
@@ -145,6 +146,10 @@ export function createFakeProviders(deps: {
         return infoOf("claude-cli");
       },
       async refreshClaudeCli() {
+        changed();
+        return infoOf("claude-cli");
+      },
+      async installClaudeCliSdk() {
         changed();
         return infoOf("claude-cli");
       },

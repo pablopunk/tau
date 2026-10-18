@@ -81,7 +81,7 @@ export function createFakeClaudeSdk(options: FakeClaudeSdkOptions = {}): FakeCla
       return createFakeQuery({
         options: queryOptions,
         record,
-        script: (turn, text) => script(turn, text),
+        script: (turn, text, hasTools) => script(turn, text, hasTools),
         ids,
         apiKeySource: options.apiKeySource ?? "none",
       });

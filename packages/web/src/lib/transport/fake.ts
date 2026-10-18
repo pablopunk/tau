@@ -48,6 +48,7 @@ const handlers: Handlers = {
   disconnectProvider: (core, { params }) => core.providers.disconnect(params.id as never),
   acknowledgeClaudeCli: (core) => core.providers.acknowledgeClaudeCli(),
   refreshClaudeCli: (core) => core.providers.refreshClaudeCli(),
+  installClaudeCliSdk: (core) => core.providers.installClaudeCliSdk(),
   startLogin: (core) => core.providers.startLogin("openai"),
   getLogin: (core, { params }) => core.providers.login(params.sid),
   submitLoginUrl: (core, { params, body }) => core.providers.submitLoginUrl(params.sid, body.url as string),

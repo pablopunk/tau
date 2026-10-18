@@ -34,6 +34,7 @@ export function registerRoutes(app: FastifyInstance, core: Core): void {
   defineRoute(app, routes.disconnectProvider, ({ params }) => core.providers.disconnect(params.id));
   defineRoute(app, routes.acknowledgeClaudeCli, () => core.providers.acknowledgeClaudeCli());
   defineRoute(app, routes.refreshClaudeCli, () => core.providers.refreshClaudeCli());
+  defineRoute(app, routes.installClaudeCliSdk, () => core.providers.installClaudeCliSdk());
   defineRoute(app, routes.startLogin, ({ params }) => startLoginFor(core, params.id));
   defineRoute(app, routes.getLogin, ({ params }) => core.providers.login(params.sid));
   defineRoute(app, routes.submitLoginUrl, ({ params, body }) =>

@@ -266,3 +266,11 @@ Every stub is inert and never throws, so the real core and the contract keep pas
 
 * `cli/tsdown.config.ts` has `neverBundle` for the SDK (packaging decision); the cli `package.json` does not list the SDK on purpose.
 * Existing tests changed only for the new required fields (`cli: null`, `claudeCliNoticeAt: null`, a sixth provider, a `settings` option for `createProviderService`).
+
+## MVP9 integration
+
+* `ClaudeCliState` += `"sdk_missing"` (the SDK is not under `<tau home>/claude-sdk` and not importable). `ClaudeCliStatus.processCount: number` (live SDK processes; the web row warns above 6).
+* `Core.providers.installClaudeCliSdk()` returns the `claude-cli` `ProviderInfo`. Route `installClaudeCliSdk` (`POST /providers/claude-cli/install`), command `providers claude-cli install`. It runs `npm install --prefix <tau home>/claude-sdk @anthropic-ai/claude-agent-sdk@0.3.302`, then refreshes. A failed install rejects `internal`. `TAU_FAKE_CLAUDE_CLI=1` and faux mode install nothing.
+* `ComboboxOption.triggerLabel` (web ui): what the trigger shows for the selected option.
+* `FakeScript` gets a third argument `hasTools`; `TAU_FAKE_CLAUDE_CLI=1` uses `fakeThreadScript` (`bash <cmd>`, `read <path>`, else a reply). Faux mode registers the Claude CLI provider so such a thread runs through the adapter.
+* Archive and delete close the thread's SDK query (`providerSessionOf` maps a thread to its Pi session id); core shutdown closes all.

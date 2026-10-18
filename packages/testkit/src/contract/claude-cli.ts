@@ -4,7 +4,16 @@ import { collectChanges, rejectsWithCode } from "./helpers";
 import type { ContractTarget, MakeContractTarget } from "./types";
 
 const CLAUDE_CLI = "claude-cli";
-const CLI_STATES = ["ready", "needs_notice", "missing", "logged_out", "not_plan", "blocked", "error"];
+const CLI_STATES = [
+  "ready",
+  "needs_notice",
+  "missing",
+  "logged_out",
+  "not_plan",
+  "blocked",
+  "error",
+  "sdk_missing",
+];
 
 /**
  * MVP9 owner A removes the `claude-cli` tag from the real core's pending list. The real target runs with the
@@ -30,7 +39,7 @@ export function claudeCliCases(make: MakeContractTarget, test: CaseRunner): void
       expect(CLI_STATES).toContain(info?.cli?.state);
       expect(info?.cli?.state).toBe("needs_notice");
       expect(Object.keys(info?.cli ?? {}).sort()).toEqual(
-        ["cliVersion", "message", "org", "plan", "sdkCliVersion", "state", "usage"].sort(),
+        ["cliVersion", "message", "org", "plan", "processCount", "sdkCliVersion", "state", "usage"].sort(),
       );
     });
 
@@ -67,6 +76,16 @@ export function claudeCliCases(make: MakeContractTarget, test: CaseRunner): void
       const { core } = target;
       const { changes, stop } = collectChanges(core);
       const info = await core.providers.refreshClaudeCli();
+      stop();
+      expect(info.id).toBe(CLAUDE_CLI);
+      expect(CLI_STATES).toContain(info.cli?.state);
+      expect(changes).toContainEqual({ resource: "providers" });
+    });
+
+    test("[claude-cli] install returns the row and announces it", async () => {
+      const { core } = target;
+      const { changes, stop } = collectChanges(core);
+      const info = await core.providers.installClaudeCliSdk();
       stop();
       expect(info.id).toBe(CLAUDE_CLI);
       expect(CLI_STATES).toContain(info.cli?.state);

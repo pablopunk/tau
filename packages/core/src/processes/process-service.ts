@@ -68,6 +68,9 @@ interface Entry {
   sequence: number;
   /** Notifications go out in order, one after another. */
   delivery: Promise<void>;
+  /** Pid-file writes go out in order; a removed entry writes nothing more. */
+  writes: Promise<void>;
+  removed?: boolean;
 }
 
 export function createProcessService(deps: ProcessDeps): ProcessService {
@@ -81,8 +84,12 @@ export function createProcessService(deps: ProcessDeps): ProcessService {
     if (!entry) throw notFound(id);
     return entry;
   };
-  const persist = (entry: Entry) =>
-    files.save({ info: infoOf(entry), pid: entry.pid }).catch(() => undefined);
+  const persist = (entry: Entry): Promise<void> => {
+    entry.writes = entry.writes.then(() =>
+      entry.removed ? undefined : files.save({ info: infoOf(entry), pid: entry.pid }).catch(() => undefined),
+    );
+    return entry.writes;
+  };
 
   const send = (entry: Entry, notification: Notification) => {
     const conversationId = entry.info.conversationId;
@@ -155,7 +162,13 @@ export function createProcessService(deps: ProcessDeps): ProcessService {
         urls: [],
         kind,
       };
-      const entry: Entry = { info, pid: 0, delivery: Promise.resolve(), sequence: 0 };
+      const entry: Entry = {
+        info,
+        pid: 0,
+        delivery: Promise.resolve(),
+        writes: Promise.resolve(),
+        sequence: 0,
+      };
       const announce = () => deps.emitChange(conversationId);
       if (kind === "monitor") entry.batcher = monitorBatcherFor(entry);
       entry.running = spawnRunning({
@@ -201,7 +214,13 @@ export function createProcessService(deps: ProcessDeps): ProcessService {
     },
     async reapStaleAtStartup() {
       for (const record of await files.loadAll()) {
-        const entry: Entry = { info: record.info, pid: record.pid, delivery: Promise.resolve(), sequence: 0 };
+        const entry: Entry = {
+          info: record.info,
+          pid: record.pid,
+          delivery: Promise.resolve(),
+          writes: Promise.resolve(),
+          sequence: 0,
+        };
         if (record.info.state === "running") {
           if (record.pid > 0 && groupIsAlive(record.pid)) await terminateGroup(record.pid, grace);
           entry.info = { ...record.info, state: "killed", exitCode: null };
@@ -219,6 +238,8 @@ export function createProcessService(deps: ProcessDeps): ProcessService {
       await Promise.all(owned.map(stopEntry));
       for (const entry of owned) {
         entries.delete(entry.info.id);
+        entry.removed = true;
+        await entry.writes;
         await files.remove(entry.info.id);
       }
     },

@@ -16,6 +16,7 @@ const BADGE_BY_STATE: Partial<Record<ClaudeCliStatus["state"], string>> = {
   not_plan: "API key login",
   blocked: "Blocked by your organization",
   error: "Check failed",
+  sdk_missing: "Claude Agent SDK not installed",
 };
 
 export function claudeCliBadge(cli: ClaudeCliStatus): { label: string; destructive: boolean } {
@@ -46,16 +47,23 @@ const versionNote = (cli: ClaudeCliStatus): string | null =>
     ? `tau uses ${cli.sdkCliVersion}`
     : null;
 
+export const PROCESS_WARNING_THRESHOLD = 6;
+
+const processNote = (cli: ClaudeCliStatus): string | null =>
+  cli.processCount > PROCESS_WARNING_THRESHOLD ? `${cli.processCount} Claude processes running` : null;
+
 const STATIC_NOTE: Partial<Record<ClaudeCliStatus["state"], string>> = {
   needs_notice: "Claude Agent SDK, under your own login.",
   missing: "Install the claude CLI and log in.",
+  sdk_missing: "tau installs the Claude Agent SDK on first use.",
   logged_out: "Run `claude`, then `/login`, on this machine.",
   not_plan: "The CLI uses an API key. Use the Anthropic provider.",
 };
 
 function readyNote(cli: ClaudeCliStatus): string | null {
   const usage = cli.usage ? claudeCliUsageNote(cli.usage) : null;
-  return joinParts([usage, cli.cliVersion ? `CLI ${cli.cliVersion}` : null, versionNote(cli)]) || null;
+  const parts = [usage, cli.cliVersion ? `CLI ${cli.cliVersion}` : null, versionNote(cli), processNote(cli)];
+  return joinParts(parts) || null;
 }
 
 export function claudeCliNote(cli: ClaudeCliStatus): string | null {
@@ -65,11 +73,23 @@ export function claudeCliNote(cli: ClaudeCliStatus): string | null {
   return cli.message ? withoutProductName(cli.message) : null;
 }
 
-export type ClaudeCliAction = "acknowledge" | "refresh";
+export type ClaudeCliAction = "acknowledge" | "refresh" | "install";
 
-export function claudeCliAction(cli: ClaudeCliStatus): ClaudeCliAction {
-  return cli.state === "needs_notice" ? "acknowledge" : "refresh";
-}
+const ACTION_BY_STATE: Partial<Record<ClaudeCliStatus["state"], ClaudeCliAction>> = {
+  needs_notice: "acknowledge",
+  sdk_missing: "install",
+};
 
-export const claudeCliActionLabel = (action: ClaudeCliAction): string =>
-  action === "acknowledge" ? "I understand" : "Check again";
+export const claudeCliAction = (cli: ClaudeCliStatus): ClaudeCliAction =>
+  ACTION_BY_STATE[cli.state] ?? "refresh";
+
+const ACTION_LABEL: Record<ClaudeCliAction, string> = {
+  acknowledge: "I understand",
+  refresh: "Check again",
+  install: "Install Claude Agent SDK",
+};
+
+export const claudeCliActionLabel = (action: ClaudeCliAction): string => ACTION_LABEL[action];
+
+export const claudeCliPendingLabel = (action: ClaudeCliAction): string | null =>
+  action === "install" ? "Installing Claude Agent SDK…" : null;

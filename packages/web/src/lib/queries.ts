@@ -83,6 +83,14 @@ export function useRefreshClaudeCli() {
   });
 }
 
+export function useInstallClaudeCliSdk() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.providers.installClaudeCliSdk(),
+    onSuccess: () => invalidateProviders(queryClient),
+  });
+}
+
 export const byActivity = (a: ConversationSummary, b: ConversationSummary): number =>
   b.lastActivityAt - a.lastActivityAt || (a.id < b.id ? 1 : a.id > b.id ? -1 : 0);
 

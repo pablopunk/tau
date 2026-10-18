@@ -20,6 +20,8 @@ import { cn } from "@/lib/utils"
 export interface ComboboxOption {
   value: string
   label: string
+  /** What the trigger shows while this option is selected; defaults to `label`. */
+  triggerLabel?: string
   /** Secondary text under the label, e.g. an id. */
   description?: string
   /** Short text on the right of the option, e.g. why it cannot be chosen, or "local". */
@@ -116,7 +118,7 @@ function Combobox({
           className={cn("w-full justify-between font-normal", className)}
         >
           <span className={cn("truncate", !selected && "text-muted-foreground")}>
-            {selected?.label ?? placeholder}
+            {selected?.triggerLabel ?? selected?.label ?? placeholder}
           </span>
           <ChevronsUpDownIcon className="opacity-50" />
         </Button>

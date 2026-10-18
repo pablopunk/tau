@@ -129,6 +129,13 @@ export const commands: readonly CommandDef[] = [
     destructive: false,
   },
   {
+    command: "providers claude-cli install",
+    route: "installClaudeCliSdk",
+    summary: "Install the Claude Agent SDK that the claude-cli provider needs",
+    positionals: [],
+    destructive: false,
+  },
+  {
     command: "models list",
     route: "listModels",
     summary: "List the connected models",

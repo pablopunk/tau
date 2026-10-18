@@ -181,7 +181,7 @@ export function createFakeQuery(deps: FakeQueryDeps): ClaudeQuery {
       const names = (options.toolHost?.listTools() ?? []).map((tool) => `${TOOL_NAME_PREFIX}${tool.name}`);
       emit(initEvent(sessionId(), resolvedModel(model), names, deps.apiKeySource));
     }
-    const steps = script(turnIndex, firstUserText);
+    const steps = script(turnIndex, firstUserText, options.toolHost !== undefined);
     for (const step of steps) {
       await nextTick();
       const outcome = await runStep(step);
