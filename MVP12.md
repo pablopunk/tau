@@ -1,6 +1,6 @@
 # MVP12 plan: tau reachable from anywhere (the server everywhere)
 
-Status: DRAFT v3 (round 1 applied; round 2 pending). The section "Round 1 changes" overrides older text where it disagrees. Builds on PLAN.md "Hub + runtimes", "OpenTunnel" and "Pairing", and on MVP7 (the durable user service). Evidence so far: `@opentunnel/client` 0.5.2 and the `opentunnel` CLI README (unpacked in `/tmp/ot-inspect`), the current guard `packages/server/src/security/guard.ts`.
+Status: DRAFT v4 (round 1 applied; the user put machines in scope; round 2 and 3 pending). The sections "Round 1 changes" and "Machines" override older text where they disagree. Builds on PLAN.md "Hub + runtimes", "OpenTunnel" and "Pairing", and on MVP7 (the durable user service). Evidence so far: `@opentunnel/client` 0.5.2 and the `opentunnel` CLI README (unpacked in `/tmp/ot-inspect`), the current guard `packages/server/src/security/guard.ts`.
 
 ## Goal
 
@@ -21,7 +21,7 @@ In:
 4. **Watched server**: a health route and a watchdog thread (a stuck event loop exits the process, so the OS service restarts it), a tunnel watcher (reconnect, recreate when down too long), and a status line in Settings and `tau status`: server uptime, last restart reason, tunnel state.
 5. **Headless first run**: on a server with no screen, `tau pair` over SSH enables remote when needed and prints the QR and link in the terminal. The phone then does the rest (providers, projects) in the web setup.
 
-Out (later plans): **multi-server threads and runtimes** (PLAN.md hub + runtimes: a runtime dials the hub, remote `pi-env`, a thread on another machine, Claude CLI on a connected runtime). This plan only makes the hub reachable and gives every client its own credential; a runtime later is one more **device kind** on the same pairing flow. PWA, mobile layout and offline caching (next plan); other tunnel providers (Cloudflare, Tailscale: the remote adapter is a port, so they fit later); LAN mode (binding `0.0.0.0`); per-device permission scopes; push notifications; auto update (`tau update`); the OS never sleeping (a Mac host may sleep: Settings shows a note, nothing more).
+Out (later plans): **a thread that moves between machines**, a hub that owns all data and thin runtimes (PLAN.md "Hub + runtimes"; see "Machines" for why), grouping the same repo across machines, per-machine permissions. PWA, mobile layout and offline caching (next plan); other tunnel providers (Cloudflare, Tailscale: the remote adapter is a port, so they fit later); LAN mode (binding `0.0.0.0`); per-device permission scopes; push notifications; auto update (`tau update`); the OS never sleeping (a Mac host may sleep: Settings shows a note, nothing more).
 
 ## Design
 
@@ -123,6 +123,66 @@ One pre-built inline HTML string in `server/src/security/pair-page.ts` (in the s
 0. Foundation owns everything listed above plus the **security suite extended first**: master token refused on a tagged socket even with `Host: 127.0.0.1:<port>`, a device cookie accepted, forged Host/Origin refused, the unauthenticated surface exact, `/assets/*` 401.
 1. A: `core/src/access/**` (devices, pairing, limits). B: `core/src/remote/**`, `core/src/watchdog/**`, `starts.json`, `last-exit.json`. C: `server/src/security/**` (tunnel listener and tags, guard, pair page, redeem and health routes, device-bound sockets). D: `web/src/settings/Remote*` and `components/ui/qr-code.tsx`. E: `cli/**`.
 
+## Machines (round 2: the user wants several servers and PCs in one UI)
+
+### How Multica does it (evidence: multica.ai/docs/daemon-runtimes, the local `multica` CLI)
+
+- A **daemon** on each computer dials the server (outbound only), registers **runtimes** (one per computer and tool), sends a **heartbeat every 15 s**; offline after missed heartbeats (about 3 min at most); runs and tool logins **stay on the computer**; the server stores the records. Setup is one command (`multica setup`, `multica daemon start`), `status`, `logs`, `restart`, and a **Runtimes page** with an online dot, version and owner. A local runtime is **private** to its owner by default.
+- What we copy: outbound-only link, heartbeat and online state, one command to connect, a Machines page, execution and logins stay on the machine. What we do not copy: Multica's server owns issues and runs; in tau the agent loop is Pi Durable and is welded to the machine's disk (below).
+
+### Why federation, not "hub owns all data" (the PLAN.md idea)
+
+`grep` over `packages/core/src`: 11 non-test files use `child_process` and 33 use `node:fs` (git clone and worktrees `workspaces/**` and `git/**`, checkpoints, processes, terminals, skills, MCP config, icons, GitHub, the Claude CLI and its login). A hub that owns data with thin runtimes means remoting all of that behind `ExecutionEnv`-like ports: a rewrite of core, and Claude CLI would still need its login on the runtime. **Federation** needs none of it: **every machine runs a full tau** (own Pi Durable storage, projects, settings, providers, Claude login, terminals), and the machine you open in the browser (the **hub**, any tau with remote on) shows the others.
+
+- A thread **lives on one machine** and runs there. The hub shows it, never copies it.
+- A machine **works alone** when the hub is off (its own tau, locally). The hub going down loses the view, not the work.
+- Cost (accepted): no "continue this thread on another machine while the laptop is off"; the same repo on two machines is two projects. Both are later work (fork a thread onto another machine; group by git remote).
+- PLAN.md "Hub + runtimes" is rewritten to this after approval.
+
+### Link (one pairing flow, new device kind `machine`)
+
+- On the hub: Settings → **Machines** → "Connect a machine" shows the same link / short code / QR dialog as a device, with a command: `npx tau connect <link>` (and `tau connect <short code> --hub <url>`).
+- On the machine: `tau connect` talks to the machine's **own running server** over loopback (starts the MVP7 service if none is running, after asking), stores `{ hubUrl, machineSecret, name }` in `<home>/hub.json` (private file) and the **server process dials the hub** (`wss://<hostname>/api/machines/link`). No second daemon: one service, watched by the watchdog. Name defaults to the host name; `tau connect --name`. `tau disconnect` and Settings → "Linked to <hub>" → Disconnect on the machine, and "Disconnect" on the hub: both sides can cut it.
+- Credential: a **machine secret**, hashed at rest on the hub in the same store as devices (`kind: "machine"`, plus `os`, `tauVersion`, `protocolVersion`), revocable in the Devices list. It is accepted **only** on `GET /api/machines/link` (Bearer, a WebSocket upgrade); it is not a cookie and opens no other route. On a tagged socket this is one more entry in the unauthenticated-looking surface, with its own rate limit.
+- A linked machine does **not** accept machine links itself (no chains, no loops).
+- Same-Mac test: two scratch homes and ports; the hub URL may be `http://127.0.0.1:<port>` (loopback is allowed for `--hub`), so the whole feature is testable with no tunnel.
+
+### The link carries the machine's own API (no new business API)
+
+- One WebSocket per machine, multiplexed frames (TypeBox text frames; binary bodies as binary frames with a 4-byte stream id): `request {id, method, path, query, body}` → `response {id, status, body}`, `open {id, path}` → `message {id, data}` → `close {id, code, reason}` (WebSocket proxying: `/api/live` and the terminal stream), `ping/pong` every 15 s.
+- The machine's link client calls **its own server on loopback with its own master token**, so the machine's guard, schemas and `Core` are unchanged and tested as today. The hub exposes `/api/m/<machineId>/**`, authenticated like any other API route (device cookie), and forwards through the link. The hub's server adds no business logic: path in, path out. Allow-list for forwarded paths: only `/api/**` of the routes table; never the machine's `/api/access/**`, `/api/remote/**`, `/api/machines/**` (a machine's own security surface is not reachable through the hub).
+- Backpressure per stream (a stalled browser must not stall the link): a bounded queue per stream, close that stream with 1013 when it overflows; large responses (images, 5 MB) are chunked.
+- **Version skew**: the web app comes from the hub, the API from the machine. `hello` carries `protocolVersion` (a number bumped on any route/schema change). Different → the machine shows as **"Update tau on <machine>"**, not as online. No attempt to be compatible across versions.
+
+### Web (the large part)
+
+- `lib/api.ts` is a singleton today. New `MachineContext`: `{ machineId | "local", api, transport }`; `local` is today's behaviour, byte for byte (no prefix, same URLs). A remote machine's transport adds the `/api/m/<id>` prefix to `request`, `live` and `openStream`. React Query keys gain the machine id; every direct `api` import moves behind a `useApi()` hook (a mechanical pass, owner-listed below, behind a codemod-style grep gate: no `import { api }` outside `lib/`).
+- URLs: local stays `/p/:projectId/c/:conversationId[/terminal/:id]`; a remote thread is `/m/:machineId/p/:projectId/c/:conversationId[...]`. `lib/paths.ts` is the only builder; `use-open-conversation.ts` and its consumers read `machineId` too (extend the 7-consumer test from MVP11).
+- **Sidebar**: threads of all online machines in one list, **grouped by machine** (a header per machine with an online dot, collapsible, local first), plus a machine filter in the existing search. Project icon/colour as today. An **offline** machine keeps its last known projects and thread titles (cached on the hub in `<home>/machines/<id>/summary.json`, titles and times only, no transcripts), greyed, with "Offline, last seen 3 h ago"; opening one shows a calm "This machine is offline" state with no spinner loop.
+- **Settings → Machines** (Multica's Runtimes page, in tau taste): rows with name, OS, tau version, online dot, last seen, thread count; row actions: rename, disconnect, "Open settings" (the Settings dialog for that machine: providers, projects folder, Claude CLI, connectors, all as today, with a header "Settings for <machine>"). New piece `components/ui/machine-row.tsx`. A "This machine" row first.
+- Notifications and "needs attention" badges: each machine's `/live` feeds the same store, the sidebar badge aggregates.
+- New thread: the project picker lists projects of all machines (the project knows its machine); "Add project" asks which machine first when more than one is online.
+
+### Phasing inside MVP12 (two release points)
+
+- **Stage 1** (verified and usable on its own): remote access, pairing, devices, watchdog, security (everything above this section).
+- **Stage 2**: machines. Starts only after Stage 1 passes check, test, build, e2e and a real-tunnel run, and uses its devices store, guard and pairing. Owners for Stage 2: **F** `core/src/machines/**` (hub registry, link client, summary cache, heartbeat) ; **G** `server/src/machines/**` (link socket, multiplexer, `/api/m/**` proxy, backpressure, path allow-list); **H** web (`MachineContext`, `useApi` pass, sidebar groups, Machines page, offline state); **I** cli (`tau connect`, `tau disconnect`, `tau machines list`). Phase 0 of Stage 2 freezes: `Core.machines`, the frame schemas (`protocol/src/machine-link.ts`), `protocolVersion`, routes, commands, the `MachineContext` seam, fake core with two machines, contract tag.
+
+### Machines: pins and tests
+
+- (m1) A same-Mac federation spike: two scratch homes, link B to A over loopback, `GET /api/m/<B>/api/conversations`, the `/live` socket and the terminal stream through the proxy, a 5 MB image response, 20 parallel requests, kill B and watch A mark it offline within 45 s, reconnect.
+- (m2) The link works over the real tunnel (wss through the tagged listener, binary frames).
+- (m3) `useApi` pass: count of `import { api }` outside `lib/` and the Query keys that need the machine id.
+- (m4) Stalled browser on a proxied terminal stream does not stall the link or other streams.
+- Tests: frame schemas, multiplexer ordering and backpressure, version-skew state, path allow-list (access, remote and machines routes unreachable through the hub), machine secret accepted only on the link route and refused elsewhere, revoke closes the link, offline cache, web `MachineContext` (two fake machines, grouping, offline state), the same-Mac e2e (two real built servers on scratch homes: link, see B's thread in A's sidebar, send a message through A, see the answer), then the real-tunnel e2e.
+
+### Risks (machines)
+
+- **Hub to machine is full power** (terminals, agents, files): one stolen device on the hub is a remote shell on every linked machine. Mitigations are the Stage 1 ones; a later "hub devices need a second factor to open a terminal" is not in this plan. The link dialog says it in plain words.
+- **The web pass is wide** (every `api` use, every Query key, every path builder). A mistake leaks one machine's data into another's cache: keys must include the machine id; a test asserts it.
+- **Hub as single view**: two hubs on one machine, or machine A linked to B and B to A, are refused by the "linked machines do not accept links" rule.
+- **Protocol skew** is a real support cost; the strict version check is the guard.
+
 ## Phase 0 pins (foundation runs these first; results in this doc)
 
 - (a) The SDK in plain Node 22 here: `create({ store })`, `tunnel.ensure`, `connect({ routes })`, time to first online, hostname shape; **always `remove()` afterwards** (tunnels do not expire).
@@ -163,7 +223,7 @@ One pre-built inline HTML string in `server/src/security/pair-page.ts` (in the s
 
 ## Decisions (agreed with the user)
 
-1. Multi-server threads and runtimes are **out** of this plan (my call, the user asked me to decide): the hub first, runtimes next as one more device kind on the same pairing flow.
+1. **Machines are IN this plan** (the user changed it): I connect any server or PC and see all its threads in one UI. Architecture (federation, below) is proposed by the orchestrator and **awaits the user's OK**.
 2. The pairing code alone is the approval (no "approve on the host" click).
 3. A linked device gets **full power** (terminals and agents included), no scopes. The link dialog says so in plain words.
 4. First host to test: the user's Mac (this machine), with a scratch home and a random port for agent runs. The user links their own phone from their own tau.
