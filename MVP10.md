@@ -1,6 +1,6 @@
 # MVP10 plan: Claude connectors in Claude CLI threads
 
-Status: DRAFT v3 (review rounds 1–2 applied). Builds on MVP9 (Claude CLI provider, architecture A) and the spike `scratchpad/connectors-spike/notes.md` (CLI 2.1.302, SDK 0.3.302, 5 Haiku turns, read-only).
+Status: DRAFT v4 (review rounds 1–3 applied). Builds on MVP9 (Claude CLI provider, architecture A) and the spike `scratchpad/connectors-spike/notes.md` (CLI 2.1.302, SDK 0.3.302, 5 Haiku turns, read-only).
 
 ## Goal
 
@@ -45,8 +45,15 @@ A connector `tool_use` is a call that Pi must show but not run.
 - **Inbox**: after a connector-only message the CLI starts the next API message by itself, before Pi calls `streamSimple` again. Today `dispatch` drops messages when `binding.listener` is null (`pump.ts`). New: the binding keeps an `inbox`; with no listener, every non-system message (stream events, `assistant`, `result`) is queued, and the next turn's listener drains the inbox before live messages. That next Pi stream is that next API message (one Pi stream = one API message still holds). `result` and `owedResults` bookkeeping read from the drained messages the same way.
 - **Delivery**: the binding keeps `connectorIds` (a set). `resolveDeferreds` skips those ids **entirely** (today a result not in `binding.expected` goes to `asText` and would be sent as user text, `deliver.ts`). Connector ids are never in `binding.expected`, so `hasUnansweredCalls` ignores them. The results still count in the hash. Same rule in the Resume and Resume-at paths; Rebind renders them as transcript text.
 - **Hash**: `claude_connector` is left out of the system-message key in `normalize.ts` (tools added/removed), so turning the first connector on or off does not force a Rebind by itself. A change of the chosen server set closes the live query; the next call takes the **Resume** path with the new options (same SDK session).
+- **Adapter invariants** (review round 3, owner B):
+  1. The inbox drains **one API message** per turn (up to and including its `message_stop` and `assistant`) and keeps the rest queued (`turn.ts:41-43`, `api-message-reader.ts:195` ignore anything after the first message). `closeQuery` clears the inbox (`lifecycle.ts:17`).
+  2. A `result` queued in the inbox is tagged; draining it counts as "result seen", so `settleAfter` does not add an owed result (`pump.ts:37-41`, `run-bound.ts:44-45`).
+  3. `settleAfter` filters connector ids out of `summary.toolUseIds` before adding to `expected` (`run-bound.ts:44`).
+  4. Resume and Resume-at filter `claude_connector` results out of `plan.suffix` in `prepare.ts:34-50`; if the suffix is empty after the filter, no user message is sent and the turn only reads (from the inbox or live).
+  5. `normalize.ts` drops a system entry whose only change is `claude_connector` added or removed, so `hasForeignEntry` (`choose-path.ts:34-43`) does not Rebind.
+  6. A change of the chosen server set marks the binding "options stale"; at the next `streamSimple`, before `choosePath`, an idle binding closes its query (so `atHeadPlan` picks Resume, `choose-path.ts:42-46`, `launch.ts:70-79` builds fresh options). A busy binding is never closed for this; it waits for the next idle call.
 - **Tool definitions to the CLI**: the adapter filters `claude_connector` out of the `tau` MCP server.
-- **Wrong provider**: if the thread switches away from Claude CLI, `claude_connector` is no longer offered; Pi Durable already answers a stray call with `tool_unavailable` (`pi-durable/dist/harness/generation.js:466-468`). The web card shows "Claude connectors need a Claude CLI model" for that error on this tool.
+- **Wrong provider**: if the thread switches away from Claude CLI, `claude_connector` is no longer offered; Pi Durable already answers a stray call with `tool_unavailable` (`pi-durable/dist/harness/generation.js:466-468`). Owner D: the tool card for `claude_connector` with an error result whose text starts "Tool claude_connector is not available" shows "Claude connectors need a Claude CLI model" (new; no web code handles `tool_unavailable` today).
 - **Mixed message**: tau results go to MCP deferreds (MVP9), connector results come from the CLI. Order does not matter (deferred map).
 - **Abort**: Pi aborting a passthrough tool → `q.interrupt()`; the observed deferred rejects with `aborted`.
 - **Rebind / Resume-at**: the rebind transcript renders connector calls and results as text (the new session never ran them). Resume-at to a checkpoint before a connector call is fine (the SDK history has it).
