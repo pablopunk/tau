@@ -39,5 +39,6 @@ export function createRemoteService({ adapter, settings, access, changes }: Remo
       return status;
     },
   };
-  return { api, close: () => adapter.close() };
+  const start = (options: { enabled: boolean; holdReason?: string }) => adapter.resume(options);
+  return { api, start, close: () => adapter.close() };
 }

@@ -11,5 +11,6 @@ export interface LastExit {
 /** Synchronous on purpose: the watchdog writes this just before it kills the process. */
 export function writeLastExitSync(file: string, logFile: string | undefined, exit: LastExit): void {
   writeFileSync(file, `${JSON.stringify(exit)}\n`, { mode: 0o600 });
-  if (logFile) appendFileSync(logFile, `tau: watchdog killed the server (${exit.detail ?? exit.reason})\n`);
+  if (logFile && exit.reason === "watchdog")
+    appendFileSync(logFile, `tau: watchdog killed the server (${exit.detail ?? exit.reason})\n`);
 }

@@ -31,6 +31,10 @@ export function createFakeRemoteAdapter(now: () => number = Date.now): FakeRemot
       listeners.add(listener);
       return () => listeners.delete(listener);
     },
+    resume: async ({ enabled, holdReason }) => {
+      if (holdReason) void set({ ...REMOTE_OFF, message: holdReason });
+      else if (enabled) void set(online());
+    },
     push: (patch) => void set({ ...current, ...patch }),
     close: async () => void listeners.clear(),
   };

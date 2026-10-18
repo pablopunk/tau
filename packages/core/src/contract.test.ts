@@ -7,6 +7,7 @@ import type { Core } from "@tau/protocol";
 import { type ContractTarget, runCoreContract } from "@tau/testkit/contract";
 import { describe } from "vitest";
 import { type CoreDependencies, createCoreWith, defaultCoreDependencies } from "./create-core";
+import { createFakeRemoteAdapter } from "./remote/fake-adapter";
 import { createScriptedShellDaemon } from "./terminals/scripted-shell-daemon";
 import type { FakeGhConfig } from "./test-support/fake-gh";
 import { runGhFromConfig } from "./test-support/fake-run-gh";
@@ -15,7 +16,7 @@ import { makeLocalRepo } from "./test-support/local-repo";
 const REAL_CORE_IMPLEMENTED = true;
 
 /** Owners A (`[access]`) and B (`[remote]`) remove their tag when their folder passes the contract. */
-const PENDING_TAGS: string[] = ["[remote]"];
+const PENDING_TAGS: string[] = [];
 
 process.env.TAU_FAKE_CLAUDE_CLI = "1";
 
@@ -65,7 +66,16 @@ async function setUpGithub(root: string): Promise<{ deps: CoreDependencies; code
   const config = await fakeGithubConfig(root);
   const runGh = runGhFromConfig(() => config).run;
   const terminalDaemon = createScriptedShellDaemon();
-  return { deps: { ...defaultCoreDependencies(), runGh, ghPath: "/usr/bin/gh", terminalDaemon }, codeFolder };
+  return {
+    deps: {
+      ...defaultCoreDependencies(),
+      remoteAdapter: () => createFakeRemoteAdapter(),
+      runGh,
+      ghPath: "/usr/bin/gh",
+      terminalDaemon,
+    },
+    codeFolder,
+  };
 }
 
 async function makeRealTarget(): Promise<ContractTarget> {

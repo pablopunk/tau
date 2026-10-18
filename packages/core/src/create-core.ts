@@ -49,6 +49,7 @@ import { createProjectsApi } from "./projects-api";
 import { createProviderService, type Environment } from "./provider/provider-service";
 import { createProvidersApi } from "./providers-api";
 import { createOpenTunnelAdapter } from "./remote/opentunnel-adapter";
+import type { RemoteAdapter, RemoteAdapterDeps } from "./remote/ports";
 import { createRemoteService } from "./remote/remote-service";
 import type { RemovalHooks } from "./removal-hooks";
 import { createSettingsApi } from "./settings-api";
@@ -65,6 +66,7 @@ import { createTimerScheduler } from "./timers/timer-scheduler";
 import { createTimerToolServices } from "./timers/timer-tool-services";
 import { createTimersApi } from "./timers-api";
 import { createTitleService } from "./titles/title-service";
+import { CRASH_LOOP_TEXT, recordStart, startRecordFiles } from "./watchdog/start-record";
 import { createWorkspaceService } from "./workspaces/workspace-service";
 
 export interface CoreDependencies {
@@ -79,6 +81,8 @@ export interface CoreDependencies {
   /** The PTY daemon behind terminals; tests pass a fake with no PTY. */
   readonly terminalDaemon: TerminalDaemon;
   /** Tests replace the terminal service to watch the hooks. Default: `createTerminalService`. */
+  /** Tests replace the tunnel with the fake adapter. Default: the OpenTunnel adapter. */
+  readonly remoteAdapter?: (deps: RemoteAdapterDeps) => RemoteAdapter;
   readonly terminalService?: (deps: TerminalServiceDeps) => TerminalService;
 }
 
@@ -304,7 +308,9 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
     await scheduler.start();
     archivedCleanup.start();
 
-    const tunnel = createOpenTunnelAdapter({
+    const startRecord = recordStart(startRecordFiles(home.root), deps.now());
+    console.log(`tau: previous run ended: ${startRecord.previousExit.reason}`);
+    const tunnel = (deps.remoteAdapter ?? createOpenTunnelAdapter)({
       directory: home.remoteDirectory,
       tunnelTarget: options.tunnelTarget ?? (() => Promise.reject(new Error("No tunnel listener"))),
       now: deps.now,
@@ -317,6 +323,13 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
       announce: () => changes.emit({ resource: "devices" }),
     });
     const remote = createRemoteService({ adapter: tunnel, settings, access, changes });
+
+    void remote
+      .start({
+        enabled: (await settings.get()).remote.enabled,
+        holdReason: startRecord.crashLoop ? CRASH_LOOP_TEXT : undefined,
+      })
+      .catch((error: unknown) => console.error("tau: remote access did not start", error));
 
     let closing: Promise<void> | undefined;
     return {

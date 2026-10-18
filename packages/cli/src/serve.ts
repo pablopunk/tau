@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { createCore, startWatchdog, type Watchdog } from "@tau/core";
+import { createCore, createExitMarker, startWatchdog, type Watchdog } from "@tau/core";
 import { createServer } from "@tau/server";
 import { cliEntry } from "./cli-entry";
 import { lifecycleFlagsOf } from "./lifecycle/flags";
@@ -25,11 +25,12 @@ function startServiceWatchdog(home: string): Watchdog {
   });
 }
 
-function closeOnSignals(close: () => Promise<void>): void {
+function closeOnSignals(close: () => Promise<void>, markExit: (reason: "signal") => void): void {
   let closing = false;
   const shutDown = () => {
     if (closing) return;
     closing = true;
+    markExit("signal");
     close().then(
       () => process.exit(0),
       (error: unknown) => {
@@ -62,10 +63,12 @@ async function serveOnce(argv: readonly string[]): Promise<void> {
   if (!app) return options.service ? process.exit(1) : undefined;
   writeStoredPort(options.home, portOfUrl(app.url));
   const watchdog = options.service ? startServiceWatchdog(options.home) : undefined;
+  const markExit = createExitMarker(join(options.home, "last-exit.json"));
+  process.on("exit", (code) => code === 0 && markExit("clean"));
   closeOnSignals(async () => {
     await watchdog?.stop();
     await app.close();
-  });
+  }, markExit);
 }
 
 /** `tau serve`: the server in the foreground. `argv` holds only the server flags. */
