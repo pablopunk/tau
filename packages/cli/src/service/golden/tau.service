@@ -1,0 +1,11 @@
+[Unit]
+Description=tau server
+
+[Service]
+ExecStart="/opt/node/bin/node" "/opt/tau/dist/bin.js" "serve" "--service" "--no-open"
+Restart=always
+RestartSec=5
+Environment="PATH=/home/pablo/.local/share/mise/shims:/usr/local/bin:/usr/bin"
+
+[Install]
+WantedBy=default.target

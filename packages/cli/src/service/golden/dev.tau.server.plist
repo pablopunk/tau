@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>dev.tau.server</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/opt/node/bin/node</string>
+    <string>/opt/tau/dist/bin.js</string>
+    <string>serve</string>
+    <string>--service</string>
+    <string>--no-open</string>
+  </array>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/home/pablo/.local/share/mise/shims:/usr/local/bin:/usr/bin</string>
+  </dict>
+</dict>
+</plist>

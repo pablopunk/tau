@@ -1,4 +1,71 @@
-/** Owner C implements `tau status [--json]`. */
-export async function runStatus(_argv: readonly string[]): Promise<void> {
-  throw new Error("tau status: not implemented");
+import { type LifecycleDeps, managerOf, realLifecycleDeps } from "./deps";
+import { lifecycleFlagsOf } from "./flags";
+
+export interface StatusReport {
+  readonly installed: boolean;
+  readonly running: "service" | "foreground" | false;
+  readonly pid: number | null;
+  readonly url: string | null;
+  readonly version: string | null;
+  readonly cliVersion: string;
+  readonly home: string;
+  readonly node: string | null;
+  readonly nodeMissing: boolean;
+  readonly warnings: readonly string[];
+}
+
+export async function gatherStatus(deps: LifecycleDeps, home: string): Promise<StatusReport> {
+  const manager = managerOf(deps, home);
+  const [installed, state, instance] = await Promise.all([
+    manager.installed(),
+    manager.state(),
+    deps.readInstance(home),
+  ]);
+  const recorded = manager.recorded();
+  const nodeMissing = installed && recorded !== undefined && !deps.fileExists(recorded.node);
+  const cliVersion = deps.version();
+  const managedPid = state.pid;
+  const isService = state.active && (managedPid === undefined || managedPid === instance?.pid);
+  const warnings: string[] = [];
+  if (instance?.version !== undefined && instance.version !== cliVersion) {
+    warnings.push(`Running version ${instance.version} is not ${cliVersion}: run \`tau restart\`.`);
+  }
+  if (nodeMissing) warnings.push("node missing: run `tau` to repair the service.");
+  return {
+    installed,
+    running: instance ? (isService ? "service" : "foreground") : false,
+    pid: instance?.pid ?? null,
+    url: instance?.url ?? null,
+    version: instance?.version ?? null,
+    cliVersion,
+    home,
+    node: recorded?.node ?? null,
+    nodeMissing,
+    warnings,
+  };
+}
+
+export function renderStatus(report: StatusReport): string {
+  const running = report.running ? `running (${report.running})` : "not running";
+  return [
+    `tau: ${running}`,
+    `installed: ${report.installed ? "yes" : "no"}`,
+    `pid: ${report.pid ?? "-"}`,
+    `url: ${report.url ?? "-"}`,
+    `version: ${report.version ?? "-"}`,
+    `home: ${report.home}`,
+    `node: ${report.node ?? "-"}${report.nodeMissing ? " (missing)" : ""}`,
+    ...report.warnings.map((warning) => `warning: ${warning}`),
+  ].join("\n");
+}
+
+/** `tau status [--json]`. */
+export async function runStatusWith(deps: LifecycleDeps, argv: readonly string[]): Promise<void> {
+  const flags = lifecycleFlagsOf(argv, deps.context);
+  const report = await gatherStatus(deps, flags.home);
+  deps.out(flags.json ? JSON.stringify(report) : renderStatus(report));
+}
+
+export async function runStatus(argv: readonly string[]): Promise<void> {
+  await runStatusWith(await realLifecycleDeps(), argv);
 }
