@@ -14,7 +14,7 @@ export function skillCases(make: MakeContractTarget, test: CaseRunner): void {
     test("[skills] lists user skills without a project", async () => {
       const skills = await target.core.skills.list(null);
       expect(Array.isArray(skills)).toBe(true);
-      for (const skill of skills) expect(skill.scope).toBe("user");
+      for (const skill of skills) expect(["user", "app"]).toContain(skill.scope);
     });
 
     test("[skills] rejects an unknown project with not_found", async () => {

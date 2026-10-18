@@ -9,5 +9,8 @@ export default defineConfig({
   dts: false,
   fixedExtension: false,
   deps: { alwaysBundle: [/^@tau\//] },
-  copy: [{ from: "../web/dist", to: "dist/web" }],
+  copy: [
+    { from: "../web/dist", to: "dist/web" },
+    { from: "../core/src/skills/builtin", to: "dist/skills" },
+  ],
 });
