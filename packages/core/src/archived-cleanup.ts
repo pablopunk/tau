@@ -59,25 +59,44 @@ export function createArchivedCleanup(deps: CleanupDeps): ArchivedCleanup {
     return warning !== null && !force ? warning : null;
   }
 
-  async function handle(thread: ConversationSummary, options: PassOptions, result: DeleteArchivedResult) {
+  type Verdict = { thread: ConversationSummary; keptBecause: string | null };
+
+  async function verdictFor(thread: ConversationSummary, options: PassOptions): Promise<Verdict> {
     try {
-      const keptBecause = await decide(thread, options.force);
-      if (keptBecause !== null) {
-        result.kept.push({ id: thread.id, reason: keptBecause });
-        return;
-      }
-      if (!isOldEnough(thread, options.olderThanMs)) return;
-      await removal.remove(thread.id, options.force);
+      return { thread, keptBecause: await decide(thread, options.force) };
+    } catch (error) {
+      return { thread, keptBecause: errorReason(error) };
+    }
+  }
+
+  async function deleteOne(thread: ConversationSummary, force: boolean, result: DeleteArchivedResult) {
+    try {
+      await removal.remove(thread.id, force);
       result.deleted.push(thread.id);
     } catch (error) {
       result.kept.push({ id: thread.id, reason: errorReason(error) });
     }
   }
 
+  function logPass(options: PassOptions, threads: number, result: DeleteArchivedResult, startedAt: number) {
+    if (options.olderThanMs !== 0) return;
+    console.log(
+      `tau: delete archived force=${options.force} threads=${threads} deleted=${result.deleted.length} kept=${result.kept.length} tookMs=${Date.now() - startedAt}`,
+    );
+  }
+
   async function runPass(options: PassOptions): Promise<DeleteArchivedResult> {
+    const startedAt = Date.now();
     const result: DeleteArchivedResult = { deleted: [], kept: [] };
     const archived = (await deps.listArchived()).filter((thread) => thread.parentId === null);
-    for (const thread of archived) await handle(thread, options, result);
+    const verdicts = await Promise.all(archived.map((thread) => verdictFor(thread, options)));
+    const shortlist: ConversationSummary[] = [];
+    for (const { thread, keptBecause } of verdicts) {
+      if (keptBecause !== null) result.kept.push({ id: thread.id, reason: keptBecause });
+      else if (isOldEnough(thread, options.olderThanMs)) shortlist.push(thread);
+    }
+    for (const thread of shortlist) await deleteOne(thread, options.force, result);
+    logPass(options, archived.length, result, startedAt);
     return result;
   }
 
