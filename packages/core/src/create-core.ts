@@ -173,6 +173,10 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
     const terminals = (deps.terminalService ?? createTerminalService)({
       daemon: deps.terminalDaemon,
       changes,
+      conversations,
+      home: home.root,
+      env: deps.env,
+      now: deps.now,
     });
     const workspaces = createWorkspaceService({
       home: home.root,

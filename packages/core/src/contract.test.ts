@@ -7,14 +7,14 @@ import type { Core } from "@tau/protocol";
 import { type ContractTarget, runCoreContract } from "@tau/testkit/contract";
 import { describe } from "vitest";
 import { type CoreDependencies, createCoreWith, defaultCoreDependencies } from "./create-core";
+import { createScriptedShellDaemon } from "./terminals/scripted-shell-daemon";
 import type { FakeGhConfig } from "./test-support/fake-gh";
 import { runGhFromConfig } from "./test-support/fake-run-gh";
 import { makeLocalRepo } from "./test-support/local-repo";
 
 const REAL_CORE_IMPLEMENTED = true;
 
-/** Owner A removes `terminals` when the real service lands. */
-const PENDING_TAGS: string[] = ["terminals"];
+const PENDING_TAGS: string[] = [];
 
 process.env.TAU_FAKE_CLAUDE_CLI = "1";
 
@@ -63,7 +63,8 @@ async function setUpGithub(root: string): Promise<{ deps: CoreDependencies; code
   await makeCopyOfRepoWithCopy(codeFolder);
   const config = await fakeGithubConfig(root);
   const runGh = runGhFromConfig(() => config).run;
-  return { deps: { ...defaultCoreDependencies(), runGh, ghPath: "/usr/bin/gh" }, codeFolder };
+  const terminalDaemon = createScriptedShellDaemon();
+  return { deps: { ...defaultCoreDependencies(), runGh, ghPath: "/usr/bin/gh", terminalDaemon }, codeFolder };
 }
 
 async function makeRealTarget(): Promise<ContractTarget> {
