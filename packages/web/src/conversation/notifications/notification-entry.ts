@@ -2,7 +2,7 @@ import {
   SUBAGENT_NOTIFICATION_KIND,
   type SubagentNotificationData,
   SubagentNotificationDataSchema,
-} from "@pi-everywhere/protocol";
+} from "@tau/protocol";
 import { Value } from "typebox/value";
 
 export const isSubagentNotificationKind = (kind: string): boolean => kind === SUBAGENT_NOTIFICATION_KIND;

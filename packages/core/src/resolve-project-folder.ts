@@ -1,6 +1,6 @@
 import { realpath, stat } from "node:fs/promises";
 import { isAbsolute } from "node:path";
-import { AppError } from "@pi-everywhere/protocol";
+import { AppError } from "@tau/protocol";
 import { expandHome } from "./fs/expand-home";
 
 /** The real path of an existing directory, `~` allowed; rejects `invalid_request`, `path_not_found` or `not_a_directory`. */

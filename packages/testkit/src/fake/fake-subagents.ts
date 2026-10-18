@@ -1,4 +1,4 @@
-import { SUBAGENT_NOTIFICATION_KIND, type SubagentNotificationData } from "@pi-everywhere/protocol";
+import { SUBAGENT_NOTIFICATION_KIND, type SubagentNotificationData } from "@tau/protocol";
 import type { FakeConversation } from "./fake-conversation";
 import type { Mvp5Context } from "./fake-mvp5";
 

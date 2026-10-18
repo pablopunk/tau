@@ -1,4 +1,4 @@
-import type { GithubRepo, GithubStatus } from "@pi-everywhere/protocol";
+import type { GithubRepo, GithubStatus } from "@tau/protocol";
 import { LockIcon } from "lucide-react";
 import type { ComboboxOption } from "@/components/ui/combobox";
 import { RelativeTime } from "@/components/ui/relative-time";

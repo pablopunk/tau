@@ -1,4 +1,4 @@
-import { AppError } from "@pi-everywhere/protocol";
+import { AppError } from "@tau/protocol";
 
 export function requireName(name: string): string {
   const trimmed = name.trim();

@@ -1,5 +1,5 @@
-import type { ProcessInfo } from "@pi-everywhere/protocol";
 import { useQueryClient } from "@tanstack/react-query";
+import type { ProcessInfo } from "@tau/protocol";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";

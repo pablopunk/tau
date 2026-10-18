@@ -1,4 +1,4 @@
-import type { WorkspaceStatus } from "@pi-everywhere/protocol";
+import type { WorkspaceStatus } from "@tau/protocol";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,

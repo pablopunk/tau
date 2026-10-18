@@ -1,4 +1,4 @@
-import type { EntryRecord } from "@pi-everywhere/protocol";
+import type { EntryRecord } from "@tau/protocol";
 
 export interface ContextUsage {
   readonly used: number;

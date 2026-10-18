@@ -1,5 +1,6 @@
-import { createCore } from "@pi-everywhere/core";
-import { createServer } from "@pi-everywhere/server";
+import { createCore } from "@tau/core";
+import { createServer } from "@tau/server";
+import { migrateLegacyHome } from "./migrate-legacy-home";
 import { parseCliOptions } from "./options";
 import { run } from "./run";
 import { findStaticDir } from "./static-dir";
@@ -27,7 +28,9 @@ function closeOnSignals(close: () => Promise<void>): void {
 }
 
 export async function main(argv: readonly string[]): Promise<void> {
-  const app = await run(parseCliOptions(argv), {
+  const options = parseCliOptions(argv);
+  await migrateLegacyHome(options);
+  const app = await run(options, {
     createCore,
     createServer,
     openBrowser,

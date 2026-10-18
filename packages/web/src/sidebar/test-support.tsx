@@ -1,5 +1,5 @@
-import type { ConversationSummary, Project } from "@pi-everywhere/protocol";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import type { ConversationSummary, Project } from "@tau/protocol";
 import { render } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { MemoryRouter, useLocation } from "react-router";

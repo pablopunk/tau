@@ -1,4 +1,4 @@
-import type { RouteDef, RouteInput, RouteOutput } from "@pi-everywhere/protocol";
+import type { RouteDef, RouteInput, RouteOutput } from "@tau/protocol";
 import type { FastifyInstance } from "fastify";
 
 // biome-ignore lint/suspicious/noConfusingVoidType: Core methods without a result resolve to void

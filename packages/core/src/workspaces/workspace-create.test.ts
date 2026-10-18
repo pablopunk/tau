@@ -14,7 +14,7 @@ describe("slugFrom", () => {
 });
 
 describe("workspaces.create", () => {
-  test("adds a worktree on pi/<slug> for a repo root project", async () => {
+  test("adds a worktree on tau/<slug> for a repo root project", async () => {
     const { startThread, home, repo } = await setUp();
     const { workspace } = await startThread("Add login");
     expect(workspace).toMatchObject({

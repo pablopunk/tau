@@ -1,4 +1,4 @@
-import { AppError, isIconPng, type ProjectIconImage, projectIconUrl } from "@pi-everywhere/protocol";
+import { AppError, isIconPng, type ProjectIconImage, projectIconUrl } from "@tau/protocol";
 
 const hashOf = (bytes: Uint8Array) => {
   let hash = 5381;

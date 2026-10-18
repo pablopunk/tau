@@ -1,4 +1,4 @@
-import { AppError } from "@pi-everywhere/protocol";
+import { AppError } from "@tau/protocol";
 
 const SAFE_NAME = /^[A-Za-z0-9._][A-Za-z0-9._-]*$/;
 const SCP_FORM = /^([^@/:\s]+)@([^@/:\s]+):(.+)$/;

@@ -1,5 +1,5 @@
-import type { Change } from "@pi-everywhere/protocol";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import type { Change } from "@tau/protocol";
 import { renderHook } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";

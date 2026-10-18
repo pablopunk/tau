@@ -1,4 +1,4 @@
-import type { LoginSession } from "@pi-everywhere/protocol";
+import type { LoginSession } from "@tau/protocol";
 import { type FormEvent, useState } from "react";
 import { FormError } from "@/app/FormError";
 import { useSubmit } from "@/app/use-submit";

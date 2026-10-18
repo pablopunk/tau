@@ -1,5 +1,5 @@
 import type { ConversationId, Cursor, Harness } from "@earendil-works/pi-durable";
-import type { ConversationSummary, ThreadWorkspace } from "@pi-everywhere/protocol";
+import type { ConversationSummary, ThreadWorkspace } from "@tau/protocol";
 import {
   ConversationDoc,
   type ConversationMeta,

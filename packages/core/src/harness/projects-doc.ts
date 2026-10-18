@@ -1,5 +1,5 @@
 import { defineDoc } from "@earendil-works/pi-durable";
-import type { ProjectStatus } from "@pi-everywhere/protocol";
+import type { ProjectStatus } from "@tau/protocol";
 
 export type ProjectRecord = {
   id: string;

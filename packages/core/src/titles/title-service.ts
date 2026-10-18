@@ -1,6 +1,6 @@
 import { clampThinkingLevel, type Models } from "@earendil-works/pi-ai/models";
 import type { ConversationId, Harness } from "@earendil-works/pi-durable";
-import type { ModelRef } from "@pi-everywhere/protocol";
+import type { ModelRef } from "@tau/protocol";
 import type { ChangeEmitter } from "../change-emitter";
 import { titleFromModelAnswer } from "../conversation-title";
 import { readMeta, updateLiveConversation } from "../harness/conversation-index";
@@ -84,7 +84,7 @@ export function createTitleService(deps: TitleServiceDeps): TitleService {
         const id = Number(conversationId) as ConversationId;
         await applyTitle(id, await generateTitle(id, firstText));
       } catch (error) {
-        console.error("pi-everywhere: could not generate a thread title", error);
+        console.error("tau: could not generate a thread title", error);
       }
     },
   };

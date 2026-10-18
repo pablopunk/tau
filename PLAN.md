@@ -1,4 +1,4 @@
-# Pi Everywhere — plan
+# Tau — plan
 
 Working name. Goal: my own app to run Pi agents on my machines and use them from my phone, laptop, or any other device, with a UI organized the way I like.
 
@@ -79,7 +79,7 @@ What the work plugins (`~/src/maze/claude-plugins`, 27 plugins) actually need:
 
 ### First run (setup checklist)
 The first screen is a checklist of what the user must do before the app works:
-1. **Projects folder**: a default hidden folder that touches none of the user's folders (e.g. `~/.pi-everywhere/projects`), or a custom folder they choose. It also holds the worktrees of the threads.
+1. **Projects folder**: a default hidden folder that touches none of the user's folders (e.g. `~/.tau/projects`), or a custom folder they choose. It also holds the worktrees of the threads.
 2. **At least one AI provider**:
    - API key (e.g. OpenRouter): paste the key.
    - Subscription login (e.g. OpenAI/ChatGPT, OpenCode/OpenCode Go): use each provider's own login flow, through Pi's provider auth where it exists.

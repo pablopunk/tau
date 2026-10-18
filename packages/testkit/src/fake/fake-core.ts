@@ -12,7 +12,7 @@ import {
   type ThinkingLevel,
   type ThreadWorkspace,
   type WorkspaceMode,
-} from "@pi-everywhere/protocol";
+} from "@tau/protocol";
 import { clampFakeThinkingLevel, FAKE_MODELS, findFakeModel } from "./catalog";
 import { FakeConversation, type FakeInput } from "./fake-conversation";
 import { createFakeDeleteArchived } from "./fake-delete-archived";
@@ -52,7 +52,7 @@ export interface FakeCoreOptions {
 }
 
 export { FAKE_HOME_PATH };
-export const FAKE_PROJECTS_FOLDER = `${FAKE_HOME_PATH}/.pi-everywhere/projects`;
+export const FAKE_PROJECTS_FOLDER = `${FAKE_HOME_PATH}/.tau/projects`;
 const HOME_ID = "home";
 const FIRST_CONVERSATION_ID = 2;
 const DEFAULT_CLONE_MS = 1200;

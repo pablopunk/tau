@@ -5,7 +5,7 @@ import {
   type Project,
   type ThreadWorkspace,
   type WorkspaceMode,
-} from "@pi-everywhere/protocol";
+} from "@tau/protocol";
 import type { RunGh } from "../github/run-gh";
 import { legacyWorkspace } from "../harness/conversation-index";
 import type { ConversationStore } from "../harness/conversation-store";

@@ -18,7 +18,7 @@ import {
   type UserMessage,
   unmergedWarningFor,
   type WhenBusy,
-} from "@pi-everywhere/protocol";
+} from "@tau/protocol";
 import { fixtures } from "../fixtures/index";
 import { fixtureForMessage, triggerOf } from "../fixtures/triggers";
 import type { Fixture } from "../fixtures/types";

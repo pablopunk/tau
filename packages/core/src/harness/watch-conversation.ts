@@ -1,6 +1,6 @@
 import type { JsonValue } from "@earendil-works/chord";
 import type { Conversation } from "@earendil-works/pi-durable";
-import type { ConversationWatcher, OpsListener } from "@pi-everywhere/protocol";
+import type { ConversationWatcher, OpsListener } from "@tau/protocol";
 import { BACKGROUND } from "./open";
 
 /** First frame is the whole view as `[["r", view]]`, then each commit's ops. Nothing is delivered after `stop()`. */

@@ -1,4 +1,4 @@
-import type { FileSuggestion } from "@pi-everywhere/protocol";
+import type { FileSuggestion } from "@tau/protocol";
 import type { FakeFs } from "./fake-fs";
 
 const MAX_SUGGESTIONS = 20;

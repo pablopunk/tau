@@ -1,4 +1,4 @@
-# pi-everywhere
+# tau
 
 Chat with a coding agent that works in your project folders, from the browser. It runs a small server on your computer (127.0.0.1 only) and opens a web app where you add project folders and start chats. The agent is built on Pi and talks to models through OpenRouter.
 
@@ -10,7 +10,7 @@ Chat with a coding agent that works in your project folders, from the browser. I
 ## Run
 
 ```sh
-npx pi-everywhere
+npx tau
 ```
 
 The terminal prints a URL with a private token and opens it in your browser. Running it a second time prints the same URL and exits.
@@ -19,8 +19,8 @@ The terminal prints a URL with a private token and opens it in your browser. Run
 | --- | --- |
 | `--port <n>` | Preferred port (default 4317; the next free port is used if it is taken). |
 | `--no-open` | Do not open the browser. |
-| `--home <dir>` | Data home (default `~/.pi-everywhere`, or `PI_EVERYWHERE_HOME`). |
-| `--faux` | Use a scripted fake model instead of OpenRouter (or `PI_EVERYWHERE_FAUX=1`). |
+| `--home <dir>` | Data home (default `~/.tau`, or `TAU_HOME`). |
+| `--faux` | Use a scripted fake model instead of OpenRouter (or `TAU_FAUX=1`). |
 
 ## Features
 

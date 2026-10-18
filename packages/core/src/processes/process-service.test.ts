@@ -1,7 +1,7 @@
 import { mkdtemp, readFile, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { ConversationSummary } from "@pi-everywhere/protocol";
+import type { ConversationSummary } from "@tau/protocol";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { extractLocalUrls } from "./local-urls";
 import { createLogTail, lastLines } from "./log-tail";

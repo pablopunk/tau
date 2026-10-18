@@ -1,5 +1,5 @@
 import type { ConversationId } from "@earendil-works/pi-durable";
-import type { ConversationSummary } from "@pi-everywhere/protocol";
+import type { ConversationSummary } from "@tau/protocol";
 import type { ConversationForker } from "../harness/conversation-fork";
 import { isBusy } from "../harness/live-state";
 import type { CheckpointStore, CheckpointsValue, StoredCheckpoint } from "./checkpoint-store";

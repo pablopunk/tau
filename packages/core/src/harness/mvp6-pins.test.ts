@@ -9,7 +9,7 @@ import {
   type InboxState,
   type LiveState,
 } from "@earendil-works/pi-durable";
-import { SUBAGENT_NOTIFICATION_KIND } from "@pi-everywhere/protocol";
+import { SUBAGENT_NOTIFICATION_KIND } from "@tau/protocol";
 import { Type } from "typebox";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createFauxSetup } from "../testing/faux-provider";
@@ -159,7 +159,7 @@ const untilNotified = (h: Harness, id: string) =>
 
 beforeEach(async () => {
   hooks = { rerunSameCall: false, crashAfterCommit: false, release: undefined };
-  root = await realpath(await mkdtemp(join(tmpdir(), "pie-mvp6-pins-")));
+  root = await realpath(await mkdtemp(join(tmpdir(), "tau-mvp6-pins-")));
   project = join(root, "project");
   await mkdir(project);
 });

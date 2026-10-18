@@ -1,5 +1,5 @@
 import type { Conversation } from "@earendil-works/pi-durable";
-import type { ConversationWatcher, Op, OpsListener } from "@pi-everywhere/protocol";
+import type { ConversationWatcher, Op, OpsListener } from "@tau/protocol";
 import { watchConversation } from "./watch-conversation";
 
 const VIEW_RETIRED: readonly Op[] = [["r", null]];
@@ -42,7 +42,7 @@ export function createWatcherRegistry(): WatcherRegistry {
       retirers.delete(conversationId);
       await Promise.all(
         active.map((retire) =>
-          retire().catch((error) => console.error("pi-everywhere: could not retire a watcher", error)),
+          retire().catch((error) => console.error("tau: could not retire a watcher", error)),
         ),
       );
     },

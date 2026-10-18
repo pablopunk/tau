@@ -1,4 +1,4 @@
-import type { Core } from "@pi-everywhere/protocol";
+import type { Core } from "@tau/protocol";
 
 export interface ContractTarget {
   readonly core: Core;

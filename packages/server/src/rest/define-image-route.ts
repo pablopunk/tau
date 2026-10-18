@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import type { ProjectIconImage, RouteDef, RouteInput } from "@pi-everywhere/protocol";
+import type { ProjectIconImage, RouteDef, RouteInput } from "@tau/protocol";
 import type { FastifyInstance, FastifyReply } from "fastify";
 import { etagMatches } from "./etag-match";
 

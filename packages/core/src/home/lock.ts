@@ -12,9 +12,7 @@ export class HomeLockedError extends Error {
   readonly info: LockInfo;
 
   constructor(info: LockInfo) {
-    super(
-      `Another pi-everywhere (pid ${info.pid}) is using this data home${info.url ? `: ${info.url}` : ""}`,
-    );
+    super(`Another tau (pid ${info.pid}) is using this data home${info.url ? `: ${info.url}` : ""}`);
     this.name = "HomeLockedError";
     this.info = info;
   }

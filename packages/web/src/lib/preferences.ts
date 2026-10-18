@@ -1,6 +1,8 @@
-import type { ModelRef, ThinkingLevel } from "@pi-everywhere/protocol";
+import type { ModelRef, ThinkingLevel } from "@tau/protocol";
 
-const PREFIX = "pi-everywhere:";
+import { readWithLegacy } from "./legacy-storage";
+
+const PREFIX = "tau:";
 const KEYS = {
   lastProject: `${PREFIX}last-project`,
   lastModel: `${PREFIX}last-model`,
@@ -8,15 +10,15 @@ const KEYS = {
   notifications: `${PREFIX}notifications`,
   lastSeenAt: `${PREFIX}last-seen-at`,
   seenBaseline: `${PREFIX}seen-baseline`,
-  sidebarMode: "pie-sidebar-mode",
-  closedProjects: "pie-sidebar-closed-projects",
-  collapsedThreads: "pie-sidebar-collapsed-threads",
+  sidebarMode: "tau-sidebar-mode",
+  closedProjects: "tau-sidebar-closed-projects",
+  collapsedThreads: "tau-sidebar-collapsed-threads",
   theme: `${PREFIX}theme`,
 } as const;
 
 function readString(key: string): string | null {
   try {
-    return window.localStorage.getItem(key);
+    return readWithLegacy(key);
   } catch {
     return null;
   }

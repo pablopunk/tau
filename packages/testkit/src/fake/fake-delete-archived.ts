@@ -1,4 +1,4 @@
-import { type Core, unmergedWarningFor } from "@pi-everywhere/protocol";
+import { type Core, unmergedWarningFor } from "@tau/protocol";
 import type { FakeConversation } from "./fake-conversation";
 import { unmergedKindsOfChanges } from "./fake-workspace";
 import { hasUnmergedWork } from "./fake-workspaces";

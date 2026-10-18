@@ -6,7 +6,7 @@ import type {
   EntryRecord,
   Harness,
 } from "@earendil-works/pi-durable";
-import { AppError, type ConversationSummary } from "@pi-everywhere/protocol";
+import { AppError, type ConversationSummary } from "@tau/protocol";
 import { ConversationDoc, INDEX_SEED, ProjectIndexDoc } from "./conversation-docs";
 import type { ConversationStore } from "./conversation-store";
 import { forkedWorkspace } from "./forked-workspace";

@@ -7,7 +7,7 @@ import {
   type SendMessageInput,
   type ThinkingLevel,
   type ThreadWorkspace,
-} from "@pi-everywhere/protocol";
+} from "@tau/protocol";
 import { toUserInput } from "../conversation-input";
 import { titleFromFirstMessage } from "../conversation-title";
 import { ConversationDoc, INDEX_SEED, ProjectIndexDoc } from "./conversation-docs";
@@ -160,7 +160,7 @@ export function createConversationStarter(
           );
           projectIds.add(meta.projectId);
         } catch (error) {
-          console.error("pi-everywhere: could not resume a first message", error);
+          console.error("tau: could not resume a first message", error);
         }
       }
       return [...projectIds];

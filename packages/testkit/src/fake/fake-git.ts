@@ -1,4 +1,4 @@
-import { AppError } from "@pi-everywhere/protocol";
+import { AppError } from "@tau/protocol";
 
 const HOST = /^[A-Za-z0-9._-]+$/;
 const FAILING_URL_MARKER = "fail";

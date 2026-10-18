@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { AppError, type Project, type UseGithubRepoInput } from "@pi-everywhere/protocol";
+import { AppError, type Project, type UseGithubRepoInput } from "@tau/protocol";
 import type { ChangeEmitter } from "../change-emitter";
 import type { CloneService } from "../git/clone-service";
 import { repositoryKey } from "../git/repository-key";

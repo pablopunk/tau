@@ -1,4 +1,4 @@
-import { AppError } from "@pi-everywhere/protocol";
+import { AppError } from "@tau/protocol";
 
 export type FakeFs = Readonly<Record<string, "directory" | "file">>;
 
@@ -10,8 +10,8 @@ export const FAKE_FS: FakeFs = {
   "/Users/demo/other": "directory",
   "/Users/demo/notes.txt": "file",
   "/Users/demo/src": "directory",
-  "/Users/demo/src/pi-everywhere": "directory",
-  "/Users/demo/src/pi-everywhere/.git": "directory",
+  "/Users/demo/src/tau": "directory",
+  "/Users/demo/src/tau/.git": "directory",
   "/Users/demo/src/sandbox": "directory",
   "/Users/demo/src/scratch": "directory",
   "/Users/demo/Documents": "directory",

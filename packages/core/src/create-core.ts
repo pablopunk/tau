@@ -1,6 +1,6 @@
 import { homedir } from "node:os";
 import { join } from "node:path";
-import type { Core, CreateCore } from "@pi-everywhere/protocol";
+import type { Core, CreateCore } from "@tau/protocol";
 import { createAgentTypeLoader } from "./agents/agent-types";
 import { resolveModelAlias } from "./agents/model-alias";
 import { createArchivedCleanup } from "./archived-cleanup";
@@ -38,7 +38,7 @@ import { createTitleService } from "./titles/title-service";
 import { createWorkspaceService } from "./workspaces/workspace-service";
 
 export interface CreateCoreOptions {
-  /** Data home directory (`~/.pi-everywhere` by default in the CLI). */
+  /** Data home directory (`~/.tau` by default in the CLI). */
   readonly home: string;
   /** Use pi-ai's faux provider with the faux script instead of OpenRouter. */
   readonly faux?: boolean;
@@ -56,7 +56,7 @@ export interface CoreDependencies {
 }
 
 const exitAfterLogging = (error: unknown) => {
-  console.error("pi-everywhere: the agent store failed", error);
+  console.error("tau: the agent store failed", error);
   process.exit(1);
 };
 
@@ -90,7 +90,7 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
       registry: createAgentRegistry(toolServices),
       storage: await openSqliteStorage(home.agentDatabase),
       models: provider.models,
-      onReport: (error) => console.error("pi-everywhere: agent report", error),
+      onReport: (error) => console.error("tau: agent report", error),
       beforeResume: (opened) => status.attach(opened),
     });
     harness.closed.then((end) => {
@@ -104,7 +104,7 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
     const icons = createIconService({ iconsDirectory: home.iconsDirectory, now: deps.now });
     const present = createPresentProject(icons);
     const githubRef: { current?: ReturnType<typeof createGithubService> } = {};
-    const allowFileClones = (options.faux ?? false) && deps.env.PI_EVERYWHERE_ALLOW_FILE_CLONES === "1";
+    const allowFileClones = (options.faux ?? false) && deps.env.TAU_ALLOW_FILE_CLONES === "1";
     const clones = createCloneService({
       harness,
       projects,

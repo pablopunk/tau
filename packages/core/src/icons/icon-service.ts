@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises";
-import { AppError, type Project, type ProjectIconImage } from "@pi-everywhere/protocol";
+import { AppError, type Project, type ProjectIconImage } from "@tau/protocol";
 import { deleteCustomIcon, hashIcon, readCustomIcon, writeCustomIcon } from "./custom-icon";
 import { type FoundIcon, findCandidates, findFirstIcon } from "./discovery";
 

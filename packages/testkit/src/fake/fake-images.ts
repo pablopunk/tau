@@ -1,4 +1,4 @@
-import { AppError, type ImageInput } from "@pi-everywhere/protocol";
+import { AppError, type ImageInput } from "@tau/protocol";
 
 const MAGIC_BYTES: Record<ImageInput["mimeType"], readonly number[]> = {
   "image/png": [0x89, 0x50, 0x4e, 0x47],

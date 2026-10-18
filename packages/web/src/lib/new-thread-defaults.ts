@@ -1,4 +1,4 @@
-import type { ModelInfo, ModelRef, Project, ThinkingLevel } from "@pi-everywhere/protocol";
+import type { ModelInfo, ModelRef, Project, ThinkingLevel } from "@tau/protocol";
 
 export const HOME_PROJECT_ID = "home";
 

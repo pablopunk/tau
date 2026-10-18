@@ -1,4 +1,4 @@
-import { AppError } from "@pi-everywhere/protocol";
+import { AppError } from "@tau/protocol";
 
 const MAX_NAME_LENGTH = 512;
 const hasControlCharacter = (name: string) => [...name].some((char) => char.charCodeAt(0) < 32);

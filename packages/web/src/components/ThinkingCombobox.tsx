@@ -1,4 +1,4 @@
-import type { ThinkingLevel } from "@pi-everywhere/protocol";
+import type { ThinkingLevel } from "@tau/protocol";
 import { Combobox } from "@/components/ui/combobox";
 
 const MODEL_DEFAULT = "__model_default__";

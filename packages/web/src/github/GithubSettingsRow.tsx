@@ -1,4 +1,4 @@
-import type { GithubStatus } from "@pi-everywhere/protocol";
+import type { GithubStatus } from "@tau/protocol";
 import { FormError } from "@/app/FormError";
 import { Skeleton } from "@/components/ui/skeleton";
 import { errorMessage } from "@/lib/error-message";

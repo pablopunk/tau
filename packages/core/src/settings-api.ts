@@ -1,7 +1,7 @@
 import { mkdir } from "node:fs/promises";
 import { isAbsolute } from "node:path";
 import { clampThinkingLevel } from "@earendil-works/pi-ai/models";
-import { AppError, type Core, type ModelRef, type ThinkingLevel } from "@pi-everywhere/protocol";
+import { AppError, type Core, type ModelRef, type ThinkingLevel } from "@tau/protocol";
 import { expandHome } from "./fs/expand-home";
 import { type CodeFolderDeps, suggestCodeFolder } from "./github/code-folder";
 import type { SettingsStore } from "./home/settings-store";

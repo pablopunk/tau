@@ -1,4 +1,4 @@
-import type { Checkpoint } from "@pi-everywhere/protocol";
+import type { Checkpoint } from "@tau/protocol";
 import type { Repo } from "./repo";
 import { runGit } from "./run-git";
 

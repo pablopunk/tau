@@ -1,5 +1,5 @@
-import type { Checkpoint } from "@pi-everywhere/protocol";
 import { useQuery } from "@tanstack/react-query";
+import type { Checkpoint } from "@tau/protocol";
 import { ChevronRight } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Spinner } from "@/components/ui/spinner";

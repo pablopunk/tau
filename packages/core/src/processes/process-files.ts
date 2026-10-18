@@ -1,6 +1,6 @@
 import { mkdir, readdir, rm } from "node:fs/promises";
 import { join } from "node:path";
-import type { ProcessInfo } from "@pi-everywhere/protocol";
+import type { ProcessInfo } from "@tau/protocol";
 import { readFileIfPresent, writeFileAtomic } from "../home/atomic-write";
 
 export interface ProcessRecord {

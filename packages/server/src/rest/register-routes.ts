@@ -1,4 +1,4 @@
-import { AppError, type Core, iconCandidateUrl, type ProviderId, routes } from "@pi-everywhere/protocol";
+import { AppError, type Core, iconCandidateUrl, type ProviderId, routes } from "@tau/protocol";
 import type { FastifyInstance } from "fastify";
 import { requireCandidateName } from "./candidate-name";
 import { defineImageRoute } from "./define-image-route";

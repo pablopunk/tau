@@ -1,4 +1,4 @@
-import type { AgentStatus } from "@pi-everywhere/protocol";
+import type { AgentStatus } from "@tau/protocol";
 import { List } from "lucide-react";
 import { AgentStatusBadge } from "@/sidebar/subagents/AgentStatusBadge";
 import { useModelLabel } from "@/sidebar/subagents/use-model-label";

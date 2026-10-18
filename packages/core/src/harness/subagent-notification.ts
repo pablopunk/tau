@@ -1,4 +1,4 @@
-import { SUBAGENT_NOTIFICATION_KIND, type SubagentNotificationData } from "@pi-everywhere/protocol";
+import { SUBAGENT_NOTIFICATION_KIND, type SubagentNotificationData } from "@tau/protocol";
 
 export const notificationText = ({ childId, status, report }: SubagentNotificationData) =>
   `<subagent-notification id="${childId}" status="${status}">${report}</subagent-notification>`;

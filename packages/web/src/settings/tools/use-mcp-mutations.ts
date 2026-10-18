@@ -1,5 +1,5 @@
-import type { McpServerConfig } from "@pi-everywhere/protocol";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import type { McpServerConfig } from "@tau/protocol";
 import { api } from "@/lib/api";
 import { queryKeys } from "@/lib/queries";
 

@@ -1,4 +1,4 @@
-import type { Project } from "@pi-everywhere/protocol";
+import type { Project } from "@tau/protocol";
 import { useState } from "react";
 import { SidebarMenuItem } from "@/components/ui/sidebar";
 import { Spinner } from "@/components/ui/spinner";

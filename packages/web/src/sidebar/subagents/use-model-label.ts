@@ -1,4 +1,4 @@
-import type { ModelRef } from "@pi-everywhere/protocol";
+import type { ModelRef } from "@tau/protocol";
 import { useModels } from "@/lib/queries";
 
 const keyOf = (model: ModelRef) => `${model.provider}/${model.modelId}`;

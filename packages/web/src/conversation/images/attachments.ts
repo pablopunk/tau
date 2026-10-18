@@ -1,5 +1,5 @@
-import type { ImageInput } from "@pi-everywhere/protocol";
-import { MAX_IMAGES_PER_MESSAGE } from "@pi-everywhere/protocol";
+import type { ImageInput } from "@tau/protocol";
+import { MAX_IMAGES_PER_MESSAGE } from "@tau/protocol";
 
 export interface Attachment {
   id: number;

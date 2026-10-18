@@ -1,5 +1,5 @@
 import { applyImmutable } from "@earendil-works/chord/delta";
-import type { ConversationView } from "@pi-everywhere/protocol";
+import type { ConversationView } from "@tau/protocol";
 import type { Fixture } from "./types";
 
 /** The view after each frame of the fixture, as a client applying the frames would see it. `null` once retired. */

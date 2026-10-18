@@ -1,9 +1,5 @@
-import type {
-  AssistantMessage as AssistantMessageData,
-  ConversationView,
-  ToolCall,
-} from "@pi-everywhere/protocol";
-import { isRetryable } from "@pi-everywhere/protocol";
+import type { AssistantMessage as AssistantMessageData, ConversationView, ToolCall } from "@tau/protocol";
+import { isRetryable } from "@tau/protocol";
 import { Loader2 } from "lucide-react";
 import { Fragment } from "react";
 import { TurnChanges } from "./checkpoints/TurnChanges";

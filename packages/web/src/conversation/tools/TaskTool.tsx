@@ -1,4 +1,4 @@
-import type { ConversationSummary } from "@pi-everywhere/protocol";
+import type { ConversationSummary } from "@tau/protocol";
 import { Bot } from "lucide-react";
 import { Link } from "react-router";
 import { Button } from "@/components/ui/button";

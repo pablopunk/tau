@@ -1,6 +1,6 @@
 import { getSupportedThinkingLevels, type Models } from "@earendil-works/pi-ai/models";
 import { personalizeOpenRouterCatalog } from "@earendil-works/pi-ai/providers/openrouter";
-import { AppError, type ModelInfo } from "@pi-everywhere/protocol";
+import { AppError, type ModelInfo } from "@tau/protocol";
 import { FAUX_PROVIDER_ID } from "../testing/faux-provider";
 import type { ConnectionReader } from "./connections";
 import { type PiProviderRef, PROVIDERS, type ProviderEntry } from "./providers-table";

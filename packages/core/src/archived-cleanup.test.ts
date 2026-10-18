@@ -1,4 +1,4 @@
-import type { ConversationSummary } from "@pi-everywhere/protocol";
+import type { ConversationSummary } from "@tau/protocol";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ARCHIVE_RETENTION_MS, CLEANUP_INTERVAL_MS, createArchivedCleanup } from "./archived-cleanup";
 import { createConversationRemoval } from "./conversation-removal";

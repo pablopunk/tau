@@ -1,5 +1,5 @@
 import { type ChildProcess, spawn } from "node:child_process";
-import type { ProcessInfo } from "@pi-everywhere/protocol";
+import type { ProcessInfo } from "@tau/protocol";
 import { extractLocalUrls } from "./local-urls";
 import { type LogFile, openLogFile } from "./log-file";
 import { createLogTail, type LogTail } from "./log-tail";

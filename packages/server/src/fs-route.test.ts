@@ -12,11 +12,9 @@ const suggest = (payload: unknown) => ctx.request({ method: "POST", url: "/api/f
 describe("POST /api/fs/suggest", () => {
   it("returns suggestions with ~ display and the repo flag", async () => {
     ctx = await startTestServer();
-    const response = await suggest({ prefix: "~/src/pi" });
+    const response = await suggest({ prefix: "~/src/ta" });
     expect(response.statusCode).toBe(200);
-    expect(response.json()).toEqual([
-      { path: "/Users/demo/src/pi-everywhere", display: "~/src/pi-everywhere", isGitRepo: true },
-    ]);
+    expect(response.json()).toEqual([{ path: "/Users/demo/src/tau", display: "~/src/tau", isGitRepo: true }]);
   });
 
   it("honours the limit and gives [] for a missing folder", async () => {

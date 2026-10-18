@@ -1,5 +1,5 @@
 import type { Conversation, Harness, SettledTask } from "@earendil-works/pi-durable";
-import { AppError } from "@pi-everywhere/protocol";
+import { AppError } from "@tau/protocol";
 import { BACKGROUND } from "./open";
 
 type CompactionOutcome = SettledTask<{ entryId?: unknown; submissionId?: unknown }>["state"]["outcome"];

@@ -8,7 +8,9 @@ const checkpointsFolder = (home: string) => join(home, "checkpoints");
 export const indexFileOf = (home: string, conversationId: string) =>
   join(checkpointsFolder(home), `${conversationId}.index`);
 
-export const refPrefixOf = (conversationId: string) => `refs/pi-everywhere/${conversationId}/`;
+export const refPrefixOf = (conversationId: string) => `refs/tau/${conversationId}/`;
+
+const legacyRefPrefixOf = (conversationId: string) => `refs/pi-everywhere/${conversationId}/`;
 
 export const refOf = (conversationId: string, name: string | number) =>
   `${refPrefixOf(conversationId)}${name}`;
@@ -40,7 +42,7 @@ export async function takeTree({ home, conversationId, repo }: SnapshotTarget): 
 
 export async function commitTree(target: SnapshotTarget, tree: string, ref: string): Promise<string> {
   const run = { cwd: target.repo.root };
-  const sha = (await runGit(run, ["commit-tree", tree, "-m", "pi-everywhere checkpoint"])).trim();
+  const sha = (await runGit(run, ["commit-tree", tree, "-m", "tau checkpoint"])).trim();
   await runGit(run, ["update-ref", ref, sha]);
   return sha;
 }
@@ -61,6 +63,7 @@ export async function deleteRefsOf(commonDir: string, conversationId: string): P
     "for-each-ref",
     "--format=%(refname)",
     refPrefixOf(conversationId),
+    legacyRefPrefixOf(conversationId),
   ]);
   for (const ref of listed.split("\n").filter(Boolean)) await runGit(run, [gitDir, "update-ref", "-d", ref]);
 }

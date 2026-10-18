@@ -12,7 +12,7 @@ function digest(value: string): Buffer {
 export function createSession(token: string, port: number): Session {
   const expected = digest(token);
   return {
-    cookieName: `pie_${port}`,
+    cookieName: `tau_${port}`,
     isValidToken: (candidate) =>
       typeof candidate === "string" && timingSafeEqual(digest(candidate), expected),
   };

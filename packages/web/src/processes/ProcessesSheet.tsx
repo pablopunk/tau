@@ -1,4 +1,4 @@
-import type { ProcessInfo } from "@pi-everywhere/protocol";
+import type { ProcessInfo } from "@tau/protocol";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { ProcessRow } from "./ProcessRow";
 

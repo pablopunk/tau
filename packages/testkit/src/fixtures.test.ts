@@ -1,4 +1,4 @@
-import { isBaseOps, isRetiredOps } from "@pi-everywhere/protocol";
+import { isBaseOps, isRetiredOps } from "@tau/protocol";
 import { describe, expect, it } from "vitest";
 import { allFixtures, finalView, fixtureForMessage, fixtures } from "./index";
 

@@ -1,13 +1,13 @@
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { Core } from "@pi-everywhere/protocol";
-import type { CreateServer } from "@pi-everywhere/server";
+import type { Core } from "@tau/protocol";
+import type { CreateServer } from "@tau/server";
 import { describe, expect, it, vi } from "vitest";
 import { parseCliOptions } from "./options";
 import { type RunDependencies, run } from "./run";
 
-const newHome = () => join(mkdtempSync(join(tmpdir(), "pie-cli-")), "home");
+const newHome = () => join(mkdtempSync(join(tmpdir(), "tau-cli-")), "home");
 
 function fakeDependencies(overrides: Partial<RunDependencies> = {}) {
   const logs: string[] = [];

@@ -8,7 +8,7 @@ describe("parseCliOptions", () => {
     expect(parseCliOptions([], {})).toEqual({
       port: DEFAULT_PORT,
       open: true,
-      home: join(homedir(), ".pi-everywhere"),
+      home: join(homedir(), ".tau"),
       faux: false,
     });
   });
@@ -22,8 +22,8 @@ describe("parseCliOptions", () => {
     });
   });
 
-  it("reads PI_EVERYWHERE_HOME and PI_EVERYWHERE_FAUX, with flags winning for home", () => {
-    const env = { PI_EVERYWHERE_HOME: "/env", PI_EVERYWHERE_FAUX: "1" };
+  it("reads TAU_HOME and TAU_FAUX, with flags winning for home", () => {
+    const env = { TAU_HOME: "/env", TAU_FAUX: "1" };
     expect(parseCliOptions([], env)).toMatchObject({ home: "/env", faux: true });
     expect(parseCliOptions(["--home", "/flag"], env).home).toBe("/flag");
   });

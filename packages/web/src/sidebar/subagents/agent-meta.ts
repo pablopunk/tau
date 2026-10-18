@@ -1,4 +1,4 @@
-import type { AgentStatus, ConversationSummary } from "@pi-everywhere/protocol";
+import type { AgentStatus, ConversationSummary } from "@tau/protocol";
 import type { ToolStatus } from "@/conversation/model/tool-state";
 
 export const GENERAL_PURPOSE = "general-purpose";

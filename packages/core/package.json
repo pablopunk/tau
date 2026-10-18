@@ -1,5 +1,5 @@
 {
-  "name": "@pi-everywhere/core",
+  "name": "@tau/core",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -18,11 +18,11 @@
     "@earendil-works/pi-durable": "1.3.0",
     "@earendil-works/pi-tui": "1.3.0",
     "@modelcontextprotocol/sdk": "1.32.1",
-    "@pi-everywhere/protocol": "workspace:*",
+    "@tau/protocol": "workspace:*",
     "pi-web-access": "0.42.0",
     "typebox": "1.3.27"
   },
   "devDependencies": {
-    "@pi-everywhere/testkit": "workspace:*"
+    "@tau/testkit": "workspace:*"
   }
 }

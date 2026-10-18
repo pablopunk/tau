@@ -2,7 +2,7 @@ import { execFile } from "node:child_process";
 import { mkdir, readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { promisify } from "node:util";
-import type { Core } from "@pi-everywhere/protocol";
+import type { Core } from "@tau/protocol";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createCoreWith, defaultCoreDependencies } from "./create-core";
 import { createGithubService } from "./github/github-service";
@@ -19,7 +19,7 @@ import { GH_REPOS_ARGV, GH_STATUS_ARGV } from "./test-support/gh-argv";
 import { makeLocalRepo } from "./test-support/local-repo";
 import { homeIn, useTempDir } from "./test-support/temp-dir";
 
-process.env.PI_EVERYWHERE_ALLOW_FILE_CLONES = "1";
+process.env.TAU_ALLOW_FILE_CLONES = "1";
 
 const tempDir = useTempDir();
 const run = promisify(execFile);

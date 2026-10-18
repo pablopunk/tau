@@ -1,4 +1,4 @@
-import type { EntryRecord } from "@pi-everywhere/protocol";
+import type { EntryRecord } from "@tau/protocol";
 import { describe, expect, it } from "vitest";
 import { contextUsage } from "./context-usage";
 

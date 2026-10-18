@@ -22,7 +22,7 @@ export function SetupScreen({ keyConfigured }: { keyConfigured: boolean }) {
     <main className="flex min-h-dvh items-center justify-center bg-background p-4">
       <div className="flex w-full max-w-md flex-col gap-6 rounded-xl border bg-card p-6 text-card-foreground shadow-sm">
         <header className="flex flex-col gap-1">
-          <h1 className="text-xl font-semibold">Welcome to pi-everywhere</h1>
+          <h1 className="text-xl font-semibold">Welcome to tau</h1>
           <p className="text-sm text-muted-foreground">
             {onModelStep
               ? "Step 2 of 2. Pick the model new conversations start with."

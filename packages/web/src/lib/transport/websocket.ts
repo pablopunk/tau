@@ -1,4 +1,4 @@
-import { decodeServerFrame, encodeFrame, LIVE_PATH } from "@pi-everywhere/protocol";
+import { decodeServerFrame, encodeFrame, LIVE_PATH } from "@tau/protocol";
 import type { LiveHandlers, LiveSocket, LiveTransport } from "./types";
 
 function liveUrl(): string {

@@ -1,5 +1,5 @@
-import type { GithubRepo, Project } from "@pi-everywhere/protocol";
 import { useQueryClient } from "@tanstack/react-query";
+import type { GithubRepo, Project } from "@tau/protocol";
 import { PlusIcon } from "lucide-react";
 import { useState } from "react";
 import { FormError } from "@/app/FormError";

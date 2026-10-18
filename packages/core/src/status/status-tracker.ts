@@ -1,5 +1,5 @@
 import type { ConversationId, Harness } from "@earendil-works/pi-durable";
-import type { ConversationStatus } from "@pi-everywhere/protocol";
+import type { ConversationStatus } from "@tau/protocol";
 import type { ChangeEmitter } from "../change-emitter";
 import {
   indexOf,
@@ -32,8 +32,7 @@ export function createStatusTracker(deps: StatusTrackerDeps): StatusTracker {
   const states = new Map<string, RunState>();
   const enqueue = createSerialQueue();
   const runEndedListeners: ((conversationId: string) => Promise<void>)[] = [];
-  const logRunEndFailure = (error: unknown) =>
-    console.error("pi-everywhere: a run-end listener failed", error);
+  const logRunEndFailure = (error: unknown) => console.error("tau: a run-end listener failed", error);
   let attached: Harness | undefined;
   let closed = false;
 
@@ -70,7 +69,7 @@ export function createStatusTracker(deps: StatusTrackerDeps): StatusTracker {
   function scheduleFlush(conversationId: string): void {
     queueMicrotask(() => {
       enqueue(() => flush(conversationId)).catch((error) => {
-        if (!closed) console.error("pi-everywhere: could not record a thread status", error);
+        if (!closed) console.error("tau: could not record a thread status", error);
       });
     });
   }

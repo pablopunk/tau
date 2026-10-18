@@ -15,7 +15,7 @@ async function put(path: string) {
 }
 
 beforeEach(async () => {
-  folder = await realpath(await mkdtemp(join(tmpdir(), "pie-files-")));
+  folder = await realpath(await mkdtemp(join(tmpdir(), "tau-files-")));
   clearFileListCache();
 });
 afterEach(() => rm(folder, { recursive: true, force: true }));

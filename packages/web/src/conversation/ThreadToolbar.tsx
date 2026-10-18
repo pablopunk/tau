@@ -1,9 +1,4 @@
-import type {
-  ConfigureConversationInput,
-  ConversationView,
-  ModelRef,
-  ThinkingLevel,
-} from "@pi-everywhere/protocol";
+import type { ConfigureConversationInput, ConversationView, ModelRef, ThinkingLevel } from "@tau/protocol";
 import type { Ref } from "react";
 import { toast } from "sonner";
 import { ModelThinkingPickers, type PickersHandle } from "@/components/ModelThinkingPickers";

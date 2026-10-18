@@ -1,4 +1,4 @@
-import type { ModelInfo, ModelRef, ThinkingLevel } from "@pi-everywhere/protocol";
+import type { ModelInfo, ModelRef, ThinkingLevel } from "@tau/protocol";
 import { useId } from "react";
 import { ThinkingCombobox } from "@/components/ThinkingCombobox";
 import { findModel } from "@/lib/new-thread-defaults";

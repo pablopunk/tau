@@ -10,7 +10,7 @@ export function useTempDir(): () => Promise<string> {
     await Promise.all(created.splice(0).map((path) => rm(path, { recursive: true, force: true })));
   });
   return async () => {
-    const path = await realpath(await mkdtemp(join(tmpdir(), "pie-core-")));
+    const path = await realpath(await mkdtemp(join(tmpdir(), "tau-core-")));
     created.push(path);
     return path;
   };

@@ -1,4 +1,4 @@
-import type { ModelInfo, Project } from "@pi-everywhere/protocol";
+import type { ModelInfo, Project } from "@tau/protocol";
 import { describe, expect, it } from "vitest";
 import {
   clampThinkingLevel,

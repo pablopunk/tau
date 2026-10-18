@@ -9,7 +9,7 @@ import {
   type Op,
   RETIRED_OPS,
   type ServerFrame,
-} from "@pi-everywhere/protocol";
+} from "@tau/protocol";
 import type { WebSocket } from "ws";
 import { waitForDrain } from "./backpressure";
 

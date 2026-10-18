@@ -1,4 +1,4 @@
-import type { Change } from "@pi-everywhere/protocol";
+import type { Change } from "@tau/protocol";
 
 export interface ChangeEmitter {
   emit(change: Change): void;

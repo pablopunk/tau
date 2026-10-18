@@ -1,5 +1,5 @@
 import { tmpdir } from "node:os";
-import type { Project } from "@pi-everywhere/protocol";
+import type { Project } from "@tau/protocol";
 import { describe, expect, it } from "vitest";
 import { createPresentProject } from "./project-view";
 import { makeRepo } from "./workspaces/workspace-test-support";

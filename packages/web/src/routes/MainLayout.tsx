@@ -24,7 +24,7 @@ export function MainLayout() {
       <SidebarInset className="h-dvh min-w-0">
         <header className="flex h-12 shrink-0 items-center gap-2 border-b px-3 md:hidden">
           <SidebarTrigger aria-label="Open sidebar" />
-          <span className="text-sm font-semibold">pi-everywhere</span>
+          <span className="text-sm font-semibold">tau</span>
         </header>
         <div className="flex min-h-0 flex-1 flex-col overflow-auto">
           <Routes>

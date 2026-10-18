@@ -1,4 +1,4 @@
-import type { ImageInput, WhenBusy } from "@pi-everywhere/protocol";
+import type { ImageInput, WhenBusy } from "@tau/protocol";
 import { useCallback } from "react";
 import { api } from "@/lib/api";
 

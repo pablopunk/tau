@@ -1,5 +1,5 @@
-import type { Project } from "@pi-everywhere/protocol";
 import { useQueryClient } from "@tanstack/react-query";
+import type { Project } from "@tau/protocol";
 import { ChevronRightIcon, MoreHorizontalIcon, PlusIcon } from "lucide-react";
 import { useState } from "react";
 import { useNavigate } from "react-router";

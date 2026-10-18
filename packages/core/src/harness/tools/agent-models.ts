@@ -1,4 +1,4 @@
-import type { ModelRef } from "@pi-everywhere/protocol";
+import type { ModelRef } from "@tau/protocol";
 
 export const MODEL_LIST_CAP = 40;
 

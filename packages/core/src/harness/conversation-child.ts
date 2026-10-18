@@ -1,5 +1,5 @@
 import type { ConversationId, Tx } from "@earendil-works/pi-durable";
-import type { ModelRef, ThreadWorkspace } from "@pi-everywhere/protocol";
+import type { ModelRef, ThreadWorkspace } from "@tau/protocol";
 import { ConversationDoc, INDEX_SEED, ProjectIndexDoc } from "./conversation-docs";
 
 export type ChildAgentInfo = {

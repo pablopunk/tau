@@ -1,4 +1,4 @@
-import type { McpServerConfig, McpServerStatus } from "@pi-everywhere/protocol";
+import type { McpServerConfig, McpServerStatus } from "@tau/protocol";
 import { findServer, mergeServers, readProjectServers, type SourcedServer } from "./mcp-config";
 import { type McpConnection, openMcpConnection } from "./mcp-connection";
 import { createMcpPool, type McpPool } from "./mcp-pool";

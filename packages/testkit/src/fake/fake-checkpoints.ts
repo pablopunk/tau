@@ -1,4 +1,4 @@
-import { AppError, type Checkpoint, type CheckpointFile, type RestorePreview } from "@pi-everywhere/protocol";
+import { AppError, type Checkpoint, type CheckpointFile, type RestorePreview } from "@tau/protocol";
 import { FAKE_EDITED_FILE, type MessageEffect } from "./fake-workspace";
 
 interface LoggedRequest {

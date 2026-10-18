@@ -2,10 +2,10 @@ import { execFile } from "node:child_process";
 
 const MAX_OUTPUT_BYTES = 256 * 1024 * 1024;
 const IDENTITY = {
-  GIT_AUTHOR_NAME: "pi-everywhere",
-  GIT_AUTHOR_EMAIL: "checkpoints@pi-everywhere.invalid",
-  GIT_COMMITTER_NAME: "pi-everywhere",
-  GIT_COMMITTER_EMAIL: "checkpoints@pi-everywhere.invalid",
+  GIT_AUTHOR_NAME: "tau",
+  GIT_AUTHOR_EMAIL: "checkpoints@tau.invalid",
+  GIT_COMMITTER_NAME: "tau",
+  GIT_COMMITTER_EMAIL: "checkpoints@tau.invalid",
 };
 
 export type GitRun = {

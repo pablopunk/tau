@@ -31,8 +31,8 @@ import type {
   UseGithubRepoInput,
   WorkspaceMode,
   WorkspaceStatus,
-} from "@pi-everywhere/protocol";
-import { fillPath, routes } from "@pi-everywhere/protocol";
+} from "@tau/protocol";
+import { fillPath, routes } from "@tau/protocol";
 import { createHttpTransport } from "./transport/http";
 import { createLazyTransport } from "./transport/lazy";
 import type { LiveTransport, Transport } from "./transport/types";
@@ -41,7 +41,7 @@ export type { LiveHandlers, LiveSocket, LiveTransport, Transport } from "./trans
 
 export const isConnected = (provider: ProviderInfo): boolean => provider.connection !== null;
 
-/** The typed REST client. Every method rejects with `AppError` (see `@pi-everywhere/protocol`). */
+/** The typed REST client. Every method rejects with `AppError` (see `@tau/protocol`). */
 export interface Api {
   fs: {
     suggestDirectories(input: SuggestDirectoriesInput): Promise<PathSuggestion[]>;

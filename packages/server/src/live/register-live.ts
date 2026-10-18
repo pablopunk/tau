@@ -1,4 +1,4 @@
-import { type Core, LIVE_PATH } from "@pi-everywhere/protocol";
+import { type Core, LIVE_PATH } from "@tau/protocol";
 import type { FastifyInstance } from "fastify";
 import { LiveConnection } from "./connection";
 

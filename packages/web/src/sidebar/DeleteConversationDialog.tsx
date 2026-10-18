@@ -27,9 +27,7 @@ export function DeleteConversationDialog({ title, onConfirm, onClose }: DeleteCo
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Delete {title}?</DialogTitle>
-          <DialogDescription>
-            The thread disappears from pi-everywhere. Its transcript stays on disk.
-          </DialogDescription>
+          <DialogDescription>The thread disappears from tau. Its transcript stays on disk.</DialogDescription>
         </DialogHeader>
         <FormError message={error} />
         <DialogFooter>

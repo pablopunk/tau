@@ -54,7 +54,7 @@ Package rules:
 
 ### Data home
 
-`~/.pi-everywhere/` (override with `--home` / `PI_EVERYWHERE_HOME`), directory mode 0700:
+`~/.tau/` (override with `--home` / `TAU_HOME`), directory mode 0700:
 - `agent.sqlite`: Pi Durable storage. Holds conversations and our app documents (below).
 - `settings.json`: `{ defaultModel }` (0600).
 - `credentials.json`: provider credentials (0600), through our `FileCredentialStore`.
@@ -113,7 +113,7 @@ Harness setup (verified against Pi source, commit 95364a5; re-verified against i
 - `watch()`: `conversation.watch()`; first call the listener with `[["r", watch.value]]`, then `start()` forwards each commit's `Op[]`. A slow watch later sends `[["r", view]]` again (Pi keeps at most 100 pending frames), and a retired view arrives as `[["r", null]]`.
 - Lifecycle: `harness.closed` ending with `failed` → log and exit non-zero. SIGINT/SIGTERM → `core.close()`.
 - One harness factory, `openAgentHarness({ storage, models, registry, env })` in `core/src/harness/open.ts`, used by both the real core and the fixture recorder.
-- Faux mode (`faux: true`, `PI_EVERYWHERE_FAUX=1`): pi-ai's faux provider with our `faux-script` (see Testing) instead of OpenRouter. Setup is **not** skipped: any key is accepted and the faux models are listed, so e2e covers setup too.
+- Faux mode (`faux: true`, `TAU_FAUX=1`): pi-ai's faux provider with our `faux-script` (see Testing) instead of OpenRouter. Setup is **not** skipped: any key is accepted and the faux models are listed, so e2e covers setup too.
 
 ### Protocol (`packages/protocol`)
 
@@ -137,7 +137,7 @@ Any web page can reach `127.0.0.1`, and the agent has `bash`. So, in the server,
 - Accept only `Host` = `127.0.0.1:<port>` or `localhost:<port>` (blocks DNS rebinding).
 - Check `Origin` exactly (scheme, host and port) on the WebSocket upgrade and on every non-GET request. SameSite alone is not enough: `127.0.0.1:3000` (e.g. a dev server the agent starts) is the same site.
 - Require `Content-Type: application/json` on bodies.
-- A random token stored in `<home>/token` (0600), kept across restarts so open tabs keep working: the CLI opens `http://127.0.0.1:<port>/?token=…`; the server swaps it for an HttpOnly, SameSite=Strict cookie named `pie_<port>` (cookies are not scoped by port) and redirects to `/`; every `/api` request and the WebSocket need the cookie. The CLI prints the URL with the token; a second launch reads the token and prints the same URL.
+- A random token stored in `<home>/token` (0600), kept across restarts so open tabs keep working: the CLI opens `http://127.0.0.1:<port>/?token=…`; the server swaps it for an HttpOnly, SameSite=Strict cookie named `tau_<port>` (cookies are not scoped by port) and redirects to `/`; every `/api` request and the WebSocket need the cookie. The CLI prints the URL with the token; a second launch reads the token and prints the same URL.
 - A request without the cookie gets a plain page saying "open the URL printed in your terminal", not a bare 401.
 
 ### Web (`packages/web`)
@@ -152,7 +152,7 @@ Any web page can reach `127.0.0.1`, and the agent has `bash`. So, in the server,
   - composer: Enter sends, Shift+Enter newline, sends steer while busy; stop button while busy.
 - Tool renderers: `read`, `write`, `edit` (from `details.diff`/`patch`), `bash` (from `{ output, exitCode, truncated }`), and a generic fallback.
 - Data: TanStack Query for REST, invalidated by `changed` frames. `LiveClient` (one WebSocket, reconnect with backoff) keeps one view per subscribed conversation with `applyImmutable`. Its interface is frozen in Phase 0 (`web/src/conversation/index.ts`): `subscribe(conversationId, onView) → unsubscribe`, `onChanged(cb) → unsubscribe`, `status`. C uses only `onChanged`; D implements it.
-- `web/src/lib/api.ts` has a swappable transport: real (`fetch` + WebSocket) or, with `VITE_FAKE=1`, the in-browser fake from `@pi-everywhere/testkit` (REST and live frames), loaded with a dynamic `import()` behind `import.meta.env.VITE_FAKE` so it never reaches the production bundle (a CI check greps `web/dist` for fixture strings). C and D develop with it from day one, without waiting for B.
+- `web/src/lib/api.ts` has a swappable transport: real (`fetch` + WebSocket) or, with `VITE_FAKE=1`, the in-browser fake from `@tau/testkit` (REST and live frames), loaded with a dynamic `import()` behind `import.meta.env.VITE_FAKE` so it never reaches the production bundle (a CI check greps `web/dist` for fixture strings). C and D develop with it from day one, without waiting for B.
 - Responsive from day one: the sidebar becomes a sheet on small screens.
 
 ### CLI (`packages/cli`)

@@ -1,7 +1,4 @@
-import type {
-  AssistantMessage as AssistantMessageData,
-  ToolCall as ToolCallBlock,
-} from "@pi-everywhere/protocol";
+import type { AssistantMessage as AssistantMessageData, ToolCall as ToolCallBlock } from "@tau/protocol";
 import { CopyButton } from "@/components/ui/copy-button";
 import type { ToolCallState } from "../model/tool-state";
 import { ToolCall } from "../tools/ToolCall";

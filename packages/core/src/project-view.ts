@@ -1,4 +1,4 @@
-import { type Project, projectIconUrl } from "@pi-everywhere/protocol";
+import { type Project, projectIconUrl } from "@tau/protocol";
 import { HOME_PROJECT_ID } from "./harness/project-store";
 import type { IconService } from "./icons/icon-service";
 import { createGitRepoProbe } from "./workspaces/git-repo-probe";

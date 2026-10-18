@@ -1,4 +1,4 @@
-import type { ImageContent } from "@pi-everywhere/protocol";
+import type { ImageContent } from "@tau/protocol";
 import { useState } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { ImageThumbnail } from "@/components/ui/image-thumbnail";

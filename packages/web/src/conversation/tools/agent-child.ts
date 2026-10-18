@@ -1,4 +1,4 @@
-import type { ConversationSummary } from "@pi-everywhere/protocol";
+import type { ConversationSummary } from "@tau/protocol";
 import { useAllConversations } from "@/lib/queries";
 import { resultDetails, type ToolCallState } from "../model/tool-state";
 

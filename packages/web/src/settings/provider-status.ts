@@ -1,4 +1,4 @@
-import type { ProviderInfo } from "@pi-everywhere/protocol";
+import type { ProviderInfo } from "@tau/protocol";
 
 export function connectionLabel({ connection }: ProviderInfo): string {
   if (!connection) return "Not connected";

@@ -1,5 +1,5 @@
-import type { MessageMode, WorkspaceMode } from "@pi-everywhere/protocol";
 import { useQueryClient } from "@tanstack/react-query";
+import type { MessageMode, WorkspaceMode } from "@tau/protocol";
 import { FormError } from "@/app/FormError";
 import { useSubmit } from "@/app/use-submit";
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";

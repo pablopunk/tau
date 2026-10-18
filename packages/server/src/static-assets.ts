@@ -1,5 +1,5 @@
 import fastifyStatic from "@fastify/static";
-import { API_PREFIX } from "@pi-everywhere/protocol";
+import { API_PREFIX } from "@tau/protocol";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { sendApiNotFound } from "./error-handler";
 

@@ -13,7 +13,7 @@ export const TodoWriteParameters = Type.Object({
 
 export type TodoItem = { content: string; status: "pending" | "in_progress" | "completed" };
 
-export const TODOS_DOC_KIND = "pi-everywhere.todos";
+export const TODOS_DOC_KIND = "tau.todos";
 
 export const TodosDoc = defineDoc<{ todos: TodoItem[] }>({
   kind: TODOS_DOC_KIND,

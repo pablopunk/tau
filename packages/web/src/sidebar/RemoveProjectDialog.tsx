@@ -1,4 +1,4 @@
-import type { Project } from "@pi-everywhere/protocol";
+import type { Project } from "@tau/protocol";
 import { FormError } from "@/app/FormError";
 import { useSubmit } from "@/app/use-submit";
 import { Button } from "@/components/ui/button";
@@ -29,8 +29,7 @@ export function RemoveProjectDialog({ project, onConfirm, onClose }: RemoveProje
         <DialogHeader>
           <DialogTitle>Remove {project.name}?</DialogTitle>
           <DialogDescription>
-            The project and its conversations disappear from pi-everywhere. Files in {project.path} stay
-            untouched.
+            The project and its conversations disappear from tau. Files in {project.path} stay untouched.
           </DialogDescription>
         </DialogHeader>
         <FormError message={error} />

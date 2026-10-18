@@ -1,6 +1,6 @@
 import { chmod, lstat, mkdir, realpath, rm, symlink, writeFile } from "node:fs/promises";
 import { dirname, join, sep } from "node:path";
-import type { RestorePreview } from "@pi-everywhere/protocol";
+import type { RestorePreview } from "@tau/protocol";
 import type { Repo } from "./repo";
 import { runGitBuffer } from "./run-git";
 import { type RawChange, rawChanges } from "./tree-diff";

@@ -1,4 +1,4 @@
-import type { Core } from "@pi-everywhere/protocol";
+import type { Core } from "@tau/protocol";
 import type { CheckpointService } from "./checkpoints/checkpoint-service";
 import type { ConversationForker } from "./harness/conversation-fork";
 import type { ConversationStore } from "./harness/conversation-store";

@@ -1,5 +1,5 @@
 import type { ConversationId, Tx } from "@earendil-works/pi-durable";
-import type { AgentStatus } from "@pi-everywhere/protocol";
+import type { AgentStatus } from "@tau/protocol";
 import { ConversationDoc, INDEX_SEED, ProjectIndexDoc } from "./conversation-docs";
 import { SubagentRegistryDoc } from "./subagent-registry-doc";
 

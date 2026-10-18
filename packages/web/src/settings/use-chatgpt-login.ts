@@ -1,4 +1,4 @@
-import type { LoginSession } from "@pi-everywhere/protocol";
+import type { LoginSession } from "@tau/protocol";
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { errorMessage } from "@/lib/error-message";

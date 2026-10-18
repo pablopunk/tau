@@ -1,4 +1,4 @@
-import type { ConversationSummary, WorkspaceStatus } from "@pi-everywhere/protocol";
+import type { ConversationSummary, WorkspaceStatus } from "@tau/protocol";
 import { DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 
 interface WorkspaceMenuProps {

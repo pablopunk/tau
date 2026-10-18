@@ -87,7 +87,7 @@ async function untilRunning(h: Harness, id: string) {
 }
 
 beforeEach(async () => {
-  root = await realpath(await mkdtemp(join(tmpdir(), "pie-pins-")));
+  root = await realpath(await mkdtemp(join(tmpdir(), "tau-pins-")));
   project = join(root, "project");
   other = join(root, "other");
   await mkdir(project);

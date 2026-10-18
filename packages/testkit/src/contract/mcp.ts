@@ -1,4 +1,4 @@
-import type { McpServerConfig } from "@pi-everywhere/protocol";
+import type { McpServerConfig } from "@tau/protocol";
 import { afterEach, beforeEach, describe, expect } from "vitest";
 import type { CaseRunner } from "./case-runner";
 import { addProject, collectChanges, rejectsWithCode } from "./helpers";

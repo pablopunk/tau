@@ -18,7 +18,7 @@ async function addSkill(base: string, dir: string, folder: string, text: string)
 }
 
 beforeEach(async () => {
-  root = await realpath(await mkdtemp(join(tmpdir(), "pie-skills-")));
+  root = await realpath(await mkdtemp(join(tmpdir(), "tau-skills-")));
   project = join(root, "project");
   home = join(root, "home");
   await mkdir(project, { recursive: true });

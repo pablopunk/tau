@@ -1,11 +1,4 @@
-import type {
-  ClientFrame,
-  JsonRouteName,
-  RouteInput,
-  RouteOutput,
-  routes,
-  ServerFrame,
-} from "@pi-everywhere/protocol";
+import type { ClientFrame, JsonRouteName, RouteInput, RouteOutput, routes, ServerFrame } from "@tau/protocol";
 
 export type RouteRequest<N extends JsonRouteName> = RouteInput<(typeof routes)[N]>;
 export type RouteResponse<N extends JsonRouteName> = RouteOutput<(typeof routes)[N]>;

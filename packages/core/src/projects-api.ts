@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { basename } from "node:path";
-import { AppError, type Core, isIconPng } from "@pi-everywhere/protocol";
+import { AppError, type Core, isIconPng } from "@tau/protocol";
 import type { ChangeEmitter } from "./change-emitter";
 import { suggestFiles } from "./fs/suggest-files";
 import type { CloneService } from "./git/clone-service";

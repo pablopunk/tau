@@ -23,7 +23,7 @@ Out: approvals (always yolo), pi-coding-agent extension compatibility, worktree 
 
 ## Product decisions (user)
 
-- **No pi-everywhere config files in repos, ever.** No `.pi-everywhere/`, no `.worktreeinclude`. A new worktree is just `git worktree add`; the agent figures out installs itself.
+- **No tau config files in repos, ever.** No `.tau/`, no `.worktreeinclude`. A new worktree is just `git worktree add`; the agent figures out installs itself.
 - **Subagents are our own extension** so children are real threads we can list and open.
 - **Web search works out of the box**, no key.
 - **MCP from a project's `.mcp.json` is always trusted** (yolo), like the rest.
@@ -32,19 +32,19 @@ Out: approvals (always yolo), pi-coding-agent extension compatibility, worktree 
 ## Product decisions (design)
 
 - **No pi-coding-agent extensions.** Every candidate (`pi-subagents`, `pi-web-access`, `rpiv-todo`, `pi-mcp-adapter`, `pi-background-tasks`) targets pi-coding-agent's `ExtensionAPI`; Pi Durable 1.3.0 has no adapter. We write small native extensions and copy their tool schemas.
-- **Worktrees** live at `<home>/worktrees/<repo>/<slug>` on branch `pi/<slug>` (slug `[a-z0-9-]`, max 40, from the first message; unique against existing refs and worktree dirs). Base = the main checkout's current branch at start. For a project that is a subfolder of a repo, the worktree is of the repo root and the thread's cwd is `<worktree>/<subpath>`. Only for projects inside a git repo; others (and Home) always use the folder.
+- **Worktrees** live at `<home>/worktrees/<repo>/<slug>` on branch `tau/<slug>` (slug `[a-z0-9-]`, max 40, from the first message; unique against existing refs and worktree dirs). Base = the main checkout's current branch at start. For a project that is a subfolder of a repo, the worktree is of the repo root and the thread's cwd is `<worktree>/<subpath>`. Only for projects inside a git repo; others (and Home) always use the folder.
 - **Merge into base** (one button):
   1. Rejected with `thread_busy` while the thread runs; one workspace operation at a time per repo (lock).
   2. Needs a clean worktree, else `worktree_dirty` and the UI offers "Ask agent to commit" (a canned message).
   3. In the worktree: `git rebase <base>`; on conflict `git rebase --abort`, `merge_conflict`, and the UI offers "Ask agent to resolve" (canned message: rebase onto base, fix conflicts, continue).
-  4. In the main checkout: must be on `base` (else `not_on_base`); `git merge --ff-only pi/<slug>`; git refuses when local changes would be overwritten → `base_dirty` with git's message. If base moved meanwhile, repeat from 3 once.
+  4. In the main checkout: must be on `base` (else `not_on_base`); `git merge --ff-only tau/<slug>`; git refuses when local changes would be overwritten → `base_dirty` with git's message. If base moved meanwhile, repeat from 3 once.
   5. Record `mergedSha`; state `merged`.
 - **Remove worktree**: `git worktree remove` then `git branch -d` (`-D` only if `merge-base --is-ancestor <branch> <base>`). With uncommitted changes or unmerged commits → `has_unmerged_work` unless `force` (the confirm names the files/commits). The thread then moves to the main checkout path and stays usable.
 - **Archive** keeps the worktree. **Delete thread** and **delete project** run the same guard (`has_unmerged_work` unless forced) and then remove worktree, branch, checkpoint refs, process logs.
-- **Create PR** (when `gh` is connected): `git push -u origin pi/<slug>`, `gh pr create --fill --head pi/<slug>`; store and show the URL.
+- **Create PR** (when `gh` is connected): `git push -u origin tau/<slug>`, `gh pr create --fill --head tau/<slug>`; store and show the URL.
 - **Checkpoints**:
   - Taken in core, not in harness hooks: one "before" snapshot when a message is submitted (keyed by its `requestId`), one "after" snapshot when the run ends (status tracker). Each checkpoint records `{ requestId, entryId?, sha, at }` in a small app doc `scope: "conversation", history: "rewindable", fork: "asOf"` so forks keep their history. A user entry carries no `requestId`; its `SubmissionRecord` does and gets `entry` once `status: "placed"` (`types.d.ts:329-350`), so `entryId` is filled when the submission is placed (null while queued); "Rewind to here" looks checkpoints up by `entryId`.
-  - Snapshot = `git add -A -- :/` with a persistent per-thread index `<home>/checkpoints/<conversationId>.index` (`GIT_INDEX_FILE`), `write-tree`, `commit-tree`, ref `refs/pi-everywhere/<conversationId>/<n>`. Always from the repo top level, so subfolder projects are safe. The user's index, stash and branches are untouched. Ignored files are not captured.
+  - Snapshot = `git add -A -- :/` with a persistent per-thread index `<home>/checkpoints/<conversationId>.index` (`GIT_INDEX_FILE`), `write-tree`, `commit-tree`, ref `refs/tau/<conversationId>/<n>`. Always from the repo top level, so subfolder projects are safe. The user's index, stash and branches are untouched. Ignored files are not captured.
   - Per-turn changes = `git diff --numstat` between consecutive checkpoints of the thread.
   - Restore to checkpoint C: take a fresh snapshot S; the paths to change are `git diff --name-status -z --no-renames C S`; for each path write C's blob with its mode (100644/100755), recreate symlinks (120000) with `symlink`, skip gitlinks (160000), or delete the file (status `A`). Verified exact in review (untracked, renamed, deleted, spaces, exec bit, nested dir, ignored untouched). Empty dirs may stay. Never touches ignored files, nested repos or anything outside the repo; the confirm dialog shows that exact list first. The temp index lives outside the repo (`<home>/checkpoints`).
   - Refs and the index file are deleted with the thread (on the project repo, even after worktree removal).
@@ -65,7 +65,7 @@ WorkspaceMode = "worktree" | "checkout"
 ThreadWorkspace = {
   mode: WorkspaceMode;
   path: string;                    // cwd of the thread
-  branch: string | null;           // pi/<slug> for worktrees
+  branch: string | null;           // tau/<slug> for worktrees
   base: string | null;
   state: "ready" | "merged" | "removed";
   mergedSha: string | null;
@@ -121,7 +121,7 @@ settings: { setMessageMode(mode); setWorkspaceDefault(mode); ... };
 - `core/src/checkpoints/` (snapshot, diff, preview, restore, cleanup) + the submit/run-end calls.
 - `core/src/harness/conversation-fork.ts` (fork, rewind).
 - `core/src/harness/conversation-submit.ts` (`whenBusy`, cancel).
-- `core/src/harness/tools/` one file per tool: `task`, `todo-write` (state in a `pi-everywhere.todos` doc), `web-search`, `web-fetch`, `mcp-search`, `mcp-call`, `process-*`. Phase 0 pre-wires all imports in `registry.ts`.
+- `core/src/harness/tools/` one file per tool: `task`, `todo-write` (state in a `tau.todos` doc), `web-search`, `web-fetch`, `mcp-search`, `mcp-call`, `process-*`. Phase 0 pre-wires all imports in `registry.ts`.
 - `core/src/mcp/` (config merge, client pool via `@modelcontextprotocol/sdk`).
 - `core/src/processes/` (registry, pid files, reaping, logs).
 - Cleanup hooks: Phase 0 adds `onConversationRemoved` / `onProjectRemoved` lists in `conversations-api.ts` / `projects-api.ts`; A, B and E register their cleanup there from their own folders.

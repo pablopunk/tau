@@ -1,4 +1,4 @@
-import type { ModelInfo, ModelRef, ThinkingLevel } from "@pi-everywhere/protocol";
+import type { ModelInfo, ModelRef, ThinkingLevel } from "@tau/protocol";
 import { type Ref, useImperativeHandle, useState } from "react";
 import { Combobox } from "@/components/ui/combobox";
 import { ModelCombobox } from "@/setup/ModelCombobox";

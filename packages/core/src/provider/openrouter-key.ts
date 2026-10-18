@@ -1,4 +1,4 @@
-import { AppError } from "@pi-everywhere/protocol";
+import { AppError } from "@tau/protocol";
 
 export const OPENROUTER_KEY_URL = "https://openrouter.ai/api/v1/key";
 const REQUEST_TIMEOUT_MS = 15_000;

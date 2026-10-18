@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, realpath, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
-import type { ConversationSummary, Project, ThreadWorkspace } from "@pi-everywhere/protocol";
+import type { ConversationSummary, Project, ThreadWorkspace } from "@tau/protocol";
 import { legacyWorkspace } from "../harness/conversation-index";
 import type { ConversationStore } from "../harness/conversation-store";
 import { createWorkspaceService, type WorkspaceDeps } from "./workspace-service";
@@ -15,7 +15,7 @@ export const git = async (cwd: string, ...args: string[]) =>
   (await run("git", [...identity, "-C", cwd, ...args])).stdout.trim();
 
 export async function makeRepo(options: { subfolder?: string } = {}) {
-  const root = await realpath(await mkdtemp(join(tmpdir(), "pie-workspaces-")));
+  const root = await realpath(await mkdtemp(join(tmpdir(), "tau-workspaces-")));
   const repo = join(root, "repo");
   await mkdir(repo, { recursive: true });
   await git(repo, "init", "--quiet", "-b", "main");

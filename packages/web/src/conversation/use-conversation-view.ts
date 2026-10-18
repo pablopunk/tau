@@ -1,4 +1,4 @@
-import type { ConversationView } from "@pi-everywhere/protocol";
+import type { ConversationView } from "@tau/protocol";
 import { useEffect, useState } from "react";
 import { useLiveClient } from "./live-client-context";
 

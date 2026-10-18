@@ -1,6 +1,6 @@
-import { publishServerUrl, readRunningInstance } from "@pi-everywhere/core";
-import type { Core, CreateCore } from "@pi-everywhere/protocol";
-import type { CreateServer } from "@pi-everywhere/server";
+import { publishServerUrl, readRunningInstance } from "@tau/core";
+import type { Core, CreateCore } from "@tau/protocol";
+import type { CreateServer } from "@tau/server";
 import { listenOnFreePort } from "./listen-on-free-port";
 import type { CliOptions } from "./options";
 import { ensurePrivateDirectory } from "./private-files";
@@ -25,7 +25,7 @@ async function reportExistingInstance(options: CliOptions, dependencies: RunDepe
   const running = await readRunningInstance(options.home);
   if (!running?.url) return undefined;
   const url = withToken(running.url, token);
-  dependencies.log(`pi-everywhere is already running: ${url}`);
+  dependencies.log(`tau is already running: ${url}`);
   return url;
 }
 
@@ -54,7 +54,7 @@ export async function run(
       dependencies.createServer({ core, port, token, staticDir: dependencies.staticDir }),
     );
     await publishServerUrl(options.home, server.origin);
-    dependencies.log(`pi-everywhere is running: ${server.url}`);
+    dependencies.log(`tau is running: ${server.url}`);
     if (options.open) await openBrowserSafely(server.url, dependencies);
     return {
       url: server.url,

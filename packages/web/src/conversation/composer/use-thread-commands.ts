@@ -1,5 +1,5 @@
-import { isAppError } from "@pi-everywhere/protocol";
 import { useQueryClient } from "@tanstack/react-query";
+import { isAppError } from "@tau/protocol";
 import { type RefObject, useMemo, useState } from "react";
 import { useNavigate } from "react-router";
 import { toast } from "sonner";

@@ -1,5 +1,5 @@
 import { defineTool, type Extension, type ToolRegistration } from "@earendil-works/pi-durable";
-import type { ModelRef } from "@pi-everywhere/protocol";
+import type { ModelRef } from "@tau/protocol";
 import type { TSchema } from "typebox";
 import type { McpService } from "../../mcp/mcp-service";
 import { notImplemented } from "../../not-implemented";

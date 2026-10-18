@@ -1,4 +1,4 @@
-import { MAX_IMAGE_BASE64_LENGTH } from "@pi-everywhere/protocol";
+import { MAX_IMAGE_BASE64_LENGTH } from "@tau/protocol";
 
 export const MAX_SIDE = 2048;
 export const REENCODE_ABOVE_BYTES = 1.5 * 1024 * 1024;

@@ -1,4 +1,4 @@
-import type { ConversationSummary } from "@pi-everywhere/protocol";
+import type { ConversationSummary } from "@tau/protocol";
 import type { ConversationStore } from "../harness/conversation-store";
 import { hasLiveWorktree } from "./worktree-facts";
 

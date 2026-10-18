@@ -1,4 +1,4 @@
-import type { Op } from "@pi-everywhere/protocol";
+import type { Op } from "@tau/protocol";
 
 export interface FixtureFrame {
   /** Milliseconds since the recording started; the first frame is `[["r", view]]` at 0. */

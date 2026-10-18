@@ -1,4 +1,4 @@
-import { AppError, type Core } from "@pi-everywhere/protocol";
+import { AppError, type Core } from "@tau/protocol";
 import type { ProviderService } from "./provider/provider-service";
 
 export function createProvidersApi(provider: ProviderService): Pick<Core, "providers" | "models"> {

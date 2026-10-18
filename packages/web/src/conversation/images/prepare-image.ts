@@ -1,4 +1,4 @@
-import type { ImageInput } from "@pi-everywhere/protocol";
+import type { ImageInput } from "@tau/protocol";
 import { isSupportedType, MAX_IMAGE_BASE64_LENGTH, needsReencode } from "./limits";
 import { readDimensions, resizeAndEncode } from "./resize-image";
 

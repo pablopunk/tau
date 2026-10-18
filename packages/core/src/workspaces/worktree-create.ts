@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { access, mkdir, readFile, writeFile } from "node:fs/promises";
 import { basename, join } from "node:path";
-import type { ThreadWorkspace } from "@pi-everywhere/protocol";
+import type { ThreadWorkspace } from "@tau/protocol";
 import { legacyWorkspace } from "../harness/conversation-index";
 import {
   branchExists,

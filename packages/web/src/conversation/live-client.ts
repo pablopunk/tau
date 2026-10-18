@@ -1,4 +1,4 @@
-import type { Change, ConversationView } from "@pi-everywhere/protocol";
+import type { Change, ConversationView } from "@tau/protocol";
 
 export type LiveStatus = "connecting" | "open" | "reconnecting" | "closed";
 

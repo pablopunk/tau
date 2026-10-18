@@ -1,12 +1,6 @@
 import { dirname, join } from "node:path";
 import type { Models } from "@earendil-works/pi-ai/models";
-import {
-  AppError,
-  type ModelInfo,
-  type ModelRef,
-  type ProviderId,
-  type ProviderInfo,
-} from "@pi-everywhere/protocol";
+import { AppError, type ModelInfo, type ModelRef, type ProviderId, type ProviderInfo } from "@tau/protocol";
 import { FileCredentialStore } from "../auth/file-credential-store";
 import type { ChangeEmitter } from "../change-emitter";
 import { createFauxSetup } from "../testing/faux-provider";

@@ -1,4 +1,4 @@
-import type { AgentState, ConversationView, ModelInfo, ThinkingLevel } from "@pi-everywhere/protocol";
+import type { AgentState, ConversationView, ModelInfo, ThinkingLevel } from "@tau/protocol";
 
 export interface AgentInfo {
   readonly provider: string | undefined;

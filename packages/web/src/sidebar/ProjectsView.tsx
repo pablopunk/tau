@@ -1,4 +1,4 @@
-import type { ConversationSummary, Project } from "@pi-everywhere/protocol";
+import type { ConversationSummary, Project } from "@tau/protocol";
 import { useRef } from "react";
 import { useFlipList } from "@/hooks/use-flip-list";
 import { ProjectGroup } from "./ProjectGroup";

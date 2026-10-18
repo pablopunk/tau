@@ -1,4 +1,4 @@
-import type { ModelInfo } from "@pi-everywhere/protocol";
+import type { ModelInfo } from "@tau/protocol";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";

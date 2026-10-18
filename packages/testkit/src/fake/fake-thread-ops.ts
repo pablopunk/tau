@@ -1,4 +1,4 @@
-import { AppError, type ConversationSummary, type Core } from "@pi-everywhere/protocol";
+import { AppError, type ConversationSummary, type Core } from "@tau/protocol";
 import { fakeDiffOf, rejectUnsafePath } from "./fake-checkpoints";
 import type { FakeConversation } from "./fake-conversation";
 import { reportStopped } from "./fake-subagents";

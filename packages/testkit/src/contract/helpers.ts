@@ -9,7 +9,7 @@ import type {
   Op,
   Project,
   WorkspaceMode,
-} from "@pi-everywhere/protocol";
+} from "@tau/protocol";
 import { expect } from "vitest";
 import type { ContractTarget } from "./types";
 

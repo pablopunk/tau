@@ -1,5 +1,5 @@
 import { homedir } from "node:os";
-import { AppError, type Core, type GithubStatus, type Project } from "@pi-everywhere/protocol";
+import { AppError, type Core, type GithubStatus, type Project } from "@tau/protocol";
 import type { ChangeEmitter } from "../change-emitter";
 import type { CloneService } from "../git/clone-service";
 import type { ProjectStore } from "../harness/project-store";

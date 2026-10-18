@@ -1,6 +1,6 @@
 import type { CredentialStore } from "@earendil-works/pi-ai";
 import type { Models } from "@earendil-works/pi-ai/models";
-import type { ProviderInfo } from "@pi-everywhere/protocol";
+import type { ProviderInfo } from "@tau/protocol";
 import { type ProviderEntry, primaryPiId } from "./providers-table";
 
 export type Connection = ProviderInfo["connection"];

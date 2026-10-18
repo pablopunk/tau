@@ -1,6 +1,6 @@
-import type { ConversationView } from "@pi-everywhere/protocol";
-import { type FixtureName, finalView, fixtures, fixtureViews } from "@pi-everywhere/testkit";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import type { ConversationView } from "@tau/protocol";
+import { type FixtureName, finalView, fixtures, fixtureViews } from "@tau/testkit";
 import { render } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 import { vi } from "vitest";

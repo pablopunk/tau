@@ -1,10 +1,5 @@
 import type { ConversationId } from "@earendil-works/pi-durable";
-import {
-  AppError,
-  type Checkpoint,
-  type ConversationSummary,
-  type RestorePreview,
-} from "@pi-everywhere/protocol";
+import { AppError, type Checkpoint, type ConversationSummary, type RestorePreview } from "@tau/protocol";
 import type { ConversationForker } from "../harness/conversation-fork";
 import type { ConversationStore } from "../harness/conversation-store";
 import { isBusy } from "../harness/live-state";
@@ -81,8 +76,7 @@ export function createCheckpointService(deps: CheckpointDeps): CheckpointService
     findThread: (id) => conversations.find(id),
   });
   const underLock = createKeyedLock();
-  const never = (what: string) => (error: unknown) =>
-    console.error(`pi-everywhere: could not ${what}`, error);
+  const never = (what: string) => (error: unknown) => console.error(`tau: could not ${what}`, error);
 
   async function readSettled(conversationId: string): Promise<CheckpointsValue> {
     await underLock(conversationId, async () => {

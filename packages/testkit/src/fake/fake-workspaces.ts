@@ -1,4 +1,4 @@
-import { AppError, type ConversationSummary, type Core } from "@pi-everywhere/protocol";
+import { AppError, type ConversationSummary, type Core } from "@tau/protocol";
 import type { FakeConversation } from "./fake-conversation";
 import { checkoutWorkspace, FAKE_MERGED_SHA, FAKE_PULL_REQUEST_URL } from "./fake-workspace";
 

@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import type { FileSuggestion } from "@pi-everywhere/protocol";
+import type { FileSuggestion } from "@tau/protocol";
 import { walkFolder } from "./walk-folder";
 
 export const FILE_LIST_CACHE_MS = 10_000;

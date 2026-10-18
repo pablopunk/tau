@@ -1,4 +1,4 @@
-import type { ModelRef, Project } from "@pi-everywhere/protocol";
+import type { ModelRef, Project } from "@tau/protocol";
 import type { AgentTypeLoader } from "../agents/agent-types";
 import type { ResolveModelAlias } from "../agents/model-alias";
 import type { WorkspaceService } from "../workspaces/workspace-service";

@@ -1,5 +1,5 @@
 import { defineExtension, defineTool } from "@earendil-works/pi-durable";
-import { AppError } from "@pi-everywhere/protocol";
+import { AppError } from "@tau/protocol";
 import { Type } from "typebox";
 import { requireOwnSubagent } from "../subagent-own";
 import { subagentServicesOf } from "../subagent-services";

@@ -1,4 +1,4 @@
-const KEY = "pi-everywhere:new-thread-request";
+const KEY = "tau:new-thread-request";
 
 function newRequestId(): string {
   return globalThis.crypto?.randomUUID?.() ?? `req-${Date.now()}-${Math.random().toString(36).slice(2)}`;

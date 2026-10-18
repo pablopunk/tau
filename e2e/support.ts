@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { CONNECTED_AS_DEMO, type FakeGhRepo, installFakeGh } from "../packages/core/src/test-support/fake-gh";
 
 export const PORT = 4399;
-const ROOT_VARIABLE = "PI_EVERYWHERE_E2E_ROOT";
+const ROOT_VARIABLE = "TAU_E2E_ROOT";
 
 const GIT_IDENTITY = {
   GIT_AUTHOR_NAME: "E2E",
@@ -71,7 +71,7 @@ function createDemoRepository(root: string) {
 export function e2eRoot(): string {
   const existing = process.env[ROOT_VARIABLE];
   if (existing) return existing;
-  const root = realpathSync(mkdtempSync(join(tmpdir(), "pi-everywhere-e2e-")));
+  const root = realpathSync(mkdtempSync(join(tmpdir(), "tau-e2e-")));
   mkdirSync(join(root, "home"));
   createBareRepository(join(root, "remote.git"), join(root, "scratch"));
   createDemoRepository(root);
@@ -105,5 +105,5 @@ export const serverEnvironment = () => ({
   ANTHROPIC_API_KEY: "",
   GEMINI_API_KEY: "",
   OPENCODE_API_KEY: "",
-  PI_EVERYWHERE_ALLOW_FILE_CLONES: "1",
+  TAU_ALLOW_FILE_CLONES: "1",
 });

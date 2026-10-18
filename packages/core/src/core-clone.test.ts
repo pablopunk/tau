@@ -1,6 +1,6 @@
 import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import type { Core, Project } from "@pi-everywhere/protocol";
+import type { Core, Project } from "@tau/protocol";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { type CoreDependencies, createCoreWith, defaultCoreDependencies } from "./create-core";
 import { installFakeGit, isAlive } from "./test-support/fake-git";
@@ -8,7 +8,7 @@ import { makeLocalRepo } from "./test-support/local-repo";
 import { useTempDir } from "./test-support/temp-dir";
 
 const tempDir = useTempDir();
-const ALLOW_FILES = { ...process.env, PI_EVERYWHERE_ALLOW_FILE_CLONES: "1" };
+const ALLOW_FILES = { ...process.env, TAU_ALLOW_FILE_CLONES: "1" };
 
 let root: string;
 let cores: Core[];
@@ -105,7 +105,7 @@ describe("cloning against a local repository", () => {
     const realMode = await open(ALLOW_FILES, false);
     await expect(realMode.projects.clone({ url })).rejects.toMatchObject({ code: "invalid_git_url" });
     await realMode.close();
-    const fauxWithoutFlag = await open({ ...process.env, PI_EVERYWHERE_ALLOW_FILE_CLONES: undefined });
+    const fauxWithoutFlag = await open({ ...process.env, TAU_ALLOW_FILE_CLONES: undefined });
     await expect(fauxWithoutFlag.projects.clone({ url })).rejects.toMatchObject({ code: "invalid_git_url" });
   });
 

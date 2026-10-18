@@ -1,5 +1,5 @@
-import type { ClientFrame, ConversationView, ServerFrame } from "@pi-everywhere/protocol";
-import { finalView, fixtures } from "@pi-everywhere/testkit";
+import type { ClientFrame, ConversationView, ServerFrame } from "@tau/protocol";
+import { finalView, fixtures } from "@tau/testkit";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { LiveHandlers, LiveTransport } from "@/lib/api";
 import { createLiveClient } from "./create-live-client";

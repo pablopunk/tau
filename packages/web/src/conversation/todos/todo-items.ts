@@ -1,4 +1,4 @@
-import type { ConversationView } from "@pi-everywhere/protocol";
+import type { ConversationView } from "@tau/protocol";
 
 export type TodoStatus = "pending" | "in_progress" | "completed";
 

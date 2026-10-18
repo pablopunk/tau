@@ -1,4 +1,4 @@
-import { AppError, type ModelRef } from "@pi-everywhere/protocol";
+import { AppError, type ModelRef } from "@tau/protocol";
 
 export interface ModelAliasContext {
   readonly parent: ModelRef;

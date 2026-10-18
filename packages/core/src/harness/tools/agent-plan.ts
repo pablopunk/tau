@@ -1,5 +1,5 @@
 import type { ToolExecutionApi, ToolRegistration } from "@earendil-works/pi-durable";
-import type { ModelRef } from "@pi-everywhere/protocol";
+import type { ModelRef } from "@tau/protocol";
 import { type AgentType, GENERAL_PURPOSE } from "../../agents/agent-types";
 import type { SubagentServices } from "../subagent-services";
 import { isSubagentTool } from "../subagent-tool-names";

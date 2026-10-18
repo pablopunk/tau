@@ -2,7 +2,7 @@ import type { Dirent } from "node:fs";
 import { readdir, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
-import type { PathSuggestion, SuggestDirectoriesInput } from "@pi-everywhere/protocol";
+import type { PathSuggestion, SuggestDirectoriesInput } from "@tau/protocol";
 import { collapseHome, expandHome } from "./expand-home";
 
 const DEFAULT_LIMIT = 50;

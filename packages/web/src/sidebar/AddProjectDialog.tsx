@@ -1,5 +1,5 @@
-import type { Project } from "@pi-everywhere/protocol";
 import { useQueryClient } from "@tanstack/react-query";
+import type { Project } from "@tau/protocol";
 import { type FormEvent, useId, useState } from "react";
 import { FormError } from "@/app/FormError";
 import { useSubmit } from "@/app/use-submit";

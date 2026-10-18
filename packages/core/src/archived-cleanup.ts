@@ -4,7 +4,7 @@ import {
   type DeleteArchivedResult,
   unmergedKindsOf,
   unmergedWarningFor,
-} from "@pi-everywhere/protocol";
+} from "@tau/protocol";
 import type { ConversationRemoval } from "./conversation-removal";
 import type { ConversationStore } from "./harness/conversation-store";
 import type { RemovalHooks } from "./removal-hooks";
@@ -39,7 +39,7 @@ const errorReason = (error: unknown) => (error instanceof Error ? error.message 
 
 export function createArchivedCleanup(deps: CleanupDeps): ArchivedCleanup {
   const { conversations, removal, hooks, now, announce } = deps;
-  const onError = deps.onError ?? ((error) => console.error("pi-everywhere: archived cleanup failed", error));
+  const onError = deps.onError ?? ((error) => console.error("tau: archived cleanup failed", error));
   let timer: ReturnType<typeof setInterval> | undefined;
   let inFlight: Promise<unknown> = Promise.resolve();
 

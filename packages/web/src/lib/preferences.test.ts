@@ -29,7 +29,7 @@ describe("preferences", () => {
     unsubscribe();
     preferences.setTheme("light");
     expect(listener).toHaveBeenCalledTimes(1);
-    window.localStorage.setItem("pi-everywhere:theme", "neon");
+    window.localStorage.setItem("tau:theme", "neon");
     expect(preferences.getTheme()).toBe("system");
   });
 
@@ -47,7 +47,7 @@ describe("preferences", () => {
   });
 
   it("ignores corrupt values", () => {
-    window.localStorage.setItem("pi-everywhere:last-model", "{nope");
+    window.localStorage.setItem("tau:last-model", "{nope");
     expect(preferences.getLastModel()).toBeNull();
   });
 
@@ -63,16 +63,23 @@ describe("preferences", () => {
     expect(preferences.getNotificationsEnabled()).toBe(false);
   });
 
+  it("reads the theme and sidebar mode stored before the rename", () => {
+    window.localStorage.setItem("pi-everywhere:theme", "dark");
+    window.localStorage.setItem("pie-sidebar-mode", "projects");
+    expect(preferences.getTheme()).toBe("dark");
+    expect(preferences.getSidebarMode()).toBe("projects");
+  });
+
   it("remembers the sidebar mode and the closed projects", () => {
     expect(preferences.getSidebarMode()).toBe("threads");
     preferences.setSidebarMode("projects");
-    expect(window.localStorage.getItem("pie-sidebar-mode")).toBe("projects");
+    expect(window.localStorage.getItem("tau-sidebar-mode")).toBe("projects");
     expect(preferences.getSidebarMode()).toBe("projects");
     expect(preferences.getClosedProjects()).toEqual([]);
     preferences.setClosedProjects(["a", "b"]);
-    expect(window.localStorage.getItem("pie-sidebar-closed-projects")).toBe('["a","b"]');
+    expect(window.localStorage.getItem("tau-sidebar-closed-projects")).toBe('["a","b"]');
     expect(preferences.getClosedProjects()).toEqual(["a", "b"]);
-    window.localStorage.setItem("pie-sidebar-closed-projects", "{oops");
+    window.localStorage.setItem("tau-sidebar-closed-projects", "{oops");
     expect(preferences.getClosedProjects()).toEqual([]);
   });
 });

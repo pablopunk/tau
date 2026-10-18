@@ -1,4 +1,4 @@
-import type { ModelInfo, ModelRef } from "@pi-everywhere/protocol";
+import type { ModelInfo, ModelRef } from "@tau/protocol";
 import { Combobox, type ComboboxOption, type ComboboxProps } from "@/components/ui/combobox";
 
 const keyOf = (ref: ModelRef) => `${ref.provider}/${ref.modelId}`;

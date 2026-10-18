@@ -13,7 +13,7 @@ export const DEFAULT_PORT = 4317;
 
 const MAX_PORT = 65535;
 
-export const defaultHome = (): string => join(homedir(), ".pi-everywhere");
+export const defaultHome = (): string => join(homedir(), ".tau");
 
 function parsePort(raw: string | undefined): number {
   if (raw === undefined) return DEFAULT_PORT;
@@ -37,7 +37,7 @@ export function parseCliOptions(argv: readonly string[], env: NodeJS.ProcessEnv 
   return {
     port: parsePort(values.port),
     open: !values["no-open"],
-    home: values.home ?? env.PI_EVERYWHERE_HOME ?? defaultHome(),
-    faux: values.faux || env.PI_EVERYWHERE_FAUX === "1",
+    home: values.home ?? env.TAU_HOME ?? defaultHome(),
+    faux: values.faux || env.TAU_FAUX === "1",
   };
 }

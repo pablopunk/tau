@@ -1,7 +1,7 @@
 import { readdir, readFile, realpath, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join, relative, sep } from "node:path";
-import type { Skill } from "@pi-everywhere/protocol";
+import type { Skill } from "@tau/protocol";
 import { parseSkillFrontmatter } from "./frontmatter";
 
 export const MAX_SKILL_FILE_BYTES = 256 * 1024;

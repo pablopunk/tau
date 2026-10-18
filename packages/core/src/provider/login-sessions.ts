@@ -1,5 +1,5 @@
 import type { Models } from "@earendil-works/pi-ai/models";
-import { AppError, type LoginSession } from "@pi-everywhere/protocol";
+import { AppError, type LoginSession } from "@tau/protocol";
 import { readOrCreateDeviceId } from "../auth/device-id";
 import type { ChangeEmitter } from "../change-emitter";
 import { callbackUrlProblem } from "./callback-url";
@@ -82,7 +82,7 @@ export function createLoginSessions(deps: LoginSessionsDeps): LoginSessions {
     try {
       await deps.models.login("openai", "oauth", interactionOf(record) as never, {
         getDeviceId: () => deviceId,
-        agentName: "pi-everywhere",
+        agentName: "tau",
       });
       finish(record, "done", null);
     } catch (error) {

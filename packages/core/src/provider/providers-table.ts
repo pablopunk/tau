@@ -1,4 +1,4 @@
-import type { ProviderId, ProviderMethod } from "@pi-everywhere/protocol";
+import type { ProviderId, ProviderMethod } from "@tau/protocol";
 import {
   type KeyValidator,
   validateAnthropicKey,

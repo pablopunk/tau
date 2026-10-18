@@ -1,4 +1,4 @@
-import type { ConversationSummary } from "@pi-everywhere/protocol";
+import type { ConversationSummary } from "@tau/protocol";
 import type { StatusDotStatus } from "@/components/ui/status-dot";
 import { preferences } from "@/lib/preferences";
 

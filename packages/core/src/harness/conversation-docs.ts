@@ -1,11 +1,5 @@
 import { defineDoc, defineDocFamily } from "@earendil-works/pi-durable";
-import type {
-  AgentStatus,
-  ConversationStatus,
-  ImageInput,
-  ModelRef,
-  ThreadWorkspace,
-} from "@pi-everywhere/protocol";
+import type { AgentStatus, ConversationStatus, ImageInput, ModelRef, ThreadWorkspace } from "@tau/protocol";
 
 export type IndexedConversation = {
   conversationId: number;

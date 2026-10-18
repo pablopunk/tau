@@ -1,5 +1,5 @@
-import { RETIRED_OPS } from "@pi-everywhere/protocol";
-import type { Fixture } from "@pi-everywhere/testkit";
+import { RETIRED_OPS } from "@tau/protocol";
+import type { Fixture } from "@tau/testkit";
 
 function retiredFrom(text: Fixture): Fixture {
   const lastAt = text.frames.at(-1)?.at ?? 0;

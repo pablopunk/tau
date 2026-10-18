@@ -6,7 +6,7 @@ import type {
   InboxState,
   LiveState,
   ToolSlot,
-} from "@pi-everywhere/protocol";
+} from "@tau/protocol";
 
 export interface RetryInfo {
   readonly attempt: number;

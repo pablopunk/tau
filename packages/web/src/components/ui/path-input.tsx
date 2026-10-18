@@ -1,4 +1,4 @@
-import type { PathSuggestion } from "@pi-everywhere/protocol";
+import type { PathSuggestion } from "@tau/protocol";
 import { FolderGit2Icon, FolderIcon } from "lucide-react";
 import { type ComponentProps, type KeyboardEvent, useEffect, useId, useRef, useState } from "react";
 import { Command, CommandItem, CommandList } from "@/components/ui/command";

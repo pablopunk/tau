@@ -1,4 +1,4 @@
-import type { ImageContent } from "@pi-everywhere/protocol";
+import type { ImageContent } from "@tau/protocol";
 import { CopyButton } from "@/components/ui/copy-button";
 import { cn } from "@/lib/utils";
 import { MessageImages } from "./MessageImages";

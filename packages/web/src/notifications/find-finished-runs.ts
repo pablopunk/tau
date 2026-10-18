@@ -1,4 +1,4 @@
-import type { ConversationSummary } from "@pi-everywhere/protocol";
+import type { ConversationSummary } from "@tau/protocol";
 
 export function findFinishedRuns(
   previous: readonly ConversationSummary[] | undefined,

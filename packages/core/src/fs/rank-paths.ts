@@ -1,4 +1,4 @@
-import type { FileSuggestion } from "@pi-everywhere/protocol";
+import type { FileSuggestion } from "@tau/protocol";
 
 const basename = (path: string) => path.slice(path.lastIndexOf("/") + 1);
 const NO_MATCH = 3;

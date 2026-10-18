@@ -1,4 +1,4 @@
-import { ERROR_STATUS, isIconPng } from "@pi-everywhere/protocol";
+import { ERROR_STATUS, isIconPng } from "@tau/protocol";
 import { afterEach, describe, expect, it } from "vitest";
 import { startTestServer, type TestServer } from "./testing/harness";
 
@@ -35,7 +35,7 @@ describe("MVP3 routes", () => {
     const used = await ctx.request({
       method: "POST",
       url: "/api/github/use",
-      payload: { nameWithOwner: "demo/pi-everywhere", mode: "local" },
+      payload: { nameWithOwner: "demo/tau", mode: "local" },
     });
     expect(used.statusCode).toBe(201);
     expect(used.json()).toMatchObject({ kind: "folder" });

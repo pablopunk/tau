@@ -1,8 +1,8 @@
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { Core } from "@pi-everywhere/protocol";
-import { createFakeCore, type FakeCoreOptions } from "@pi-everywhere/testkit";
+import type { Core } from "@tau/protocol";
+import { createFakeCore, type FakeCoreOptions } from "@tau/testkit";
 import type { LightMyRequestResponse } from "fastify";
 import { createServer, type RunningServer } from "../create-server";
 
@@ -23,7 +23,7 @@ export interface TestServer {
 }
 
 export function makeStaticDir(): string {
-  const dir = mkdtempSync(join(tmpdir(), "pie-static-"));
+  const dir = mkdtempSync(join(tmpdir(), "tau-static-"));
   writeFileSync(join(dir, "index.html"), "<!doctype html><title>app</title><div id=root></div>");
   writeFileSync(join(dir, "app.js"), "console.log('app')");
   return dir;
@@ -34,7 +34,7 @@ export async function startTestServer(
 ): Promise<TestServer> {
   const core = options.core ?? createFakeCore({ configured: true, speed: 1000, ...options.fake });
   const server = await createServer({ core, port: 0, token: TOKEN, staticDir: options.staticDir });
-  const cookie = `pie_${server.port}=${TOKEN}`;
+  const cookie = `tau_${server.port}=${TOKEN}`;
   const headers = { host: `127.0.0.1:${server.port}`, origin: server.origin, cookie };
   return {
     server,

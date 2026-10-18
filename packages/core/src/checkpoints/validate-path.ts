@@ -1,5 +1,5 @@
 import { isAbsolute } from "node:path";
-import { AppError } from "@pi-everywhere/protocol";
+import { AppError } from "@tau/protocol";
 
 /** A path as git prints it: relative to the repository top level, slash separated, never leaving it. */
 export function requireRepoRelative(path: string): string {

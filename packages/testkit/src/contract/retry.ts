@@ -1,4 +1,4 @@
-import { isRetryable } from "@pi-everywhere/protocol";
+import { isRetryable } from "@tau/protocol";
 import { afterEach, beforeEach, describe, expect } from "vitest";
 import type { CaseRunner } from "./case-runner";
 import {

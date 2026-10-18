@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import type { Change } from "@pi-everywhere/protocol";
+import type { Change } from "@tau/protocol";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { FileCredentialStore } from "../auth/file-credential-store";
 import { createChangeEmitter } from "../change-emitter";

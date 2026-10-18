@@ -1,4 +1,4 @@
-import type { ConversationSummary, Project } from "@pi-everywhere/protocol";
+import type { ConversationSummary, Project } from "@tau/protocol";
 import { ChevronRightIcon, Trash2Icon } from "lucide-react";
 import { Fragment, useState } from "react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";

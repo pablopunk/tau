@@ -1,4 +1,4 @@
-import { AppError } from "@pi-everywhere/protocol";
+import { AppError } from "@tau/protocol";
 import { currentBranch, dirtyFilesOf, localRef } from "./repo-facts";
 import { failureMessage, gitLine, tryGit } from "./run-repo-command";
 import type { WorktreeFacts } from "./worktree-facts";

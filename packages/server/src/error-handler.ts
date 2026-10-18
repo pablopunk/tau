@@ -1,4 +1,4 @@
-import { AppError, ERROR_STATUS, isAppError, toErrorBody } from "@pi-everywhere/protocol";
+import { AppError, ERROR_STATUS, isAppError, toErrorBody } from "@tau/protocol";
 import type { FastifyError, FastifyReply, FastifyRequest } from "fastify";
 
 function isClientError(error: FastifyError): boolean {

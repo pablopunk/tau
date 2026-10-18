@@ -1,8 +1,8 @@
 import { mkdir, mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { baseOps } from "@pi-everywhere/protocol";
-import type { Fixture, FixtureFrame, FixtureStep } from "@pi-everywhere/testkit";
+import { baseOps } from "@tau/protocol";
+import type { Fixture, FixtureFrame, FixtureStep } from "@tau/testkit";
 import { BACKGROUND, openAgentHarness, openSqliteStorage } from "../harness/open";
 import { createAgentRegistry } from "../harness/registry";
 import { RETRY_PROMPT } from "../retry-prompt";
@@ -14,7 +14,7 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 export const SEED_FILES = { "notes.txt": "hello world\n" };
 
 async function createProject(): Promise<{ dir: string; cleanup: () => Promise<void> }> {
-  const root = await realpath(await mkdtemp(join(tmpdir(), "pie-fixture-")));
+  const root = await realpath(await mkdtemp(join(tmpdir(), "tau-fixture-")));
   const dir = join(root, "project");
   await mkdir(dir);
   for (const [name, content] of Object.entries(SEED_FILES)) await writeFile(join(dir, name), content);

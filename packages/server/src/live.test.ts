@@ -6,8 +6,8 @@ import {
   LIVE_PATH,
   type OpsFrame,
   type ServerFrame,
-} from "@pi-everywhere/protocol";
-import { createFakeCore } from "@pi-everywhere/testkit";
+} from "@tau/protocol";
+import { createFakeCore } from "@tau/testkit";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import WebSocket from "ws";
 import { waitForDrain } from "./live/backpressure";
@@ -101,7 +101,7 @@ describe("WebSocket security", () => {
   it("rejects an upgrade without the session cookie", async () => {
     ctx = await startTestServer();
     expect(await rejectedStatus(connect({ cookie: "" }))).toBe(401);
-    expect(await rejectedStatus(connect({ cookie: `pie_${ctx.server.port}=wrong` }))).toBe(401);
+    expect(await rejectedStatus(connect({ cookie: `tau_${ctx.server.port}=wrong` }))).toBe(401);
   });
 });
 

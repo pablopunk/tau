@@ -16,7 +16,7 @@ import {
   type ThinkingLevel,
   type ThreadWorkspace,
   type WhenBusy,
-} from "@pi-everywhere/protocol";
+} from "@tau/protocol";
 import { toUserInput } from "../conversation-input";
 import { titleFromFirstMessage } from "../conversation-title";
 import { RETRY_PROMPT } from "../retry-prompt";

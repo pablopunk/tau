@@ -6,7 +6,7 @@ import {
   type JsonRouteName,
   type RouteDef,
   routes,
-} from "@pi-everywhere/protocol";
+} from "@tau/protocol";
 import { Value } from "typebox/value";
 import type { RouteRequest, RouteResponse, Transport } from "./types";
 import { createWebSocketTransport } from "./websocket";

@@ -2,7 +2,7 @@ import { execFile } from "node:child_process";
 import { access, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { promisify } from "node:util";
-import type { ConversationSummary, Core, Project } from "@pi-everywhere/protocol";
+import type { ConversationSummary, Core, Project } from "@tau/protocol";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   answerCount,
@@ -29,7 +29,7 @@ const exists = (path: string) =>
     () => false,
   );
 const refsOf = async (conversationId: string) =>
-  (await run("git", ["-C", repoPath, "for-each-ref", `refs/pi-everywhere/${conversationId}/`])).stdout;
+  (await run("git", ["-C", repoPath, "for-each-ref", `refs/tau/${conversationId}/`])).stdout;
 
 async function settle(core: Core, id: string, action: () => Promise<unknown>) {
   const tracker = await trackView(core, id);

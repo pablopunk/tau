@@ -6,7 +6,7 @@ import {
   type ModelInfo,
   type ProviderId,
   type ProviderInfo,
-} from "@pi-everywhere/protocol";
+} from "@tau/protocol";
 import { FAKE_AUTH_URL, FAKE_MODELS, FAKE_PROVIDERS, FAKE_VALID_CALLBACK_URL } from "./catalog";
 
 const MAX_LOGIN_ATTEMPTS = 5;

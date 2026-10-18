@@ -1,5 +1,5 @@
-import type { ConversationView } from "@pi-everywhere/protocol";
-import { isRetryable } from "@pi-everywhere/protocol";
+import type { ConversationView } from "@tau/protocol";
+import { isRetryable } from "@tau/protocol";
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";

@@ -1,4 +1,4 @@
-import type { ConversationWatcher } from "@pi-everywhere/protocol";
+import type { ConversationWatcher } from "@tau/protocol";
 import {
   AppError,
   type Change,
@@ -10,8 +10,8 @@ import {
   type JsonRouteName,
   PROCESS_LOG_TAIL_DEFAULT,
   RETIRED_OPS,
-} from "@pi-everywhere/protocol";
-import { createFakeCore } from "@pi-everywhere/testkit";
+} from "@tau/protocol";
+import { createFakeCore } from "@tau/testkit";
 import type { LiveHandlers, LiveSocket, RouteRequest, RouteResponse, Transport } from "./types";
 
 type Input = {

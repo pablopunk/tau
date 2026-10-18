@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { AppError, type ConversationSummary, type ProcessInfo } from "@pi-everywhere/protocol";
+import { AppError, type ConversationSummary, type ProcessInfo } from "@tau/protocol";
 import { lastLines } from "./log-tail";
 import { createProcessFiles } from "./process-files";
 import { groupIsAlive, terminateGroup } from "./process-group";

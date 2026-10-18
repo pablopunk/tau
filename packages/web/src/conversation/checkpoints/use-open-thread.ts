@@ -1,5 +1,5 @@
-import type { ConversationSummary } from "@pi-everywhere/protocol";
 import { useQueryClient } from "@tanstack/react-query";
+import type { ConversationSummary } from "@tau/protocol";
 import { useNavigate } from "react-router";
 import { conversationPath } from "@/lib/paths";
 import { saveDraft } from "../composer/drafts";

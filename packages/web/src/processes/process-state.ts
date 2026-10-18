@@ -1,4 +1,4 @@
-import type { ProcessInfo } from "@pi-everywhere/protocol";
+import type { ProcessInfo } from "@tau/protocol";
 
 export const runningCount = (processes: readonly ProcessInfo[]): number =>
   processes.filter((process) => process.state === "running").length;

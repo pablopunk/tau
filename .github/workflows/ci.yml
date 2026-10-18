@@ -41,7 +41,7 @@ jobs:
         with:
           name: cli-dist
           path: packages/cli/dist
-      - run: mise exec -- pnpm --filter @pi-everywhere/e2e exec playwright install --with-deps chromium
+      - run: mise exec -- pnpm --filter @tau/e2e exec playwright install --with-deps chromium
       - run: mise exec -- pnpm e2e
       - uses: actions/upload-artifact@v4
         if: failure()

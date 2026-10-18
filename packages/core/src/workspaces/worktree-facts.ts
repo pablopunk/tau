@@ -1,5 +1,5 @@
 import { access } from "node:fs/promises";
-import { AppError, type ConversationSummary, type WorkspaceStatus } from "@pi-everywhere/protocol";
+import { AppError, type ConversationSummary, type WorkspaceStatus } from "@tau/protocol";
 import { countCommits, dirtyFilesOf, localRef, locateRepo, mainCheckoutRoot } from "./repo-facts";
 
 export interface WorktreeFacts {

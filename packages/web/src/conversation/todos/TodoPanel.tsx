@@ -1,4 +1,4 @@
-import type { ConversationView } from "@pi-everywhere/protocol";
+import type { ConversationView } from "@tau/protocol";
 import { ChevronRight, ListChecks } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { TodoList } from "./TodoList";

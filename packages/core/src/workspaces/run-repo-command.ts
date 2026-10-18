@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { AppError } from "@pi-everywhere/protocol";
+import { AppError } from "@tau/protocol";
 
 export interface CommandResult {
   readonly ok: boolean;
@@ -7,7 +7,7 @@ export interface CommandResult {
   readonly stderr: string;
 }
 
-const identity = ["-c", "user.name=pi-everywhere", "-c", "user.email=pi-everywhere@localhost"];
+const identity = ["-c", "user.name=tau", "-c", "user.email=tau@localhost"];
 
 function cleanEnvironment(): NodeJS.ProcessEnv {
   const env: NodeJS.ProcessEnv = { ...process.env, GIT_TERMINAL_PROMPT: "0", GIT_EDITOR: "true" };

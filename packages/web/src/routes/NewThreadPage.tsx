@@ -1,4 +1,4 @@
-import type { ImageInput, ModelRef, ThinkingLevel, WorkspaceMode } from "@pi-everywhere/protocol";
+import type { ImageInput, ModelRef, ThinkingLevel, WorkspaceMode } from "@tau/protocol";
 import { useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 import { ModelThinkingPickers, type PickersHandle } from "@/components/ModelThinkingPickers";

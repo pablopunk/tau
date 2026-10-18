@@ -198,7 +198,7 @@ describe("REST routes", () => {
   });
 
   it("hides unexpected failures behind an internal error", async () => {
-    const { createFakeCore } = await import("@pi-everywhere/testkit");
+    const { createFakeCore } = await import("@tau/testkit");
     const core = createFakeCore({ configured: true });
     core.projects.list = async () => {
       throw new Error("secret detail");

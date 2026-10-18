@@ -1,6 +1,6 @@
 import type { AssistantMessage } from "@earendil-works/pi-ai";
 import { AssistantEntry, type ConversationId, defineTask } from "@earendil-works/pi-durable";
-import type { SubagentNotificationData } from "@pi-everywhere/protocol";
+import type { SubagentNotificationData } from "@tau/protocol";
 import { ConversationDoc } from "./conversation-docs";
 import { notificationInput, notificationRequestId } from "./subagent-notification";
 import { SubagentRegistryDoc } from "./subagent-registry-doc";

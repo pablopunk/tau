@@ -1,4 +1,4 @@
-import type { ConversationView, InboxState } from "@pi-everywhere/protocol";
+import type { ConversationView, InboxState } from "@tau/protocol";
 import { afterEach, beforeEach, describe, expect } from "vitest";
 import type { CaseRunner } from "./case-runner";
 import { rejectsWithCode, startConversation, trackView, waitFor } from "./helpers";

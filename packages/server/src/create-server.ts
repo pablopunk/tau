@@ -1,6 +1,6 @@
 import fastifyCookie from "@fastify/cookie";
 import fastifyWebsocket from "@fastify/websocket";
-import type { Core } from "@pi-everywhere/protocol";
+import type { Core } from "@tau/protocol";
 import Fastify, { type FastifyInstance } from "fastify";
 import { handleError } from "./error-handler";
 import { registerLive } from "./live/register-live";
@@ -20,7 +20,7 @@ export interface ServerOptions {
   readonly port: number;
   /** Interface to bind. Default `127.0.0.1`. */
   readonly host?: string;
-  /** Secret that opens a session: `/?token=…` is swapped for the `pie_<port>` cookie. Persisted by the CLI in `<home>/token`. */
+  /** Secret that opens a session: `/?token=…` is swapped for the `tau_<port>` cookie. Persisted by the CLI in `<home>/token`. */
   readonly token: string;
   /** Fastify logger, off by default. */
   readonly logger?: boolean;

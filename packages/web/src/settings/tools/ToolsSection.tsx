@@ -1,4 +1,4 @@
-import type { McpServerStatus } from "@pi-everywhere/protocol";
+import type { McpServerStatus } from "@tau/protocol";
 import { useState } from "react";
 import { useOpenConversation } from "@/activity/use-open-conversation";
 import { FormError } from "@/app/FormError";

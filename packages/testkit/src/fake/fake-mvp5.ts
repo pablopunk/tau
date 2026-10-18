@@ -1,4 +1,4 @@
-import { AppError, type Change, type Project, type WorkspaceMode } from "@pi-everywhere/protocol";
+import { AppError, type Change, type Project, type WorkspaceMode } from "@tau/protocol";
 import type { FakeConversation } from "./fake-conversation";
 import { createFakeMcp } from "./fake-mcp";
 import { createFakeProcesses } from "./fake-processes";
@@ -7,7 +7,7 @@ import { createFakeThreadOps, type SpawnParams } from "./fake-thread-ops";
 import { checkoutWorkspace, uniqueSlug, worktreeWorkspace } from "./fake-workspace";
 import { createFakeWorkspaces, hasUnmergedWork } from "./fake-workspaces";
 
-export const FAKE_WORKTREES_FOLDER = "/fake/home/.pi-everywhere/worktrees";
+export const FAKE_WORKTREES_FOLDER = "/fake/home/.tau/worktrees";
 const SUBAGENT_TRIGGER = "agent ";
 const PROCESS_TRIGGER = "bg ";
 

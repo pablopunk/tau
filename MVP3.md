@@ -21,7 +21,7 @@ Out (later): GitHub issues/PRs, creating repos, GitHub Enterprise and `*.ghe.com
 
 ## Product decisions
 
-- The projects folder is the code folder: clones land there and the local-copy scan looks there. The MVP2 default (`~/.pi-everywhere/projects`) stays the default, but the settings GitHub row, and the setup step, offer "Use `~/src` as your code folder" (first of `~/src`, `~/code`, `~/projects`, `~/dev` that exists) while the setting is the default.
+- The projects folder is the code folder: clones land there and the local-copy scan looks there. The MVP2 default (`~/.tau/projects`) stays the default, but the settings GitHub row, and the setup step, offer "Use `~/src` as your code folder" (first of `~/src`, `~/code`, `~/projects`, `~/dev` that exists) while the setting is the default.
 - The sidebar shows only real projects; GitHub repos appear only in the project menu until used.
 - `gh` is optional. Without it nothing changes except the settings status line.
 - Repos from a local copy or an existing folder become **folder** projects with a `gitUrl` (never deleted by the app). Only clones are `kind: "git"` (MVP2 rule: their folder is a claimed child of the projects folder).
@@ -152,9 +152,9 @@ REST:
 - Test setup (`web/src/test/setup.ts`): a global `vi.mock("bot-avatars")` and an `Element.prototype.animate` stub (jsdom has neither canvas 2D nor WAAPI).
 
 ### Sidebar (port of webr `Sidebar.tsx` + `sidebar.css`, on our tokens)
-- Header: Add project, New thread, the Threads / Projects `SegmentedControl` (localStorage `pie-sidebar-mode`, default `threads`).
+- Header: Add project, New thread, the Threads / Projects `SegmentedControl` (localStorage `tau-sidebar-mode`, default `threads`).
 - **Threads mode**: one flat list over `useAllConversations`, sorted by `lastActivityAt` desc (tie: id desc). Cloning and failed projects show as status rows at the top (spinner; failed with Retry and Remove). Archived threads in one collapsible "Archived" section at the bottom.
-- **Projects mode**: groups (Home included) ordered by their newest thread's `lastActivityAt`; projects without threads (new, cloning, failed) follow as groups after the active ones, so Retry/Remove stay reachable; archived threads in a collapsed "Archived" group per project (MVP2); threads newest first; group header toggles collapse (localStorage `pie-sidebar-closed-projects`, JSON array), chevron, `aria-expanded`; header menu: New thread, Rename, Change icon, Remove, folder path with `~`.
+- **Projects mode**: groups (Home included) ordered by their newest thread's `lastActivityAt`; projects without threads (new, cloning, failed) follow as groups after the active ones, so Retry/Remove stay reachable; archived threads in a collapsed "Archived" group per project (MVP2); threads newest first; group header toggles collapse (localStorage `tau-sidebar-closed-projects`, JSON array), chevron, `aria-expanded`; header menu: New thread, Rename, Change icon, Remove, folder path with `~`.
 - Row: grid `25px 1fr auto`, min-height 56 px: `BotAvatar` (working while running; status badge: error, unseen done), two lines (context line: project icon + name in Threads mode, nothing extra in Projects mode; then the title), `RelativeTime` of `lastActivityAt`. Hover shows the archive button instead of the time; always visible on touch. Row menu (always reachable on touch): Rename, Archive, Delete. Tooltip: title, project, model, status.
 - Current row: raised surface and an accent bar; the project icon moves onto the avatar (webr "takeover", 200 ms, scale 1.4) while the avatar fades — in Threads mode from the context line, in Projects mode fading in at the avatar spot.
 - `useFlipList` on the list; `resetKey` bumps on group toggle.
@@ -177,7 +177,7 @@ REST:
 - Contract suite + fake: `github.*` with a fixed repo list; icons; new summary fields.
 - Server: every route; SVG CSP header; icon PUT limit.
 - Web: picker groups and dialog flows; cloning selection never falls back to Home; settings GitHub row per state; sidebar modes (empty/cloning/failed projects reachable in both modes), sorting, collapse persistence, FLIP skipped under reduced motion, row layout, takeover class on the current row, icon dialog.
-- e2e (faux): a fake `gh` on `PATH` answering the frozen argv (status JSON, repos JSON whose `clone_url` is a local bare repo, with `PI_EVERYWHERE_ALLOW_FILE_CLONES=1`); pick a repo with a local copy → thread; pick one without → clone → thread; switch sidebar modes; change a project icon.
+- e2e (faux): a fake `gh` on `PATH` answering the frozen argv (status JSON, repos JSON whose `clone_url` is a local bare repo, with `TAU_ALLOW_FILE_CLONES=1`); pick a repo with a local copy → thread; pick one without → clone → thread; switch sidebar modes; change a project icon.
 
 ## Parallel work
 

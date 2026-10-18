@@ -114,7 +114,7 @@ describe("<Composer> drafts and Esc", () => {
   it("clears the stored draft after sending", async () => {
     const { input } = setup({ target: "c" });
     await userEvent.type(input, "bye{Enter}");
-    expect(window.localStorage.getItem("pi-everywhere:draft:c")).toBeNull();
+    expect(window.localStorage.getItem("tau:draft:c")).toBeNull();
   });
 
   it("stops a running thread on Esc when busy", async () => {

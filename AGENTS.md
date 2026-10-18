@@ -1,4 +1,4 @@
-# pi-everywhere
+# tau
 
 Chat with a coding agent that works in your project folders, from the browser.
 
@@ -6,7 +6,7 @@ Chat with a coding agent that works in your project folders, from the browser.
 
 * Run pnpm only as `mise exec -- pnpm <command>`. Never npm, yarn or bare pnpm.
 * `check`: Biome and `tsc --noEmit` in every package (`format` fixes). `test`: Vitest. `build`: web, then the CLI. `e2e`: Playwright on the built CLI.
-* Web without a backend: `VITE_FAKE=1 mise exec -- pnpm --filter @pi-everywhere/web dev` (add `?fake=ready` to skip setup).
+* Web without a backend: `VITE_FAKE=1 mise exec -- pnpm --filter @tau/web dev` (add `?fake=ready` to skip setup).
 * zsh has noclobber: use `>|` to overwrite a file.
 
 ## Packages
@@ -16,7 +16,7 @@ Chat with a coding agent that works in your project folders, from the browser.
 * `core`: implements `Core` on Pi Durable. Only `core/src/harness/` imports Pi Durable.
 * `server`: Fastify. HTTP and WebSocket to `Core` calls. No business logic.
 * `web`: React, Vite, Tailwind, shadcn/ui, TanStack Query.
-* `cli`: the published `pi-everywhere` package.
+* `cli`: the published `tau` package.
 
 Dependencies point one way: `protocol` <- `testkit` <- `core`, `server`, `web`. `core` never imports `server`.
 

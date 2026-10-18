@@ -1,5 +1,5 @@
 import type { HarnessSettings } from "@earendil-works/pi-durable";
-import type { ImageInput } from "@pi-everywhere/protocol";
+import type { ImageInput } from "@tau/protocol";
 
 export type ScenarioStep = { readonly at: number } & (
   | { readonly kind: "send"; readonly text: string; readonly images?: readonly ImageInput[] }

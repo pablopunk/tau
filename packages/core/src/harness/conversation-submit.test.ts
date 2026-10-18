@@ -79,7 +79,7 @@ const send = (id: string, text: string, whenBusy: "steer" | "followUp") =>
   store.send(id, { text, requestId: `req-${text}` }, Date.now(), whenBusy);
 
 beforeEach(async () => {
-  root = await realpath(await mkdtemp(join(tmpdir(), "pie-submit-")));
+  root = await realpath(await mkdtemp(join(tmpdir(), "tau-submit-")));
   project = join(root, "project");
   await mkdir(project);
   harness = await openAgentHarness({

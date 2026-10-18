@@ -1,4 +1,4 @@
-import type { McpServerConfig } from "@pi-everywhere/protocol";
+import type { McpServerConfig } from "@tau/protocol";
 
 export type McpTransport = "stdio" | "http";
 

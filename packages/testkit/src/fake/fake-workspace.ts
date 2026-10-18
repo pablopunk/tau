@@ -1,4 +1,4 @@
-import type { ThreadWorkspace } from "@pi-everywhere/protocol";
+import type { ThreadWorkspace } from "@tau/protocol";
 
 const SLUG_MAX_LENGTH = 40;
 const SLUG_WORDS = 4;

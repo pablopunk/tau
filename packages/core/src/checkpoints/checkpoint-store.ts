@@ -8,7 +8,7 @@ export type StoredCheckpoint = {
   kind: "before" | "after";
   entryId: string | null;
   sha: string;
-  /** Names the ref `refs/pi-everywhere/<conversationId>/<n>`; the afters of one run share it. */
+  /** Names the ref `refs/tau/<conversationId>/<n>`; the afters of one run share it. */
   n: number;
   at: number;
   files: FileChange[];

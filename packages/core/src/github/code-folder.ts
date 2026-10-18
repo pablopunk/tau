@@ -1,6 +1,6 @@
 import { stat } from "node:fs/promises";
 import { join } from "node:path";
-import type { SuggestedCodeFolder } from "@pi-everywhere/protocol";
+import type { SuggestedCodeFolder } from "@tau/protocol";
 import type { SettingsStore } from "../home/settings-store";
 
 export interface CodeFolderDeps {

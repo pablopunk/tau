@@ -1,5 +1,5 @@
-import type { ModelRef } from "@pi-everywhere/protocol";
 import { useQueryClient } from "@tanstack/react-query";
+import type { ModelRef } from "@tau/protocol";
 import { useId, useState } from "react";
 import { FormError } from "@/app/FormError";
 import { useSubmit } from "@/app/use-submit";

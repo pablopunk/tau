@@ -1,4 +1,4 @@
-import type { GithubRepo, Project } from "@pi-everywhere/protocol";
+import type { GithubRepo, Project } from "@tau/protocol";
 import { repositoryKey } from "../git/repository-key";
 import type { RemoteRepo } from "./gh-repos";
 import { type LocalScan, pickLocalCopy } from "./local-scan";

@@ -1,4 +1,4 @@
-import type { Core } from "@pi-everywhere/protocol";
+import type { Core } from "@tau/protocol";
 import type { ProjectStore } from "../harness/project-store";
 import { discoverSkills } from "./discover-skills";
 

@@ -1,4 +1,4 @@
-import { AppError, type Change, type Core, type ProcessInfo } from "@pi-everywhere/protocol";
+import { AppError, type Change, type Core, type ProcessInfo } from "@tau/protocol";
 
 export const FAKE_PROCESS_URL = "http://localhost:3000";
 

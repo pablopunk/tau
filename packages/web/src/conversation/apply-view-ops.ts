@@ -1,5 +1,5 @@
 import { applyImmutable } from "@earendil-works/chord/delta";
-import { type ConversationView, isBaseOps, type Op } from "@pi-everywhere/protocol";
+import { type ConversationView, isBaseOps, type Op } from "@tau/protocol";
 
 /** `undefined`: no base yet. `null`: the view is retired or the conversation is gone. */
 export type ViewState = ConversationView | null | undefined;

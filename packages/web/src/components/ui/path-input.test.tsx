@@ -1,4 +1,4 @@
-import type { PathSuggestion } from "@pi-everywhere/protocol";
+import type { PathSuggestion } from "@tau/protocol";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -43,8 +43,8 @@ function mount(onSubmit?: () => void) {
 beforeEach(() => {
   vi.resetAllMocks();
   mocks.suggest.mockImplementation(async ({ prefix }: { prefix: string }) =>
-    prefix.startsWith("~/src/") && prefix !== "~/src/pi-everywhere/"
-      ? [suggestion("pi-everywhere", true), suggestion("sandbox")]
+    prefix.startsWith("~/src/") && prefix !== "~/src/tau/"
+      ? [suggestion("tau", true), suggestion("sandbox")]
       : [],
   );
 });
@@ -55,7 +55,7 @@ describe("PathInput", () => {
   it("shows debounced suggestions with ~ and a repo icon while typing", async () => {
     const user = mount();
     await user.type(input(), "~/src/");
-    expect(await screen.findByText("~/src/pi-everywhere")).toBeInTheDocument();
+    expect(await screen.findByText("~/src/tau")).toBeInTheDocument();
     expect(screen.getByText("~/src/sandbox")).toBeInTheDocument();
     expect(screen.getByLabelText("Git repository")).toBeInTheDocument();
     expect(mocks.suggest).toHaveBeenLastCalledWith({ prefix: "~/src/" });
@@ -82,7 +82,7 @@ describe("PathInput", () => {
     await user.type(input(), "~/src/");
     await screen.findByText("~/src/sandbox");
     await user.keyboard("{Tab}");
-    expect(input().value).toBe("~/src/pi-everywhere/");
+    expect(input().value).toBe("~/src/tau/");
     expect(input()).toHaveFocus();
   });
 

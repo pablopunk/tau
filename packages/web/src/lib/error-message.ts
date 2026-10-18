@@ -1,4 +1,4 @@
-import { isAppError } from "@pi-everywhere/protocol";
+import { isAppError } from "@tau/protocol";
 
 export function errorMessage(error: unknown): string {
   if (isAppError(error)) return error.message;

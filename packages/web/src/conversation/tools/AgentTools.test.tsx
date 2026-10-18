@@ -1,4 +1,4 @@
-import type { ConversationSummary, ToolCall } from "@pi-everywhere/protocol";
+import type { ConversationSummary, ToolCall } from "@tau/protocol";
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";

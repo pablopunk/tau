@@ -1,4 +1,4 @@
-import type { Skill } from "@pi-everywhere/protocol";
+import type { Skill } from "@tau/protocol";
 import { runCoreContract } from "./contract/index";
 import { createFakeCore, type FakeGithubRepo } from "./index";
 

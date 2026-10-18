@@ -9,7 +9,7 @@ import {
   type SendMessageInput,
   type StartConversationInput,
   type ThinkingLevel,
-} from "@pi-everywhere/protocol";
+} from "@tau/protocol";
 import type { ArchivedCleanup } from "./archived-cleanup";
 import type { ChangeEmitter } from "./change-emitter";
 import type { CheckpointService } from "./checkpoints/checkpoint-service";
@@ -49,7 +49,7 @@ export function createConversationsApi(deps: {
   const announce = (projectId: string) => changes.emit({ resource: "conversations", projectId });
   const { removal, archivedCleanup } = deps;
   const reportCheckpointFailure = (error: unknown) =>
-    console.error("pi-everywhere: could not take a checkpoint", error);
+    console.error("tau: could not take a checkpoint", error);
   const startsInFlight = new Map<string, Promise<ConversationSummary>>();
 
   const nameTheThread = (id: string, text: string) => void titles.generateFor(id, text);

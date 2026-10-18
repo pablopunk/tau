@@ -1,5 +1,5 @@
 {
-  "name": "pi-everywhere-workspace",
+  "name": "tau-workspace",
   "private": true,
   "type": "module",
   "packageManager": "pnpm@10.28.2",
@@ -9,10 +9,10 @@
   "scripts": {
     "check": "biome check . && pnpm -r --workspace-concurrency=1 typecheck",
     "format": "biome check --write .",
-    "test": "pnpm -r --filter '!@pi-everywhere/e2e' test",
-    "build": "pnpm -r --filter '!@pi-everywhere/e2e' build",
-    "fixtures": "pnpm --filter @pi-everywhere/core fixtures",
-    "e2e": "pnpm --filter @pi-everywhere/e2e test"
+    "test": "pnpm -r --filter '!@tau/e2e' test",
+    "build": "pnpm -r --filter '!@tau/e2e' build",
+    "fixtures": "pnpm --filter @tau/core fixtures",
+    "e2e": "pnpm --filter @tau/e2e test"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.15",

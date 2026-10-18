@@ -1,4 +1,4 @@
-import type { Change, Core, McpServerConfig, McpServerStatus } from "@pi-everywhere/protocol";
+import type { Change, Core, McpServerConfig, McpServerStatus } from "@tau/protocol";
 
 function statusOf(config: McpServerConfig): McpServerStatus {
   return {

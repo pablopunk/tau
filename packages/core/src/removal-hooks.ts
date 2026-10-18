@@ -1,4 +1,4 @@
-import { AppError, type ConversationSummary } from "@pi-everywhere/protocol";
+import { AppError, type ConversationSummary } from "@tau/protocol";
 
 export type ConversationRemovedHook = (conversation: ConversationSummary) => Promise<void>;
 export type ProjectRemovedHook = (projectId: string) => Promise<void>;

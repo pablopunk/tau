@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { LoginSession } from "@pi-everywhere/protocol";
+import type { LoginSession } from "@tau/protocol";
 
 export interface Deferred<T> {
   readonly promise: Promise<T>;

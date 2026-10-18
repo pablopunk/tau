@@ -79,7 +79,7 @@ async function createTracked(h: Harness) {
 }
 
 beforeEach(async () => {
-  root = await realpath(await mkdtemp(join(tmpdir(), "pie-pi-api-")));
+  root = await realpath(await mkdtemp(join(tmpdir(), "tau-pi-api-")));
   project = join(root, "project");
   await mkdir(project);
 });

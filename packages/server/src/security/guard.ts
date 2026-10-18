@@ -1,4 +1,4 @@
-import { API_PREFIX, AppError, ERROR_STATUS, toErrorBody } from "@pi-everywhere/protocol";
+import { API_PREFIX, AppError, ERROR_STATUS, toErrorBody } from "@tau/protocol";
 import type { FastifyReply, FastifyRequest } from "fastify";
 import { type AllowList, isAllowedHost, isAllowedOrigin } from "./allow-list";
 import type { Session } from "./session";

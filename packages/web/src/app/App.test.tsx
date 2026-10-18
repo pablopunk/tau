@@ -154,6 +154,6 @@ describe("main screen", () => {
     await user.type(await screen.findByLabelText("Message"), "hello{Enter}");
 
     expect(await screen.findByTestId("conversation")).toBeInTheDocument();
-    expect(window.sessionStorage.getItem("pi-everywhere:new-thread-request")).toBeNull();
+    expect(window.sessionStorage.getItem("tau:new-thread-request")).toBeNull();
   });
 });

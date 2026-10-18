@@ -1,4 +1,4 @@
-import { unmergedBadgeLabel } from "@pi-everywhere/protocol";
+import { unmergedBadgeLabel } from "@tau/protocol";
 import { TriangleAlertIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";

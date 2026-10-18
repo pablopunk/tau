@@ -1,4 +1,4 @@
-import type { Core } from "@pi-everywhere/protocol";
+import type { Core } from "@tau/protocol";
 import type { ChangeEmitter } from "./change-emitter";
 import type { SettingsStore } from "./home/settings-store";
 import type { McpService } from "./mcp/mcp-service";

@@ -1,4 +1,4 @@
-import type { Change, ClientFrame, ConversationView, Op, ServerFrame } from "@pi-everywhere/protocol";
+import type { Change, ClientFrame, ConversationView, Op, ServerFrame } from "@tau/protocol";
 import type { LiveHandlers, LiveSocket, LiveTransport } from "@/lib/api";
 import { nextViewState, type ViewState } from "./apply-view-ops";
 import type { LiveClient, LiveStatus } from "./live-client";

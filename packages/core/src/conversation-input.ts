@@ -1,5 +1,5 @@
 import type { ImageContent, TextContent, UserMessage } from "@earendil-works/pi-ai";
-import { AppError, type ImageInput, type SendMessageInput } from "@pi-everywhere/protocol";
+import { AppError, type ImageInput, type SendMessageInput } from "@tau/protocol";
 
 type MessageContent = UserMessage["content"];
 type MessageParts = Exclude<MessageContent, string>;

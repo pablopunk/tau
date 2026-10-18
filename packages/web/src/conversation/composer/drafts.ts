@@ -1,8 +1,10 @@
-const PREFIX = "pi-everywhere:draft:";
+import { readWithLegacy } from "@/lib/legacy-storage";
+
+const PREFIX = "tau:draft:";
 
 export function loadDraft(target: string): string {
   try {
-    return window.localStorage.getItem(PREFIX + target) ?? "";
+    return readWithLegacy(PREFIX + target) ?? "";
   } catch {
     return "";
   }

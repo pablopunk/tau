@@ -1,5 +1,5 @@
-import type { ServerFrame } from "@pi-everywhere/protocol";
-import { createFakeCore } from "@pi-everywhere/testkit";
+import type { ServerFrame } from "@tau/protocol";
+import { createFakeCore } from "@tau/testkit";
 import { describe, expect, it } from "vitest";
 import { createApi } from "../api";
 import { createFakeTransport } from "./fake";

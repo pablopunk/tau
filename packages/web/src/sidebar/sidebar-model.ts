@@ -1,4 +1,4 @@
-import type { ConversationSummary, Project } from "@pi-everywhere/protocol";
+import type { ConversationSummary, Project } from "@tau/protocol";
 
 export const isArchived = (conversation: ConversationSummary): boolean => conversation.archivedAt !== null;
 

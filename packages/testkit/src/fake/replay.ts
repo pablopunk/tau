@@ -8,7 +8,7 @@ import type {
   Op,
   ThinkingLevel,
   UserMessage,
-} from "@pi-everywhere/protocol";
+} from "@tau/protocol";
 
 type Docs = Record<string, unknown>;
 

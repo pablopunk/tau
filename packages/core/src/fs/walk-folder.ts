@@ -1,5 +1,5 @@
 import { readdir } from "node:fs/promises";
-import type { FileSuggestion } from "@pi-everywhere/protocol";
+import type { FileSuggestion } from "@tau/protocol";
 
 export const WALK_MAX_DEPTH = 4;
 export const WALK_MAX_ENTRIES = 5000;

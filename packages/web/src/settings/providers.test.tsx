@@ -1,6 +1,6 @@
-import type { ProviderInfo } from "@pi-everywhere/protocol";
-import { createFakeCore } from "@pi-everywhere/testkit";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import type { ProviderInfo } from "@tau/protocol";
+import { createFakeCore } from "@tau/testkit";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
@@ -106,7 +106,7 @@ describe("providers", () => {
       providers: {
         ...(mocks.api as { providers: object }).providers,
         setKey: async () => {
-          const { AppError } = await import("@pi-everywhere/protocol");
+          const { AppError } = await import("@tau/protocol");
           throw new AppError("invalid_key", "The key was rejected");
         },
       },

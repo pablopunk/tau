@@ -1,6 +1,6 @@
 import { homedir } from "node:os";
 import type { Harness } from "@earendil-works/pi-durable";
-import { AppError, type Project } from "@pi-everywhere/protocol";
+import { AppError, type Project } from "@tau/protocol";
 import { repositoryKey } from "../git/repository-key";
 import { createGitRepoProbe, type GitRepoProbe } from "../workspaces/git-repo-probe";
 import { BACKGROUND } from "./open";

@@ -1,4 +1,4 @@
-import type { ClientFrame } from "@pi-everywhere/protocol";
+import type { ClientFrame } from "@tau/protocol";
 import type { LiveHandlers, LiveSocket, Transport } from "./types";
 
 function lazyLiveSocket(load: () => Promise<Transport>, handlers: LiveHandlers): LiveSocket {

@@ -1,4 +1,4 @@
-import type { SubagentNotificationData } from "@pi-everywhere/protocol";
+import type { SubagentNotificationData } from "@tau/protocol";
 import { ChevronRight } from "lucide-react";
 import { Link } from "react-router";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";

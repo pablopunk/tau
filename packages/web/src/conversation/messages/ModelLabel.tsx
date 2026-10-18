@@ -1,4 +1,4 @@
-import type { AssistantMessage } from "@pi-everywhere/protocol";
+import type { AssistantMessage } from "@tau/protocol";
 import { useModels } from "@/lib/queries";
 
 export function ModelLabel({ message }: { message: AssistantMessage }) {

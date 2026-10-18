@@ -1,4 +1,4 @@
-import { AppError } from "@pi-everywhere/protocol";
+import { AppError } from "@tau/protocol";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createApi } from "./api";
 import { createHttpTransport } from "./transport/http";

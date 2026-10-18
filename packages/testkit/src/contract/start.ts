@@ -1,4 +1,4 @@
-import type { ConversationView } from "@pi-everywhere/protocol";
+import type { ConversationView } from "@tau/protocol";
 import { afterEach, beforeEach, describe, expect } from "vitest";
 import type { CaseRunner } from "./case-runner";
 import {

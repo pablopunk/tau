@@ -1,5 +1,5 @@
 import { applyImmutable } from "@earendil-works/chord/delta";
-import type { ConversationView, LiveState } from "@pi-everywhere/protocol";
+import type { ConversationView, LiveState } from "@tau/protocol";
 import { describe, expect, it } from "vitest";
 import {
   type FauxWorld,

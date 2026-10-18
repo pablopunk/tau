@@ -1,4 +1,3 @@
-import type { ConversationSummary, ProviderId } from "@pi-everywhere/protocol";
 import {
   keepPreviousData,
   type QueryClient,
@@ -6,6 +5,7 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
+import type { ConversationSummary, ProviderId } from "@tau/protocol";
 import { api } from "./api";
 
 export const queryKeys = {

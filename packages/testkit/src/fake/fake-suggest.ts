@@ -1,4 +1,4 @@
-import type { PathSuggestion, SuggestDirectoriesInput } from "@pi-everywhere/protocol";
+import type { PathSuggestion, SuggestDirectoriesInput } from "@tau/protocol";
 import { expandFakeHome, FAKE_HOME_PATH, type FakeFs, normalizePath } from "./fake-fs";
 
 const DEFAULT_LIMIT = 50;

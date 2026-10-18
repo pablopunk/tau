@@ -1,4 +1,4 @@
-import type { Project, ThreadWorkspace } from "@pi-everywhere/protocol";
+import type { Project, ThreadWorkspace } from "@tau/protocol";
 import type { SubagentServices } from "../subagent-services";
 
 export const NOT_GIT_MESSAGE =

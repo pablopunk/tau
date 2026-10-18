@@ -1,4 +1,4 @@
-import type { ModelRef } from "@pi-everywhere/protocol";
+import type { ModelRef } from "@tau/protocol";
 import { describe, expect, it } from "vitest";
 import { resolveModelAlias } from "./model-alias";
 

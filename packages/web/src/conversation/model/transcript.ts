@@ -7,7 +7,7 @@ import type {
   TextContent,
   ToolResultMessage,
   UserMessage,
-} from "@pi-everywhere/protocol";
+} from "@tau/protocol";
 import {
   isNotificationMarkerText,
   isSubagentNotificationKind,

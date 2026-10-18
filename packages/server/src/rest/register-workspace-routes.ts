@@ -1,4 +1,4 @@
-import { type Core, PROCESS_LOG_TAIL_DEFAULT, routes } from "@pi-everywhere/protocol";
+import { type Core, PROCESS_LOG_TAIL_DEFAULT, routes } from "@tau/protocol";
 import type { FastifyInstance } from "fastify";
 import { defineRoute } from "./define-route";
 

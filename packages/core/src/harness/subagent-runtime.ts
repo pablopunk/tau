@@ -7,7 +7,7 @@ import {
   type ToolRegistration,
   type Tx,
 } from "@earendil-works/pi-durable";
-import type { ModelRef, ThreadWorkspace } from "@pi-everywhere/protocol";
+import type { ModelRef, ThreadWorkspace } from "@tau/protocol";
 import { type ChildAgentInfo, registerChildConversation } from "./conversation-child";
 import { ConversationDoc, INDEX_SEED, ProjectIndexDoc } from "./conversation-docs";
 import { legacyWorkspace } from "./conversation-index";

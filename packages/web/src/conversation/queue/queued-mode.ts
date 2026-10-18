@@ -1,4 +1,4 @@
-import type { MessageMode } from "@pi-everywhere/protocol";
+import type { MessageMode } from "@tau/protocol";
 import type { QueuedMessage } from "../model/live";
 
 export type WhenBusy = QueuedMessage["mode"];

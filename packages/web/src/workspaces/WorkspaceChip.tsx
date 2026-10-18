@@ -1,4 +1,4 @@
-import type { ConversationSummary, WorkspaceStatus } from "@pi-everywhere/protocol";
+import type { ConversationSummary, WorkspaceStatus } from "@tau/protocol";
 import { GitBranchIcon } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";

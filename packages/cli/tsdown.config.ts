@@ -8,6 +8,6 @@ export default defineConfig({
   clean: true,
   dts: false,
   fixedExtension: false,
-  deps: { alwaysBundle: [/^@pi-everywhere\//] },
+  deps: { alwaysBundle: [/^@tau\//] },
   copy: [{ from: "../web/dist", to: "dist/web" }],
 });

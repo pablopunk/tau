@@ -1,4 +1,4 @@
-import type { GithubStatus } from "@pi-everywhere/protocol";
+import type { GithubStatus } from "@tau/protocol";
 import { Type } from "typebox";
 import { Value } from "typebox/value";
 import { STATUS_ARGS } from "./gh-commands";

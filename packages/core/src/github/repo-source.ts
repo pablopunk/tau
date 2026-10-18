@@ -1,4 +1,4 @@
-import { AppError, type GithubStatus } from "@pi-everywhere/protocol";
+import { AppError, type GithubStatus } from "@tau/protocol";
 import type { SettingsStore } from "../home/settings-store";
 import { fetchRepos, type RemoteRepo } from "./gh-repos";
 import { type LocalScan, scanLocalRepos } from "./local-scan";

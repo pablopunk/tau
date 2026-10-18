@@ -1,4 +1,4 @@
-import type { ProcessInfo } from "@pi-everywhere/protocol";
+import type { ProcessInfo } from "@tau/protocol";
 import { Server } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { stateLabel } from "@/processes/process-state";

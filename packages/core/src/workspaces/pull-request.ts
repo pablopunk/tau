@@ -1,4 +1,4 @@
-import { AppError } from "@pi-everywhere/protocol";
+import { AppError } from "@tau/protocol";
 import { readGithubStatus } from "../github/gh-status";
 import type { RunGh } from "../github/run-gh";
 import { localRef } from "./repo-facts";

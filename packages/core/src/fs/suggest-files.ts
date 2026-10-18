@@ -1,4 +1,4 @@
-import type { FileSuggestion } from "@pi-everywhere/protocol";
+import type { FileSuggestion } from "@tau/protocol";
 import { listProjectPaths } from "./list-project-paths";
 import { rankPaths } from "./rank-paths";
 

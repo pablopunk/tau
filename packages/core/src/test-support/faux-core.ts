@@ -1,7 +1,7 @@
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { applyImmutable } from "@earendil-works/chord/delta";
-import type { ConversationView, Core, LiveState, Op, Project } from "@pi-everywhere/protocol";
+import type { ConversationView, Core, LiveState, Op, Project } from "@tau/protocol";
 import { createCoreWith, defaultCoreDependencies } from "../create-core";
 
 export interface FauxWorld {

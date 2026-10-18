@@ -5,11 +5,11 @@ export const SESSION_START_PAGE = `<!doctype html>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="referrer" content="no-referrer" />
-    <title>pi-everywhere</title>
+    <title>tau</title>
   </head>
   <body>
     <script>location.replace("/");</script>
-    <noscript><a href="/">Continue to pi-everywhere</a></noscript>
+    <noscript><a href="/">Continue to tau</a></noscript>
   </body>
 </html>
 `;

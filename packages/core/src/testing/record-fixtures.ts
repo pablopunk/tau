@@ -1,7 +1,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { Fixture } from "@pi-everywhere/testkit";
+import type { Fixture } from "@tau/testkit";
 import { SCENARIOS } from "./fixture-scenarios";
 import { recordScenario } from "./record-scenario";
 import { deriveSyntheticFixtures } from "./synthetic-fixtures";

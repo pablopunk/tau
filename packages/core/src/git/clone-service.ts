@@ -4,7 +4,7 @@ import { mkdir, realpath, rm } from "node:fs/promises";
 import { basename, dirname } from "node:path";
 import { promisify } from "node:util";
 import type { Harness } from "@earendil-works/pi-durable";
-import { AppError, type Project } from "@pi-everywhere/protocol";
+import { AppError, type Project } from "@tau/protocol";
 import type { ChangeEmitter } from "../change-emitter";
 import type { ProjectStore } from "../harness/project-store";
 import type { SettingsStore } from "../home/settings-store";
@@ -73,7 +73,7 @@ export function createCloneService(deps: CloneServiceDeps): CloneService {
     running.set(id, run);
     void run.done
       .then((outcome) => settle(id, directory, outcome))
-      .catch((error) => console.error("pi-everywhere: clone bookkeeping failed", error))
+      .catch((error) => console.error("tau: clone bookkeeping failed", error))
       .finally(() => {
         if (running.get(id) === run) running.delete(id);
         announce();

@@ -1,5 +1,5 @@
-import type { Change } from "@pi-everywhere/protocol";
 import { type QueryClient, useQueryClient } from "@tanstack/react-query";
+import type { Change } from "@tau/protocol";
 import { useEffect } from "react";
 import { useLiveClient } from "@/conversation";
 import type { LiveStatus } from "@/conversation/live-client";

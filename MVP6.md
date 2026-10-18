@@ -11,7 +11,7 @@ Status: APPROVED v3 (review rounds 1–2 applied). Builds on [MVP5.md](MVP5.md) 
 In:
 1. **Background subagents**: `agent` returns at once with the child id; each child answer is reported back to the parent as a notification (waking the parent if idle).
 2. **Tools** (replacing `task` for the model): `agent`, `send_message`, `stop_agent`, `list_agents`.
-3. **Agent types** from standard files: project `.pi/agents/*.md`, `.claude/agents/*.md`; user `~/.pi/agent/agents/*.md`, `~/.claude/agents/*.md`. No pi-everywhere config.
+3. **Agent types** from standard files: project `.pi/agents/*.md`, `.claude/agents/*.md`; user `~/.pi/agent/agents/*.md`, `~/.claude/agents/*.md`. No tau config.
 4. **Model override** per subagent.
 5. **`isolation: "worktree"`**: the child gets its own worktree (MVP5 workspaces).
 6. **UI**: agent card states, Stop on the card and child page, notification rows in the parent transcript, type label in the sidebar.

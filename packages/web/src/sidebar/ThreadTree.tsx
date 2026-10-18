@@ -1,4 +1,4 @@
-import type { Project } from "@pi-everywhere/protocol";
+import type { Project } from "@tau/protocol";
 import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible";
 import { SidebarMenuSub } from "@/components/ui/sidebar";
 import type { ThreadNode } from "./sidebar-model";

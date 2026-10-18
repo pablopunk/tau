@@ -1,5 +1,5 @@
-import { AppError, type Core, type ProjectIconImage } from "@pi-everywhere/protocol";
-import { createFakeCore } from "@pi-everywhere/testkit";
+import { AppError, type Core, type ProjectIconImage } from "@tau/protocol";
+import { createFakeCore } from "@tau/testkit";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { startTestServer, type TestServer } from "./testing/harness";
 
@@ -103,7 +103,7 @@ describe("github routes", () => {
     const response = await ctx.request({
       method: "POST",
       url: "/api/github/use",
-      payload: { nameWithOwner: "demo/pi-everywhere", mode: "folder", path: "/Users/demo/src" },
+      payload: { nameWithOwner: "demo/tau", mode: "folder", path: "/Users/demo/src" },
     });
     expect(response.statusCode).toBe(422);
     expect(response.json().error.code).toBe("remote_mismatch");
@@ -132,7 +132,7 @@ describe("github routes", () => {
     });
     expect(used.statusCode).toBe(201);
     const repos = (await ctx.request({ url: "/api/github/repos" })).json();
-    expect(repos.map((repo: { nameWithOwner: string }) => repo.nameWithOwner)[0]).toBe("demo/pi-everywhere");
+    expect(repos.map((repo: { nameWithOwner: string }) => repo.nameWithOwner)[0]).toBe("demo/tau");
     expect(
       repos.find((repo: { nameWithOwner: string }) => repo.nameWithOwner === "demo/dotfiles").projectId,
     ).toBe(used.json().id);

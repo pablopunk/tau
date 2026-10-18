@@ -1,6 +1,6 @@
 import { mkdir, rm, symlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import type { Project } from "@pi-everywhere/protocol";
+import type { Project } from "@tau/protocol";
 import { describe, expect, it } from "vitest";
 import { useTempDir } from "../test-support/temp-dir";
 import { createIconService } from "./icon-service";

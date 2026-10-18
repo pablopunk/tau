@@ -1,5 +1,5 @@
-import type { AssistantMessage as AssistantMessageData } from "@pi-everywhere/protocol";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import type { AssistantMessage as AssistantMessageData } from "@tau/protocol";
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "@/lib/api";

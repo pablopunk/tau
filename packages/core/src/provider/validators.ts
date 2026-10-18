@@ -1,4 +1,4 @@
-import { AppError } from "@pi-everywhere/protocol";
+import { AppError } from "@tau/protocol";
 import { checkOpenRouterKey } from "./openrouter-key";
 
 export type KeyCheck = "valid" | "invalid" | "unknown";

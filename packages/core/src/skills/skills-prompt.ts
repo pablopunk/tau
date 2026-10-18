@@ -1,4 +1,4 @@
-import type { Skill } from "@pi-everywhere/protocol";
+import type { Skill } from "@tau/protocol";
 
 const SKILLS_INTRO =
   "Skills available. When the user writes `@name` or the task matches one, read that SKILL.md first and follow it.";

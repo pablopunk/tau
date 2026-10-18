@@ -1,4 +1,4 @@
-import type { ModelInfo, ProviderInfo, ThinkingLevel } from "@pi-everywhere/protocol";
+import type { ModelInfo, ProviderInfo, ThinkingLevel } from "@tau/protocol";
 
 export const FAKE_PROVIDERS: readonly Omit<ProviderInfo, "connection">[] = [
   { id: "openrouter", name: "OpenRouter", methods: ["api_key"], keyUrl: "https://openrouter.ai/keys" },

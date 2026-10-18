@@ -10,7 +10,7 @@ import {
   ThinkingLevelSchema,
   type WorkspaceMode,
   WorkspaceModeSchema,
-} from "@pi-everywhere/protocol";
+} from "@tau/protocol";
 import { Type } from "typebox";
 import { Value } from "typebox/value";
 import { readFileIfPresent, writeFileAtomic } from "./atomic-write";

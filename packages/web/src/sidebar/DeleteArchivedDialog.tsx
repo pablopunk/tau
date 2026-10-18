@@ -1,5 +1,5 @@
-import type { ConversationSummary } from "@pi-everywhere/protocol";
 import { useQueryClient } from "@tanstack/react-query";
+import type { ConversationSummary } from "@tau/protocol";
 import { useState } from "react";
 import { FormError } from "@/app/FormError";
 import { useSubmit } from "@/app/use-submit";

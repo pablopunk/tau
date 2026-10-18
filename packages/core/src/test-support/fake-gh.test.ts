@@ -27,7 +27,7 @@ afterEach(() => {
 });
 
 function setup(config: FakeGhConfig = CONFIG) {
-  const root = mkdtempSync(join(tmpdir(), "pie-fake-gh-"));
+  const root = mkdtempSync(join(tmpdir(), "tau-fake-gh-"));
   roots.push(root);
   const installed = installFakeGh(root, config);
   const log = join(root, "log");

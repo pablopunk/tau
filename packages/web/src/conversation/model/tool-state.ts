@@ -1,4 +1,4 @@
-import type { ToolCall, ToolSlot } from "@pi-everywhere/protocol";
+import type { ToolCall, ToolSlot } from "@tau/protocol";
 import type { ToolResultInfo } from "./transcript";
 
 /** `interrupted`: the call has no result and nothing is running it (a stopped or crashed run). */

@@ -1,6 +1,6 @@
 import { join } from "node:path";
 import type { Harness } from "@earendil-works/pi-durable";
-import type { Change, Project } from "@pi-everywhere/protocol";
+import type { Change, Project } from "@tau/protocol";
 import { type ChangeEmitter, createChangeEmitter } from "../change-emitter";
 import { createConversationRecovery } from "../conversation-recovery";
 import { legacyWorkspace } from "../harness/conversation-index";

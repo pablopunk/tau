@@ -3,8 +3,8 @@ import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promi
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { promisify } from "node:util";
-import type { Core } from "@pi-everywhere/protocol";
-import { type ContractTarget, runCoreContract } from "@pi-everywhere/testkit/contract";
+import type { Core } from "@tau/protocol";
+import { type ContractTarget, runCoreContract } from "@tau/testkit/contract";
 import { describe } from "vitest";
 import { type CoreDependencies, createCoreWith, defaultCoreDependencies } from "./create-core";
 import type { FakeGhConfig } from "./test-support/fake-gh";
@@ -15,7 +15,7 @@ const REAL_CORE_IMPLEMENTED = true;
 
 const PENDING_TAGS: string[] = [];
 
-process.env.PI_EVERYWHERE_ALLOW_FILE_CLONES = "1";
+process.env.TAU_ALLOW_FILE_CLONES = "1";
 
 const GITHUB_REPOS = { withCopy: "me/with-copy", withoutCopy: "me/without-copy" };
 const WITH_COPY_URL = "https://github.com/me/with-copy.git";
@@ -64,7 +64,7 @@ async function setUpGithub(root: string): Promise<{ deps: CoreDependencies; code
 }
 
 async function makeRealTarget(): Promise<ContractTarget> {
-  const root = await realpath(await mkdtemp(join(tmpdir(), "pie-contract-")));
+  const root = await realpath(await mkdtemp(join(tmpdir(), "tau-contract-")));
   const home = join(root, "home");
   const { deps, codeFolder } = await setUpGithub(root);
   let core: Core = await createCoreWith({ home, faux: true }, deps);

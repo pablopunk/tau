@@ -1,4 +1,4 @@
-import type { ConversationSummary } from "@pi-everywhere/protocol";
+import type { ConversationSummary } from "@tau/protocol";
 import { useEffect, useRef } from "react";
 import { useNavigate } from "react-router";
 import { useOpenConversation } from "@/activity";

@@ -1,10 +1,4 @@
-import {
-  AppError,
-  type Core,
-  type GithubRepo,
-  type GithubStatus,
-  type Project,
-} from "@pi-everywhere/protocol";
+import { AppError, type Core, type GithubRepo, type GithubStatus, type Project } from "@tau/protocol";
 import { assertDirectory, type FakeFs } from "./fake-fs";
 
 export type FakeGithubRepo = Omit<GithubRepo, "projectId">;
@@ -26,11 +20,11 @@ const HOUR_MS = 3_600_000;
 
 export const fakeGithubRepos = (now: number): FakeGithubRepo[] => [
   {
-    nameWithOwner: "demo/pi-everywhere",
+    nameWithOwner: "demo/tau",
     description: "Chat with a coding agent",
     private: false,
     pushedAt: now - HOUR_MS,
-    localPath: "/Users/demo/src/pi-everywhere",
+    localPath: "/Users/demo/src/tau",
   },
   {
     nameWithOwner: "demo/api-server",

@@ -1,4 +1,4 @@
-import { AppError, GithubRepoSchema } from "@pi-everywhere/protocol";
+import { AppError, GithubRepoSchema } from "@tau/protocol";
 import { Type } from "typebox";
 import { Value } from "typebox/value";
 import { checkGitUrl } from "../git/git-url";

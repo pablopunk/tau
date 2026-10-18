@@ -37,7 +37,7 @@ Out (later, see PLAN.md): machine choice, image model fallback, image file store
 - Archiving keeps a running thread running; the archived row still shows its status. Sending to an archived thread unarchives it.
 - Deleting removes the thread from the app. Pi has no conversation delete, so its transcript (and images) stay in `agent.sqlite` until Pi can purge; the confirm dialog says so.
 - Removing a project never deletes its folder, also for cloned projects. The dialog says where the folder is.
-- Projects folder default: `~/.pi-everywhere/projects` (the user's choice in PLAN.md: touches none of the user's folders). The settings dialog shows the path and warns that deleting the data home deletes cloned repos.
+- Projects folder default: `~/.tau/projects` (the user's choice in PLAN.md: touches none of the user's folders). The settings dialog shows the path and warns that deleting the data home deletes cloned repos.
 - Images travel as base64 in the JSON body (localhost only). Every view reset re-sends them; a file store and upload route come later.
 
 ## Contract (`packages/protocol`)
@@ -194,7 +194,7 @@ New codes and HTTP statuses: `images_not_supported` 422, `invalid_git_url` 422, 
 - Process: `spawn("git", ["-c", "protocol.allow=never", "-c", "protocol.https.allow=always", "-c", "protocol.ssh.allow=always", "clone", "--no-recurse-submodules", "--", url, dir], { detached: true, stdio: ["ignore", "ignore", "pipe"], env })`; keep the last 4 KB of stderr. Env: the user's env plus `GIT_TERMINAL_PROMPT=0`, `GCM_INTERACTIVE=never`, `SSH_ASKPASS_REQUIRE=never` (the user's `GIT_SSH_COMMAND` stays). `detached` gives no controlling tty, so ssh cannot prompt. Timeout 10 minutes; on timeout or `remove`, `process.kill(-pid)` kills the group.
 - Success: `status: "ready"`, `path` = realpath. Failure: `status: "failed"`, `error` = last stderr line; delete exactly the claimed folder (only ever a recorded direct child of `projectsFolder`). If the project was removed meanwhile, the completion commit is a no-op and the folder is deleted.
 - Startup: every `"cloning"` project becomes `"failed"` ("Interrupted by a restart") and its claimed folder is deleted, so `retryClone` reuses the path.
-- Tests and faux mode: `protocol.file.allow=always` and local paths only through an injected `allowFileClones`, read from `deps.env.PI_EVERYWHERE_ALLOW_FILE_CLONES === "1"` and honored only with `faux: true`.
+- Tests and faux mode: `protocol.file.allow=always` and local paths only through an injected `allowFileClones`, read from `deps.env.TAU_ALLOW_FILE_CLONES === "1"` and honored only with `faux: true`.
 
 ## Server
 
@@ -270,7 +270,7 @@ New codes and HTTP statuses: `images_not_supported` 422, `invalid_git_url` 422, 
 - Fake core: status timers, listAll, archive, remove, retry, clone timers.
 - Server: every new route; body too large → 413 `too_large`.
 - Web: new thread page and pickers (only supported levels); project default and fallback; composer attach/paste/drop/resize; images in transcript and queue; header; copy buttons; retry visibility; deleted view; unseen logic; notification on `lastRunEndedAt`, deduped by tag; palette filter and navigation; shortcuts; archived group; delete confirm navigation; settings dialog; add-project tabs; clone states.
-- e2e (faux; `HOME`, `GIT_AUTHOR_*`/`GIT_COMMITTER_*` set to temp values; `PI_EVERYWHERE_ALLOW_FILE_CLONES=1`): new thread page → Home → `write hello.txt hi` → file in the temp home → generated title and status dot running → idle; clone a local bare repo → start a thread in it; send an image → reply counts 1; `fail` → Retry → answer; archive and delete.
+- e2e (faux; `HOME`, `GIT_AUTHOR_*`/`GIT_COMMITTER_*` set to temp values; `TAU_ALLOW_FILE_CLONES=1`): new thread page → Home → `write hello.txt hi` → file in the temp home → generated title and status dot running → idle; clone a local bare repo → start a thread in it; send an image → reply counts 1; `fail` → Retry → answer; archive and delete.
 
 ## Parallel work
 

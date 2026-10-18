@@ -1,4 +1,4 @@
-import type { AgentStatus } from "@pi-everywhere/protocol";
+import type { AgentStatus } from "@tau/protocol";
 import { Badge } from "@/components/ui/badge";
 
 const VARIANTS = {

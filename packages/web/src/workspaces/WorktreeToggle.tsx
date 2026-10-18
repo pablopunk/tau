@@ -1,4 +1,4 @@
-import type { WorkspaceMode } from "@pi-everywhere/protocol";
+import type { WorkspaceMode } from "@tau/protocol";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useProjects, useSettings } from "@/lib/queries";
 

@@ -1,5 +1,5 @@
-import { AppError, ERROR_STATUS, type ErrorCode } from "@pi-everywhere/protocol";
-import { createFakeCore } from "@pi-everywhere/testkit";
+import { AppError, ERROR_STATUS, type ErrorCode } from "@tau/protocol";
+import { createFakeCore } from "@tau/testkit";
 import { afterEach, describe, expect, it } from "vitest";
 import { startTestServer, type TestServer } from "./testing/harness";
 

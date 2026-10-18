@@ -40,8 +40,8 @@ export function ProjectsFolderField() {
         </Button>
       </div>
       <p className="text-sm text-muted-foreground">
-        Cloned repositories live here. If this folder is inside the pi-everywhere data home, deleting the data
-        home deletes them too.
+        Cloned repositories live here. If this folder is inside the tau data home, deleting the data home
+        deletes them too.
       </p>
       <FormError message={error} />
     </form>

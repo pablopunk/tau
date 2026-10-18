@@ -1,5 +1,5 @@
-import type { ConversationSummary, Project } from "@pi-everywhere/protocol";
 import { useQueryClient } from "@tanstack/react-query";
+import type { ConversationSummary, Project } from "@tau/protocol";
 import { ArchiveIcon, ArchiveRestoreIcon, MoreHorizontalIcon } from "lucide-react";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router";

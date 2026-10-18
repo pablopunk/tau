@@ -1,5 +1,5 @@
 import type { ConversationId, Harness } from "@earendil-works/pi-durable";
-import { AppError } from "@pi-everywhere/protocol";
+import { AppError } from "@tau/protocol";
 import type { ConversationStore } from "./conversation-store";
 import { BACKGROUND } from "./open";
 import { setStopRequested } from "./subagent-status";

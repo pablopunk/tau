@@ -9,8 +9,8 @@ import {
   fauxToolCall,
 } from "@earendil-works/pi-ai/providers/faux";
 import type { Harness } from "@earendil-works/pi-durable";
-import type { ModelRef, Project } from "@pi-everywhere/protocol";
-import { SUBAGENT_NOTIFICATION_KIND } from "@pi-everywhere/protocol";
+import type { ModelRef, Project } from "@tau/protocol";
+import { SUBAGENT_NOTIFICATION_KIND } from "@tau/protocol";
 import type { AgentTypeLoader } from "../agents/agent-types";
 import type { ResolveModelAlias } from "../agents/model-alias";
 import { createChangeEmitter } from "../change-emitter";
