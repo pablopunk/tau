@@ -1,6 +1,6 @@
 # MVP12 plan: tau reachable from anywhere, with all my machines in one UI
 
-Status: APPROVED v7 (review rounds 1–5 applied). Federation (Stage 2) was proposed by the orchestrator; the user asked to implement all phases, so it proceeds, and the user can still veto it. Federation (Stage 2) awaits the user's OK. Builds on PLAN.md "OpenTunnel" and "Pairing" and on MVP7 (the durable user service). Evidence: `@opentunnel/client` 0.5.2 and `@opentunnel/protocol` (unpacked in `/tmp/ot-inspect`), the guard `packages/server/src/security/guard.ts`, the Multica docs (multica.ai/docs/daemon-runtimes) and the local `multica` CLI.
+Status: APPROVED v7 (review rounds 1–5 applied). Federation (Stage 2) was proposed by the orchestrator; the user asked to implement all phases, so it proceeds, and the user can still veto it. Federation (Stage 2) was proposed by the orchestrator; the user asked to implement all phases, so it proceeds, and the user can still veto it. Builds on PLAN.md "OpenTunnel" and "Pairing" and on MVP7 (the durable user service). Evidence: `@opentunnel/client` 0.5.2 and `@opentunnel/protocol` (unpacked in `/tmp/ot-inspect`), the guard `packages/server/src/security/guard.ts`, the Multica docs (multica.ai/docs/daemon-runtimes) and the local `multica` CLI.
 
 ## Goal
 
@@ -202,7 +202,7 @@ Phase 0 of each stage is **one foundation agent** that owns every seam file; own
 
 ## Decisions
 
-1. **Machines are in this plan** (the user's call). Architecture: **federation** (proposed by the orchestrator, **awaits the user's OK**).
+1. **Machines are in this plan** (the user's call). Architecture: **federation** (proposed by the orchestrator, **the user asked to implement all phases; can still veto**).
 2. The pairing code alone is the approval (no "approve on the host" click).
 3. A linked device gets **full power** (terminals and agents included), no scopes. The link dialog says so in plain words.
 4. First host to test: the user's Mac (this machine), with a scratch home and a random port for agent runs. The user links their own phone and second machine from their own tau.
