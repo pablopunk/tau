@@ -65,9 +65,15 @@ test.describe("MVP8 monitor and goal in the browser", () => {
     await expect(page.getByTestId("goal-verdict").filter({ hasText: "not met" }).first()).toBeVisible({
       timeout: 30_000,
     });
-    await startThreadWith(page, "bash echo goal-met");
-    await expect(page.getByText("Done.").first()).toBeVisible({ timeout: 20_000 });
-    await send(page, "/goal print the magic word");
+  });
+
+  test("a message after Stop resumes the goal and the next run end is judged", async () => {
+    test.setTimeout(120_000);
+    await startThreadWith(page, "hello");
+    await send(page, "/goal bash sleep 30");
+    await page.getByRole("button", { name: "Stop", exact: true }).click();
+    await expect(page.getByText("Goal paused: you stopped the run.")).toBeVisible({ timeout: 20_000 });
+    await send(page, "bash echo goal-met");
     await expect(page.getByTestId("goal-verdict").filter({ hasText: "Goal check: met" })).toBeVisible({
       timeout: 40_000,
     });

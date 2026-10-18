@@ -86,4 +86,15 @@ describe("TimersChip", () => {
     await client.invalidateQueries({ queryKey: ["timers", "c1"] });
     expect(await screen.findByText("No timers.")).toBeInTheDocument();
   });
+
+  it("hides the chip and its popover once the last timer is gone", async () => {
+    vi.spyOn(api.timers, "list").mockResolvedValue([timer()]);
+    const { client } = renderChip(1);
+    await userEvent.click(await screen.findByRole("button", { name: "1 timers" }));
+    expect(await screen.findByText("Timers")).toBeInTheDocument();
+    vi.spyOn(api.conversations, "listAll").mockResolvedValue([conversation({ id: "c1", timers: 0 })]);
+    await client.invalidateQueries({ queryKey: ["conversations"] });
+    await waitFor(() => expect(screen.queryByRole("button")).toBeNull());
+    expect(screen.queryByText("Timers")).toBeNull();
+  });
 });

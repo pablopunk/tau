@@ -65,7 +65,7 @@ function TimersList({ conversationId, open }: { conversationId: string; open: bo
 export function TimersChip({ conversationId }: { conversationId: string }) {
   const [open, setOpen] = useState(false);
   const count = useAllConversations().data?.find((item) => item.id === conversationId)?.timers ?? 0;
-  if (count === 0 && !open) return null;
+  if (count === 0) return null;
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>

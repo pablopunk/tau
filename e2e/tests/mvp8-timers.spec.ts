@@ -53,9 +53,8 @@ test.describe("MVP8 timers in the browser", () => {
     await page.getByRole("button", { name: "1 timers" }).click();
     await expect(page.getByText("every 5m")).toBeVisible();
     await page.getByRole("button", { name: "Delete timer: ping the build" }).click();
-    await expect(page.getByText("No timers.")).toBeVisible();
-    await page.keyboard.press("Escape");
     await expect(page.getByRole("button", { name: /timers$/ })).toHaveCount(0);
+    await expect(page.getByText("Timers", { exact: true })).toHaveCount(0);
     await expect(page.getByRole("img", { name: /Next wake-up in/ })).toHaveCount(0);
   });
 
