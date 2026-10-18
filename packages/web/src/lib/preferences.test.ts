@@ -75,6 +75,24 @@ describe("preferences", () => {
     expect(preferences.getProjectOpenOverrides()).toEqual({});
   });
 
+  it("remembers whether the sidebar is open, defaulting to open", () => {
+    expect(preferences.getSidebarOpen()).toBe(true);
+    preferences.setSidebarOpen(false);
+    expect(preferences.getSidebarOpen()).toBe(false);
+    preferences.setSidebarOpen(true);
+    expect(preferences.getSidebarOpen()).toBe(true);
+  });
+
+  it("remembers the sidebar width, clamped, defaulting to 256", () => {
+    expect(preferences.getSidebarWidth()).toBe(256);
+    preferences.setSidebarWidth(320);
+    expect(preferences.getSidebarWidth()).toBe(320);
+    window.localStorage.setItem("tau:sidebar-width", "9999");
+    expect(preferences.getSidebarWidth()).toBe(480);
+    window.localStorage.setItem("tau:sidebar-width", "junk");
+    expect(preferences.getSidebarWidth()).toBe(256);
+  });
+
   it("reads the legacy closed list as closed overrides, new overrides winning", () => {
     window.localStorage.setItem("tau-sidebar-closed-projects", '["a","b"]');
     expect(preferences.getProjectOpenOverrides()).toEqual({ a: false, b: false });

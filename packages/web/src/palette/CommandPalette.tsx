@@ -9,7 +9,9 @@ import {
   CommandInput,
   CommandItem,
   CommandList,
+  CommandShortcut,
 } from "@/components/ui/command";
+import { useSidebar } from "@/components/ui/sidebar";
 import { useHotkey } from "@/lib/hotkeys";
 import { conversationPath, newThreadPath } from "@/lib/paths";
 import { useAllConversations, useProjects } from "@/lib/queries";
@@ -25,6 +27,7 @@ export function CommandPalette() {
   const conversations = useAllConversations().data ?? [];
   const projects = useProjects().data ?? [];
   const projectName = (id: string) => projects.find((project) => project.id === id)?.name ?? "";
+  const { toggleSidebar } = useSidebar();
   const settingResults = useSettingResults(search);
   useHotkey("mod+k", () => setOpen((current) => !current));
 
@@ -46,6 +49,10 @@ export function CommandPalette() {
           {settingResults.length === 0 && <CommandEmpty>No results.</CommandEmpty>}
           <CommandGroup heading="Actions">
             <CommandItem onSelect={run(() => navigate(newThreadPath(projectId)))}>New thread</CommandItem>
+            <CommandItem onSelect={run(toggleSidebar)}>
+              Toggle sidebar
+              <CommandShortcut>⌘B</CommandShortcut>
+            </CommandItem>
             {SETTINGS_SECTIONS.map((section) => (
               <SettingsItem key={section.id} section={section} run={run} />
             ))}

@@ -2,6 +2,7 @@ import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { SettingsDialogContext } from "@/app/settings-dialog";
+import { SidebarProvider } from "@/components/ui/sidebar";
 import { api } from "@/lib/api";
 import { conversation, project, renderAt } from "@/sidebar/test-support";
 import { CommandPalette } from "./CommandPalette";
@@ -27,7 +28,9 @@ const renderPalette = (path = "/") =>
   renderAt(
     path,
     <>
-      <CommandPalette />
+      <SidebarProvider>
+        <CommandPalette />
+      </SidebarProvider>
       <GlobalShortcuts />
     </>,
   );
@@ -72,7 +75,9 @@ describe("command palette", () => {
     renderAt(
       "/",
       <SettingsDialogContext.Provider value={opened}>
-        <CommandPalette />
+        <SidebarProvider>
+          <CommandPalette />
+        </SidebarProvider>
       </SettingsDialogContext.Provider>,
     );
 

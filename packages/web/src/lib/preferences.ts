@@ -1,4 +1,5 @@
 import type { ModelRef, ThinkingLevel } from "@tau/protocol";
+import { clampSidebarWidth, SIDEBAR_WIDTH_DEFAULT } from "./sidebar-width";
 
 const PREFIX = "tau:";
 const KEYS = {
@@ -13,6 +14,8 @@ const KEYS = {
   projectOpenOverrides: "tau-sidebar-project-overrides",
   collapsedThreads: "tau-sidebar-collapsed-threads",
   theme: `${PREFIX}theme`,
+  sidebarOpen: `${PREFIX}sidebar-open`,
+  sidebarWidth: `${PREFIX}sidebar-width`,
 } as const;
 
 function readString(key: string): string | null {
@@ -76,6 +79,15 @@ const legacyClosedAsOverrides = (ids: readonly string[]): Record<string, boolean
 export const preferences = {
   getSidebarMode: (): SidebarMode => (readString(KEYS.sidebarMode) === "projects" ? "projects" : "threads"),
   setSidebarMode: (mode: SidebarMode): void => writeString(KEYS.sidebarMode, mode),
+
+  getSidebarOpen: (): boolean => readString(KEYS.sidebarOpen) !== "closed",
+  setSidebarOpen: (open: boolean): void => writeString(KEYS.sidebarOpen, open ? "open" : "closed"),
+
+  getSidebarWidth: (): number => {
+    const stored = readString(KEYS.sidebarWidth);
+    return stored === null ? SIDEBAR_WIDTH_DEFAULT : clampSidebarWidth(Number(stored));
+  },
+  setSidebarWidth: (width: number): void => writeString(KEYS.sidebarWidth, String(clampSidebarWidth(width))),
 
   getProjectOpenOverrides: (): Record<string, boolean> => ({
     ...legacyClosedAsOverrides(readJson(KEYS.closedProjects, isStringArray) ?? []),

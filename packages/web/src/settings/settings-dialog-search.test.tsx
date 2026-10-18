@@ -5,6 +5,7 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter, useLocation } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { SettingsDialogProvider } from "@/app/settings-dialog";
+import { SidebarProvider } from "@/components/ui/sidebar";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { createApi } from "@/lib/api";
 import { createFakeTransport } from "@/lib/transport/fake";
@@ -154,7 +155,12 @@ describe("settings dialog search", () => {
 describe("palette to setting", () => {
   it("does not say No results when only settings match", async () => {
     const user = userEvent.setup();
-    renderApp("/", <CommandPalette />);
+    renderApp(
+      "/",
+      <SidebarProvider>
+        <CommandPalette />
+      </SidebarProvider>,
+    );
     await user.keyboard("{Control>}k{/Control}");
     await user.type(await screen.findByPlaceholderText(/Search threads/), "dark mode");
     expect(await screen.findByRole("option", { name: /Appearance/ })).toBeInTheDocument();
@@ -163,7 +169,12 @@ describe("palette to setting", () => {
 
   it("opens the dialog on the chosen setting", async () => {
     const user = userEvent.setup();
-    renderApp("/", <CommandPalette />);
+    renderApp(
+      "/",
+      <SidebarProvider>
+        <CommandPalette />
+      </SidebarProvider>,
+    );
     await user.keyboard("{Control>}k{/Control}");
     await user.type(await screen.findByPlaceholderText(/Search threads/), "steer");
     await user.click(await screen.findByRole("option", { name: /While the agent works/ }));

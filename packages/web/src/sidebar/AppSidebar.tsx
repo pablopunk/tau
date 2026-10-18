@@ -10,6 +10,8 @@ import {
   SidebarFooter,
   SidebarHeader,
   SidebarMenuSkeleton,
+  SidebarRail,
+  SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { errorMessage } from "@/lib/error-message";
 import { newThreadPath } from "@/lib/paths";
@@ -37,11 +39,14 @@ export function AppSidebar() {
   return (
     <Sidebar aria-label="Projects and threads">
       <SidebarHeader className="gap-2 px-4 py-3">
-        <div className="flex items-center justify-between">
-          <Button variant="outline" size="sm" onClick={() => navigate(newThreadPath())}>
+        <div className="flex items-center justify-between gap-2">
+          <Button variant="outline" size="sm" className="min-w-0" onClick={() => navigate(newThreadPath())}>
             <MessageSquarePlusIcon />
-            New thread
+            <span className="truncate">New thread</span>
           </Button>
+          <SidebarTrigger className="hidden shrink-0 md:inline-flex" />
+        </div>
+        <div className="flex items-center justify-between">
           <SegmentedControl
             value={mode}
             onChange={setMode}
@@ -68,6 +73,7 @@ export function AppSidebar() {
           Settings
         </Button>
       </SidebarFooter>
+      <SidebarRail />
     </Sidebar>
   );
 }
