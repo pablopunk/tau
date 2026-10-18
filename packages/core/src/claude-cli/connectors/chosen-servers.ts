@@ -1,5 +1,6 @@
 import type { ClaudeConnectorSettings } from "@tau/protocol";
 import type { ClaudeMcpServerStatus } from "../sdk-types";
+import { connectorToolPrefixOf } from "./names";
 
 export interface ChosenServers {
   /** Status names (`claude.ai Linear`) the user switched on and that are connected. */
@@ -8,10 +9,26 @@ export interface ChosenServers {
   readonly allowedTools: readonly string[];
 }
 
-/** Owner A implements it. */
+const TAU_TOOLS_GLOB = "mcp__tau__*";
+
+const isChosen = (settings: ClaudeConnectorSettings, server: ClaudeMcpServerStatus): boolean =>
+  server.status === "connected" && settings.enabled.includes(server.name);
+
+const readOnlyToolNamesOf = (server: ClaudeMcpServerStatus): string[] =>
+  server.tools
+    .filter((tool) => tool.readOnly)
+    .map((tool) => `${connectorToolPrefixOf(server.name)}${tool.name}`);
+
+const belongsTo = (chosen: readonly ClaudeMcpServerStatus[], cliToolName: string): boolean =>
+  chosen.some((server) => cliToolName.startsWith(connectorToolPrefixOf(server.name)));
+
 export function chooseServers(
-  _settings: ClaudeConnectorSettings,
-  _status: readonly ClaudeMcpServerStatus[],
+  settings: ClaudeConnectorSettings,
+  status: readonly ClaudeMcpServerStatus[],
 ): ChosenServers {
-  return { names: [], allowedTools: [] };
+  const chosen = status.filter((server) => isChosen(settings, server));
+  if (chosen.length === 0) return { names: [], allowedTools: [] };
+  const alwaysAllowed = settings.alwaysAllow.filter((name) => belongsTo(chosen, name));
+  const allowedTools = [TAU_TOOLS_GLOB, ...chosen.flatMap(readOnlyToolNamesOf), ...alwaysAllowed];
+  return { names: chosen.map((server) => server.name), allowedTools: [...new Set(allowedTools)] };
 }
