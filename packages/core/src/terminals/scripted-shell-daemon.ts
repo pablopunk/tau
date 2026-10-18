@@ -23,7 +23,8 @@ export function createScriptedShellDaemon(): TerminalDaemon {
           }
           const text = line.trim();
           line = "";
-          if (text === "exit") return handle?.exit(0);
+          const exit = /^exit(?:\s+(\d+))?$/.exec(text);
+          if (exit) return handle?.exit(Number(exit[1] ?? 0));
           handle?.output(`\r\n${text.startsWith("echo ") ? `${text.slice(5)}\r\n` : ""}${PROMPT}`);
         }
       },

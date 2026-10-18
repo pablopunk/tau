@@ -15,19 +15,11 @@ function EndedNotice({ exitCode }: { exitCode: number | null }) {
   );
 }
 
-/** A terminal that is gone (closed, or the service restarted): nothing to attach to. */
-export function GoneTerminal() {
-  return (
-    <div className="flex size-full flex-col bg-background">
-      <EndedNotice exitCode={null} />
-    </div>
-  );
-}
-
 /** One attached terminal: the stream, the screen, and the ended state. Remount per terminal id. */
 export function TerminalPane({ terminalId, onLeave }: { terminalId: string; onLeave: () => void }) {
   const stream = useTerminalStream(terminalId);
-  const ended = stream.state.status === "exited" || stream.state.status === "closed";
+  const ended =
+    (stream.state.status === "exited" || stream.state.status === "closed") && stream.state.exitCode !== 0;
   return (
     <div className="flex size-full min-h-0 flex-col bg-background">
       {ended ? <EndedNotice exitCode={stream.state.exitCode} /> : null}

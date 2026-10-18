@@ -29,7 +29,7 @@ export interface FakeTerminals {
 }
 
 /**
- * A scripted echo shell: prints a prompt, echoes typed characters, runs `echo <text>`, and ends on `exit`.
+ * A scripted echo shell: prints a prompt, echoes typed characters, runs `echo <text>`, and ends on `exit [code]`; a clean exit drops the record.
  * New attachments get the kept output first (the ring), then live output.
  */
 export function createFakeTerminals(deps: {
@@ -65,12 +65,17 @@ export function createFakeTerminals(deps: {
     if (entry.info.status === "exited") return;
     entry.info = { ...entry.info, status: "exited", exitCode };
     for (const client of [...entry.attached]) client.onExit(exitCode);
+    if (exitCode === 0) {
+      entries.delete(entry.info.id);
+      dismissed.add(entry.info.id);
+    }
     announce(entry);
   }
 
   function runLine(entry: Entry, line: string) {
     const trimmed = line.trim();
-    if (trimmed === "exit") return end(entry, 0);
+    const exit = /^exit(?:\s+(\d+))?$/.exec(trimmed);
+    if (exit) return end(entry, Number(exit[1] ?? 0));
     const output = trimmed.startsWith("echo ") ? `${trimmed.slice(5)}\r\n` : "";
     emitOutput(entry, `\r\n${output}${PROMPT}`);
   }

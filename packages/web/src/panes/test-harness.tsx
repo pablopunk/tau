@@ -40,16 +40,23 @@ function Route_() {
   );
 }
 
+function liveClientOf(core: FakeCore | undefined) {
+  const stub = createStubLiveClient(null);
+  return core
+    ? { ...stub, onChanged: (listener: Parameters<typeof core.onChange>[0]) => core.onChange(listener) }
+    : stub;
+}
+
 function Where() {
   return <output data-testid="where">{useLocation().pathname}</output>;
 }
 
-export function renderPanes(path: string) {
+export function renderPanes(path: string, core?: FakeCore) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <MemoryRouter initialEntries={[path]}>
       <QueryClientProvider client={client}>
-        <LiveClientProvider client={createStubLiveClient(null)}>
+        <LiveClientProvider client={liveClientOf(core)}>
           <TooltipProvider>
             <Where />
             <Routes>

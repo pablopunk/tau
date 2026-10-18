@@ -60,7 +60,7 @@ export function terminalCases(make: MakeContractTarget, test: CaseRunner): void 
       two.detach();
     });
 
-    test("[terminals] reports the exit and keeps the record until closed", async () => {
+    test("[terminals] a clean exit drops the record; a failed one keeps it until closed", async () => {
       const { core } = target;
       const { conversation, info } = await threadWithTerminal();
       const exits: Array<number | null> = [];
@@ -73,10 +73,7 @@ export function terminalCases(make: MakeContractTarget, test: CaseRunner): void 
       await waitFor(() => exits.length === 1, "the exit");
       stop();
       expect(changes).toContainEqual({ resource: "terminals", conversationId: conversation.id });
-      expect((await core.terminals.list(conversation.id))[0]).toMatchObject({
-        status: "exited",
-        exitCode: 0,
-      });
+      expect(await core.terminals.list(conversation.id)).toEqual([]);
       await core.terminals.close(info.id);
       await core.terminals.close(info.id);
       await rejectsWithCode(core.terminals.close("nope"), "not_found");
@@ -84,6 +81,24 @@ export function terminalCases(make: MakeContractTarget, test: CaseRunner): void 
         core.terminals.attach("nope", { onData: () => undefined, onExit: () => undefined }),
         "not_found",
       );
+    });
+
+    test("[terminals] a non-zero exit keeps the ended record until closed", async () => {
+      const { core } = target;
+      const { conversation, info } = await threadWithTerminal();
+      const exits: Array<number | null> = [];
+      const attachment = await core.terminals.attach(info.id, {
+        onData: () => undefined,
+        onExit: (c) => exits.push(c),
+      });
+      attachment.write(new TextEncoder().encode("exit 3\r"));
+      await waitFor(() => exits.length === 1, "the exit");
+      expect((await core.terminals.list(conversation.id))[0]).toMatchObject({
+        status: "exited",
+        exitCode: 3,
+      });
+      await core.terminals.close(info.id);
+      expect(await core.terminals.list(conversation.id)).toEqual([]);
     });
 
     test("[terminals] closing ends the shell", async () => {

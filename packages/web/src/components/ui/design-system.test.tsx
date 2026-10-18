@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { Alert, AlertDescription } from "./alert";
+import { ClosableTab } from "./closable-tab";
 import { Combobox } from "./combobox";
 import { CopyButton } from "./copy-button";
 import { DropZone } from "./drop-zone";
@@ -156,5 +157,33 @@ describe("Tabs, Switch, Field, Alert and Spinner", () => {
     );
     expect(screen.getByText("Clone failed")).toBeInTheDocument();
     expect(screen.getByRole("status", { name: "Loading" })).toBeInTheDocument();
+  });
+});
+
+describe("ClosableTab", () => {
+  function setup(onClose?: () => void, ended?: boolean) {
+    render(
+      <Tabs value="a">
+        <TabsList aria-label="Panes">
+          <ClosableTab value="a" title="sh" onClose={onClose} ended={ended} />
+        </TabsList>
+      </Tabs>,
+    );
+  }
+
+  it("closes with the button, a middle click and Delete", async () => {
+    const onClose = vi.fn();
+    setup(onClose);
+    await userEvent.click(screen.getByRole("button", { name: "Close sh" }));
+    fireEvent(screen.getByRole("tab"), new MouseEvent("auxclick", { bubbles: true, button: 1 }));
+    screen.getByRole("tab").focus();
+    await userEvent.keyboard("{Delete}");
+    expect(onClose).toHaveBeenCalledTimes(3);
+  });
+
+  it("has no close button without onClose and marks an ended tab", () => {
+    setup(undefined, true);
+    expect(screen.queryByRole("button")).toBeNull();
+    expect(screen.getByRole("tab")).toHaveAttribute("data-ended", "true");
   });
 });

@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { GoalChip } from "@/goal/GoalChip";
 import { useAllConversations, useModels, useSettings } from "@/lib/queries";
+import { ThreadTerminalButton } from "@/panes";
 import { NameDialog } from "@/sidebar/NameDialog";
 import { SubagentBanner } from "@/sidebar/subagents/SubagentBanner";
 import { WorkspaceChip } from "@/workspaces/WorkspaceChip";
@@ -85,6 +86,7 @@ function ConversationPanel({ id }: ConversationProps) {
             <>
               <GoalChip conversationId={id} />
               <WorkspaceChip conversationId={id} />
+              <ThreadTerminalButton />
             </>
           }
         />

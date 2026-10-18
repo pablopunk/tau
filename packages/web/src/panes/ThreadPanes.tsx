@@ -1,11 +1,11 @@
 import type { TerminalInfo } from "@tau/protocol";
-import { type ReactNode, useCallback, useRef, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 import { PaneSplitter } from "@/components/ui/pane-splitter";
 import { PaneStrip, type PaneTab } from "@/components/ui/pane-strip";
 import { conversationPath, terminalPath } from "@/lib/paths";
 import { readSplit, SPLIT_DEFAULT, SPLIT_MAX, SPLIT_MIN, writeSplit } from "./split-width";
-import { GoneTerminal, TerminalPane } from "./terminal/TerminalPane";
+import { TerminalPane } from "./terminal/TerminalPane";
 import { useNarrow } from "./use-narrow";
 import { useTerminalChanges } from "./use-terminal-changes";
 import {
@@ -75,17 +75,25 @@ export function ThreadPanes({ projectId, conversationId, terminalId, children }:
     );
   };
 
-  const body = focusedTerminal ? (
-    list.some((terminal) => terminal.id === focusedTerminal) || !terminals.isSuccess ? (
+  const gone =
+    terminalId !== undefined && terminals.isSuccess && !list.some((terminal) => terminal.id === terminalId);
+  const nextId = list[0]?.id;
+  useEffect(() => {
+    if (!gone) return;
+    navigate(
+      nextId ? terminalPath(projectId, conversationId, nextId) : conversationPath(projectId, conversationId),
+      { replace: true },
+    );
+  }, [gone, nextId, navigate, projectId, conversationId]);
+
+  const body =
+    focusedTerminal && !gone ? (
       <TerminalPane
         key={focusedTerminal}
         terminalId={focusedTerminal}
         onLeave={() => focusComposer(root.current)}
       />
-    ) : (
-      <GoneTerminal />
-    )
-  ) : null;
+    ) : null;
   const showChat = !(narrow && showStrip && focusedId !== CHAT_TAB.id);
   const strip = showStrip ? (
     <PaneStrip

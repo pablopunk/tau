@@ -223,7 +223,21 @@ describe("terminal service: size owner and repaint", () => {
 });
 
 describe("terminal service: lifecycle", () => {
-  it("marks exited, emits a change and keeps the record", async () => {
+  it("drops the record at once on a clean exit and emits a change", async () => {
+    const { api, daemon, seen } = await setup();
+    const info = await api.open("t1", dims);
+    const exits: Array<number | null> = [];
+    await api.attach(info.id, { onData: () => undefined, onExit: (code) => exits.push(code) });
+    seen.length = 0;
+    daemon.terminals[0]?.exit(0);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(exits).toEqual([0]);
+    expect(await api.list("t1")).toEqual([]);
+    expect(seen).toContainEqual({ resource: "terminals", conversationId: "t1" });
+    await api.close(info.id);
+  });
+
+  it("marks a non-zero exit, emits a change and keeps the record", async () => {
     const { api, daemon, seen } = await setup();
     const info = await api.open("t1", dims);
     const exits: Array<number | null> = [];

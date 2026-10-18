@@ -125,7 +125,7 @@ describe("terminal stream", () => {
     const first = connect(id);
     const firstFrames = collect(first);
     await new Promise((resolve) => first.once("open", resolve));
-    first.send(Buffer.from("exit\r"));
+    first.send(Buffer.from("exit 3\r"));
     await firstFrames.until((all) => all.at(-1)?.binary === false && all.length > 2);
     const late = connect(id);
     const lateFrames = collect(late);
@@ -133,8 +133,8 @@ describe("terminal stream", () => {
     expect((await done).code).toBe(1000);
     const texts = lateFrames.messages.filter((message) => !message.binary).map((m) => JSON.parse(m.text));
     expect(texts).toEqual([
-      { type: "ready", status: "exited", exitCode: 0 },
-      { type: "exit", exitCode: 0 },
+      { type: "ready", status: "exited", exitCode: 3 },
+      { type: "exit", exitCode: 3 },
     ]);
     expect(lateFrames.messages[0]?.binary).toBe(false);
     expect(lateFrames.messages.at(-1)?.binary).toBe(false);

@@ -78,7 +78,14 @@ export function createTerminalService(deps: TerminalServiceDeps): TerminalServic
     entry.info = { ...entry.info, status: "exited", exitCode };
     stopTitlePolling(entry);
     for (const client of [...entry.clients]) client.handlers.onExit(exitCode);
+    if (exitCode === 0) forget(entry);
     announce(entry);
+  }
+
+  /** A clean exit leaves nothing to read: the record goes, like a manual close. */
+  function forget(entry: TerminalEntry) {
+    entries.delete(entry.info.id);
+    dismissed.add(entry.info.id);
   }
 
   async function refreshTitle(entry: TerminalEntry) {

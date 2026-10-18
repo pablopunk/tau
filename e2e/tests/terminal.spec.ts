@@ -87,6 +87,21 @@ test.describe("terminal pane", () => {
     await expect(terminal(page)).toHaveCount(0);
   });
 
+  test("typing exit closes the tab; a non-zero exit keeps it until closed", async () => {
+    await page.getByRole("button", { name: "Terminal", exact: true }).click();
+    await run(page, "true");
+    await run(page, "exit");
+    await expect(page.getByRole("tab")).toHaveCount(0);
+    await expect(terminal(page)).toHaveCount(0);
+
+    await page.getByRole("button", { name: "Terminal", exact: true }).click();
+    await run(page, "exit 3");
+    await expect(page.getByRole("tab")).toHaveCount(1);
+    await expect(page.getByText(/This terminal ended \(exit code 3\)/)).toBeVisible();
+    await page.getByRole("button", { name: /^Close / }).click();
+    await expect(page.getByRole("tab")).toHaveCount(0);
+  });
+
   test("archiving the thread kills its shell", async () => {
     await page.getByRole("button", { name: "Terminal", exact: true }).click();
     await run(page, "echo pid=$$");

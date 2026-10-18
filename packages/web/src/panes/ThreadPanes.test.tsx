@@ -163,22 +163,34 @@ describe("routes and ended state", () => {
     await waitFor(() => expect(where()).toBe(`${threadPath()}/terminal/terminal-1`));
   });
 
-  it("shows 'This terminal ended' for an exited terminal and for a gone one", async () => {
+  it("keeps an ended tab with the message for a non-zero exit", async () => {
     await setup();
     const { id } = await backend.core.terminals.open(conversationId, { cols: 80, rows: 24 });
     const shell = await backend.core.terminals.attach(id, { onData: () => {}, onExit: () => {} });
-    shell.write(new TextEncoder().encode("exit\r"));
+    shell.write(new TextEncoder().encode("exit 3\r"));
     shell.detach();
     renderPanes(`${threadPath()}/terminal/${id}`);
-    await waitFor(() => expect(screen.getByText(/This terminal ended/)).toBeInTheDocument());
-    expect(await screen.findByRole("tab", { name: "sh" })).toHaveAttribute("data-ended", "true");
+    await waitFor(() => expect(screen.getByText(/This terminal ended \(exit code 3\)/)).toBeInTheDocument());
+    expect(await screen.findByRole("tab", { name: /sh/ })).toHaveAttribute("data-ended", "true");
   });
 
-  it("shows the ended state for an unknown terminal id", async () => {
+  it("a clean exit removes the tab and goes back to the thread without an ended notice", async () => {
+    await setup();
+    const { id } = await backend.core.terminals.open(conversationId, { cols: 80, rows: 24 });
+    renderPanes(`${threadPath()}/terminal/${id}`, backend.core);
+    await screen.findByRole("tab", { name: /sh/ });
+    const shell = await backend.core.terminals.attach(id, { onData: () => {}, onExit: () => {} });
+    shell.write(new TextEncoder().encode("exit\r"));
+    await waitFor(() => expect(where()).toBe(threadPath()));
+    expect(screen.queryByText(/This terminal ended/)).toBeNull();
+    expect(screen.queryByRole("tab")).toBeNull();
+  });
+
+  it("an unknown terminal id goes back to the thread", async () => {
     await setup();
     await backend.core.terminals.open(conversationId, { cols: 80, rows: 24 });
     renderPanes(`${threadPath()}/terminal/nope`);
-    await waitFor(() => expect(screen.getByText(/This terminal ended/)).toBeInTheDocument());
+    await waitFor(() => expect(where()).not.toContain("nope"));
   });
 
   it("closing the focused tab goes back to the conversation", async () => {
