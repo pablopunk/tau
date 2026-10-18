@@ -8,7 +8,9 @@ export const withoutProductName = (text: string): string => text.replace(PRODUCT
 
 const joinParts = (parts: (string | null | undefined)[]): string => parts.filter(Boolean).join(" · ");
 
-const planAndOrg = (cli: ClaudeCliStatus): (string | null)[] => [cli.plan, cli.org];
+const capitalized = (text: string): string => text.charAt(0).toUpperCase() + text.slice(1);
+
+const planAndOrg = (cli: ClaudeCliStatus): (string | null)[] => [cli.plan && capitalized(cli.plan), cli.org];
 
 const BADGE_BY_STATE: Partial<Record<ClaudeCliStatus["state"], string>> = {
   missing: "claude CLI not found",
@@ -64,6 +66,11 @@ function readyNote(cli: ClaudeCliStatus): string | null {
   const usage = cli.usage ? claudeCliUsageNote(cli.usage) : null;
   const parts = [usage, cli.cliVersion ? `CLI ${cli.cliVersion}` : null, versionNote(cli), processNote(cli)];
   return joinParts(parts) || null;
+}
+
+export function claudeCliLoginNote(cli: ClaudeCliStatus): string {
+  const usage = cli.usage ? claudeCliUsageNote(cli.usage) : null;
+  return joinParts(["Claude CLI login", ...planAndOrg(cli), usage]);
 }
 
 export function claudeCliNote(cli: ClaudeCliStatus): string | null {

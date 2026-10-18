@@ -49,6 +49,26 @@ describe("ModelCombobox", () => {
     expect(screen.getAllByRole("option")).toHaveLength(1);
   });
 
+  it("lists the Claude CLI group before other groups", async () => {
+    Element.prototype.scrollIntoView = () => {};
+    const user = userEvent.setup();
+    render(
+      <ModelCombobox
+        models={[
+          model("openrouter", "OpenRouter", "anthropic/haiku-x"),
+          { ...model("claude-cli", "Claude CLI", "haiku"), name: "Haiku 5 (haiku)" },
+        ]}
+        value={null}
+        onChange={() => {}}
+        ariaLabel="Model"
+      />,
+    );
+    await user.click(screen.getByRole("combobox", { name: "Model" }));
+    await user.keyboard("haiku");
+    const [first] = await screen.findAllByRole("option");
+    expect(first).toHaveTextContent("claude-cli/haiku");
+  });
+
   it("highlights only one of two same-named models from different providers", async () => {
     Element.prototype.scrollIntoView = () => {};
     const user = userEvent.setup();

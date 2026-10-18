@@ -1,3 +1,4 @@
+import { CircleCheckIcon } from "lucide-react"
 import * as React from "react"
 import { cn } from "@/lib/utils"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
@@ -33,15 +34,19 @@ function ProviderListRow({ className, ...props }: React.ComponentProps<"li">) {
   )
 }
 
-function ProviderListName({ name }: { name: string }) {
+/** The provider name; a green check follows it when the provider is connected. */
+function ProviderListName({ name, connected = false }: { name: string; connected?: boolean }) {
   return (
-    <div data-slot="provider-list-name" className="min-w-0">
+    <div data-slot="provider-list-name" className="flex min-w-0 items-center gap-1.5">
       <span className="block truncate text-sm font-medium">{name}</span>
+      {connected ? (
+        <CircleCheckIcon role="img" aria-label="Connected" className="size-4 shrink-0 text-green-500" />
+      ) : null}
     </div>
   )
 }
 
-/** A status slot: the badge truncates and shows in full in a tooltip; the note sits under it. */
+/** A status slot: the badge (if any) truncates and shows in full in a tooltip; the note sits under it. */
 function ProviderListStatus({
   label,
   note,
@@ -49,19 +54,31 @@ function ProviderListStatus({
 }: {
   label: string
   note?: React.ReactNode
-  children: React.ReactNode
+  children?: React.ReactNode
 }) {
   return (
     <div data-slot="provider-list-status" className="flex min-w-0 flex-col items-start gap-1">
-      <TooltipProvider>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <span className="inline-flex min-w-0 max-w-full">{children}</span>
-          </TooltipTrigger>
-          <TooltipContent>{label}</TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
-      {note ? <span className="text-xs/relaxed text-muted-foreground">{note}</span> : null}
+      {children ? (
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="inline-flex min-w-0 max-w-full">{children}</span>
+            </TooltipTrigger>
+            <TooltipContent>{label}</TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      ) : null}
+      {note && children ? <span className="text-xs/relaxed text-muted-foreground">{note}</span> : null}
+      {note && !children ? (
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="text-xs/relaxed text-muted-foreground">{note}</span>
+            </TooltipTrigger>
+            <TooltipContent>{label}</TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      ) : null}
     </div>
   )
 }

@@ -37,6 +37,9 @@ const status = (state: ClaudeCliState, extra: Partial<ClaudeCliStatus> = {}): Cl
 
 describe("claude CLI text", () => {
   it("builds the badge for each state", () => {
+    expect(claudeCliBadge(status("ready", { plan: "max" })).label).toBe(
+      "Connected via claude CLI · Max · Maze",
+    );
     expect(claudeCliBadge(status("ready")).label).toBe("Connected via claude CLI · Team · Maze");
     expect(claudeCliBadge(status("needs_notice")).label).toBe("Detected · Team · Maze");
     expect(claudeCliBadge(status("missing")).label).toBe("claude CLI not found");

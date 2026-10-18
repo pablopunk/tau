@@ -73,12 +73,15 @@ describe("providers", () => {
     wrap(<ProvidersSection />);
 
     const row = within(await rowOf("Anthropic"));
-    await user.click(row.getByRole("button", { name: "Add key for Anthropic" }));
+    await user.click(row.getByRole("button", { name: "More actions for Anthropic" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Add key for Anthropic" }));
     await user.type(row.getByLabelText("Anthropic API key"), "sk-ant-test");
     await user.click(row.getByRole("button", { name: "Save" }));
 
-    expect(await row.findByText("Connected · key")).toBeInTheDocument();
-    expect(row.getByRole("button", { name: "Replace key for Anthropic" })).toBeInTheDocument();
+    expect(await row.findByRole("img", { name: "Connected" })).toBeInTheDocument();
+    expect(row.getByText("API key")).toBeInTheDocument();
+    await user.click(row.getByRole("button", { name: "More actions for Anthropic" }));
+    expect(await screen.findByRole("menuitem", { name: "Replace key for Anthropic" })).toBeInTheDocument();
   });
 
   it("links to where to get a key", async () => {
@@ -148,7 +151,7 @@ describe("provider status", () => {
   it("explains that a stored key overrides the environment and offers no Disconnect", () => {
     wrap(<ProviderRow provider={withConnection({ method: "api_key", source: "env", valid: null })} />);
     expect(screen.getByText("From environment")).toBeInTheDocument();
-    expect(screen.getByText(/stored key overrides the environment/i)).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "Connected" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /More actions/ })).not.toBeInTheDocument();
   });
 
@@ -202,6 +205,19 @@ describe("provider list structure", () => {
   });
 });
 
+describe("merged Anthropic row", () => {
+  it("shows one Anthropic row, no separate Claude CLI row, and keeps the CLI actions", async () => {
+    installFakeBackend();
+    const user = userEvent.setup();
+    wrap(<ProvidersSection />);
+    const row = within(await rowOf("Anthropic"));
+    expect(screen.queryByRole("listitem", { name: "Claude CLI" })).not.toBeInTheDocument();
+    expect(row.getByRole("button", { name: "I understand for Anthropic" })).toBeInTheDocument();
+    await user.click(row.getByRole("button", { name: "More actions for Anthropic" }));
+    expect(await screen.findAllByRole("menuitem")).not.toHaveLength(0);
+  });
+});
+
 describe("ChatGPT sign-in", () => {
   async function openDialog() {
     installFakeBackend();
@@ -223,7 +239,8 @@ describe("ChatGPT sign-in", () => {
     await user.click(dialog.getByRole("button", { name: "Submit" }));
 
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
-    expect(await row.findByText("Connected · ChatGPT")).toBeInTheDocument();
+    expect(await row.findByText("ChatGPT plan")).toBeInTheDocument();
+    expect(row.getByRole("img", { name: "Connected" })).toBeInTheDocument();
   });
 
   it("rejects an address that is not the callback without calling the server", async () => {

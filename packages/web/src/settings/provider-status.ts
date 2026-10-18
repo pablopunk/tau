@@ -8,6 +8,11 @@ export function connectionLabel({ connection }: ProviderInfo): string {
   return connection.method === "chatgpt" ? "Connected · ChatGPT" : "Connected · key";
 }
 
+export const isConnected = ({ connection }: ProviderInfo): boolean =>
+  connection !== null &&
+  connection.valid !== false &&
+  (connection.valid !== null || connection.source === "env");
+
 export const isFromEnvironment = ({ connection }: ProviderInfo): boolean => connection?.source === "env";
 export const isStored = ({ connection }: ProviderInfo): boolean => connection?.source === "file";
 export const canSignInWithChatGpt = ({ methods }: ProviderInfo): boolean => methods.includes("chatgpt");
@@ -23,6 +28,14 @@ export function providerDescription(provider: ProviderInfo): string {
   if (isFromEnvironment(provider)) return ENV_HELP;
   return canSignInWithChatGpt(provider) ? CHATGPT_COPY : KEY_COPY;
 }
+
+export function connectedNote(provider: ProviderInfo): string {
+  if (isFromEnvironment(provider)) return "From environment";
+  return provider.connection?.method === "chatgpt" ? "ChatGPT plan" : KEY_COPY;
+}
+
+export const connectedTooltip = (provider: ProviderInfo): string =>
+  isFromEnvironment(provider) ? `From environment. ${ENV_HELP}` : connectionLabel(provider);
 
 export type ProviderAction = "sign-in" | "key" | "disconnect";
 

@@ -148,7 +148,8 @@ describe("main screen", () => {
     await user.click(within(dialog).getByRole("button", { name: "Providers" }));
 
     expect(await within(dialog).findByText("OpenRouter")).toBeInTheDocument();
-    expect(within(dialog).getByText("Connected · key")).toBeInTheDocument();
+    expect(within(dialog).getAllByText("Uses an API key.").length).toBeGreaterThan(0);
+    expect(within(dialog).getAllByRole("img", { name: "Connected" }).length).toBeGreaterThan(0);
   });
 
   it("starts a thread from the new thread page with the chosen model", async () => {

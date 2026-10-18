@@ -29,6 +29,11 @@ const toOption = (model: ModelInfo): ComboboxOption => ({
   keywords: [model.modelId],
 });
 
+const claudeCliFirst = (models: ModelInfo[]): ModelInfo[] => [
+  ...models.filter((model) => model.provider === CLAUDE_CLI),
+  ...models.filter((model) => model.provider !== CLAUDE_CLI),
+];
+
 interface ModelComboboxProps {
   models: ModelInfo[];
   value: ModelRef | null;
@@ -63,7 +68,7 @@ export function ModelCombobox({
   clearLabel,
   onClear,
 }: ModelComboboxProps) {
-  const options = models.map(toOption);
+  const options = claudeCliFirst(models).map(toOption);
   const clearOption: ComboboxOption[] = clearLabel ? [{ value: CLEAR_KEY, label: clearLabel }] : [];
   return (
     <Combobox

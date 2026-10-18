@@ -118,8 +118,11 @@ const providerEntry = (provider: ProviderInfo): SettingEntry => ({
   section: "providers",
   label: provider.name,
   description: provider.connection ? "Connected. Change or remove its key." : "Add an API key or sign in.",
-  keywords: [...PROVIDER_KEYWORDS, provider.id],
+  keywords: [...PROVIDER_KEYWORDS, provider.id, ...(provider.id === "anthropic" ? ["claude cli"] : [])],
 });
+
+const isShownAsOwnRow = (providers: readonly ProviderInfo[]) => (provider: ProviderInfo) =>
+  provider.id !== "claude-cli" || !providers.some((other) => other.id === "anthropic");
 
 const projectEntry = (project: Project): SettingEntry => ({
   id: `project:${project.id}`,
@@ -149,7 +152,7 @@ const modelEntry = (model: ModelInfo): SettingEntry => ({
 
 export function dynamicEntries(sources: DynamicSources): SettingEntry[] {
   return [
-    ...sources.providers.map(providerEntry),
+    ...sources.providers.filter(isShownAsOwnRow(sources.providers)).map(providerEntry),
     ...sources.projects.map(projectEntry),
     ...sources.mcpServers.map(mcpEntry),
     ...sources.models.map(modelEntry),
