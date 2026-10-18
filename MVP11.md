@@ -164,3 +164,8 @@ Done, uncommitted in the integration worktree.
 - The full e2e suite has 3 to 4 failures (mvp5, mvp6, mvp9-claude-cli, mvp9-connectors, thread-scroll varies per run) that also fail on the commit before MVP11 (95e491e), so they are not from this work. They stop later specs in serial mode.
 - Browser (agent-browser, scratch home, real built app): `pwd` is the worktree folder, `ls` ok, vim and top run and the tab title follows (`vim`, `zsh`), resize changes `stty size` (34x59, 29x42, 49x59), a second browser tab on the same terminal shows the same output, close removes the shell process, archive leaves no shell under the daemon. Phone 420 px shows Chat / Terminal tabs. Light and dark themes render from theme variables.
 - Biome: 12 warnings left, none in MVP11 files (the others are old files in claude-cli, goals, harness).
+
+## Theme and font
+
+- Colours: Tokyo Night (dark) and Tokyo Night Day (light) as `--terminal-*` tokens in `styles/theme.css` (background, foreground, cursor, selection, 16 ANSI). `terminal-theme.ts` reads them; the theme is re-read on the `dark` class switch.
+- Font: JetBrains Mono (`@fontsource-variable/jetbrains-mono`, SIL OFL 1.1, bundled, works offline) is imported inside the lazy terminal chunk, so the main bundle stays unchanged. xterm waits for `document.fonts.load` before the first fit. Size 13, line height 1.2, ligatures off (DOM renderer).

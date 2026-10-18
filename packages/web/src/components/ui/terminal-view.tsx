@@ -1,6 +1,7 @@
-import type { ITheme, Terminal } from "@xterm/xterm";
+import type { Terminal } from "@xterm/xterm";
 import { type KeyboardEvent, useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
+import { TERMINAL_FONT_FAMILY, terminalTheme } from "./terminal-theme";
 
 export interface TerminalHandle {
   write(data: Uint8Array): void;
@@ -28,27 +29,6 @@ const REPLAY_QUIET_MS = 600;
 const encoder = new TextEncoder();
 const binaryBytes = (text: string) => Uint8Array.from(text, (char) => char.charCodeAt(0) & 0xff);
 
-function cssColor(host: HTMLElement, variable: string): string {
-  const probe = document.createElement("span");
-  probe.style.color = `var(${variable})`;
-  host.appendChild(probe);
-  const color = getComputedStyle(probe).color;
-  probe.remove();
-  return color;
-}
-
-/** Light and dark come from the theme variables, so a theme switch only needs this to run again. */
-function themeOf(host: HTMLElement): ITheme {
-  const foreground = cssColor(host, "--foreground");
-  return {
-    background: cssColor(host, "--background"),
-    foreground,
-    cursor: foreground,
-    cursorAccent: cssColor(host, "--background"),
-    selectionBackground: cssColor(host, "--muted-foreground"),
-  };
-}
-
 function watchTheme(onChange: () => void): () => void {
   const observer = new MutationObserver(onChange);
   observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
@@ -58,20 +38,30 @@ function watchTheme(onChange: () => void): () => void {
 const isLeaveCombo = (event: { key: string; ctrlKey: boolean; shiftKey: boolean }) =>
   event.ctrlKey && event.shiftKey && event.key === "ArrowUp";
 
+/** The cell size comes from the font, so measure only once it is there; a failure falls back to the stack. */
+async function loadFont() {
+  try {
+    await Promise.all([document.fonts.load('400 13px "JetBrains Mono"'), document.fonts.load('700 13px "JetBrains Mono"')]);
+  } catch {}
+}
+
 async function createScreen(host: HTMLElement) {
   const [{ Terminal }, { FitAddon }] = await Promise.all([
     import("@xterm/xterm"),
     import("@xterm/addon-fit"),
     import("@xterm/xterm/css/xterm.css"),
+    import("@fontsource-variable/jetbrains-mono/wght.css"),
   ]);
+  await loadFont();
   const fit = new FitAddon();
   const terminal = new Terminal({
     screenReaderMode: true,
-    fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+    fontFamily: TERMINAL_FONT_FAMILY,
     fontSize: 13,
+    lineHeight: 1.2,
     cursorBlink: true,
     scrollback: 5000,
-    theme: themeOf(host),
+    theme: terminalTheme(host),
   });
   terminal.loadAddon(fit);
   terminal.open(host);
@@ -119,7 +109,7 @@ export function TerminalView({ onInput, onResize, onHandle, onLeave, autoFocus, 
       });
       observer.observe(element);
       const stopTheme = watchTheme(() => {
-        terminal.options.theme = themeOf(element);
+        terminal.options.theme = terminalTheme(element);
       });
       element.dataset.loaded = "true";
       refit();
@@ -156,7 +146,7 @@ export function TerminalView({ onInput, onResize, onHandle, onLeave, autoFocus, 
     <section
       aria-label="Terminal"
       onKeyDown={onKeyDown}
-      className={cn("size-full min-h-0 overflow-hidden bg-background p-2", className)}
+      className={cn("size-full min-h-0 overflow-hidden bg-[var(--terminal-bg)] p-3", className)}
     >
       <div ref={host} className="size-full" />
     </section>

@@ -138,3 +138,52 @@
     var(--color-brand-blue)
   );
 }
+
+/* Terminal: Tokyo Night Day (light) and Tokyo Night (dark). */
+:root {
+  --terminal-bg: #e1e2e7;
+  --terminal-fg: #3760bf;
+  --terminal-cursor: #3760bf;
+  --terminal-cursor-accent: #e1e2e7;
+  --terminal-selection: #b7c1e3;
+  --terminal-black: #e9e9ed;
+  --terminal-red: #f52a65;
+  --terminal-green: #587539;
+  --terminal-yellow: #8c6c3e;
+  --terminal-blue: #2e7de9;
+  --terminal-magenta: #9854f1;
+  --terminal-cyan: #007197;
+  --terminal-white: #6172b0;
+  --terminal-bright-black: #a1a6c5;
+  --terminal-bright-red: #ff4774;
+  --terminal-bright-green: #5c8524;
+  --terminal-bright-yellow: #a27629;
+  --terminal-bright-blue: #358aff;
+  --terminal-bright-magenta: #a463ff;
+  --terminal-bright-cyan: #007ea8;
+  --terminal-bright-white: #3760bf;
+}
+
+.dark {
+  --terminal-bg: #1a1b26;
+  --terminal-fg: #c0caf5;
+  --terminal-cursor: #c0caf5;
+  --terminal-cursor-accent: #1a1b26;
+  --terminal-selection: #283457;
+  --terminal-black: #15161e;
+  --terminal-red: #f7768e;
+  --terminal-green: #9ece6a;
+  --terminal-yellow: #e0af68;
+  --terminal-blue: #7aa2f7;
+  --terminal-magenta: #bb9af7;
+  --terminal-cyan: #7dcfff;
+  --terminal-white: #a9b1d6;
+  --terminal-bright-black: #414868;
+  --terminal-bright-red: #ff899d;
+  --terminal-bright-green: #9fe044;
+  --terminal-bright-yellow: #faba4a;
+  --terminal-bright-blue: #8db0ff;
+  --terminal-bright-magenta: #c7a9ff;
+  --terminal-bright-cyan: #a4daff;
+  --terminal-bright-white: #c0caf5;
+}
