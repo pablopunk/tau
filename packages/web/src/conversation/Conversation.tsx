@@ -114,7 +114,7 @@ function ConversationPanel({ id }: ConversationProps) {
             imagesAllowed={imagesAllowedFor(view, models)}
             busy={busy}
             whenBusy={whenBusy}
-            footer={<BusyModeHint busy={busy} />}
+            hint={<BusyModeHint busy={busy} />}
             abovePanel={view ? <TodoPanel conversationId={id} view={view} /> : undefined}
             toolbar={view ? <ThreadToolbar id={id} view={view} pickers={pickers} /> : undefined}
             commands={thread.commands}

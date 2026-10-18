@@ -7,4 +7,4 @@ export const queuedModeLabel = (mode: WhenBusy) => (mode === "steer" ? "Steering
 export const whenBusyOf = (mode: MessageMode): WhenBusy => (mode === "queue" ? "followUp" : "steer");
 
 export const busyHintOf = (mode: WhenBusy) =>
-  mode === "followUp" ? "Enter: queue · Alt+Enter: steer" : "Enter: steer · Alt+Enter: queue";
+  mode === "followUp" ? "⏎ queue · ⌘⏎ steer" : "⏎ steer · ⌘⏎ queue";

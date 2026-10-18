@@ -33,6 +33,8 @@ export interface ComposerProps {
   disabled?: boolean;
   /** Rendered under the input box, e.g. the project picker. */
   footer?: ReactNode;
+  /** Rendered inside the input box next to the stop button, e.g. the busy key hint. */
+  hint?: ReactNode;
   /** Rendered inside the input box toolbar after the attach button, e.g. model and thinking. */
   toolbar?: ReactNode;
   /** Rendered at the start of the toolbar, before `toolbar`. */
@@ -74,6 +76,7 @@ function ComposerForm({
   busy = false,
   disabled = false,
   footer,
+  hint,
   toolbar,
   toolbarStart,
   abovePanel,
@@ -171,7 +174,7 @@ function ComposerForm({
     if (event.key === "Escape" && busy) return stop();
     if (!isPlainEnter(event)) return;
     event.preventDefault();
-    submit(event.altKey ? otherMode(whenBusy) : whenBusy);
+    submit(event.altKey || event.metaKey ? otherMode(whenBusy) : whenBusy);
   };
 
   const onChange = (event: ChangeEvent<HTMLTextAreaElement>) => {
@@ -273,6 +276,7 @@ function ComposerForm({
             </>
           ) : null}
           <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">{toolbar}</div>
+          {hint}
           {busy && onStop ? (
             <Button
               type="button"

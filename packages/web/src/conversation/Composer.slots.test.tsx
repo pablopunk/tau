@@ -33,12 +33,28 @@ describe("<Composer> slots", () => {
     expect(setup({ busy: true, whenBusy: "steer" }).input).toHaveAttribute("placeholder", "Steer the agent…");
   });
 
-  it("sends with the default mode on Enter and the other one on Alt+Enter while busy", async () => {
+  it("sends with the default mode on Enter and the other one on Cmd+Enter while busy", async () => {
     const { onSend, input } = setup({ busy: true, whenBusy: "followUp" });
     await userEvent.type(input, "one{Enter}");
     expect(onSend).toHaveBeenLastCalledWith({ text: "one", images: [], whenBusy: "followUp" });
+    await userEvent.type(input, "two{Meta>}{Enter}{/Meta}");
+    expect(onSend).toHaveBeenLastCalledWith({ text: "two", images: [], whenBusy: "steer" });
+  });
+
+  it("still sends with the other mode on Alt+Enter while busy", async () => {
+    const { onSend, input } = setup({ busy: true, whenBusy: "followUp" });
     await userEvent.type(input, "two{Alt>}{Enter}{/Alt}");
     expect(onSend).toHaveBeenLastCalledWith({ text: "two", images: [], whenBusy: "steer" });
+  });
+
+  it("renders the hint inside the input box next to the stop button", async () => {
+    setup({ busy: true, whenBusy: "followUp", hint: <span>hint</span>, onStop: async () => {} });
+    const box = screen.getByLabelText("Message").parentElement;
+    const hint = screen.getByText("hint");
+    expect(box).toContainElement(hint);
+    expect(hint.compareDocumentPosition(screen.getByRole("button", { name: "Stop" }))).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    );
   });
 
   it("adds no whenBusy when idle", async () => {

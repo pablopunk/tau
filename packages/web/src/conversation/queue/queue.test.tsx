@@ -50,7 +50,7 @@ describe("<BusyModeHint>", () => {
   it("tells which key steers or queues per setting", async () => {
     mocks.messageMode = "queue";
     renderHint(true);
-    expect(await screen.findByText("Enter: queue · Alt+Enter: steer")).toBeInTheDocument();
+    expect(await screen.findByText("⏎ queue · ⌘⏎ steer")).toBeInTheDocument();
   });
 
   it("shows nothing when idle", () => {
