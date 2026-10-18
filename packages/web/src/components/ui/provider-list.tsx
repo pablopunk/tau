@@ -2,7 +2,7 @@ import * as React from "react"
 import { cn } from "@/lib/utils"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 
-const COLUMNS = "sm:grid-cols-[minmax(0,1fr)_10rem_12.5rem]"
+const COLUMNS = "sm:grid-cols-[minmax(0,10rem)_minmax(0,1fr)_12.5rem]"
 
 /** One bordered container with dividers. Rows share three aligned columns: provider, status, actions. */
 function ProviderList({ className, children, ...props }: React.ComponentProps<"ul">) {
@@ -33,19 +33,26 @@ function ProviderListRow({ className, ...props }: React.ComponentProps<"li">) {
   )
 }
 
-function ProviderListName({ name, description }: { name: string; description?: React.ReactNode }) {
+function ProviderListName({ name }: { name: string }) {
   return (
-    <div data-slot="provider-list-name" className="flex min-w-0 flex-col gap-0.5">
-      <span className="truncate text-sm font-medium">{name}</span>
-      {description ? <span className="text-xs/relaxed text-muted-foreground">{description}</span> : null}
+    <div data-slot="provider-list-name" className="min-w-0">
+      <span className="block truncate text-sm font-medium">{name}</span>
     </div>
   )
 }
 
-/** A status slot whose text truncates and shows in full in a tooltip. */
-function ProviderListStatus({ label, children }: { label: string; children: React.ReactNode }) {
+/** A status slot: the badge truncates and shows in full in a tooltip; the note sits under it. */
+function ProviderListStatus({
+  label,
+  note,
+  children,
+}: {
+  label: string
+  note?: React.ReactNode
+  children: React.ReactNode
+}) {
   return (
-    <div data-slot="provider-list-status" className="flex min-w-0 items-center">
+    <div data-slot="provider-list-status" className="flex min-w-0 flex-col items-start gap-1">
       <TooltipProvider>
         <Tooltip>
           <TooltipTrigger asChild>
@@ -54,6 +61,7 @@ function ProviderListStatus({ label, children }: { label: string; children: Reac
           <TooltipContent>{label}</TooltipContent>
         </Tooltip>
       </TooltipProvider>
+      {note ? <span className="text-xs/relaxed text-muted-foreground">{note}</span> : null}
     </div>
   )
 }

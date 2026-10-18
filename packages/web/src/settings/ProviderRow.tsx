@@ -1,6 +1,6 @@
 import type { ProviderInfo } from "@tau/protocol";
 import { MoreHorizontalIcon } from "lucide-react";
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 import { FormError } from "@/app/FormError";
 import { useSubmit } from "@/app/use-submit";
 import { Badge } from "@/components/ui/badge";
@@ -56,12 +56,12 @@ function DisconnectConfirmation({ provider, onCancel }: { provider: ProviderInfo
   );
 }
 
-function ProviderStatus({ provider }: { provider: ProviderInfo }) {
+function ProviderStatus({ provider, note }: { provider: ProviderInfo; note?: ReactNode }) {
   const label = connectionLabel(provider);
   const variant =
     provider.connection?.valid === false ? "destructive" : provider.connection ? "default" : "secondary";
   return (
-    <ProviderListStatus label={label}>
+    <ProviderListStatus label={label} note={note}>
       <Badge variant={variant} className="min-w-0 justify-start">
         <span className="truncate">{label}</span>
       </Badge>
@@ -125,8 +125,8 @@ export function ProviderRow({ provider }: { provider: ProviderInfo }) {
   return (
     <SettingRow id={`provider:${provider.id}`} asChild>
       <ProviderListRow aria-label={provider.name} className="rounded-none!">
-        <ProviderListName name={provider.name} description={providerDescription(provider)} />
-        <ProviderStatus provider={provider} />
+        <ProviderListName name={provider.name} />
+        <ProviderStatus provider={provider} note={providerDescription(provider)} />
         <ProviderActions provider={provider} onAction={perform} />
         {editingKey ? (
           <ProviderListDetail>
