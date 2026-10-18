@@ -1,6 +1,6 @@
 # MVP11 plan: thread panes, starting with a terminal
 
-Status: DRAFT v1 (awaiting review rounds). Builds on PLAN.md "Later → Thread panes" and "Built-in terminal".
+Status: DRAFT v2 (review round 1 applied; round 2 pending). Builds on PLAN.md "Later → Thread panes" and "Built-in terminal".
 
 ## Goal
 
@@ -35,13 +35,14 @@ Out (later plans): agent tools that open, write to or read panes; other pane kin
 - Server → client: first a text frame `{ "type": "ready", "status", "exitCode" }`, then **binary** frames of raw output (the replay buffer first, then live), then a text frame `{ "type": "exit", "exitCode" }`.
 - Client → server: **binary** frames are input bytes; a text frame `{ "type": "resize", "cols", "rows" }` (TypeBox, validated, 1..500).
 - Exception to "every frame is a TypeBox schema": raw output and input are binary by design; every text frame is a TypeBox schema. Say so in `protocol/src/terminal-stream.ts`.
-- Backpressure: reuse `waitForDrain` (`server/src/live/backpressure.ts`). The replay buffer is a byte ring of 256 KB; output is never dropped for an attached client, a slow client is paused (the PTY blocks), and a client that stays blocked for 30 s is closed.
-- Size: the attached client that last resized owns the PTY size.
+- Backpressure: `RemoteTerminal` has only `onData` (`terminal.d.ts`): no pause signal, so the PTY cannot be slowed down. The replay buffer is a byte ring of 256 KB (the only unbounded-memory guard). A client whose socket `bufferedAmount` stays above 1 MB for 5 s is **closed** (code 1013); it reattaches and gets the ring again. `waitForDrain` (`server/src/live/backpressure.ts`) is not used. Input frames: `maxPayload` 64 KB on this socket; a larger paste is split by the browser.
+- Replay safety: the ring starts at a chunk boundary and replay is prefixed with `ESC c` (full reset) so a cut escape sequence or a lost alternate-screen switch cannot corrupt the screen; a full-screen program (vim, top) repaints on the resize that follows attach (the client always sends its size right after `ready`).
+- Size: the client that last sent `resize` owns the PTY size; a second attached client with another size shows a letterboxed view (known limit, no fight: only an *active typing* client resizes).
 
 ### Terminal service (core)
 
 - One `Connection` to `localDaemon()` for the process, started on the first terminal (lazy), closed at `core.close()` (the daemon kills every PTY).
-- `open`: resolve the thread's folder (`cwdOf(conversationId)`: a thread with a worktree uses `workspace.path`, else the project folder; rejects `not_found`, and `invalid_request` when the folder is gone), `env: { TERM: "xterm-256color", COLORTERM: "truecolor" }`, `inheritEnv: true` **minus** `TAU_*` variables (the daemon is spawned with a filtered environment; the session token never reaches the shell).
+- `open`: resolve the thread's folder (`cwdOf(conversationId)`: a thread with a worktree uses `workspace.path`, else the project folder; rejects `not_found`, and `invalid_request` when the folder is gone), `env: { TERM: "xterm-256color", COLORTERM: "truecolor" }`, `inheritEnv: false` and an explicit copy of `process.env` without any `TAU_*` name and without names matching `/TOKEN|SECRET|KEY|PASSWORD|CREDENTIAL/i` (`Connection` has no `env` option and spawns the daemon with tau's own environment, `connection.js:208`, so the filter must be in `TerminalOptions.env`). `TAU_HOME` and `TAU_THREAD_ID` are set as for agent shells (`coding-tools.ts:11-20`): a terminal is the user's own shell, so reaching tau's home is by design. A missing `SHELL` falls back to `/bin/sh`. Limits: 8 terminals per thread, 32 in total (`invalid_request` beyond).
 - `exited` resolves → status `exited`, `Change` emitted; the record stays until the user closes it or the thread goes (so a reload shows "ended" with the last output).
 - `close(id)`: `RemoteTerminal.close()`; idempotent for an ended terminal.
 - Thread archive, delete and `workspaces.remove` call `closeAllOf(conversationId)` first (a shell inside a worktree would block its deletion).
@@ -49,11 +50,22 @@ Out (later plans): agent tools that open, write to or read panes; other pane kin
 
 ### Web
 
-- `ConversationRoute` gains the `terminal/:terminalId` child route. The pane strip sits in `Conversation.tsx` beside the transcript panel; the transcript keeps its own scroll and composer.
+- **Route**: `MainLayout.tsx:45` is a leaf `<Route path="/p/:projectId/c/:conversationId">`, so `/terminal/:terminalId` would fall to `path="*"`. It becomes `…/:conversationId/*`, and `ConversationRoute` reads `terminalId` with a nested `<Routes><Route path="terminal/:terminalId"/></Routes>` (or `useMatch`). `key={conversationId}` stays on the transcript so switching terminals never remounts it.
+- **Layout**: `Conversation.tsx:80` is one `flex-col` (header, banner, scroll div, composer) inside `MainLayout.tsx:43` (`flex-col overflow-auto`). A new `ThreadPanes` wrapper (`flex-row`, `min-h-0 min-w-0`) puts the existing column (`h-full min-h-0 min-w-0`) next to the strip with a drag splitter (default 50 %, stored per browser). Scroll, auto-follow and the pinned composer must not change (test).
 - xterm.js and its fit addon are **lazy-imported** (no cost for users who never open a terminal). Fit on resize with `ResizeObserver`, debounced; the size goes to the server as a `resize` frame.
 - Copy and paste: xterm defaults, plus the browser's paste. Shortcut capture: while a terminal has focus the app's global shortcuts (`palette/GlobalShortcuts`) do nothing, except the shortcut that moves focus back to the composer.
 - Mobile (<760 px): the strip shows tabs ("Chat", "Terminal 1", …); one is visible. Touch typing works; the key bar is out of scope.
 - Fake mode (`VITE_FAKE=1`): the fake transport answers the routes and the stream with a scripted echo shell, so web tests and screenshots work without a backend.
+
+### Folder, hooks, packaging (round 1 findings)
+
+- **`cwdOf`** does not exist; write it in `core/src/terminals/cwd-of.ts` over `workspace-service.ts` (`threadOf`): a thread with a worktree uses `workspace.path`; checkout mode and legacy threads use the project folder (`legacyWorkspace(project.path)`); `workspace.state === "removed"` or a missing folder rejects `invalid_request`.
+- **Close hooks**: add `beforeConversationRemoved` and `beforeProjectRemoved` to `RemovalHooks` (`removal-hooks.ts`), run **before** the worktree is deleted. Paths to cover and test: archive (including `archiveChildren`, `conversations-api.ts:121`), delete, delete-archived, `archived-cleanup`, `workspaces.remove`, project remove, `core.close()` (`create-core.ts:330`), and the fatal path (`harness.closed` → `onFatal`, `create-core.ts:119`).
+- **Packaging**: `localDaemon()` returns `<package>/bin/pi-env-<platform>-<arch>/pi-env` (`ssh.js:302`), so `pi-env` must be a real directory in `node_modules`: add it to `packages/cli/package.json` `dependencies` (exact `1.3.0`) and to `neverBundle` in `tsdown.config.ts`, never bundle it. A platform with no daemon (musl, unknown arch, Windows) gives `terminals: unavailable` in the status, the button hidden, no crash.
+- **Import rule**: only `core/src/harness/terminal-daemon.ts` imports `@earendil-works/pi-env`; its port exposes no pi-env types. Enforce with a Biome `noRestrictedImports` override (or a test that greps `core/src`).
+- **CLI**: `terminals` is added to `COMMAND_NOUNS` (`commands.ts:24`); `terminals list` and `terminals close` are commands, and `close` is **not** destructive (the coverage test's exact destructive list stays at four); `POST /conversations/:id/terminals` goes in `COMMAND_EXCLUSIONS` with the reason "needs a screen"; the stream is not a REST route.
+- **Design system**: `components/ui/terminal-view.tsx` is the one effectful part there (lazy `import("@xterm/xterm")`, CSS imported with it, DOM renderer so e2e can read text). It has `role="region"` with `aria-label="Terminal"`; tabs use the existing `tabs.tsx` (`role="tablist"`); a named shortcut (Ctrl+Shift+Up) moves focus back to the composer because xterm traps Tab. xterm screen-reader mode is on.
+- **Web state**: `Change.resource: "terminals"` invalidates the query key `["terminals", conversationId]`. The tab title polls `foreground()` every 2 s only while a pane is attached.
 
 ## Phase 0 pins (foundation runs these first; results go in this doc)
 
@@ -61,10 +73,10 @@ Out (later plans): agent tools that open, write to or read panes; other pane kin
 - (b) **Packaging**: `localDaemon()` finds the binary from a **built** `tau` CLI (`pnpm build`, then run the CLI from `dist`, with `pi-env` externalized like the Claude SDK or bundled with its `bin/` copied). The package is 17 MB (all platforms); only the host binary is used. Decide: dependency of `tau` (simple) versus optional install like the Claude SDK. Default: normal dependency, pinned exactly with Pi Durable (1.3.0).
 - (c) Exec bit and macOS quarantine on the packaged daemon after `npx tau` (a fresh `npm i -g`).
 - (d) Foreground job name: `foreground()` while `sleep 5` runs gives `{ pid, name: "sleep" }`.
-- (e) Environment filter: `printenv | grep ^TAU_` in the terminal is empty while tau runs with a token.
-- (f) A 5 MB flood (`yes | head -c 5000000`) with a slow client does not grow memory beyond the ring and does not block the server's other sockets.
-- (g) Killing the tau process (SIGKILL) leaves no shell or daemon behind (check `ps`).
-- (h) `cwdOf` for: a thread with a worktree, a thread on the main checkout, a thread whose folder was deleted.
+- (e) Environment filter: with `inheritEnv: false` and the explicit copy, `printenv | grep -i 'TAU_\|TOKEN'` shows only `TAU_HOME` and `TAU_THREAD_ID`; `PATH`, `HOME`, `SHELL`, `LANG` are present so the shell works.
+- (f) A 5 MB flood (`yes | head -c 5000000`) with a stalled client: the client is closed with 1013, memory stays bounded by the ring plus one socket buffer, and other sockets keep working. Also pin that `onData` chunk sizes allow a chunk-boundary ring.
+- (g) Killing the tau process (SIGKILL) leaves no shell or daemon behind (check `ps`). If it does, add a parent-pid watchdog fallback before going on.
+- (h) `cwdOf` for: a thread with a worktree, a thread on the main checkout, a legacy thread, a thread whose worktree state is `removed`, a thread whose folder was deleted by hand.
 
 ## Phases and owners
 
@@ -99,4 +111,3 @@ Out (later plans): agent tools that open, write to or read panes; other pane kin
 1. URL shape `/p/:projectId/c/:conversationId/terminal/:terminalId` — OK, or a query parameter (`?pane=terminal:<id>`)?
 2. Several terminals per thread now, or exactly one for the first cut?
 3. Dependency on `pi-env` in the normal `tau` install (+17 MB) — OK?
-4. Should the terminal's shell start in the thread's worktree even for a thread that has no worktree yet (then the project folder)?
