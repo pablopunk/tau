@@ -39,6 +39,7 @@ import {
 } from "./mvp5";
 import { GoalInputSchema, GoalSchema, LoopInputSchema, TimerSchema } from "./mvp8";
 import { ApprovalDecisionSchema, ApprovalSchema } from "./mvp10";
+import { OpenTerminalInputSchema, TerminalAvailabilitySchema, TerminalInfoSchema } from "./terminals";
 
 export const API_PREFIX = "/api";
 export const LIVE_PATH = `${API_PREFIX}/live`;
@@ -518,6 +519,28 @@ export const routes = {
     response: Type.Object({ logs: Type.String() }),
   },
   stopProcess: { method: "DELETE", path: `${API_PREFIX}/processes/:id`, status: 204, params: IdParams },
+  getTerminalsAvailable: {
+    method: "GET",
+    path: `${API_PREFIX}/terminals/available`,
+    status: 200,
+    response: TerminalAvailabilitySchema,
+  },
+  listTerminals: {
+    method: "GET",
+    path: `${API_PREFIX}/conversations/:id/terminals`,
+    status: 200,
+    params: IdParams,
+    response: Type.Array(TerminalInfoSchema),
+  },
+  openTerminal: {
+    method: "POST",
+    path: `${API_PREFIX}/conversations/:id/terminals`,
+    status: 200,
+    params: IdParams,
+    body: OpenTerminalInputSchema,
+    response: TerminalInfoSchema,
+  },
+  closeTerminal: { method: "DELETE", path: `${API_PREFIX}/terminals/:id`, status: 204, params: IdParams },
   listApprovals: {
     method: "GET",
     path: `${API_PREFIX}/conversations/:id/approvals`,

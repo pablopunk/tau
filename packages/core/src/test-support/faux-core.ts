@@ -17,9 +17,11 @@ export async function openFauxWorld(
   root: string,
   now: () => number = Date.now,
   env: NodeJS.ProcessEnv = process.env,
+  makeCore: (home: string) => Promise<Core> = (home) =>
+    createCoreWith({ home, faux: true }, { ...defaultCoreDependencies(), now, env }),
 ): Promise<FauxWorld> {
   const home = join(root, "home");
-  const open = () => createCoreWith({ home, faux: true }, { ...defaultCoreDependencies(), now, env });
+  const open = () => makeCore(home);
   const world: FauxWorld = {
     root,
     home,

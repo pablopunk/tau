@@ -54,6 +54,8 @@ export interface WorkspaceDeps {
   readonly runGh?: RunGh;
   /** Called with the project id after a workspace change so the sidebar can refresh. */
   readonly announce?: (projectId: string) => void;
+  /** Closes the thread's terminals before its worktree goes. The default does nothing. */
+  readonly closeTerminalsOf?: (conversationId: string) => Promise<void>;
 }
 
 const notFound = () => new AppError("not_found", "Conversation not found.");
@@ -63,6 +65,7 @@ export function createWorkspaceService({
   conversations,
   runGh,
   announce = () => undefined,
+  closeTerminalsOf = async () => undefined,
 }: WorkspaceDeps): WorkspaceService {
   const lock = createKeyedLock();
 
@@ -138,12 +141,16 @@ export function createWorkspaceService({
       const { facts } = await liveWorktreeOf(id);
       requireIdle(thread);
       return lock.run(facts.mainRoot, async () => {
-        if (await isSharedWithOthers(thread)) {
-          return update(thread, { state: "removed", path: inWorktree(facts.mainRoot, facts.subpath) });
+        const shared = await isSharedWithOthers(thread);
+        if (!shared) {
+          const lost = await describeUnmergedWork(thread);
+          if (lost.length > 0 && !force) {
+            throw new AppError("has_unmerged_work", `This worktree has unmerged work: ${lost.join(", ")}`);
+          }
         }
-        const lost = await describeUnmergedWork(thread);
-        if (lost.length > 0 && !force) {
-          throw new AppError("has_unmerged_work", `This worktree has unmerged work: ${lost.join(", ")}`);
+        await closeTerminalsOf(thread.id);
+        if (shared) {
+          return update(thread, { state: "removed", path: inWorktree(facts.mainRoot, facts.subpath) });
         }
         return removeOne(thread, facts, false);
       });

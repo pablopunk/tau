@@ -13,7 +13,8 @@ import { makeLocalRepo } from "./test-support/local-repo";
 
 const REAL_CORE_IMPLEMENTED = true;
 
-const PENDING_TAGS: string[] = [];
+/** Owner A removes `terminals` when the real service lands. */
+const PENDING_TAGS: string[] = ["terminals"];
 
 process.env.TAU_FAKE_CLAUDE_CLI = "1";
 

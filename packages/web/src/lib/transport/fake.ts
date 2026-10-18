@@ -12,6 +12,7 @@ import {
   RETIRED_OPS,
 } from "@tau/protocol";
 import { createFakeCore } from "@tau/testkit";
+import { openFakeStream } from "./fake-terminal-stream";
 import type { LiveHandlers, LiveSocket, RouteRequest, RouteResponse, Transport } from "./types";
 
 type Input = {
@@ -103,6 +104,10 @@ const handlers: Handlers = {
     logs: await core.processes.logs(params.id, query?.tail ? Number(query.tail) : PROCESS_LOG_TAIL_DEFAULT),
   }),
   stopProcess: (core, { params }) => core.processes.stop(params.id),
+  getTerminalsAvailable: async (core) => ({ available: await core.terminals.available() }),
+  listTerminals: (core, { params }) => core.terminals.list(params.id),
+  openTerminal: (core, { params, body }) => core.terminals.open(params.id, body as never),
+  closeTerminal: (core, { params }) => core.terminals.close(params.id),
   listTimers: (core, { params }) => core.timers.list(params.id),
   deleteTimer: (core, { params }) => core.timers.delete(params.id),
   startLoop: (core, { params, body }) => core.timers.loop(params.id, body as never),
@@ -172,6 +177,7 @@ export function createFakeTransport(core: Core): Transport {
       }
     },
     live: { open: (live) => fakeLiveSocket(core, live) },
+    openStream: (path, handlers) => openFakeStream(core, path, handlers),
   };
 }
 

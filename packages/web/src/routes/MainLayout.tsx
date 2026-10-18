@@ -12,6 +12,8 @@ function ConversationRoute() {
   const { conversationId } = useParams();
   if (!conversationId) return <NewThreadPage />;
   return <Conversation key={conversationId} id={conversationId} />;
+  // Seam for thread panes (owner C): read `terminalId` from a nested `<Routes><Route path="terminal/:terminalId" /></Routes>`
+  // and render `<ThreadPanes>` around the Conversation. The Conversation keeps its key so it never remounts.
 }
 
 function MainHeader() {
@@ -42,7 +44,7 @@ export function MainLayout() {
         <MainHeader />
         <div className="flex min-h-0 flex-1 flex-col overflow-auto">
           <Routes>
-            <Route path="/p/:projectId/c/:conversationId" element={<ConversationRoute />} />
+            <Route path="/p/:projectId/c/:conversationId/*" element={<ConversationRoute />} />
             <Route path="/new" element={<NewThreadPage />} />
             <Route path="*" element={<NewThreadPage />} />
           </Routes>

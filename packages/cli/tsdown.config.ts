@@ -8,7 +8,10 @@ export default defineConfig({
   clean: true,
   dts: false,
   fixedExtension: false,
-  deps: { alwaysBundle: [/^@tau\//], neverBundle: ["@anthropic-ai/claude-agent-sdk"] },
+  deps: {
+    alwaysBundle: [/^@tau\//],
+    neverBundle: ["@anthropic-ai/claude-agent-sdk", "@earendil-works/pi-env"],
+  },
   copy: [
     { from: "../web/dist", to: "dist/web" },
     { from: "../core/src/skills/builtin", to: "dist/skills" },

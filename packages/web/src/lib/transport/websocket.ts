@@ -1,5 +1,5 @@
 import { decodeServerFrame, encodeFrame, LIVE_PATH } from "@tau/protocol";
-import type { LiveHandlers, LiveSocket, LiveTransport } from "./types";
+import type { LiveHandlers, LiveSocket, LiveTransport, StreamHandlers, StreamSocket } from "./types";
 
 function liveUrl(): string {
   const scheme = window.location.protocol === "https:" ? "wss" : "ws";
@@ -21,5 +21,22 @@ export function createWebSocketTransport(): LiveTransport {
         close: () => socket.close(),
       };
     },
+  };
+}
+
+export function openWebSocketStream(path: string, handlers: StreamHandlers): StreamSocket {
+  const scheme = window.location.protocol === "https:" ? "wss" : "ws";
+  const socket = new WebSocket(`${scheme}://${window.location.host}${path}`);
+  socket.binaryType = "arraybuffer";
+  socket.addEventListener("open", () => handlers.onOpen());
+  socket.addEventListener("close", (event) => handlers.onClose(event.code, event.reason));
+  socket.addEventListener("message", (event) =>
+    handlers.onMessage(
+      typeof event.data === "string" ? event.data : new Uint8Array(event.data as ArrayBuffer),
+    ),
+  );
+  return {
+    send: (data) => socket.send(data as string | ArrayBufferView<ArrayBuffer>),
+    close: () => socket.close(),
   };
 }

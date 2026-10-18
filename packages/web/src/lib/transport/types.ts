@@ -20,8 +20,23 @@ export interface LiveTransport {
   open(handlers: LiveHandlers): LiveSocket;
 }
 
+export interface StreamHandlers {
+  onOpen(): void;
+  /** A text frame as a string (a TypeBox schema), a binary frame as bytes. */
+  onMessage(data: string | Uint8Array): void;
+  /** The socket closed; `code` and `reason` are the WebSocket close code and reason. */
+  onClose(code: number, reason: string): void;
+}
+
+export interface StreamSocket {
+  send(data: string | Uint8Array): void;
+  close(): void;
+}
+
 export interface Transport {
   /** Rejects with `AppError`: the server's error code, or `internal` / `unauthorized` for anything else. */
   request<N extends JsonRouteName>(name: N, input: RouteRequest<N>): Promise<RouteResponse<N>>;
   readonly live: LiveTransport;
+  /** One duplex WebSocket to `path` (for example `terminalStreamPath(id)`), text and binary frames. */
+  openStream(path: string, handlers: StreamHandlers): StreamSocket;
 }

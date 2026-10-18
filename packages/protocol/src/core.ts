@@ -40,6 +40,7 @@ import type {
 } from "./mvp5";
 import type { Goal, LoopInput, Timer } from "./mvp8";
 import type { Approval, ApprovalDecision } from "./mvp10";
+import type { OpenTerminalInput, TerminalInfo } from "./terminals";
 import type { Op } from "./view";
 
 export type {
@@ -70,6 +71,20 @@ export type {
   WorkspaceDefault,
   WorkspaceMode,
 } from "./entities";
+
+export interface TerminalHandlers {
+  /** Raw output bytes: replay first, then live. */
+  onData(data: Uint8Array): void;
+  onExit(exitCode: number | null): void;
+}
+
+export interface TerminalAttachment {
+  readonly status: TerminalInfo["status"];
+  readonly exitCode: number | null;
+  write(data: Uint8Array): void;
+  resize(cols: number, rows: number): void;
+  detach(): void;
+}
 
 export type OpsListener = (ops: readonly Op[]) => Promise<void>;
 
@@ -271,6 +286,18 @@ export interface Core {
     logs(id: string, tail: number): Promise<string>;
     /** Idempotent for a stopped process; rejects `not_found`. */
     stop(id: string): Promise<void>;
+  };
+  terminals: {
+    /** False when this machine cannot run terminals (unsupported platform, missing daemon, `TAU_DISABLE_TERMINALS=1`). Never rejects. */
+    available(): Promise<boolean>;
+    /** Rejects `not_found` for an unknown thread (or when unavailable). */
+    list(conversationId: string): Promise<TerminalInfo[]>;
+    /** Rejects `not_found`, and `invalid_request` for a removed or missing folder or beyond 8 per thread / 32 in total. */
+    open(conversationId: string, input: OpenTerminalInput): Promise<TerminalInfo>;
+    /** Idempotent for an ended terminal; rejects `not_found` for an unknown id. */
+    close(id: string): Promise<void>;
+    /** Replays the kept output, then streams live. Rejects `not_found`. */
+    attach(id: string, handlers: TerminalHandlers): Promise<TerminalAttachment>;
   };
   approvals: {
     /** The tool calls of this thread that wait for the user, oldest first. Rejects `not_found` for an unknown thread. */

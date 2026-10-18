@@ -44,6 +44,8 @@ export function createConversationsApi(deps: {
   removal: ConversationRemoval;
   archivedCleanup: ArchivedCleanup;
   closeClaudeCliThread: (id: string) => Promise<void>;
+  /** Closes the thread's terminals; called before an archive and never blocks it. */
+  closeTerminalsOf?: (conversationId: string) => Promise<void>;
   changes: ChangeEmitter;
   now: () => number;
 }): Core["conversations"] {
@@ -118,12 +120,21 @@ export function createConversationsApi(deps: {
     return (await settings.get()).messageMode === "queue" ? "followUp" : "steer";
   }
 
+  async function closeTerminalsBeforeArchive(id: string) {
+    try {
+      await deps.closeTerminalsOf?.(id);
+    } catch (error) {
+      console.error("tau: could not close terminals before archiving", error);
+    }
+  }
+
   async function archiveChildren(id: string, archived: boolean) {
     const summary = await conversations.find(id);
     if (!summary) return;
     const children = (await conversations.list(summary.projectId)).filter((thread) => thread.parentId === id);
     for (const child of children) {
       if (archived) await conversations.abort(child.id);
+      if (archived) await closeTerminalsBeforeArchive(child.id);
       await conversations.archive(child.id, archived, now());
       if (archived) await deps.closeClaudeCliThread(child.id);
     }
@@ -180,6 +191,7 @@ export function createConversationsApi(deps: {
     },
     abort: (id) => conversations.abort(id),
     async archive(id, archived) {
+      if (archived) await closeTerminalsBeforeArchive(id);
       await archiveChildren(id, archived);
       announce(await conversations.archive(id, archived, now()));
       if (archived) await deps.closeClaudeCliThread(id);

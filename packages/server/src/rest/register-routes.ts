@@ -3,6 +3,7 @@ import type { FastifyInstance } from "fastify";
 import { requireCandidateName } from "./candidate-name";
 import { defineImageRoute } from "./define-image-route";
 import { defineRoute } from "./define-route";
+import { registerTerminalRoutes } from "./register-terminal-routes";
 import { registerWorkspaceRoutes } from "./register-workspace-routes";
 
 function startLoginFor(core: Core, id: ProviderId) {
@@ -92,4 +93,5 @@ export function registerRoutes(app: FastifyInstance, core: Core): void {
   );
   defineRoute(app, routes.retryConversation, ({ params, body }) => core.conversations.retry(params.id, body));
   registerWorkspaceRoutes(app, core);
+  registerTerminalRoutes(app, core);
 }

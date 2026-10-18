@@ -28,6 +28,7 @@ import { sidebarDataCases } from "./sidebar-data";
 import { skillCases } from "./skills";
 import { startCases } from "./start";
 import { subagentCases } from "./subagents";
+import { terminalCases } from "./terminals";
 import { timerCases } from "./timers";
 import { titleAndStatusCases } from "./titles-status";
 import type { MakeContractTarget } from "./types";
@@ -73,6 +74,7 @@ export function runCoreContract(
     queueCases(makeTarget, test);
     subagentCases(makeTarget, test);
     processCases(makeTarget, test);
+    terminalCases(makeTarget, test);
     mcpCases(makeTarget, test);
     timerCases(makeTarget, test);
     monitorCases(makeTarget, test);

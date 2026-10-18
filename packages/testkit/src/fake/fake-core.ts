@@ -36,6 +36,7 @@ import { createFakeMvp5 } from "./fake-mvp5";
 import { createFakeMvp8 } from "./fake-mvp8";
 import { createFakeProviders } from "./fake-providers";
 import { suggestFakeDirectories } from "./fake-suggest";
+import { createFakeTerminals } from "./fake-terminals";
 import type { SpawnParams } from "./fake-thread-ops";
 
 export interface FakeCoreOptions {
@@ -52,6 +53,8 @@ export interface FakeCoreOptions {
   readonly github?: FakeGithubOptions;
   /** Skills `skills.list` answers with. Default: none. */
   readonly skills?: readonly Skill[];
+  /** Whether terminals work. Default true. */
+  readonly terminals?: boolean;
 }
 
 export { FAKE_HOME_PATH };
@@ -249,6 +252,12 @@ export function createFakeCore(options: FakeCoreOptions = {}): FakeCore {
     githubConnected: async () => (await remoteHub.status()).state === "connected",
   });
 
+  const terminals = createFakeTerminals({
+    emit,
+    now,
+    available: options.terminals ?? true,
+    requireConversation,
+  });
   const mvp8 = createFakeMvp8({ emit, now, requireConversation });
   const connectors = createFakeConnectors({ emit, now, requireConversation });
 
@@ -323,6 +332,7 @@ export function createFakeCore(options: FakeCoreOptions = {}): FakeCore {
 
   const removeConversation = async (conversation: FakeConversation) => {
     for (const child of mvp5.childrenOf(conversation)) await removeConversation(child);
+    terminals.closeAllOf(conversation.id);
     await conversation.abort();
     mvp5.release(conversation);
     mvp8.release(conversation.id);
@@ -502,8 +512,12 @@ export function createFakeCore(options: FakeCoreOptions = {}): FakeCore {
       },
       async archive(id, archived) {
         const conversation = requireConversation(id);
+        if (archived) terminals.closeAllOf(id);
         conversation.archive(archived);
-        for (const child of mvp5.childrenOf(conversation)) child.archive(archived);
+        for (const child of mvp5.childrenOf(conversation)) {
+          if (archived) terminals.closeAllOf(child.id);
+          child.archive(archived);
+        }
       },
       async remove(id, options) {
         const conversation = conversations.get(id);
@@ -545,6 +559,7 @@ export function createFakeCore(options: FakeCoreOptions = {}): FakeCore {
     },
     workspaces: mvp5.workspaces,
     processes: mvp5.processes,
+    terminals: terminals.api,
     approvals: connectors.approvals,
     seedApproval: connectors.seedApproval,
     timers: mvp8.timers,

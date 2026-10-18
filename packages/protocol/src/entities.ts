@@ -285,6 +285,7 @@ export const ChangeSchema = Type.Union([
   Type.Object({ resource: Type.Literal("providers") }),
   Type.Object({ resource: Type.Literal("conversations"), projectId: Type.String() }),
   Type.Object({ resource: Type.Literal("processes"), conversationId: Type.String() }),
+  Type.Object({ resource: Type.Literal("terminals"), conversationId: Type.String() }),
   Type.Object({ resource: Type.Literal("timers"), conversationId: Type.String() }),
   Type.Object({ resource: Type.Literal("mcp") }),
   Type.Object({ resource: Type.Literal("approvals"), conversationId: Type.String() }),

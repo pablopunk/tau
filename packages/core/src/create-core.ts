@@ -31,6 +31,7 @@ import { createProjectStore } from "./harness/project-store";
 import { providerSessionOf } from "./harness/provider-session";
 import { createAgentRegistry } from "./harness/registry";
 import { createSubagentRemover } from "./harness/subagent-removal";
+import { createLocalTerminalDaemon, type TerminalDaemon } from "./harness/terminal-daemon";
 import { clampThinkingFor } from "./harness/tools/agent-thinking";
 import { createToolServicesRef } from "./harness/tools/tool-file";
 import { openDataHome } from "./home/data-home";
@@ -48,6 +49,11 @@ import type { RemovalHooks } from "./removal-hooks";
 import { createSettingsApi } from "./settings-api";
 import { createSkillsApi } from "./skills/skills-api";
 import { createStatusTracker } from "./status/status-tracker";
+import {
+  createTerminalService,
+  type TerminalService,
+  type TerminalServiceDeps,
+} from "./terminals/terminal-service";
 import { clockFromEnvironment } from "./timers/scaled-clock";
 import { announceTimers, timerProjectIds } from "./timers/timer-ids";
 import { createTimerScheduler } from "./timers/timer-scheduler";
@@ -65,6 +71,10 @@ export interface CoreDependencies {
   readonly ghPath: string | undefined;
   /** The agent store failed for good: the process cannot continue. */
   readonly onFatal: (error: unknown) => void;
+  /** The PTY daemon behind terminals; tests pass a fake with no PTY. */
+  readonly terminalDaemon: TerminalDaemon;
+  /** Tests replace the terminal service to watch the hooks. Default: `createTerminalService`. */
+  readonly terminalService?: (deps: TerminalServiceDeps) => TerminalService;
 }
 
 const exitAfterLogging = (error: unknown) => {
@@ -80,6 +90,7 @@ export const defaultCoreDependencies = (): CoreDependencies => {
     runGh: createRunGh(ghPath, process.env),
     ghPath,
     onFatal: exitAfterLogging,
+    terminalDaemon: createLocalTerminalDaemon(process.env),
   };
 };
 
@@ -159,8 +170,13 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
       presentProject: present,
     });
     githubRef.current = github;
+    const terminals = (deps.terminalService ?? createTerminalService)({
+      daemon: deps.terminalDaemon,
+      changes,
+    });
     const workspaces = createWorkspaceService({
       home: home.root,
+      closeTerminalsOf: (conversationId) => terminals.closeAllOf(conversationId),
       conversations,
       runGh: deps.runGh,
       announce: (projectId) => changes.emit({ resource: "conversations", projectId }),
@@ -240,6 +256,7 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
     const removalHooks: RemovalHooks = {
       unmergedWork: (thread) => workspaces.unmergedWork(thread),
       onConversationRemoved: [
+        (thread) => terminals.onConversationRemoved(thread),
         (thread) => closeClaudeCliThread(thread.id),
         (thread) => workspaces.onConversationRemoved(thread),
         (thread) => checkpoints.onConversationRemoved(thread),
@@ -310,6 +327,7 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
         removal,
         archivedCleanup,
         closeClaudeCliThread,
+        closeTerminalsOf: (conversationId) => terminals.closeAllOf(conversationId),
       }),
       workspaces: {
         status: (id) => workspaces.status(id),
@@ -322,6 +340,7 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
         logs: (id, tail) => processes.logs(id, tail),
         stop: (id) => processes.stop(id),
       },
+      terminals: terminals.api,
       approvals: createApprovalsApi(approvals, conversations),
       timers: timersApi,
       goals: createGoalsApi(goals),
@@ -336,6 +355,7 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
             await goals.close();
             await scheduler.close();
             await processes.stopAll();
+            await terminals.close();
             await status.settled();
             await mcp.closeAll();
             await harness.close(BACKGROUND);

@@ -118,3 +118,33 @@ Out (later plans): agent tools that open, write to or read panes; other pane kin
 1. URL shape `/p/:projectId/c/:conversationId/terminal/:terminalId`.
 2. Several terminals per thread now.
 3. `pi-env` is a normal dependency of the `tau` install (+17 MB).
+
+## Phase 0 results
+
+Run on macOS arm64 (Darwin), pi-env 1.3.0, the login shell is zsh. The pins use the real `createLocalTerminalDaemon()` (`core/src/harness/terminal-daemon.ts`, from source or from the built `dist`) on a scratch home (`/tmp/mvp11-pins`), never the user's tau home or port. Throwaway scripts are in `/tmp/mvp11-pins` (not committed).
+
+| Pin | Result | Evidence |
+|---|---|---|
+| (b) packaging | PASS | `pnpm build`: the daemon code is in the chunk `dist/wait-for-lock-*.js` and `@earendil-works/pi-env` stays an external `import()` (`neverBundle`). A copy of that built chunk with `createLocalTerminalDaemon` exported opened `/bin/sh` in a scratch folder: `available: true`, `echo $((6*7))` printed `42`, `pwd` was the folder, `close()` made `exited` resolve `null`. `dist/bin.js serve --faux` on a scratch home and random port starts. Not run yet: an e2e that asserts the daemon file exists and is executable (integration phase). |
+| (c) `npm i -g` | PASS (macOS) | `pnpm pack` then `npm i -g --prefix /tmp/… tau-0.0.0.tgz`: `pi-env` is a real directory in `node_modules`, the daemon is mode `755`, its only xattr is `com.apple.provenance` (no `com.apple.quarantine`), and `openTerminal` from the installed copy printed `42`. A download from the real registry, a Gatekeeper prompt and Linux were not run. |
+| (d) `foreground()` | PASS | At the prompt `undefined`; during `sleep 5` `{ pid, name: "sleep" }`; `undefined` after Ctrl+C. `top` gives `{ pid }` **without `name`**: the title falls back to the shell name. |
+| (e) env allow-list | PASS | With `inheritEnv: false` and the allow-list: `$0` is `-zsh`, `which vim top` works, and `env` has `HOME PATH TERM TAU_HOME TAU_THREAD_ID` (plus `HOMEBREW_*`, which the user's own zsh profile sets). Only `TAU_HOME` and `TAU_THREAD_ID` match `^TAU`; the test variable `SECRET*` is absent. |
+| (f) 5 MB flood | PARTLY (daemon side) | `yes \| head -c 5000000` arrives as 7.5 MB (the tty turns `\n` into `\r\n`) in **1,115,646 `onData` chunks**: min 1 byte, **median 6 bytes**, max 1,024, in about 15 s. With a ring that keeps 256 KB, the JS heap after GC was 32 MB (`external` 3 MB), but RSS went from 85 to about 350 MB and did not come back (allocator, not JS). The 1013 close of a stalled socket needs the stream socket (owner B) and was **not run**. |
+| (g) SIGKILL | PASS on macOS; Linux not run | A node process that held one terminal (`exec sleep 4242`) was killed with `kill -9`: 3 s later `ps` shows no `pi-env` and no `sleep`. No parent-pid watchdog is needed on macOS. Linux has to be checked by the integrator (there is no Linux host here). |
+| (h) `cwdOf` inputs | PASS (facts) | Worktree thread: `state: "ready"`, `path` is the worktree and exists. Checkout/legacy thread: `legacyWorkspace(project.path)`, `state: "ready"`, the project folder. Worktree folder deleted by hand: `state` is still `"ready"`, `path` does **not** exist. After `workspaces.remove`: `state: "removed"` but `path` is the **main checkout and exists**. So `cwdOf` must check `state === "removed"` first (a folder check alone would open a shell in the main checkout), then `existsSync(path)`. |
+| (i) repaint | PASS | `resize(cols+1)` then `resize(cols)` makes `vim -u NONE` (6,100 bytes) and `top` (6,398 bytes) repaint with `ESC[H` and `ESC[2J`; both use the alternate screen (`ESC[?1049h` at start); `foreground()` is defined while they run and `undefined` after quitting. A `resize` to the **same** size gave **0 bytes**: confirmed, the plus-one trick is needed. The mode prefix after a wrapped ring was pinned in round 4 (headless xterm) and is owner A's test. |
+
+### Plan changes from the results
+
+1. **Coalesce output (new, from (f))**: `onData` chunks are tiny (median 6 bytes, 1.1 M chunks for 7.5 MB). The ring must be a chunk list that drops from the front (no copy of the whole ring per chunk), and the socket sender joins what arrives within about 8 ms or 16 KB into one frame (replay frames stay at most 64 KB). Owner A (ring) and B (sender) add a test for it. The 1013 pin stays open for owner B's stalled-client test; the integrator measures RSS again on a real flood through the socket.
+2. **`foreground().name` is optional (from (d))**: the title is `name ?? shell name`.
+3. **`cwdOf` order (from (h))**: unknown thread `not_found`; `state === "removed"` `invalid_request`; missing folder `invalid_request`.
+4. **Open for the integrator**: (g) on Linux, (c) with a real registry install and Gatekeeper, and the e2e for the daemon file.
+5. **Added to the contract (not in v5)**: `GET /api/terminals/available` (`getTerminalsAvailable`, `{ available }`) so the web can read `Core.terminals.available()`; it is in `COMMAND_EXCLUSIONS`. `TAU_DISABLE_TERMINALS=1` is read by `createLocalTerminalDaemon`.
+
+### Round-4 items in the stubs and contract
+
+- `available()`: on `Core.terminals`, the REST route above, `createFakeCore({ terminals })` and the real core stub (`false` until owner A).
+- Ring start: the stub's doc carries the rule (advance to the first `\n` or `ESC`, skip UTF-8 continuation bytes) for owner A's test.
+- Repaint trigger: the stub's doc carries it (first `resize` of the new size owner; equal size and `foreground()` defined means `cols+1` and back); pinned in (i).
+- Archive order: `closeTerminalsOf` runs **before** `conversations.archive` (also for children), best-effort; the hook test asserts the thread is not yet archived at call time.

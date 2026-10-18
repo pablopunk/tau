@@ -13,5 +13,7 @@ export * from "./mvp10";
 export * from "./ops";
 export * from "./rest";
 export * from "./retry";
+export * from "./terminal-stream";
+export * from "./terminals";
 export * from "./view";
 export * from "./view-text";

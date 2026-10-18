@@ -9,7 +9,7 @@ import {
 } from "@tau/protocol";
 import { Value } from "typebox/value";
 import type { RouteRequest, RouteResponse, Transport } from "./types";
-import { createWebSocketTransport } from "./websocket";
+import { createWebSocketTransport, openWebSocketStream } from "./websocket";
 
 type RequestInput = {
   params?: Record<string, string>;
@@ -75,5 +75,6 @@ export function createHttpTransport(): Transport {
       return (await send(routes[name], input as RequestInput)) as RouteResponse<N>;
     },
     live: createWebSocketTransport(),
+    openStream: openWebSocketStream,
   };
 }
