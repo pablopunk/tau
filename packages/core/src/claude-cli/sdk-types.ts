@@ -118,6 +118,7 @@ export interface ClaudeQueryOptions {
   readonly settings: { readonly disableClaudeAiConnectors: boolean; readonly autoCompactEnabled?: boolean };
   readonly permissionMode: "dontAsk" | "default";
   readonly allowedTools: readonly string[];
+  readonly disallowedTools?: readonly string[];
   readonly includePartialMessages: boolean;
   readonly toolHost?: ClaudeToolHost;
 }
@@ -133,7 +134,6 @@ export interface ClaudeSdkMessage {
 
 export interface ClaudeMcpControl {
   mcpServerStatus(): Promise<readonly ClaudeMcpServerStatus[]>;
-  toggleMcpServer(name: string, enabled: boolean): Promise<void>;
 }
 
 export interface ClaudeContextSummary {

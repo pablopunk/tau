@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { togglerOf } from "../pins/mcp-toggle";
 import type {
   ClaudeCanUseTool,
   ClaudePermissionDecision,
@@ -104,7 +105,7 @@ describe("fake SDK connectors", () => {
   it("a toggled-off server is disabled with no tools, and is recorded", async () => {
     const fake = fakeWith([[{ kind: "text", text: "ok" }]]);
     const query = fake.port.startQuery(connectorOptions());
-    await query.toggleMcpServer("claude.ai Slack", false);
+    await togglerOf(query).toggleMcpServer("claude.ai Slack", false);
     const slack = (await query.mcpServerStatus()).find((server) => server.name === "claude.ai Slack");
     expect(slack).toMatchObject({ status: "disabled", tools: [] });
     expect(fake.queries[0]?.toggles).toEqual([{ name: "claude.ai Slack", enabled: false }]);
@@ -200,7 +201,7 @@ describe("fake SDK connectors", () => {
       ],
     ]);
     const query = fake.port.startQuery(connectorOptions({ allowedTools: [LIST_TEAMS] }));
-    await query.toggleMcpServer("claude.ai Linear", false);
+    await togglerOf(query).toggleMcpServer("claude.ai Linear", false);
     expect(toolResultsIn(await untilResult(query))).toMatchObject([{ is_error: true }]);
     query.close();
   });

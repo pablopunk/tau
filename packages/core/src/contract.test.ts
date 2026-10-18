@@ -13,7 +13,7 @@ import { makeLocalRepo } from "./test-support/local-repo";
 
 const REAL_CORE_IMPLEMENTED = true;
 
-const PENDING_TAGS: string[] = ["claude-connectors"];
+const PENDING_TAGS: string[] = [];
 
 process.env.TAU_FAKE_CLAUDE_CLI = "1";
 

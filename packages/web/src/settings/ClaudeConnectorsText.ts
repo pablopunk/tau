@@ -7,6 +7,9 @@ const STATUS_BADGE: Partial<Record<ClaudeConnector["status"], string>> = {
   pending: "Connecting",
 };
 
+export const CONNECTORS_NOTE = "Connectors from your Claude account, for Claude CLI models.";
+export const NOT_AVAILABLE_NOTE = "Connectors show up here once a Claude CLI login is ready.";
+
 export const CONNECT_ON_CLAUDE_AI = "Connect it on claude.ai";
 
 export const connectorBadge = (connector: ClaudeConnector): string | null =>

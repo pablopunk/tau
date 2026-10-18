@@ -10,6 +10,7 @@ import {
 } from "@tau/protocol";
 import { toUserInput } from "../conversation-input";
 import { titleFromFirstMessage } from "../conversation-title";
+import type { ConnectorOffering } from "./connector-offering";
 import { ConversationDoc, INDEX_SEED, ProjectIndexDoc } from "./conversation-docs";
 import {
   indexOf,
@@ -53,6 +54,7 @@ export interface ConversationStarter {
 export function createConversationStarter(
   harness: Harness,
   projectPathOf: (projectId: string) => Promise<string>,
+  offering?: Pick<ConnectorOffering, "modelToolsFor">,
 ): ConversationStarter {
   async function admitFirstInput(
     conversation: Conversation,
@@ -87,10 +89,11 @@ export function createConversationStarter(
     workspace,
     now,
   }: StartRequest): Promise<Conversation> {
+    const offered = (await offering?.modelToolsFor(model)) ?? {};
     return harness.createConversation(
       {
         ownership: { kind: "ownerless" },
-        agent: { model, cwd: workspace.path, thinkingLevel },
+        agent: { model, cwd: workspace.path, thinkingLevel, ...offered },
         init: async (tx, conversationId) => {
           const index = await tx.doc(ProjectIndexDoc, project.id, INDEX_SEED);
           const existing = index.conversations.find(

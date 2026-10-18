@@ -34,10 +34,10 @@ async function acceptTheNotice(page: Page) {
     .getByRole("navigation", { name: "Settings sections" })
     .getByRole("button", { name: "Providers" })
     .click();
-  const row = page.getByRole("listitem", { name: "Claude CLI" });
+  const row = page.getByRole("listitem", { name: "Anthropic" });
   await expect(row).toContainText("Runs the Claude Agent SDK under your own Claude login, for your own use.");
-  await row.getByRole("button", { name: "I understand for Claude CLI" }).click();
-  await expect(row).toContainText("Connected via claude CLI");
+  await row.getByRole("button", { name: "I understand for Anthropic" }).click();
+  await expect(row).toContainText("Claude CLI login");
   await page.keyboard.press("Escape");
 }
 

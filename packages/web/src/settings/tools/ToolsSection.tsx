@@ -8,6 +8,7 @@ import { SettingRow } from "@/components/ui/settings-layout";
 import { Skeleton } from "@/components/ui/skeleton";
 import { errorMessage } from "@/lib/error-message";
 import { useMcpServers } from "@/lib/queries";
+import { ClaudeConnectorsSection } from "../ClaudeConnectorsSection";
 import { McpServerDialog } from "./McpServerDialog";
 import { McpServerRow } from "./McpServerRow";
 
@@ -68,6 +69,7 @@ export function ToolsSection() {
       </SettingRow>
       <ServerList title="Your servers" servers={mine} onEdit={(name) => setDialog({ editing: name })} />
       <ServerList title="From this project's .mcp.json" servers={fromProject} />
+      <ClaudeConnectorsSection />
       {dialog ? <McpServerDialog editing={dialog.editing} onClose={() => setDialog(null)} /> : null}
     </div>
   );

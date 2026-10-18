@@ -1,6 +1,6 @@
 import type { ClaudeConnectorSettings } from "@tau/protocol";
 import type { ClaudeMcpServerStatus } from "../sdk-types";
-import { connectorToolPrefixOf } from "./names";
+import { connectorAllowGlobOf, connectorToolPrefixOf, isClaudeAiServer } from "./names";
 
 export interface ChosenServers {
   /** Status names (`claude.ai Linear`) the user switched on and that are connected. */
@@ -32,3 +32,12 @@ export function chooseServers(
   const allowedTools = [TAU_TOOLS_GLOB, ...chosen.flatMap(readOnlyToolNamesOf), ...alwaysAllowed];
   return { names: chosen.map((server) => server.name), allowedTools: [...new Set(allowedTools)] };
 }
+
+/** One glob for every claude.ai server that is not chosen, so its schemas stay out of the context. */
+export const disallowedToolsOf = (
+  chosenNames: readonly string[],
+  status: readonly ClaudeMcpServerStatus[],
+): string[] =>
+  status
+    .filter((server) => isClaudeAiServer(server.name) && !chosenNames.includes(server.name))
+    .map((server) => connectorAllowGlobOf(server.name));

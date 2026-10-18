@@ -5,6 +5,7 @@ import { agentTypeLabel, cardStatusOf, isRunningChild, modelWithLevel } from "@/
 import { StopAgentButton } from "@/sidebar/subagents/StopAgentButton";
 import { useModelLabel } from "@/sidebar/subagents/use-model-label";
 import { argText, resultText } from "../model/tool-state";
+import { PendingApprovalBadge } from "../PendingApprovalBadge";
 import { AgentOpenLink } from "./AgentOpenLink";
 import { childIdOfCall, useChildById } from "./agent-child";
 import { OutputBlock } from "./OutputBlock";
@@ -33,6 +34,7 @@ export function AgentTool({ state }: ToolRendererProps) {
       <div className="flex flex-wrap items-center gap-2">
         {model ? <Badge variant="outline">{model}</Badge> : null}
         <AgentStatusBadge status={child?.agentStatus} />
+        {childId ? <PendingApprovalBadge conversationId={childId} enabled={isRunningChild(child)} /> : null}
         {child ? <AgentOpenLink child={child} /> : null}
         {childId && isRunningChild(child) ? <StopAgentButton childId={childId} /> : null}
       </div>

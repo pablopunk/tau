@@ -4,9 +4,11 @@ import {
   type PromptInput,
   section,
   type ToolExecutionApi,
+  type ToolRegistration,
 } from "@earendil-works/pi-durable";
 import { ThinkingLevelSchema } from "@tau/protocol";
 import { type Static, Type } from "typebox";
+import { CONNECTOR_TOOL_REFERENCE, type ModelToolsChange } from "../connector-offering";
 import { type ChildSpec, startBackgroundChild, startForkedBackgroundChild } from "../subagent-runtime";
 import { subagentServicesOf } from "../subagent-services";
 import { AGENT_DESCRIPTION } from "./agent-description";
@@ -33,6 +35,9 @@ type CallContext = Parameters<ToolExecutionApi["commit"]>[1];
 export const startedMessage = (id: string, description: string) =>
   `Started subagent ${id} (${description}). You will get a notification when it answers. Do not poll.`;
 
+const withConnectorTool = (tools: readonly ToolRegistration[], offered: ModelToolsChange | undefined) =>
+  offered?.modelTools ? [...tools, CONNECTOR_TOOL_REFERENCE] : tools;
+
 async function specFor(args: Args, api: ToolExecutionApi, context: CallContext, ref: ToolServicesRef) {
   const services = subagentServicesOf(ref);
   const project = await services.projectOf(await projectIdOfCall(api, context));
@@ -49,6 +54,7 @@ async function specFor(args: Args, api: ToolExecutionApi, context: CallContext, 
     args.isolation === "worktree"
       ? await createIsolatedWorkspace(services, project, api.callId, args.description)
       : undefined;
+  const offered = await services.connectorOffering?.modelToolsFor(plan.model);
   const spec: ChildSpec = {
     description: args.description,
     prompt: args.prompt,
@@ -59,7 +65,8 @@ async function specFor(args: Args, api: ToolExecutionApi, context: CallContext, 
       background: args.run_in_background !== false,
     },
     thinkingLevel: plan.thinkingLevel,
-    tools: plan.tools,
+    tools: plan.tools && withConnectorTool(plan.tools, offered),
+    ...(offered && { modelTools: offered.modelTools }),
     foreground: args.run_in_background === false,
     ...(plan.instructions && { instructions: plan.instructions }),
     ...(workspace && { workspace }),

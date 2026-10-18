@@ -7,6 +7,7 @@ import type {
   ClaudeQuery,
   ClaudeSdkMessage,
 } from "../sdk-types";
+import { togglerOf } from "./mcp-toggle";
 import { type PinContext, pinOptions } from "./pin-context";
 import {
   createPinHost,
@@ -47,7 +48,10 @@ export async function switchOffAllBut(control: ClaudeMcpControl, keep: string): 
   const others = servers.filter(
     (server) => server.name !== keep && server.source !== "sdk" && server.status !== "disabled",
   );
-  for (const server of others) await control.toggleMcpServer(server.name, false).catch(() => undefined);
+  for (const server of others)
+    await togglerOf(control)
+      .toggleMcpServer(server.name, false)
+      .catch(() => undefined);
   return others.map((server) => server.name);
 }
 
@@ -59,7 +63,10 @@ async function requireServersReady(control: ClaudeMcpControl, needsTau: boolean)
 }
 
 export async function switchOn(control: ClaudeMcpControl, names: readonly string[]): Promise<void> {
-  for (const name of names) await control.toggleMcpServer(name, true).catch(() => undefined);
+  for (const name of names)
+    await togglerOf(control)
+      .toggleMcpServer(name, true)
+      .catch(() => undefined);
 }
 
 export interface PermissionLog {

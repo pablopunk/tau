@@ -24,8 +24,9 @@ export function createSettingsApi(deps: {
   provider: ProviderService;
   codeFolder: CodeFolderDeps;
   onProjectsFolderChanged: () => void;
+  onClaudeConnectorsChanged?: () => Promise<void>;
 }): Core["settings"] {
-  const { settings, provider, codeFolder, onProjectsFolderChanged } = deps;
+  const { settings, provider, codeFolder, onProjectsFolderChanged, onClaudeConnectorsChanged } = deps;
   const requireListedModel = async (ref: ModelRef) => {
     if (!(await provider.isConfigured())) throw new AppError("no_provider", "Connect a provider first.");
     if (!(await provider.lists(ref))) {
@@ -41,7 +42,10 @@ export function createSettingsApi(deps: {
     suggestedCodeFolder: () => suggestCodeFolder(codeFolder),
     setMessageMode: (mode) => settings.setMessageMode(mode),
     setWorkspaceDefault: (mode) => settings.setWorkspaceDefault(mode),
-    setClaudeConnectors: (value) => settings.setClaudeConnectors(value),
+    async setClaudeConnectors(value) {
+      await settings.setClaudeConnectors(value);
+      await onClaudeConnectorsChanged?.();
+    },
     async setDefaultModel(ref) {
       await requireListedModel(ref);
       await settings.setDefaultModel(ref, clampForModel(ref, (await settings.get()).defaultThinkingLevel));

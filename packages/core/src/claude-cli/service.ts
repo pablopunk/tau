@@ -4,6 +4,7 @@ import type { ClaudeCliStatus, ClaudeConnectorSettings } from "@tau/protocol";
 import type { Approvals } from "../approvals/approvals-port";
 import { type ClaudeCliClock, systemClaudeCliClock } from "./clock";
 import { createConnectorProbe } from "./connectors/connector-probe";
+import type { ObservedResultStore } from "./connectors/observed-results";
 import { createClaudeCliDetector } from "./detect/claude-cli-detector";
 import { createClaudeCliModels } from "./models/claude-cli-models";
 import { createPlanUsage } from "./plan-usage";
@@ -31,6 +32,8 @@ export interface ClaudeCliService {
   installSdk(): Promise<ClaudeCliStatus>;
   /** Archive and delete: closes the SDK query of a Pi session. */
   closeThread(piSessionId: string): Promise<void>;
+  /** Stop on a connector call: interrupts the open turn of a Pi session. */
+  interruptConversation(piSessionId: string): Promise<void>;
   close(): Promise<void>;
 }
 
@@ -48,6 +51,7 @@ export interface ClaudeCliServiceDeps {
   readonly installer?: ClaudeSdkInstaller;
   readonly connectorSettings?: () => Promise<ClaudeConnectorSettings>;
   readonly approvals?: Approvals;
+  readonly observed?: ObservedResultStore;
 }
 
 export const claudeCliDisabled = (env: Environment): boolean => env[KILL_SWITCH_VARIABLE] === "1";
@@ -65,6 +69,7 @@ const DISABLED: ClaudeCliService = {
     throw new Error("Claude CLI is disabled.");
   },
   closeThread: async () => undefined,
+  interruptConversation: async () => undefined,
   close: async () => undefined,
 };
 
@@ -83,9 +88,11 @@ const usesFakeSdk = (env: Environment, faux: boolean): boolean => faux || env[FA
 
 async function fakeSdkLoader(loggedIn: boolean): Promise<ClaudeSdkLoader> {
   const { createFakeClaudeSdk, FAKE_LOGGED_IN } = await import("./testing/fake-claude-sdk");
+  const { FAKE_LINEAR, FAKE_NEEDS_AUTH, FAKE_SLACK } = await import("./testing/fake-claude-connectors");
   const { fakeThreadScript } = await import("./testing/fake-claude-thread-script");
   const fake = createFakeClaudeSdk({
     script: fakeThreadScript,
+    connectors: [FAKE_LINEAR, FAKE_SLACK, FAKE_NEEDS_AUTH],
     auth: loggedIn ? FAKE_LOGGED_IN : { ...FAKE_LOGGED_IN, loggedIn: false },
   });
   return fake.load;
@@ -132,6 +139,7 @@ export function createClaudeCliService(deps: ClaudeCliServiceDeps): ClaudeCliSer
     onProcessCount: deps.onChange,
     ...(deps.connectorSettings && { connectorSettings: deps.connectorSettings }),
     ...(deps.approvals && { approvals: deps.approvals }),
+    ...(deps.observed && { observed: deps.observed }),
   });
   const connectorProbe = createConnectorProbe({ sdk, onChange: deps.onChange });
   detector.start();
@@ -143,12 +151,12 @@ export function createClaudeCliService(deps: ClaudeCliServiceDeps): ClaudeCliSer
   const statusWithProcesses = (): ClaudeCliStatus => ({
     ...detector.status(),
     processCount: streamer.processCount(),
-    connectors: connectorProbe.current(),
+    connectors: isClaudeCliReady(detector.status()) ? connectorProbe.current() : null,
   });
   const refresh = async (): Promise<ClaudeCliStatus> => {
     await detector.refresh();
     await models.refresh();
-    await connectorProbe.refresh();
+    if (isClaudeCliReady(detector.status())) await connectorProbe.refresh();
     return statusWithProcesses();
   };
   return {
@@ -167,6 +175,7 @@ export function createClaudeCliService(deps: ClaudeCliServiceDeps): ClaudeCliSer
       return refresh();
     },
     closeThread: (piSessionId) => streamer.closeThread(piSessionId),
+    interruptConversation: (piSessionId) => streamer.interruptConversation(piSessionId),
     async close() {
       detector.stop();
       await streamer.closeAll();

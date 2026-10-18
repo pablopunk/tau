@@ -10,6 +10,7 @@ import { allowReadPin, denyWritePin } from "./scenario-connector-approval";
 import { globAndToggleTurn, mixedTurn, toggleOffPin } from "./scenario-connector-calls";
 import { runGatePins } from "./scenario-connector-gates";
 import { runUserServerPin } from "./scenario-connector-user-servers";
+import { disallowedToolsPin } from "./scenario-disallowed-tools";
 
 const REAL = process.env.TAU_REAL_CLAUDE === "1";
 const ONLY = process.env.TAU_PINS_ONLY?.split(",") ?? [
@@ -34,7 +35,7 @@ describe.skipIf(!REAL)("real connector pins (TAU_REAL_CLAUDE=1)", () => {
       const cwd = await mkdtemp(join(tmpdir(), "tau-connector-pins-"));
       const report = createPinReport(process.env.TAU_PINS_OUT);
       const ctx: PinContext = {
-        port: await loadClaudeSdkPort(),
+        port: await loadClaudeSdkPort(undefined, { exposeToggleForPins: true }),
         report,
         budget: createTurnBudget(MAX_CONNECTOR_PIN_TURNS),
         cwd,
@@ -52,6 +53,7 @@ describe.skipIf(!REAL)("real connector pins (TAU_REAL_CLAUDE=1)", () => {
         await guarded("o-status", () => toggleOffPin(ctx));
         await guarded("l-o", () => globAndToggleTurn(ctx));
         await guarded("k", () => mixedTurn(ctx));
+        await guarded("o2", () => disallowedToolsPin(ctx));
         await report.run("budget", `at most ${MAX_CONNECTOR_PIN_TURNS} Haiku turns`, async () =>
           ctx.budget.spent().join(" | "),
         );

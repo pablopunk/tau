@@ -1,11 +1,6 @@
 import type { ClaudeConnectorSettings } from "@tau/protocol";
-import {
-  cliToolNameOf,
-  connectorAllowGlobOf,
-  connectorServerOf,
-  isClaudeAiServer,
-  parseConnectorToolName,
-} from "../connectors/names";
+import { chooseServers, disallowedToolsOf } from "../connectors/chosen-servers";
+import { connectorServerOf, parseConnectorToolName } from "../connectors/names";
 import type { ClaudeMcpServerStatus } from "../sdk-types";
 
 /** What the query options need to know about the connectors the user switched on. */
@@ -24,39 +19,18 @@ export const NO_CONNECTORS: ConnectorChoice = { names: [], allowedTools: [], dis
 export const optionsKeyOf = (settings: ClaudeConnectorSettings | null): string =>
   [...(settings?.enabled ?? [])].sort().join("|");
 
-const isConnected = (server: ClaudeMcpServerStatus) => server.status === "connected";
-
-const chosenStatuses = (
+function chooseFromStatus(
   settings: ClaudeConnectorSettings,
   status: readonly ClaudeMcpServerStatus[],
-): ClaudeMcpServerStatus[] =>
-  status.filter((server) => isConnected(server) && settings.enabled.includes(server.name));
-
-const readOnlyNamesOf = (server: ClaudeMcpServerStatus): string[] =>
-  server.tools
-    .filter((tool) => tool.readOnly)
-    .map((tool) => cliToolNameOf({ server: connectorServerOf(server.name), tool: tool.name }));
+): ConnectorChoice {
+  const { names, allowedTools } = chooseServers(settings, status);
+  return { names, allowedTools, disallowedTools: disallowedToolsOf(names, status) };
+}
 
 const belongsTo = (cliToolName: string, servers: readonly string[]): boolean => {
   const parsed = parseConnectorToolName(cliToolName);
   return parsed !== null && servers.some((name) => connectorServerOf(name) === parsed.server);
 };
-
-function chooseFromStatus(
-  settings: ClaudeConnectorSettings,
-  status: readonly ClaudeMcpServerStatus[],
-): ConnectorChoice {
-  const chosen = chosenStatuses(settings, status);
-  const names = chosen.map((server) => server.name);
-  const allowedTools = [
-    ...chosen.flatMap(readOnlyNamesOf),
-    ...settings.alwaysAllow.filter((tool) => belongsTo(tool, names)),
-  ];
-  const disallowedTools = status
-    .filter((server) => isClaudeAiServer(server.name) && !names.includes(server.name))
-    .map((server) => connectorAllowGlobOf(server.name));
-  return { names, allowedTools: [...new Set(allowedTools)], disallowedTools };
-}
 
 /** Without a status list, every enabled server counts as chosen and only the always-allowed tools skip the ask. */
 const chooseWithoutStatus = (settings: ClaudeConnectorSettings): ConnectorChoice => ({

@@ -89,6 +89,13 @@ export const SETTINGS_INDEX: readonly SettingEntry[] = [
     description: "Add tools the agent can call.",
     keywords: ["mcp", "server", "connector", "integration", "plugin", "extension", "add server", "stdio"],
   },
+  {
+    id: "claude-connectors",
+    section: "tools",
+    label: "Claude connectors",
+    description: "Let Claude CLI threads use the connectors of your Claude login.",
+    keywords: ["claude", "connectors", "claude.ai", "linear", "slack", "mcp"],
+  },
 ];
 
 /** Row ids built from data, such as `provider:openai`. Entries for them come from `dynamicEntries`. */

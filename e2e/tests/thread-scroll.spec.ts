@@ -8,10 +8,12 @@ const conversation = (page: Page) => page.getByTestId("conversation");
 const sidebar = (page: Page) => page.getByRole("complementary").or(page.getByLabel("Projects and threads"));
 
 async function completeSetup(page: Page) {
-  await page
+  const addKey = page
     .getByRole("listitem", { name: "OpenRouter", exact: true })
-    .getByRole("button", { name: "Add key" })
-    .click();
+    .getByRole("button", { name: "Add key" });
+  await addKey.or(page.getByRole("heading", { name: "New thread" })).waitFor();
+  if (!(await addKey.isVisible())) return;
+  await addKey.click();
   await page.getByLabel("OpenRouter API key").fill("sk-or-v1-faux");
   await page.getByRole("button", { name: "Save" }).click();
   await page.getByRole("button", { name: "Continue" }).click();

@@ -12,6 +12,7 @@ import { buildTranscript } from "./model/transcript";
 import { isMvpNotificationItem, MvpNotificationRow } from "./notifications/MvpNotificationRow";
 import { SubagentNotificationRow } from "./notifications/SubagentNotificationRow";
 import { RetryButton } from "./RetryButton";
+import { ToolApproval } from "./ToolApproval";
 import { LatestTodoCallProvider } from "./todos/latest-todo-call";
 import { latestTodoCallId } from "./todos/todo-items";
 
@@ -119,6 +120,7 @@ export function Transcript({
         {live.retry ? <RetryNotice retry={live.retry} /> : null}
         {isIdleWhileBusy(live) ? <WorkingIndicator /> : null}
         {onRetry && isRetryable(view) ? <RetryButton onRetry={onRetry} /> : null}
+        {conversationId ? <ToolApproval conversationId={conversationId} /> : null}
         <QueuedMessages items={live.queued} conversationId={conversationId} />
       </div>
     </LatestTodoCallProvider>

@@ -23,6 +23,7 @@ import { useSidebar } from "@/components/ui/sidebar";
 import { SidebarThreadRow } from "@/components/ui/sidebar-thread-row";
 import { StatusDot } from "@/components/ui/status-dot";
 import { TreeBranch, TreeToggle } from "@/components/ui/tree-branch";
+import { PendingApprovalBadge } from "@/conversation/PendingApprovalBadge";
 import { api } from "@/lib/api";
 import { conversationPath } from "@/lib/paths";
 import { queryKeys } from "@/lib/queries";
@@ -151,7 +152,17 @@ export function ThreadRow({
             context={depth === 0 && showProject ? project?.name : undefined}
             projectIcon={depth > 0 ? undefined : projectIcon(17)}
             worktree={depth === 0 ? <WorktreeIndicator conversation={conversation} /> : undefined}
-            time={<RelativeTime at={conversation.lastActivityAt} />}
+            time={
+              <>
+                {depth > 0 ? (
+                  <PendingApprovalBadge
+                    conversationId={conversation.id}
+                    enabled={conversation.status === "running"}
+                  />
+                ) : null}
+                <RelativeTime at={conversation.lastActivityAt} />
+              </>
+            }
             actions={
               <>
                 <Button

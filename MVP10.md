@@ -124,6 +124,7 @@ Run on the author's own login: CLI 2.1.302, SDK 0.3.302, Haiku. Pins live in `co
 | (k) connector and parked tau handler in one message | PASS | The connector result did **not** arrive while the tau handler was parked (4 s): the CLI runs them one after the other, as in the spike. After the tau result was released late, the turn was correct ("word=banana; teams=33"). The deferred map already covers this order. |
 | (m) user-scope `claude mcp` servers | **FAIL** | `settingSources: ["user"]` adds the 3 user servers (agent-browser, jean, grep_app) but also **3 memory files (CLAUDE.md)**, and it reads the user settings (hooks, permissions). A `mcpServers` passthrough would need tau to read `~/.claude.json`, which holds credentials, so it is not allowed. |
 | (p) Pi Durable, unoffered tool | PASS | A `claude_connector` call in a thread without the tool gets the result "Tool claude_connector is not available" (`tool_unavailable`) and the run ends. The faux script has `connector <server> <tool>` for it. |
+| (o2) `disallowedTools` | PASS | Integration run (`TAU_PINS_ONLY=o2`, 2 Haiku turns, the first before the connectors had loaded, so it counted nothing): `disallowedTools` globs for 50 claude.ai servers, Linear left; after the connectors loaded, `init.tools` listed 77 tools, all `mcp__tau__*` or `mcp__claude_ai_Linear__*`. No `toggleMcpServer` call. Pin file: `pins/scenario-disallowed-tools.ts`. |
 
 ### Gate fallbacks applied
 

@@ -1,4 +1,5 @@
 import { cliToolNameOf, connectorServerOf } from "../connectors/names";
+import type { ClaudeMcpToggle } from "../pins/mcp-toggle";
 import type {
   ClaudeContextSummary,
   ClaudeMcpControl,
@@ -64,7 +65,7 @@ export const isAllowedByList = (allowedTools: readonly string[], toolName: strin
   allowedTools.some((allowed) => matchesAllowed(allowed, toolName));
 
 export interface FakeMcpState {
-  readonly control: ClaudeMcpControl;
+  readonly control: ClaudeMcpControl & ClaudeMcpToggle;
   readonly context: () => ClaudeContextSummary;
   readonly activeToolNames: () => string[];
   readonly toggles: { name: string; enabled: boolean }[];

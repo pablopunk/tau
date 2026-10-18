@@ -31,7 +31,7 @@ async function providerSessionIdOf(api: ToolExecutionApi, context: Context): Pro
 }
 
 export const claudeConnectorToolFile: ToolFileFactory = (services) => ({
-  implemented: false,
+  implemented: true,
   extension: defineExtension({
     name: "claude-connector",
     tools: [
@@ -40,6 +40,7 @@ export const claudeConnectorToolFile: ToolFileFactory = (services) => ({
         description: DESCRIPTION,
         parameters: ClaudeConnectorParameters,
         replay: "safe",
+        deferred: true,
         async execute(_args, api, context) {
           const { observed, interruptConversation } = services.current().claudeConnectors;
           try {

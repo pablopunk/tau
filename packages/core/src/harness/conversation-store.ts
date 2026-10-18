@@ -20,6 +20,7 @@ import {
 import { toUserInput } from "../conversation-input";
 import { titleFromFirstMessage } from "../conversation-title";
 import { RETRY_PROMPT } from "../retry-prompt";
+import type { ConnectorOffering } from "./connector-offering";
 import { compactConversation } from "./conversation-compact";
 import {
   byMostRecentlyUpdated,
@@ -111,12 +112,20 @@ async function currentView(conversation: Conversation): Promise<ConversationView
   }
 }
 
+export interface StoreHooks {
+  readonly offering?: Pick<ConnectorOffering, "modelToolsFor">;
+  /** Stop: runs before a thread aborts, so a pending approval is denied first. */
+  readonly beforeAbort?: (id: string) => void;
+}
+
 export function createConversationStore(
   harness: Harness,
   projectPathOf: (projectId: string) => Promise<string>,
+  hooks: StoreHooks = {},
 ): ConversationStore {
+  const { offering } = hooks;
   const watchers = createWatcherRegistry();
-  const starter = createConversationStarter(harness, projectPathOf);
+  const starter = createConversationStarter(harness, projectPathOf, offering);
 
   async function known(id: string): Promise<KnownConversation> {
     const conversationId = conversationIdFrom(id);
@@ -203,7 +212,8 @@ export function createConversationStore(
 
     async configure(id, { model, thinkingLevel }) {
       const { conversation, id: conversationId, projectId } = await known(id);
-      await conversation.configure({ model, thinkingLevel }, BACKGROUND);
+      const offered = (await offering?.modelToolsFor(model)) ?? {};
+      await conversation.configure({ model, thinkingLevel, ...offered }, BACKGROUND);
       await updateLiveConversation(harness, conversationId, projectId, (_meta, entry) => {
         entry.model = { provider: model.provider, modelId: model.modelId };
         return true;
@@ -276,7 +286,9 @@ export function createConversationStore(
     },
 
     async abort(id) {
-      await (await known(id)).conversation.abort(BACKGROUND);
+      const { conversation } = await known(id);
+      hooks.beforeAbort?.(id);
+      await conversation.abort(BACKGROUND);
     },
 
     async compact(id, instructions) {

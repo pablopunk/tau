@@ -75,12 +75,12 @@ test.describe("MVP4", () => {
 
   test("adds and disconnects a provider key", async () => {
     await openProviders(page);
-    const row = providerRow(page, "Anthropic");
+    const row = providerRow(page, "Google");
     await row.getByRole("button", { name: /key/i }).click();
-    await row.getByLabel("Anthropic API key").fill("sk-ant-faux");
+    await row.getByLabel("Google API key").fill("faux-google-key");
     await row.getByRole("button", { name: "Save" }).click();
     await expect(row.getByText("Connected")).toBeVisible();
-    await disconnect(page, row, "Anthropic");
+    await disconnect(page, row, "Google");
     await expect(row.getByText("Not connected")).toBeVisible();
     await page.keyboard.press("Escape");
   });
@@ -93,7 +93,7 @@ test.describe("MVP4", () => {
     await dialog.getByLabel("Sign-in address").fill(CALLBACK);
     await dialog.getByRole("button", { name: "Submit" }).click();
     await expect(dialog).toBeHidden();
-    await expect(providerRow(page, "OpenAI").getByText("Connected · ChatGPT")).toBeVisible();
+    await expect(providerRow(page, "OpenAI").getByText("ChatGPT plan")).toBeVisible();
     await page.keyboard.press("Escape");
   });
 

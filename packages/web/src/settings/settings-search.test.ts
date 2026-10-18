@@ -18,7 +18,7 @@ describe("settings ranking", () => {
     expect(idsFor("worktree")[0]).toBe("workspace-default");
     expect(idsFor("checkout")[0]).toBe("workspace-default");
     expect(idsFor("mcp")[0]).toBe("mcp-servers");
-    expect(idsFor("connector")[0]).toBe("mcp-servers");
+    expect(idsFor("connector")).toContain("mcp-servers");
     expect(idsFor("reasoning")).toContain("default-model");
   });
 

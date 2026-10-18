@@ -6,6 +6,7 @@ import {
   TURN_TIMEOUT_MS,
   waitForConnectors,
 } from "./connector-harness";
+import { togglerOf } from "./mcp-toggle";
 import type { PinContext } from "./pin-context";
 import { createPinHost, isResult, pinTool, pollUntil, resolveWith, resultTextOf, sleep } from "./pin-harness";
 
@@ -29,11 +30,11 @@ export async function toggleOffPin(ctx: PinContext): Promise<void> {
       async () => {
         const slack = "claude.ai Slack";
         await waitForConnectors(probe);
-        await probe.toggleMcpServer(slack, true);
+        await togglerOf(probe).toggleMcpServer(slack, true);
         await waitForConnectors(probe);
         const toolsOf = async () => (await probe.mcpServerStatus()).find((row) => row.name === slack);
         const before = await toolsOf();
-        await probe.toggleMcpServer(slack, false);
+        await togglerOf(probe).toggleMcpServer(slack, false);
         const after = await toolsOf();
         if (!before || before.tools.length === 0)
           throw new Error(`Slack had no tools before the toggle: ${before?.status}, ${before?.tools.length}`);
@@ -43,7 +44,9 @@ export async function toggleOffPin(ctx: PinContext): Promise<void> {
       },
     );
   } finally {
-    await probe.toggleMcpServer("claude.ai Slack", true).catch(() => undefined);
+    await togglerOf(probe)
+      .toggleMcpServer("claude.ai Slack", true)
+      .catch(() => undefined);
     probe.close();
   }
 }

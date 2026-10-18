@@ -308,3 +308,13 @@ Phase 0 is done. Paths are under `packages/` unless noted. Nobody edits a file a
 
 * Existing tests changed only for the new required fields (`claudeConnectors`, `connectors: null`, the `toolUseId` param in the fake transport).
 * The real pins: `TAU_REAL_CLAUDE=1 TAU_PINS_OUT=<file> pnpm --filter @tau/core exec vitest run src/claude-cli/pins/real-connector-pins.test.ts` (at most 8 Haiku turns, read-only; rerun on every SDK bump).
+
+## MVP10 Integration
+
+* One server choice: `claude-cli/connectors/chosen-servers.ts` (`chooseServers`, `disallowedToolsOf`); `stream/connector-choice.ts` calls it. `ClaudeQueryOptions.disallowedTools` is a field of `sdk-types.ts`.
+* `toggleMcpServer` left `ClaudeMcpControl`. Only the pins use it: `pins/mcp-toggle.ts`, and `loadClaudeSdkPort(sdkHome, { exposeToggleForPins: true })`. tau never calls it.
+* `claude_connector` is `deferred: true` and installed. `harness/connector-offering.ts` adds it with `modelTools: { add }` only for threads on the `claude-cli` provider while at least one enabled server is connected (or no probe ran yet). Sites: thread start, model change (`conversation-store.ts`), `agent` children (`ChildSpec.modelTools`, also added to a typed child's `tools`), and `settings.setClaudeConnectors` (`resyncAll` over live threads). The adapter already closes an idle query whose enabled set changed.
+* `create-core.ts`: one `ObservedResultStore` shared by the tool and the pump; `interruptConversation` goes to the streamer; `approvals` reach `createLiveWork`; Stop calls `approvals.denyAll` (`StoreHooks.beforeAbort`); `conversationOfSession` is `harness/conversation-of-session.ts`.
+* `approvals.list` rejects `not_found` for an unknown thread; the status has `connectors: null` until the Claude CLI row is ready.
+* Web: `ClaudeConnectorsSection` is mounted in `ToolsSection` and always renders its row (a note when the CLI is not ready); `ToolApproval` is mounted at the end of `Transcript`; `PendingApprovalBadge` shows on the subagent card and on child sidebar rows.
+* e2e: `e2e/tests/mvp9-connectors.spec.ts`; the fake SDK script has `connector <Server> <tool>`. The MVP9 e2e selectors follow the "Anthropic" row.

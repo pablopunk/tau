@@ -1,6 +1,7 @@
 import type { ToolCall } from "@earendil-works/pi-ai";
 import { describe, expect, it } from "vitest";
 import { CONNECTOR_TOOL_NAME } from "../connectors/names";
+import type { ClaudeQueryOptions } from "../sdk-types";
 import { scriptOf } from "../testing/fake-claude-script";
 import {
   advanceUntil,
@@ -12,7 +13,6 @@ import {
   linearOnly,
   SLACK,
 } from "./connector-support";
-import type { StreamQueryOptions } from "./query-options";
 import {
   ask,
   createHarness,
@@ -36,7 +36,7 @@ describe("query options", () => {
   it("keeps the locked-down options when no connector is chosen", async () => {
     const harness = createHarness();
     await ask(harness, base());
-    const options = harness.fake.queries[0]?.options as StreamQueryOptions;
+    const options = harness.fake.queries[0]?.options as ClaudeQueryOptions;
     expect(options).toMatchObject({ strictMcpConfig: true, permissionMode: "dontAsk" });
     expect(options.settings.disableClaudeAiConnectors).toBe(true);
     expect(options.canUseTool).toBeUndefined();
@@ -48,7 +48,7 @@ describe("query options", () => {
       connectorSettings: { enabled: [LINEAR], alwaysAllow: ["mcp__claude_ai_Linear__save_comment"] },
     });
     await ask(harness, base());
-    const options = harness.fake.queries[0]?.options as StreamQueryOptions;
+    const options = harness.fake.queries[0]?.options as ClaudeQueryOptions;
     expect(options).toMatchObject({ strictMcpConfig: false, permissionMode: "default" });
     expect(options.settings.disableClaudeAiConnectors).toBe(false);
     expect(options.allowedTools).toEqual([

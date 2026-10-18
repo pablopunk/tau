@@ -20,7 +20,9 @@ import { createRunGh, type RunGh, resolveGhPath } from "./github/run-gh";
 import { checkinMinutesFrom, createGoalService } from "./goals/goal-service";
 import { createJudgeModel } from "./goals/judge-model";
 import { createGoalsApi } from "./goals-api";
+import { createConnectorOffering } from "./harness/connector-offering";
 import { createConversationForker } from "./harness/conversation-fork";
+import { type ConversationOfSession, createConversationOfSession } from "./harness/conversation-of-session";
 import { createConversationStore } from "./harness/conversation-store";
 import { createLiveWork } from "./harness/live-work";
 import { harnessNotificationSubmitter } from "./harness/notification-submitter";
@@ -70,8 +72,6 @@ const exitAfterLogging = (error: unknown) => {
   process.exit(1);
 };
 
-const noConversationYet = async (): Promise<string | undefined> => undefined;
-
 export const defaultCoreDependencies = (): CoreDependencies => {
   const ghPath = resolveGhPath(process.env);
   return {
@@ -91,7 +91,13 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
     const changes = createChangeEmitter();
     const defaultProjectsFolder = join(home.root, "projects");
     const settings = createSettingsStore(home.settingsFile, defaultProjectsFolder);
-    const approvals = createApprovals({ settings, changes, conversationOfSession: noConversationYet });
+    const sessionLookup: { current: ConversationOfSession } = { current: async () => undefined };
+    const approvals = createApprovals({
+      settings,
+      changes,
+      conversationOfSession: (piSessionId) => sessionLookup.current(piSessionId),
+    });
+    const connectorTools = createConnectorToolServices();
     const provider = createProviderService({
       credentialsFile: home.credentialsFile,
       faux: options.faux ?? false,
@@ -99,6 +105,7 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
       changes,
       settings,
       approvals,
+      observed: connectorTools.observed,
     });
     const status = createStatusTracker({ changes, now: deps.now });
     const toolServices = createToolServicesRef();
@@ -114,7 +121,16 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
     });
 
     const projects = createProjectStore(harness);
-    const conversations = createConversationStore(harness, async (id) => (await projects.require(id)).path);
+    sessionLookup.current = createConversationOfSession(harness);
+    const connectorOffering = createConnectorOffering({
+      harness,
+      settings: async () => (await settings.get()).claudeConnectors,
+      connectors: () => provider.claudeConnectors(),
+    });
+    const conversations = createConversationStore(harness, async (id) => (await projects.require(id)).path, {
+      offering: connectorOffering,
+      beforeAbort: (id) => approvals.denyAll(id),
+    });
     const shared = { projects, conversations, changes, now: deps.now };
     const titles = createTitleService({ harness, models: provider.models, settings, changes });
     const icons = createIconService({ iconsDirectory: home.iconsDirectory, now: deps.now });
@@ -175,7 +191,7 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
       notifications,
       emitChange: (conversationId) => changes.emit({ resource: "processes", conversationId }),
     });
-    const liveWork = createLiveWork({ harness, processes });
+    const liveWork = createLiveWork({ harness, processes, approvals });
     const goals = createGoalService({
       harness,
       conversations,
@@ -199,7 +215,10 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
       notifications,
       scheduler,
       liveWork,
-      claudeConnectors: createConnectorToolServices(),
+      claudeConnectors: {
+        observed: connectorTools.observed,
+        interruptConversation: (piSessionId) => provider.interruptClaudeCliThread(piSessionId),
+      },
       timers: createTimerToolServices(harness, clock, announceTimerChange),
       subagents: {
         agentTypes: createAgentTypeLoader(),
@@ -209,6 +228,7 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
         projectOf: (id) => projects.require(id),
         removeSubagent: (id, force) => subagentRemover.remove(id, force),
         workspaces,
+        connectorOffering,
       },
       connectedModels: async () =>
         (await provider.listModels()).map(({ provider: id, modelId }) => ({ provider: id, modelId })),
@@ -266,6 +286,7 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
         provider,
         codeFolder: { settings, defaultProjectsFolder, homeDirectory: homedir() },
         onProjectsFolderChanged: () => github.invalidateScan(),
+        onClaudeConnectorsChanged: () => connectorOffering.resyncAll(),
       }),
       github: {
         status: () => github.status(),
@@ -301,7 +322,7 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
         logs: (id, tail) => processes.logs(id, tail),
         stop: (id) => processes.stop(id),
       },
-      approvals: createApprovalsApi(approvals),
+      approvals: createApprovalsApi(approvals, conversations),
       timers: timersApi,
       goals: createGoalsApi(goals),
       mcp: createMcpApi({ settings, mcp, changes }),

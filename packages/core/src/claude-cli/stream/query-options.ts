@@ -14,9 +14,6 @@ export const withoutApiKeys = (
 ): Record<string, string | undefined> =>
   Object.fromEntries(Object.entries(env).filter(([name]) => !API_KEY_VARIABLES.includes(name)));
 
-/** `disallowedTools` is not in the frozen `ClaudeQueryOptions` yet; `sdk-port.ts` passes it through as is. */
-export type StreamQueryOptions = ClaudeQueryOptions & { readonly disallowedTools?: readonly string[] };
-
 /** What a query with at least one chosen connector adds. */
 export interface ConnectorQueryInput {
   readonly allowedTools: readonly string[];
@@ -56,13 +53,13 @@ const connectorOptions = (tauTools: readonly string[], connectors: ConnectorQuer
   strictMcpConfig: false,
   settings: { disableClaudeAiConnectors: false, autoCompactEnabled: false },
   permissionMode: "default" as const,
-  allowedTools: [...tauTools, ...connectors.allowedTools],
+  allowedTools: [...new Set([...tauTools, ...connectors.allowedTools])],
   canUseTool: connectors.canUseTool,
   ...(connectors.disallowedTools.length > 0 && { disallowedTools: connectors.disallowedTools }),
 });
 
 /** The options every query gets, whatever the path. Connectors loosen the MCP lock only when chosen. */
-export function buildQueryOptions(input: QueryOptionsInput): StreamQueryOptions {
+export function buildQueryOptions(input: QueryOptionsInput): ClaudeQueryOptions {
   const tauTools = input.toolHost ? [`${TOOL_NAME_PREFIX}*`] : [];
   return {
     prompt: input.prompt,

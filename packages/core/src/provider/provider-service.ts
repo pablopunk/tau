@@ -1,9 +1,17 @@
 import { dirname, join } from "node:path";
 import type { Models } from "@earendil-works/pi-ai/models";
-import { AppError, type ModelInfo, type ModelRef, type ProviderId, type ProviderInfo } from "@tau/protocol";
+import {
+  AppError,
+  type ClaudeConnector,
+  type ModelInfo,
+  type ModelRef,
+  type ProviderId,
+  type ProviderInfo,
+} from "@tau/protocol";
 import type { Approvals } from "../approvals/approvals-port";
 import { FileCredentialStore } from "../auth/file-credential-store";
 import type { ChangeEmitter } from "../change-emitter";
+import type { ObservedResultStore } from "../claude-cli/connectors/observed-results";
 import { type ClaudeSdkInstaller, sdkHomeOf } from "../claude-cli/sdk-install";
 import { claudeCliDisabled, createClaudeCliService } from "../claude-cli/service";
 import type { SettingsStore } from "../home/settings-store";
@@ -31,6 +39,7 @@ export interface ProviderServiceOptions {
   /** Tests inject a fake installer; production runs npm. */
   readonly claudeSdkInstaller?: ClaudeSdkInstaller;
   readonly approvals?: Approvals;
+  readonly observed?: ObservedResultStore;
 }
 
 export interface ProviderService {
@@ -48,6 +57,9 @@ export interface ProviderService {
   installClaudeCliSdk(): Promise<ProviderInfo>;
   /** Archive and delete: closes the Claude CLI query of a Pi session. */
   closeClaudeCliThread(piSessionId: string): Promise<void>;
+  interruptClaudeCliThread(piSessionId: string): Promise<void>;
+  /** The last connector probe; `null` before one ran. */
+  claudeConnectors(): readonly ClaudeConnector[] | null;
   close(): Promise<void>;
 }
 
@@ -63,6 +75,7 @@ export function createProviderService(options: ProviderServiceOptions): Provider
     installer: options.claudeSdkInstaller,
     connectorSettings: async () => (await options.settings.get()).claudeConnectors,
     ...(options.approvals && { approvals: options.approvals }),
+    ...(options.observed && { observed: options.observed }),
   });
   const models = options.faux
     ? createFauxSetup({ credentials, claudeCli: claudeCli.provider }).models
@@ -182,6 +195,8 @@ export function createProviderService(options: ProviderServiceOptions): Provider
     refreshClaudeCli,
     installClaudeCliSdk,
     closeClaudeCliThread: (piSessionId) => claudeCli.closeThread(piSessionId),
+    claudeConnectors: () => claudeCli.status()?.connectors ?? null,
+    interruptClaudeCliThread: (piSessionId) => claudeCli.interruptConversation(piSessionId),
     close: () => claudeCli.close(),
     async lists(ref) {
       await firstClaudeCliCheck();

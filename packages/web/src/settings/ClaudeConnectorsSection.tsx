@@ -6,8 +6,10 @@ import { Switch } from "@/components/ui/switch";
 import { useProviders, useSetClaudeConnectors, useSettings } from "@/lib/queries";
 import {
   CONNECT_ON_CLAUDE_AI,
+  CONNECTORS_NOTE,
   connectorBadge,
   connectorCounts,
+  NOT_AVAILABLE_NOTE,
   needsConnecting,
   withServerEnabled,
 } from "./ClaudeConnectorsText";
@@ -50,22 +52,24 @@ export function ClaudeConnectorsSection() {
   const cli = providers.data?.find((provider) => provider.id === "claude-cli")?.cli;
   const connectors = cli?.state === "ready" ? cli.connectors : null;
   const current = settings.data?.claudeConnectors;
-  if (!connectors || connectors.length === 0 || !current) return null;
+  const available = connectors !== null && connectors.length > 0 && current !== undefined;
   return (
     <SettingRow id="claude-connectors" className="flex flex-col gap-2">
       <h3 className="text-sm font-medium">Claude connectors</h3>
-      <FieldDescription>Connectors from your Claude account, for Claude CLI models.</FieldDescription>
-      <ul aria-label="Claude connectors" className="flex flex-col gap-2">
-        {connectors.map((connector) => (
-          <ConnectorRow
-            key={connector.name}
-            connector={connector}
-            enabled={current.enabled.includes(connector.name)}
-            disabled={save.isPending}
-            onToggle={(on) => save.mutate(withServerEnabled(current, connector.name, on))}
-          />
-        ))}
-      </ul>
+      <FieldDescription>{available ? CONNECTORS_NOTE : NOT_AVAILABLE_NOTE}</FieldDescription>
+      {available ? (
+        <ul aria-label="Claude connectors" className="flex flex-col gap-2">
+          {connectors.map((connector) => (
+            <ConnectorRow
+              key={connector.name}
+              connector={connector}
+              enabled={current.enabled.includes(connector.name)}
+              disabled={save.isPending}
+              onToggle={(on) => save.mutate(withServerEnabled(current, connector.name, on))}
+            />
+          ))}
+        </ul>
+      ) : null}
     </SettingRow>
   );
 }

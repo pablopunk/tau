@@ -106,9 +106,12 @@ const toSdkCanUseTool =
       mcpServer: options.mcpServer ?? null,
     });
 
+const mcpToggleOf = (query: SdkQuery) => ({
+  toggleMcpServer: (name: string, enabled: boolean) => query.toggleMcpServer(name, enabled),
+});
+
 const mcpControlOf = (query: SdkQuery) => ({
   mcpServerStatus: async () => (await query.mcpServerStatus()).map(toServerStatus),
-  toggleMcpServer: (name: string, enabled: boolean) => query.toggleMcpServer(name, enabled),
 });
 
 function sdkOptions(sdk: SdkModule, options: ClaudeQueryOptions): Record<string, unknown> {
@@ -122,7 +125,7 @@ function sdkOptions(sdk: SdkModule, options: ClaudeQueryOptions): Record<string,
   };
 }
 
-function wrapQuery(query: SdkQuery): ClaudeQuery {
+function wrapQuery(query: SdkQuery, exposeToggle: boolean): ClaudeQuery {
   return {
     [Symbol.asyncIterator]: () => query[Symbol.asyncIterator](),
     interrupt: async () => void (await query.interrupt()),
@@ -130,6 +133,7 @@ function wrapQuery(query: SdkQuery): ClaudeQuery {
     applyFlagSettings: (settings) => query.applyFlagSettings({ ...settings }),
     isAutoCompactEnabled: async () => (await query.getContextUsage()).isAutoCompactEnabled,
     ...mcpControlOf(query),
+    ...(exposeToggle && mcpToggleOf(query)),
     close: () => query.close(),
   };
 }
@@ -144,7 +148,7 @@ const probeOptions = (options: ClaudeProbeOptions): Record<string, unknown> => (
   env: withoutApiKeys(process.env),
 });
 
-function startProbe(sdk: SdkModule, options: ClaudeProbeOptions): ClaudeProbe {
+function startProbe(sdk: SdkModule, options: ClaudeProbeOptions, exposeToggle: boolean): ClaudeProbe {
   let release: () => void = () => undefined;
   const neverSendsAPrompt = (async function* () {
     await new Promise<void>((resolve) => (release = resolve));
@@ -152,6 +156,7 @@ function startProbe(sdk: SdkModule, options: ClaudeProbeOptions): ClaudeProbe {
   const query = sdk.query({ prompt: neverSendsAPrompt, options: probeOptions(options) });
   return {
     ...mcpControlOf(query),
+    ...(exposeToggle && mcpToggleOf(query)),
     contextSummary: async () => toContextSummary(await query.getContextUsage()),
     close() {
       release();
@@ -207,16 +212,19 @@ const toAccountInfo = (info: Awaited<ReturnType<SdkQuery["accountInfo"]>>): Clau
   subscriptionType: info.subscriptionType ?? null,
 });
 
-function portOf(sdk: SdkModule, entry: string): ClaudeSdkPort {
+function portOf(sdk: SdkModule, entry: string, exposeToggle: boolean): ClaudeSdkPort {
   return {
     authStatus: () => runAuthStatus(process.env),
     accountInfo: () => withIdleQuery(sdk, async (query) => toAccountInfo(await query.accountInfo())),
     supportedModels: () =>
       withIdleQuery(sdk, async (query) => (await query.supportedModels()).map(toModelOption)),
     bundledCliVersion: () => readBundledCliVersion(entry),
-    startProbe: (options = {}) => startProbe(sdk, options),
+    startProbe: (options = {}) => startProbe(sdk, options, exposeToggle),
     startQuery(options) {
-      return wrapQuery(sdk.query({ prompt: options.prompt, options: sdkOptions(sdk, options) }));
+      return wrapQuery(
+        sdk.query({ prompt: options.prompt, options: sdkOptions(sdk, options) }),
+        exposeToggle,
+      );
     },
     deleteSession: (sessionId) => sdk.deleteSession(sessionId),
   };
@@ -245,7 +253,10 @@ async function importSdk(sdkHome: string | undefined): Promise<{ sdk: SdkModule;
 }
 
 /** The only place the Agent SDK is loaded. Nothing imports it while the kill switch is on. */
-export async function loadClaudeSdkPort(sdkHome?: string): Promise<ClaudeSdkPort> {
+export async function loadClaudeSdkPort(
+  sdkHome?: string,
+  options: { readonly exposeToggleForPins?: boolean } = {},
+): Promise<ClaudeSdkPort> {
   const { sdk, entry } = await importSdk(sdkHome);
-  return portOf(sdk, entry);
+  return portOf(sdk, entry, options.exposeToggleForPins ?? false);
 }

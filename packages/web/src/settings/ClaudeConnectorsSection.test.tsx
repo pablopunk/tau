@@ -31,10 +31,11 @@ async function renderSection(ready: boolean) {
 }
 
 describe("ClaudeConnectorsSection", () => {
-  it("shows nothing until the Claude CLI is ready", async () => {
+  it("lists no servers until the Claude CLI is ready", async () => {
     await renderSection(false);
     await new Promise((resolve) => setTimeout(resolve, 20));
-    expect(screen.queryByText("Claude connectors")).toBeNull();
+    expect(screen.queryAllByRole("switch")).toHaveLength(0);
+    expect(screen.queryByText("Connectors show up here once a Claude CLI login is ready.")).toBeTruthy();
   });
 
   it("lists servers with counts and a needs-auth note without a switch", async () => {
