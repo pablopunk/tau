@@ -1,6 +1,6 @@
 # MVP12 plan: tau reachable from anywhere (the server everywhere)
 
-Status: DRAFT v2 (scope agreed; review rounds pending). Builds on PLAN.md "Hub + runtimes", "OpenTunnel" and "Pairing", and on MVP7 (the durable user service). Evidence so far: `@opentunnel/client` 0.5.2 and the `opentunnel` CLI README (unpacked in `/tmp/ot-inspect`), the current guard `packages/server/src/security/guard.ts`.
+Status: DRAFT v3 (round 1 applied; round 2 pending). The section "Round 1 changes" overrides older text where it disagrees. Builds on PLAN.md "Hub + runtimes", "OpenTunnel" and "Pairing", and on MVP7 (the durable user service). Evidence so far: `@opentunnel/client` 0.5.2 and the `opentunnel` CLI README (unpacked in `/tmp/ot-inspect`), the current guard `packages/server/src/security/guard.ts`.
 
 ## Goal
 
@@ -73,6 +73,56 @@ Out (later plans): **multi-server threads and runtimes** (PLAN.md hub + runtimes
 
 `@opentunnel/client` (peer `effect`) as a dependency of `packages/core` and `packages/cli`, exact versions, `neverBundle` if needed (pin). A terminal QR library for the CLI (small). Runs on the Node versions tau supports.
 
+## Round 1 changes (these override anything above that disagrees)
+
+### Provenance is the socket, not the header (replaces "Trust model" rule 1 and the dynamic allow-list)
+
+- The SDK routes by SNI and forwards decrypted bytes unchanged; the visitor chooses `Host` and `Origin`. So a header proves nothing. **A connection is "tunneled" when it arrived on the tunnel listener.**
+- The tunnel route `@` points at a **second loopback listener** (`127.0.0.1:<tunnelPort>`, random) with `proxyProtocol: "v2"`. A small `net.Server` parses and strips the PROXY header (peer address, requested hostname), tags the socket in a `WeakMap<Socket, { peer, hostname }>`, then hands it to Fastify with `app.server.emit("connection", socket)`. The guard reads the tag from `request.raw.socket`.
+- Rules in the guard: on an **untagged** socket (real loopback) the master token, loopback Hosts and `?token=` work as today, and device cookies work too. On a **tagged** socket only the tunnel hostname is an allowed Host, only `https://<hostname>` an allowed Origin, and only a **device cookie** authenticates; the master token and `?token=` are refused.
+- `GuardContext` (frozen in Phase 0): `{ session, access: Core["access"], tunnel: TunnelProvenance, hostnames(): ReadonlySet<string> }`. `create-server.ts` and `security/allow-list.ts` are foundation-owned; the allow-list reads the tunnel hostname live (add when online, remove when down).
+- Unauthenticated surface on a tagged socket is exactly: `GET /pair`, `POST /api/pair/redeem`, `GET /api/health` (`{ ok: true }` only). `/assets/*` and everything else stay 401.
+
+### Access seam in `Core` (frozen in Phase 0)
+
+`Core.access { verifyDevice(secret) → { deviceId } | undefined, touch(deviceId), listDevices, renameDevice, revokeDevice, signOutAll, mintPairing, redeemPairing }` and `Core.remote { status, enable, disable, recreate }`. The server stays free of business logic: it calls these. The guard sets a Fastify request decoration `deviceId` (`"owner"` for the master token). `registerLive` and `registerTerminalStream` pass it to their connections; a `Map<deviceId, Set<socket>>` closes a device's sockets on revoke. Revoke is also re-checked at every `/live` subscribe and terminal attach.
+
+### Pairing and rate limit (replaces the old redeem text)
+
+- Two kinds of code, both single use, 5 minutes, held in memory (restart burns them), max 5 live: a **link code** of 128 bits in the URL fragment (`https://<hostname>/pair#<code>`), and a **short code** of 8 characters (no lookalikes) typed on `/pair`. Constant-time compare against the live set.
+- Failures never burn codes. Limits use the **peer address from the PROXY header**: 5 failures per peer per minute lock that peer for 10 minutes; a global backstop of 100 failures per minute locks short-code redeem only (link codes stay usable). Untagged (loopback) redeem needs no limit beyond the backstop.
+- `POST /api/pair/redeem` needs `Content-Type: application/json` (so a cross-site form cannot burn a code) and an Origin of `https://<hostname>`. The pair page calls it with `fetch`, then `location.replace("/")` (same-origin step; `SameSite=Strict` is safe).
+- Cookie: one name `tau_device` for devices (no port in it), `Secure` + `HttpOnly` + `SameSite=Strict` when the socket is tagged. The master cookie keeps `tau_<port>`.
+
+### Pair page
+
+One pre-built inline HTML string in `server/src/security/pair-page.ts` (in the style of `session-start-page.ts`), with `Content-Security-Policy: default-src 'none'; style-src 'unsafe-inline'; script-src 'sha256-…'; connect-src 'self'` and `cache-control: no-store`. It is the one UI outside the design system, on purpose (the React app needs a session); it uses the app's colour tokens by value and is owned by C. D (web) only builds the Settings side.
+
+### Remote adapter details
+
+- Storage: a custom `OpenTunnelStorage` under `<home>/remote/` (not XDG), so a scratch home never touches the user's tunnel.
+- The URL is `https://<hostname>` (route `@`); stable across restarts while the stored identity exists. If the home is lost the tunnel is orphaned (`remove()` needs its token): documented.
+- `disable()`: close, then `remove()`. If `remove()` fails (offline) the identity is kept with `pendingRemoval: true` and retried at every start and when the network returns.
+- **No automatic re-creation.** `reconnecting` has no timeout that changes the URL; after 10 minutes the status says so and shows a **"Make a new URL"** button (`remote.recreate`), which kills linked devices' URL (their cookies stay valid for the new host only after re-pairing). 
+- Relay error text goes through a new `remote/neutral-text.ts` (the existing `neutralText` is Claude-specific).
+
+### Watchdog, starts, last exit
+
+- Heartbeat is a `SharedArrayBuffer` counter incremented by the main thread every second; a `worker_threads` Worker (an extra tsdown entry `dist/watchdog.js`, started with `new Worker(new URL("./watchdog.js", import.meta.url))`) reads it every 5 s and calls `process.exit(1)` after 60 s without change. Started only in `--service` mode (read in `serve.ts` from the flag in `options.ts`).
+- `<home>/starts.json` keeps the last 10 start times; 5 starts in 5 minutes → start with `remote` off and say why. `<home>/last-exit.json` holds the previous run's end (`clean`, `watchdog`, `signal`, `unknown` when a run never wrote its end).
+- MVP7 already restarts (`render.ts:22` launchd `KeepAlive`, `render.ts:45` systemd `Restart=always`, `RestartSec=5`, Task Scheduler restart on failure). Pin (g) checks the systemd start-limit defaults on a rendered unit; no change otherwise.
+
+### Packaging and CLI
+
+- `@opentunnel/client` and its peer `effect` (exact versions) are dependencies of `packages/core` and `packages/cli`, listed in `neverBundle`; one QR library without DOM dependency (`qrcode`: SVG for the web, text for the terminal) in `packages/web` and `packages/cli`. Biome `noRestrictedImports`: only `core/src/remote/opentunnel-adapter.ts` imports `@opentunnel/client`.
+- Phase 0 owns `protocol/src/{rest,entities,core,commands,commands.test}.ts`, the settings schema and its migration (an old `settings.json` loads with `remote` defaulted), `Change` resources `remote` and `devices`, `create-core.ts`, `create-server.ts`, `serve.ts`, `options.ts`, the guard seam, `allow-list.ts`, and the testkit fake and contract tags. Owner E edits only `cli/**`. New routes outside the CLI table: redeem and health go in `COMMAND_EXCLUSIONS` with reasons; `remote`, `devices`, `pair` join `COMMAND_NOUNS`; the destructive list gets `devices revoke` and `remote off` (the exact-list test changes on purpose).
+- `tau pair` finds the running server through the existing port store (`cli/src/lifecycle/port-store.ts`) and calls it over loopback with the master token; it enables remote through that server if needed.
+
+### Updated phases
+
+0. Foundation owns everything listed above plus the **security suite extended first**: master token refused on a tagged socket even with `Host: 127.0.0.1:<port>`, a device cookie accepted, forged Host/Origin refused, the unauthenticated surface exact, `/assets/*` 401.
+1. A: `core/src/access/**` (devices, pairing, limits). B: `core/src/remote/**`, `core/src/watchdog/**`, `starts.json`, `last-exit.json`. C: `server/src/security/**` (tunnel listener and tags, guard, pair page, redeem and health routes, device-bound sockets). D: `web/src/settings/Remote*` and `components/ui/qr-code.tsx`. E: `cli/**`.
+
 ## Phase 0 pins (foundation runs these first; results in this doc)
 
 - (a) The SDK in plain Node 22 here: `create({ store })`, `tunnel.ensure`, `connect({ routes })`, time to first online, hostname shape; **always `remove()` afterwards** (tunnels do not expire).
@@ -83,6 +133,8 @@ Out (later plans): **multi-server threads and runtimes** (PLAN.md hub + runtimes
 - (f) Offline start (no network): the server starts, status `error`, recovers when the network returns.
 - (g) Watchdog: block the event loop in a test server (busy loop) → exit code 1 within the limit; the MVP7 service restarts it (macOS `launchctl kickstart` semantic check with a scratch home and label).
 - (h) Bundle size and install size with the SDK and `effect`; the built `dist/bin.js` works from `npm i -g` of a `pnpm pack` tarball.
+- (j) **Provenance**: the tagged second listener works with keep-alive, WebSocket upgrade and a binary WebSocket through the real tunnel, and the PROXY v2 header gives the peer address; a visitor sending `Host: 127.0.0.1:<port>` is still tagged (security test).
+- (k) The SDK's `new WebSocket(url, { headers })` works on Node 22 (undici) and `effect` bundling or `neverBundle` works from a packed install.
 - (i) A real phone browser through the tunnel (**the user does this one**, we do not drive their devices).
 
 ## Phases and owners (draft)
