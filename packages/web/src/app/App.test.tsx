@@ -12,11 +12,16 @@ afterEach(() => {
   window.history.replaceState(null, "", "/");
 });
 
+async function loadFakeTransportBeforeRendering() {
+  await import("../lib/transport/fake");
+}
+
 async function renderApp({ ready }: { ready: boolean }) {
   vi.stubEnv("VITE_FAKE", "1");
   window.history.replaceState(null, "", ready ? "/?fake=ready" : "/");
   Element.prototype.scrollIntoView = () => {};
   const { App } = await import("./App");
+  await loadFakeTransportBeforeRendering();
   render(<App />);
   return userEvent.setup();
 }
