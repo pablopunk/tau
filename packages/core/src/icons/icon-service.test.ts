@@ -91,6 +91,45 @@ describe("icon discovery", () => {
     ]);
   });
 
+  it("discovers packages/*/public icons", async () => {
+    const s = await setup();
+    await s.put("packages/web/public/favicon.svg", "web");
+    expect(await s.names()).toEqual(["packages/web/public/favicon.svg"]);
+    expect(await s.text()).toBe("web");
+  });
+
+  it("discovers icons at the member root", async () => {
+    const s = await setup();
+    await s.put("packages/web/favicon.svg", "web");
+    await s.put("apps/site/public/icon.png", "site");
+    expect(await s.names()).toEqual(["packages/web/favicon.svg", "apps/site/public/icon.png"]);
+  });
+
+  it("prefers the member root over its public directory", async () => {
+    const s = await setup();
+    await s.put("packages/web/favicon.svg", "root");
+    await s.put("packages/web/public/favicon.ico", "public");
+    expect(await s.text()).toBe("root");
+  });
+
+  it("keeps all apps when packages are added and caps each container at 32", async () => {
+    const s = await setup();
+    for (let i = 0; i < 32; i++) await s.put(`apps/a-${String(i).padStart(2, "0")}/public/favicon.ico`, `a${i}`);
+    for (let i = 0; i < 6; i++) await s.put(`packages/p-${String(i).padStart(2, "0")}/public/favicon.ico`, `p${i}`);
+    const names = await s.names();
+    expect(names).toHaveLength(12);
+    expect(names).toContain("apps/a-00/public/favicon.ico");
+    await s.put("apps/a-32/public/favicon.ico", "extra");
+    expect(await s.names()).not.toContain("apps/a-32/public/favicon.ico");
+  });
+
+  it("prefers apps over packages on equal-rank first-icon ties", async () => {
+    const s = await setup();
+    await s.put("apps/other/public/favicon.ico", "apps");
+    await s.put("packages/zed/public/favicon.ico", "packages");
+    expect(await s.text()).toBe("apps");
+  });
+
   it("limits candidates to 12", async () => {
     const s = await setup();
     for (let i = 0; i < 15; i++) await s.put(`icon-${String(i).padStart(2, "0")}.png`);

@@ -23,7 +23,9 @@ const FIXED_DIRECTORIES = [
   "src/app",
   "frontend/public",
 ];
-const APP_SUBDIRECTORIES = ["public", "static", "assets", "src/assets", "src/app"];
+const WORKSPACE_CONTAINERS = ["apps", "packages"] as const;
+const MEMBER_SUBDIRECTORIES = ["", "public", "static", "assets", "src/assets", "src/app"];
+const MAX_MEMBERS_PER_CONTAINER = 32;
 
 export interface FoundIcon {
   /** Name relative to the project root. */
@@ -72,19 +74,24 @@ function repositoryName(root: string): string {
   return name.toLowerCase();
 }
 
-async function appDirectories(root: string): Promise<string[]> {
-  const apps = join(root, "apps");
+async function workspaceMemberDirectories(root: string): Promise<string[]> {
   const brand = repositoryName(root);
-  const matches = (name: string) => Number(!name.toLowerCase().includes(brand));
-  const names = (await subdirectories(apps))
-    .sort((a, b) => matches(a) - matches(b) || a.localeCompare(b))
-    .slice(0, 32);
-  return names.flatMap((name) => APP_SUBDIRECTORIES.map((part) => join(apps, name, part)));
+  const demote = (name: string) => Number(!name.toLowerCase().includes(brand));
+  const out: string[] = [];
+  for (const container of WORKSPACE_CONTAINERS) {
+    const names = (await subdirectories(join(root, container)))
+      .sort((a, b) => demote(a) - demote(b) || a.localeCompare(b))
+      .slice(0, MAX_MEMBERS_PER_CONTAINER);
+    for (const name of names) {
+      for (const part of MEMBER_SUBDIRECTORIES) out.push(join(root, container, name, part));
+    }
+  }
+  return out;
 }
 
 async function searchDirectories(root: string): Promise<string[]> {
   const fixed = FIXED_DIRECTORIES.map((part) => join(root, part));
-  return [...fixed, ...(await sourceDirectories(root)), ...(await appDirectories(root))];
+  return [...fixed, ...(await sourceDirectories(root)), ...(await workspaceMemberDirectories(root))];
 }
 
 async function approvedIcon(root: string, directory: string, file: string): Promise<FoundIcon | null> {
