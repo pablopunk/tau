@@ -18,9 +18,9 @@ Working name. Goal: my own app to run Pi agents on my machines and use them from
 - **Declare a project once**, on the hub, keyed by its git remote. Each runtime clones the repo when it first needs it, keeps a local cache, and gives each conversation its own git worktree.
 
 ### Access
-- Only the hub is reachable from outside: Cloudflare Tunnel on my own domain.
+- Only the hub is reachable from outside: OpenTunnel (https://opentunnel.xyz/) persistent URL, zero-config (no account, no domain, no DNS). E2E encrypted, relay never sees plaintext.
 - Runtimes connect out to the hub. They need no tunnel and no open ports.
-- Device pairing (QR code + approval) like webr.
+- Device pairing (QR code + approval) like webr and opencode: `tau pair --remote` prints a QR with a one-time code (single use, expires in minutes); the phone app or browser opens it and the hub approves the device. Disabling remote burns the URL and minting a new one on re-enable.
 
 ### Client
 - Web app installable to the home screen (PWA), like webr. Same app on phone and laptop.
@@ -126,7 +126,7 @@ Out of the MVP: tunnels, pairing, remote runtimes, terminals, other providers, f
 ## First version (proposal)
 1. Hub: Pi Durable + SQLite + `CodingTools`, one API-key provider, the hub machine as its only runtime (`NodeExecutionEnv`).
 2. Web app (PWA): project list, conversation list, chat view from `watch()`, send/steer/abort.
-3. Pairing + Cloudflare Tunnel.
+3. Pairing + OpenTunnel remote access (`tau pair --remote`: persistent URL + QR, one-time codes, server password behind it).
 4. Then: remote runtime (pi-env over the WebSocket bridge), built-in terminal, setup checklist, more providers, Claude Code extension.
 
 ## Later
