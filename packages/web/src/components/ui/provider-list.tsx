@@ -3,15 +3,15 @@ import * as React from "react"
 import { cn } from "@/lib/utils"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 
-const COLUMNS = "sm:grid-cols-[minmax(0,10rem)_minmax(0,1fr)_12.5rem]"
+const COLUMNS = "@min-[40rem]:grid-cols-[minmax(0,9rem)_minmax(0,1fr)_12.5rem]"
 
 /** One bordered container with dividers. Rows share three aligned columns: provider, status, actions. */
 function ProviderList({ className, children, ...props }: React.ComponentProps<"ul">) {
   return (
-    <div className="overflow-hidden rounded-lg border">
+    <div className="@container overflow-hidden rounded-lg border">
       <div
         aria-hidden
-        className={cn("hidden gap-3 border-b bg-muted/40 px-3 py-2 text-xs font-medium text-muted-foreground sm:grid", COLUMNS)}
+        className={cn("hidden gap-3 border-b bg-muted/40 px-3 py-2 text-xs font-medium text-muted-foreground @min-[40rem]:grid", COLUMNS)}
       >
         <span>Provider</span>
         <span>Status</span>
@@ -28,7 +28,7 @@ function ProviderListRow({ className, ...props }: React.ComponentProps<"li">) {
   return (
     <li
       data-slot="provider-list-row"
-      className={cn("grid grid-cols-1 items-center gap-x-3 gap-y-2 px-3 py-3", COLUMNS, className)}
+      className={cn("grid grid-cols-1 items-center gap-x-4 gap-y-2 px-4 py-4 @min-[28rem]:grid-cols-[minmax(0,1fr)_auto]", COLUMNS, className)}
       {...props}
     />
   )
@@ -57,7 +57,7 @@ function ProviderListStatus({
   children?: React.ReactNode
 }) {
   return (
-    <div data-slot="provider-list-status" className="flex min-w-0 flex-col items-start gap-1">
+    <div data-slot="provider-list-status" className="col-span-full row-start-2 flex min-w-0 flex-col items-start gap-1 @min-[40rem]:col-span-1 @min-[40rem]:col-start-2 @min-[40rem]:row-start-1">
       {children ? (
         <TooltipProvider>
           <Tooltip>
@@ -87,7 +87,7 @@ function ProviderListActions({ className, ...props }: React.ComponentProps<"div"
   return (
     <div
       data-slot="provider-list-actions"
-      className={cn("flex items-center gap-1.5 sm:justify-end", className)}
+      className={cn("flex min-w-0 flex-wrap items-center gap-1.5 @min-[28rem]:col-start-2 @min-[28rem]:row-start-1 @min-[28rem]:justify-end @min-[40rem]:col-start-3", className)}
       {...props}
     />
   )

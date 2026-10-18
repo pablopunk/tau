@@ -122,3 +122,19 @@
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
 }
+
+/* The three strokes of the tau logo (public/favicon.svg), left to right. */
+@theme {
+  --color-brand-gold: #f2bd57;
+  --color-brand-coral: #f08c7e;
+  --color-brand-blue: #4d9bc1;
+}
+
+@utility bg-brand-gradient {
+  background-image: linear-gradient(
+    to right,
+    var(--color-brand-gold),
+    var(--color-brand-coral),
+    var(--color-brand-blue)
+  );
+}

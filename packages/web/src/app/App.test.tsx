@@ -16,12 +16,16 @@ async function loadFakeTransportBeforeRendering() {
   await import("../lib/transport/fake");
 }
 
-async function renderApp({ ready }: { ready: boolean }) {
+async function renderApp({ ready, connected = false }: { ready: boolean; connected?: boolean }) {
   vi.stubEnv("VITE_FAKE", "1");
   window.history.replaceState(null, "", ready ? "/?fake=ready" : "/");
   Element.prototype.scrollIntoView = () => {};
   const { App } = await import("./App");
   await loadFakeTransportBeforeRendering();
+  if (connected) {
+    const { api } = await import("../lib/api");
+    await api.providers.setKey("openrouter", "sk-or-existing");
+  }
   render(<App />);
   return userEvent.setup();
 }
@@ -42,12 +46,35 @@ describe("setup", () => {
     await user.click(await screen.findByRole("button", { name: "Continue" }));
 
     expect(await screen.findByText(/only affects new conversations/i)).toBeInTheDocument();
+    const folder = screen.getByRole("combobox", { name: "Projects folder" });
+    await user.clear(folder);
+    expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+    await user.type(folder, "/Users/demo/workspace");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    const { api } = await import("../lib/api");
+    await waitFor(async () =>
+      expect((await api.settings.get()).projectsFolder).toBe("/Users/demo/workspace"),
+    );
+    expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+    expect(screen.queryByRole("button", { name: /as your code folder/ })).not.toBeInTheDocument();
     await user.click(screen.getByRole("combobox", { name: "Default model" }));
     const [firstModel] = await screen.findAllByRole("option");
     await user.click(firstModel as HTMLElement);
     await user.click(screen.getByRole("button", { name: "Continue" }));
 
     expect(await screen.findByRole("heading", { name: "New thread" })).toBeInTheDocument();
+  });
+
+  it("shows detected providers before models and lets the user go back", async () => {
+    const user = await renderApp({ ready: false, connected: true });
+    expect(await screen.findByText("Step 1 of 2. Review your providers.")).toBeInTheDocument();
+    expect(await screen.findByRole("listitem", { name: "OpenRouter" })).toBeInTheDocument();
+    expect(await screen.findByText(/You’re connected/)).toBeInTheDocument();
+    expect(screen.queryByRole("combobox", { name: "Default model" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Continue" }));
+    expect(await screen.findByRole("combobox", { name: "Default model" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Back to providers" }));
+    expect(await screen.findByText("Step 1 of 2. Review your providers.")).toBeInTheDocument();
   });
 
   it("keeps Continue disabled until a provider is connected", async () => {
