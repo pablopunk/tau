@@ -15,8 +15,7 @@ const canUseKey = ({ methods }: ProviderInfo): boolean => methods.includes("api_
 export const keyActionLabel = (provider: ProviderInfo): string =>
   provider.connection?.method === "api_key" && isStored(provider) ? "Replace key" : "Add key";
 
-export const ENV_HELP =
-  "A stored key overrides the environment key. Disconnecting a stored key returns to the environment key.";
+export const ENV_HELP = "A stored key overrides the environment key.";
 export const CHATGPT_COPY = "Uses your ChatGPT plan. Personal use.";
 const KEY_COPY = "Uses an API key.";
 
