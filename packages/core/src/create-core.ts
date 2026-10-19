@@ -419,6 +419,14 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
         directory: directory.directory,
         expulsions: directory.expulsions,
         group: directory.group,
+        async disconnect(id) {
+          await nodes.disconnect(id);
+          directory.forgetPeer(id);
+        },
+        async forget(id) {
+          await nodes.forget(id);
+          directory.forgetPeer(id);
+        },
         async resetIdentity() {
           await nodes.resetIdentity();
           await directory.reset();

@@ -278,5 +278,11 @@ export function createDirectoryState(deps: DirectoryDepsWithSelf): Directory {
       emitTopology();
     },
     removal: () => removal,
+    forgetPeer(nodeId) {
+      table.remove(nodeId);
+      links.delete(nodeId);
+      synced.delete(nodeId);
+      emitTopology();
+    },
   };
 }

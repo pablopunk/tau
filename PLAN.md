@@ -16,7 +16,7 @@ Working name. Goal: my own app to run Pi agents on my machines and use them from
 - **Full power in all directions.** A link gives each node the owner's power on the other (threads, terminals, files, Claude login). Link only nodes you own. There are no scopes yet.
 - **A node that cannot run threads yet** (no provider) can skip onboarding with "Use my other nodes" when it knows a peer, and work on the peers' threads.
 - **Declare a project once per node**, keyed by its git remote. A node clones the repo when it first needs it, keeps a local cache, and gives each conversation its own git worktree.
-- **Later (MVP13 Step 2, see `MVP13.md`):** nodes announce themselves along the links, so A sees C through B (routing), and any node can remove a node from the whole group (signed expulsion).
+- **Groups (MVP13 Step 2, see `MVP13.md`):** nodes announce themselves along the links, so A sees C through B (routing, "via B"), and any node can remove a node from the whole group (`tau nodes remove`, a signed expulsion that is flooded; the removed node closes its links and shows "this node was removed").
 
 ### Access
 - Any node can be reachable from outside through OpenTunnel (https://opentunnel.xyz/) persistent URL, zero-config (no account, no domain, no DNS). E2E encrypted, relay never sees plaintext. A node that only dials out needs no tunnel and no open ports.

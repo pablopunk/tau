@@ -38,7 +38,9 @@ Every tau is a **node**. Link two and each sees the other's threads: in the side
 tau connect <link>
 tau connect <code> --node https://<a-tunnel-url>   # the same, with the short code and A's URL
 tau disconnect [node]                              # unlink; both sides forget each other
-tau nodes list                                     # rename, disconnect, forget, reset-identity too
+tau nodes list                                     # the whole group, with hops and `via`; rename, disconnect, forget, reset-identity too
+tau nodes remove <node> --confirm <name|id>        # expel a node from the whole group (signed, flooded)
+tau access rotate [--keep <id,id>]                 # new owner token; revokes the other devices
 ```
 
-Links are **symmetric**: whichever node runs `tau connect`, both see each other. Linking gives each node **full power over the other** (terminals, agents, files, Claude login): link only nodes you own. A node with no provider yet can skip setup with "Use my other nodes". Nodes must run the same tau version to open each other: after an update, run `tau update` on each node. Routing through a third node and removing a node from the whole group come later.
+Links are **symmetric**: whichever node runs `tau connect`, both see each other. Linking gives each node **full power over the other** (terminals, agents, files, Claude login): link only nodes you own. A node with no provider yet can skip setup with "Use my other nodes". Nodes must run the same tau version to open each other: after an update, run `tau update` on each node. Nodes announce themselves along the links, so A sees C through B (shown "via B") and can open its threads and terminals; `tau nodes remove` expels a node from the whole group, and the removed node is cut off everywhere. An expulsion does not undo what the node already did: run `tau access rotate` too if its access should go.

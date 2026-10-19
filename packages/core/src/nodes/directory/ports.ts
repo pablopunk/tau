@@ -25,6 +25,8 @@ export interface Directory {
   expulsions: Core["nodes"]["expulsions"];
   /** After `resetIdentity` or a remote reset: new key, so announces restart and `expelled.json` follows the rule (kept; removed when this node itself was expelled). */
   reset(): Promise<void>;
+  /** A peer was disconnected or forgotten here: drop what it announced and its link state (no tombstone). */
+  forgetPeer(nodeId: string): void;
   /** The expel that named this node, if any (`NodeSelf.removed`). */
   removal(): { readonly by: string; readonly at: number } | undefined;
 }

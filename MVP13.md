@@ -340,3 +340,17 @@ Done when `pnpm check`, `pnpm test` and `pnpm build` pass (all three passed unpi
 - `directory.reset()` is wired for `resetIdentity` but **not** for remote `disable/recreate` (`nodes.reset()`): decide with E whether those clear tombstones (they should not).
 - The e2e suite was not run by the foundation (needs the built CLI, a browser and ports).
 - Foundation worktree: `/Users/pablopunk/.tau/worktrees/tau/mvp13-step-2-foundation`, branch of the same name; nothing pushed.
+
+## Integration (Step 2)
+
+Applied from the owners' notes (the four `INTEGRATOR-NOTES` files are gone):
+
+- **Self info and signing.** `createDirectory` gets `self` from `create-core.ts` (name, os, `currentVersion`, protocol and link protocol), so announces never say "unknown". `TAU_NODE_NAME` overrides the host name (scratch nodes, tests). Protocol exports one payload builder per signed frame (`announcePayload`, `expelPayload`, `ackPayload`, `requestPayload`); `createAnnounce/Expel/Ack`, core's `sign-frames.ts` and the relay's `header.ts` all use them, and `sign-frames.test.ts` proves core and protocol give equal frames.
+- **Capabilities.** `NODE_CAPABILITIES = STEP2_CAPABILITIES`.
+- **Expel order (found by e2e).** The directory used to call `nodes.forget(target)` inside `acceptExpel`, which closed the target's link before B could flood the expel to it, so C was cut but never learned it was removed. Forgetting now happens in the relay after the flood (`afterExpel`, `floodExpel`). A node that learns it was expelled floods, then closes every link and relayed stream (4003) and shows `NodeSelf.removed`.
+- **Disconnect and forget** also drop the peer's announce record (`Directory.forgetPeer`), so `tau nodes list` does not keep a ghost row.
+- **Pins.** `server/src/testing/step2-pins.test.ts` is deleted; r2, r4, r6 and r7 are covered in `relay-rules.test.ts`, `relay-chain.test.ts` and `relay-control.test.ts`. Not covered by a test: a relay refusing a frame whose `trail[0]`/`origin` is tombstoned (only the stream close is).
+- **CLI.** `nodes list` is `getNodeDirectory` in the command table (rows keep `links`); the `nodes directory` row is removed and `listNodes` is an exclusion. `nodes remove --confirm`, `access rotate` as H built them.
+- **Contract.** `[nodes-group]` runs on three real cores (`core/src/test-support/real-group.ts` plays the server's part in memory: link-up, expel-set sync, announce/expel/ack flooding, forget).
+- **e2e.** `e2e/tests/mvp13-step2-pins.spec.ts` runs three built servers (A-B, B-C): A sees C at 2 hops via B within 20 s, opens a C thread and terminal, B down makes C offline on A and B back restores it, removing C from A cuts C off (C shows `removed`, lists nothing, B and A drop it). The r1 42 MB body, r4 stall, the triangle and offline expel cases, and r7 clock skew are covered by unit tests only, not e2e.
+

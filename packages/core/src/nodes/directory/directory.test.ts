@@ -212,3 +212,12 @@ describe("reset", () => {
     expect(await c.dir.group.expelSet()).toEqual([]);
   });
 });
+
+describe("forgetPeer", () => {
+  it("drops the announce record and the link of a peer disconnected here", async () => {
+    a.peers.delete(b.id);
+    a.dir.forgetPeer(b.id);
+    expect((await a.dir.directory()).find((n) => n.id === b.id)).toBeUndefined();
+    expect(a.dir.group.route(b.id)).toBeUndefined();
+  });
+});
