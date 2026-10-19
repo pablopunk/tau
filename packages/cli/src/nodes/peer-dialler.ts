@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { type Peer, peerIdOf } from "@tau/core";
+import { type Peer, peerIdOf, standbyDialDue } from "@tau/core";
 import {
   type Core,
   LINK_CLOSE_DUPLICATE,
@@ -22,6 +22,8 @@ export interface LinkTuning {
   /** Failed attempts in a row before the state is `unreachable`. */
   readonly unreachableAfter: number;
   readonly log: (message: string) => void;
+  /** Clock for the standby rule; tests move it. */
+  readonly now?: () => number;
 }
 
 export interface PeerWorkerDeps {
@@ -43,6 +45,8 @@ export interface PeerWorker {
 type Outcome =
   | { kind: "retry"; linked: boolean }
   | { kind: "update-required"; linked: boolean }
+  | { kind: "duplicate" }
+  | { kind: "removed" }
   | { kind: "final"; state: NodeLinkState; message?: string };
 
 const REFUSED_STATUSES = new Set([401, 403]);
@@ -52,8 +56,10 @@ export const secretKeyOf = (secret: string): string => createHash("sha256").upda
 export const peerKey = (peer: Peer): string => `${peer.url}\n${peer.secret}`;
 
 function outcomeOf(closed: PeerClosed): Outcome {
+  // The other node's `Disconnect`: it forgot this node, so this one forgets it too (the dialog promises both).
+  if (closed.bye && closed.reason === "disconnect") return { kind: "removed" };
   if (closed.bye) return { kind: "final", state: "refused", message: "The other node closed this link." };
-  if (closed.code === LINK_CLOSE_DUPLICATE) return { kind: "final", state: "duplicate" };
+  if (closed.code === LINK_CLOSE_DUPLICATE) return { kind: "duplicate" };
   if (closed.code === LINK_CLOSE_REMOVED)
     return { kind: "final", state: "refused", message: "The other node removed this node." };
   if (closed.code === LINK_CLOSE_POLICY) return { kind: "final", state: "refused" };
@@ -125,18 +131,38 @@ export function startPeerWorker(initial: Peer, deps: PeerWorkerDeps): PeerWorker
   async function loop(): Promise<void> {
     let attempts = 0;
     let wasLinked = false;
+    let lastTriedAt = 0;
+    let onStandby = false;
     report("connecting");
     while (!stopped) {
-      if (await deps.isStandby(peer)) {
+      const live = await deps.isStandby(peer);
+      if (
+        live ||
+        (onStandby && !standbyDialDue({ lastTriedAt, liveLinkExists: false }, (tuning.now ?? Date.now)()))
+      ) {
+        onStandby = true;
         report("standby");
         await sleep(tuning.standbyMs);
         continue;
       }
+      onStandby = false;
+      lastTriedAt = (tuning.now ?? Date.now)();
       const outcome = await dial(peer);
       isLinked = false;
       handle = undefined;
       socket = undefined;
       if (stopped) return;
+      if (outcome.kind === "removed") {
+        await core.nodes.disconnect(peerIdOf(peer)).catch(() => undefined);
+        return;
+      }
+      if (outcome.kind === "duplicate") {
+        // 4002: a live link to this node wins (glare or second link) and this entry waits as standby.
+        // Without one it is a second-device duplicate or the flap guard: reported, never retried.
+        if (!(await deps.isStandby(peer))) return report("duplicate");
+        onStandby = true;
+        continue;
+      }
       if (outcome.kind === "final") return report(outcome.state, outcome.message);
       wasLinked ||= outcome.linked;
       attempts = outcome.linked ? 1 : attempts + 1;

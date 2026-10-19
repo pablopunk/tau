@@ -2,8 +2,7 @@ import type { RunningWork } from "./running-work";
 
 export const LAG_NOTE = "A release can take 1-3 minutes to show up in the npm registry.";
 export const LINKED_NOTE = "Linked nodes must run the same tau version: run `tau update` on each.";
-export const LINKED_HUB_NOTE =
-  "This tau is linked to a hub: update the hub and every node to the same version.";
+export const LINKED_HUB_NOTE = "This tau is linked to other nodes: update every node to the same version.";
 export const INSIDE_TAU =
   "You are running inside tau; restarting would kill this command. Run `tau restart` from a normal terminal, or pass `--no-restart`.";
 export const NON_TTY_NEEDS_YES = "Not a terminal. Add --yes to skip the question.";

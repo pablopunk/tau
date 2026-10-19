@@ -355,7 +355,8 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
         await identityStore.reset();
         identity = await identityStore.load();
       },
-      protocolVersion: PROTOCOL_VERSION,
+      // `TAU_FAKE_PROTOCOL_VERSION` lets the e2e run a node that speaks another protocol ("update required").
+      protocolVersion: process.env.TAU_FAKE_PROTOCOL_VERSION || PROTOCOL_VERSION,
       linkProtocol: LINK_PROTOCOL,
       tauVersion: options.currentVersion,
     });

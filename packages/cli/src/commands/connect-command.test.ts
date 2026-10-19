@@ -43,6 +43,13 @@ const peersOf = (home: string) => createFilePeersStore(peersFilePath(home));
 const peer = (extra = {}) => ({ url: "https://a.b", name: "A", secret: SECRET, nodeId: "n-a", ...extra });
 
 describe("tau connect", () => {
+  it("prints its help, with --node and without the old --hub", async () => {
+    const { env, out } = envFor(emptyHome(), hubAnswers({}));
+    await executeConnect(["--help"], env, io());
+    expect(out.join("\n")).toMatch(/--node/);
+    expect(out.join("\n")).not.toMatch(/--hub/);
+  });
+
   it("asks, redeems with the peer origin, and stores the pinned peer privately", async () => {
     const home = emptyHome();
     const fetchImpl = hubAnswers({ deviceId: "d1", secret: SECRET, nodeId: "n-peer" });
@@ -70,11 +77,11 @@ describe("tau connect", () => {
     expect(out.join("\n")).not.toContain(SECRET);
   });
 
-  it("takes a short code with --hub and skips the question with --yes", async () => {
+  it("takes a short code with --node and skips the question with --yes", async () => {
     const home = emptyHome();
     const questions = io();
     const { env } = envFor(home, hubAnswers({ deviceId: "d", secret: SECRET, nodeId: "n-x" }));
-    await executeConnect(["ABCD2345", "--hub", "http://127.0.0.1:9", "--yes"], env, questions);
+    await executeConnect(["ABCD2345", "--node", "http://127.0.0.1:9", "--yes"], env, questions);
     expect(questions.confirm).not.toHaveBeenCalled();
     expect((await peersOf(home).read())[0]).toMatchObject({ url: "http://127.0.0.1:9", nodeId: "n-x" });
   });
@@ -134,7 +141,7 @@ describe("tau disconnect", () => {
     await peersOf(home).write([peer()]);
     writeFileSync(
       join(home, "hub.json"),
-      JSON.stringify({ hubUrl: "https://a.b", nodeSecret: SECRET, name: "A" }),
+      JSON.stringify({ nodeUrl: "https://a.b", nodeSecret: SECRET, name: "A" }),
     );
     const { env, out } = envFor(home, hubAnswers({}));
     await executeDisconnect([], env);

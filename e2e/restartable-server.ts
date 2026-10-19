@@ -14,6 +14,8 @@ export interface RestartableServer {
   /** Runs `tau <args>` against this server's home and returns stdout. */
   tau(...args: string[]): Promise<string>;
   json<T = unknown>(...args: string[]): Promise<T>;
+  /** Extra environment for the next `start` (an empty string removes nothing: pass the key with "" to clear it). */
+  setEnv(extra: Record<string, string>): void;
   start(): Promise<void>;
   /** Stops the server and starts a new one on the same home: the data stays, the process is new. */
   restart(): Promise<void>;
@@ -27,7 +29,12 @@ export function createRestartableServer(options: {
   env?: Record<string, string>;
 }): RestartableServer {
   const home = options.home ?? realpathSync(mkdtempSync(join(tmpdir(), "tau-e2e-restart-")));
-  const env = { ...process.env, ...serverEnvironment(), TAU_HOME: home, ...options.env };
+  let env: Record<string, string | undefined> = {
+    ...process.env,
+    ...serverEnvironment(),
+    TAU_HOME: home,
+    ...options.env,
+  };
   const tau = async (...args: string[]) =>
     (await run("node", [CLI, ...args], { env, timeout: 60_000 })).stdout;
   const start = async () => {
@@ -40,6 +47,9 @@ export function createRestartableServer(options: {
     home,
     tau,
     json: async <T>(...args: string[]) => JSON.parse(await tau(...args)) as T,
+    setEnv: (extra) => {
+      env = { ...env, ...extra };
+    },
     start,
     stop,
     async restart() {

@@ -255,12 +255,15 @@ describe("Settings → Nodes", () => {
     }
   });
 
-  it("connect on this node: both commands are the link, and the dialog says every node gets full power", async () => {
+  it("connect on this node: the link command and the code command are shown, and the dialog says every node gets full power", async () => {
     const user = userEvent.setup();
     renderSection();
     await user.click(await screen.findByRole("button", { name: "Connect a node to this node" }));
     expect(
       await screen.findByText("npx @pablopunk/tau connect https://node.example/pair#ABCD2345"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("npx @pablopunk/tau connect ABCD2345 --node https://node.example"),
     ).toBeInTheDocument();
     expect(calls).toContainEqual({ method: "POST", url: "/api/pair?kind=node" });
     expect(screen.getByRole("note")).toHaveTextContent(

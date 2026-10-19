@@ -127,6 +127,7 @@ describe("revoke, disconnect and forget", () => {
     expect(await closedA).toBe(1013);
     const ended = await link.handle.closed;
     expect(ended.bye).toBe(true);
+    expect(ended.reason).toBe("disconnect");
     await vi.waitFor(async () =>
       expect((await a.core.nodes.list()).find((node) => node.id === b.nodeId)?.status).toBe("offline"),
     );

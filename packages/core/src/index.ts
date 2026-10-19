@@ -3,6 +3,7 @@ export { createCore } from "./create-core";
 export { HomeLockedError, type LockInfo } from "./home/lock";
 export { createNodeIdentityStore, type NodeIdentity, type NodeIdentityStore } from "./identity/node-identity";
 export { peerIdOf } from "./nodes/peer-id";
+export { STANDBY_RETRY_MS, type StandbyState, standbyDialDue } from "./nodes/standby";
 export {
   createFilePeersStore,
   hubFilePath,

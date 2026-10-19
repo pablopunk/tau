@@ -123,17 +123,20 @@ interface Reported extends NodeLinkReport {
   peerId: string;
 }
 
-function setup(peers: PeersStore, attachPeer: AttachPeer, nodes: unknown[] = []) {
+function setup(peers: PeersStore, attachPeer: AttachPeer, nodes: unknown[] = [], tune: LinkTuning = tuning) {
   const reports: Reported[] = [];
+  const disconnected: string[] = [];
   const core = {
     nodes: {
       reportLink: (peerId: string, state: NodeLinkReport) => void reports.push({ peerId, ...state }),
       list: async () => nodes,
+      disconnect: async (peerId: string) => void disconnected.push(peerId),
     },
   } as unknown as Core;
-  client = startLinkClientWith({ attachPeer, peers, core }, tuning);
+  client = startLinkClientWith({ attachPeer, peers, core }, tune);
   return {
     reports,
+    disconnected,
     states: (peerId?: string) => reports.filter((r) => !peerId || r.peerId === peerId).map((r) => r.state),
   };
 }
@@ -217,7 +220,7 @@ describe("multi-peer dialler", () => {
   });
 
   it.each([
-    ["4002 duplicate", { code: LINK_CLOSE_DUPLICATE }, "duplicate"],
+    ["4002 duplicate without a live link", { code: LINK_CLOSE_DUPLICATE }, "duplicate"],
     ["4003 removed", { code: LINK_CLOSE_REMOVED }, "refused"],
     ["1008 policy (pinned id mismatch)", { code: LINK_CLOSE_POLICY }, "refused"],
     ["bye", { code: 1000, bye: true }, "refused"],
@@ -231,6 +234,18 @@ describe("multi-peer dialler", () => {
     await settle();
     expect(attached).toHaveLength(1);
     expect(a.headers).toHaveLength(1);
+  });
+
+  it("forgets the peer when the other node says bye because it disconnected", async () => {
+    const a = await startHub();
+    const { attachPeer, attached } = fakeAttach();
+    const { disconnected } = setup(memoryPeers([peerAt(a)]), attachPeer);
+    await waitFor(() => attached.length === 1);
+    attached[0]?.closeWith({ code: 1000, bye: true, reason: "disconnect" });
+    await waitFor(() => disconnected.length === 1);
+    expect(disconnected).toEqual(["n-aaa"]);
+    await settle();
+    expect(attached).toHaveLength(1);
   });
 
   it("reports update-required on 4001 and keeps trying", async () => {
@@ -276,6 +291,26 @@ describe("multi-peer dialler", () => {
     await waitFor(() => states("n-aaa").filter((state) => state === "standby").length >= 2);
     expect(attached).toHaveLength(0);
     expect(a.headers).toHaveLength(0);
+  });
+
+  it("4002 beside a live link to the node is standby, then redialled once the live link is gone", async () => {
+    const a = await startHub();
+    const { attachPeer, attached } = fakeAttach();
+    const nodes: unknown[] = [];
+    let clock = 1_000_000;
+    const { states } = setup(memoryPeers([peerAt(a)]), attachPeer, nodes, { ...tuning, now: () => clock });
+    await waitFor(() => attached.length === 1);
+    nodes.push({ id: "n-aaa", links: [{ direction: "accepted", state: "linked" }] });
+    attached[0]?.closeWith({ code: LINK_CLOSE_DUPLICATE });
+    await waitFor(() => states("n-aaa").includes("standby"));
+    await settle();
+    expect(states("n-aaa")).not.toContain("duplicate");
+    expect(attached).toHaveLength(1);
+    nodes.length = 0;
+    await settle();
+    expect(attached).toHaveLength(1);
+    clock += 60_000;
+    await waitFor(() => attached.length === 2);
   });
 
   it("stops before returning: handles are closed and nothing is redialled", async () => {

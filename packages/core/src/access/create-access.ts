@@ -29,6 +29,8 @@ export type BindResult =
     };
 
 const TOUCH_THROTTLE_MS = 60_000;
+/** `nodeIdOf`: base32 of a sha256, lower case, 52 characters. */
+const NODE_ID = /^[a-z2-7]{52}$/;
 const WRONG_CODE = "That code did not work.";
 const wrongCode = () => new AppError("unauthorized", WRONG_CODE);
 
@@ -86,6 +88,7 @@ export function createAccess(deps: AccessDeps): AccessService {
       createdAt: at,
       lastSeenAt: at,
       secretHash: sha256Hex(secret),
+      ...(kind === "node" && NODE_ID.test(input.nodeId ?? "") ? { nodeId: input.nodeId as string } : {}),
     };
     await transaction(async () => save([...(await load()), device]));
     deps.announce();
@@ -100,7 +103,9 @@ export function createAccess(deps: AccessDeps): AccessService {
     const devices = await load();
     const device = devices.find((entry) => entry.id === deviceId && entry.kind === "node");
     if (!device) return { ok: false, reason: "not-found" };
-    if (device.nodeId !== undefined && (device.nodeId !== nodeId || device.publicKey !== publicKey)) {
+    // A nodeId given at redeem (a hint) has no key yet: the first `hello` brings it, and must match the id.
+    const keyDiffers = device.publicKey !== undefined && device.publicKey !== publicKey;
+    if (device.nodeId !== undefined && (device.nodeId !== nodeId || keyDiffers)) {
       return { ok: false, reason: "identity-conflict" };
     }
     const holder = devices.find(
@@ -111,7 +116,7 @@ export function createAccess(deps: AccessDeps): AccessService {
         ? { ok: false, reason: "duplicate-device", otherDeviceId: holder.id }
         : { ok: false, reason: "identity-conflict", otherDeviceId: holder.id };
     }
-    if (device.nodeId === nodeId) return { ok: true };
+    if (device.nodeId === nodeId && device.publicKey === publicKey) return { ok: true };
     await save(devices.map((entry) => (entry === device ? { ...device, nodeId, publicKey } : entry)));
     deps.announce();
     return { ok: true };

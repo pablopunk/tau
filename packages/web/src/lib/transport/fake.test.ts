@@ -92,6 +92,13 @@ describe("fake transport: nodes (Stage 2)", () => {
     expect(await api.nodes.list()).toHaveLength(1);
   });
 
+  it("an unconfigured local node still knows its peers (?fake=setup&nodes)", async () => {
+    const hub = createFakeCore({ configured: false, nodes: true });
+    const api = createApi(createFakeTransport(hub));
+    expect((await api.nodes.list()).map(({ name }) => name)).toEqual(["Homelab", "Work laptop"]);
+    expect((await api.settings.get()).defaultModel).toBeNull();
+  });
+
   it("keeps each node's data apart from the hub's and from the other node", async () => {
     const hub = createFakeCore({ configured: true, nodes: true });
     const [first, second] = [...hub.nodeCores.values()];

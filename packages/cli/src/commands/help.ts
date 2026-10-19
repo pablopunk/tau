@@ -25,6 +25,14 @@ const UPDATE_FLAGS = [
   "  --home <dir>, --port <n>   Forwarded to `tau restart`",
 ];
 
+const CONNECT_LINES = [
+  "",
+  "Linking nodes:",
+  "  connect <link>                      Link this node to another (both see each other)",
+  "  connect <code> --node <url>         The same with the short code and the node's URL",
+  "  disconnect [node]                   Unlink from a node (both sides forget each other)",
+];
+
 const pad = (text: string) => text.padEnd(26);
 
 function rootHelp(): string {
@@ -39,6 +47,8 @@ function rootHelp(): string {
     "API commands (output is JSON):",
     ...COMMAND_NOUNS.map((noun) => `  ${noun}`),
     ...FLOW_COMMANDS.map((word) => `  ${word}`),
+    "",
+    ...CONNECT_LINES,
     "",
     "Run `tau <noun> --help` for the commands of a noun, `tau <noun> <verb> --help` for one command.",
     ...UPDATE_FLAGS,

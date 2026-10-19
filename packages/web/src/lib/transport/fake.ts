@@ -271,14 +271,15 @@ let hub: Promise<FakeCore> | undefined;
 /**
  * One fake hub per page, shared by the local transport and every node transport:
  * `?fake=ready` starts past setup with remote on (`&remote=off` starts with it off), and `&nodes=2`
- * (or `&nodes`) links the two fake nodes (`Homelab` online, `Work laptop` offline).
+ * (or `&nodes`) links the two fake nodes (`Homelab` online, `Work laptop` offline), with or without
+ * `fake=ready`: `?fake=setup&nodes` is an unconfigured local node that knows peers.
  */
 function fakeHub(): Promise<FakeCore> {
   hub ??= (async () => {
     const params = new URLSearchParams(window.location.search);
     const ready = params.get("fake") === "ready";
     const remote = ready && params.get("remote") !== "off";
-    const nodes = ready && params.has("nodes");
+    const nodes = params.has("nodes");
     const core = createFakeCore({ configured: ready, remote, nodes });
     if (ready) await seedReadyState(core);
     for (const [nodeId, node] of core.nodeCores) {

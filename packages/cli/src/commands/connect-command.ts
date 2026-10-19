@@ -2,7 +2,7 @@ import { readFile, rm } from "node:fs/promises";
 import { createFilePeersStore, hubFilePath, type Peer, peerIdOf, peersFilePath } from "@tau/core";
 import { alreadyLinkedRefusal, RedeemPairingResponseSchema, selfLinkRefusal } from "@tau/protocol";
 import { Value } from "typebox/value";
-import { parseConnectArgs } from "../nodes/connect-args";
+import { CONNECT_HELP, parseConnectArgs, wantsConnectHelp } from "../nodes/connect-args";
 import { type AfterLink, type ConnectIo, terminalIo } from "../nodes/connect-io";
 import { parseConnectTarget } from "../nodes/connect-target";
 import { ownNodeId } from "../nodes/own-node-id";
@@ -27,16 +27,22 @@ interface Redeemed {
   readonly nodeId?: string;
 }
 
-async function redeem(hubUrl: string, code: string, deviceName: string, env: CommandEnv): Promise<Redeemed> {
+async function redeem(
+  nodeUrl: string,
+  code: string,
+  deviceName: string,
+  own: string | undefined,
+  env: CommandEnv,
+): Promise<Redeemed> {
   let response: Response;
   try {
-    response = await env.fetch(`${hubUrl}${REDEEM_PATH}`, {
+    response = await env.fetch(`${nodeUrl}${REDEEM_PATH}`, {
       method: "POST",
-      headers: { "content-type": "application/json", origin: hubUrl },
-      body: JSON.stringify({ code, deviceName }),
+      headers: { "content-type": "application/json", origin: nodeUrl },
+      body: JSON.stringify({ code, deviceName, ...(own && { nodeId: own }) }),
     });
   } catch {
-    throw failure(`Could not reach the node at ${hubUrl}. Is it running and online?`);
+    throw failure(`Could not reach the node at ${nodeUrl}. Is it running and online?`);
   }
   if (!response.ok) {
     throw failure(
@@ -69,7 +75,7 @@ const sameNode = (peer: Peer, url: string, nodeId: string | undefined): boolean 
   peer.url === url || (nodeId !== undefined && peer.nodeId === nodeId);
 
 /**
- * `tau connect <link | code --hub <url>> [--name <label>] [--yes]`: redeem a link code on another node and keep its
+ * `tau connect <link | code --node <url>> [--name <label>] [--yes]`: redeem a link code on another node and keep its
  * node secret, with its pinned `nodeId`, in `peers.json`. A running server picks the entry up on its own.
  */
 export async function executeConnect(
@@ -77,10 +83,11 @@ export async function executeConnect(
   env: CommandEnv,
   io: ConnectIo = terminalIo,
 ): Promise<void> {
+  if (wantsConnectHelp(argv)) return env.stdout(CONNECT_HELP);
   const args = parseConnectArgs(argv);
-  const target = parseConnectTarget(args.target, args.hub);
+  const target = parseConnectTarget(args.target, args.node);
   const peers = createFilePeersStore(peersFilePath(env.home));
-  const known = (await peers.read()).some((peer) => sameNode(peer, target.hubUrl, target.nodeId));
+  const known = (await peers.read()).some((peer) => sameNode(peer, target.nodeUrl, target.nodeId));
   const refusal = alreadyLinkedRefusal(known);
   if (refusal) throw usageError(refusal);
   const server = await runningServer(env);
@@ -88,11 +95,11 @@ export async function executeConnect(
   const self = selfLinkRefusal(own ?? "", target.nodeId);
   if (self) throw usageError(self);
 
-  const peerName = target.hubName ?? new URL(target.hubUrl).host;
-  if (!args.yes && !(await io.confirm(`Link this node to ${peerName} (${target.hubUrl})?`))) {
+  const peerName = target.peerLabel ?? new URL(target.nodeUrl).host;
+  if (!args.yes && !(await io.confirm(`Link this node to ${peerName} (${target.nodeUrl})?`))) {
     throw new CliExit(1, "Not linked.");
   }
-  const redeemed = await redeem(target.hubUrl, target.code, args.name, env);
+  const redeemed = await redeem(target.nodeUrl, target.code, args.name, own, env);
   if (target.nodeId !== undefined && redeemed.nodeId !== undefined && redeemed.nodeId !== target.nodeId) {
     throw failure("The node that answered is not the one in the link. Nothing was linked.");
   }
@@ -100,7 +107,7 @@ export async function executeConnect(
   const answeredSelf = selfLinkRefusal(own ?? "", nodeId);
   if (answeredSelf) throw usageError(answeredSelf);
   const entry: Peer = {
-    url: target.hubUrl,
+    url: target.nodeUrl,
     name: peerName,
     secret: redeemed.secret,
     nodeName: args.name,
@@ -112,9 +119,9 @@ export async function executeConnect(
   await startAfterLink(args.yes ? "none" : await io.chooseStart(), env);
 }
 
-function hubUrlOf(text: string): unknown {
+function nodeUrlOf(text: string): unknown {
   try {
-    return (JSON.parse(text) as { hubUrl?: unknown } | null)?.hubUrl;
+    return (JSON.parse(text) as { nodeUrl?: unknown } | null)?.nodeUrl;
   } catch {
     return undefined;
   }
@@ -125,8 +132,8 @@ async function removeLegacyHubFile(home: string, peer: Peer | undefined): Promis
   const file = hubFilePath(home);
   const text = await readFile(file, "utf8").catch(() => undefined);
   if (text === undefined) return;
-  const hubUrl = hubUrlOf(text);
-  if (peer === undefined || hubUrl === peer.url || typeof hubUrl !== "string")
+  const nodeUrl = nodeUrlOf(text);
+  if (peer === undefined || nodeUrl === peer.url || typeof nodeUrl !== "string")
     await rm(file, { force: true });
 }
 

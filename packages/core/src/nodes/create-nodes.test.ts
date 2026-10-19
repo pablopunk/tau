@@ -219,6 +219,34 @@ describe("peers from both directions (Step 1 foundation; owner A deepens)", () =
     });
   });
 
+  it("a peer named only by its URL host takes the node's own name at the first hello; a chosen name stays", async () => {
+    const { nodes, peers } = setup();
+    const bare = { url: "http://127.0.0.1:4317", name: "127.0.0.1:4317", secret: "s" };
+    const chosen = { url: "https://nas.example", name: "NAS", secret: "t" };
+    await peers.write([bare, chosen]);
+    await nodes.register(
+      peerIdOf(bare),
+      { ...HELLO, name: "Mac", nodeId: "mac-id", publicKey: "k" },
+      "dialled",
+    );
+    await nodes.register(
+      peerIdOf(chosen),
+      { ...HELLO, name: "Host", nodeId: "nas-id", publicKey: "k2" },
+      "dialled",
+    );
+    expect((await peers.read()).map((peer) => peer.name)).toEqual(["Mac", "NAS"]);
+    const known = {
+      url: "http://10.0.0.2:1",
+      name: "10.0.0.2:1",
+      secret: "u",
+      nodeId: "box-id",
+      publicKey: "k3",
+    };
+    await peers.write([known]);
+    await nodes.register("box-id", { ...HELLO, name: "Box", nodeId: "box-id", publicKey: "k3" }, "dialled");
+    expect((await peers.read()).map((peer) => peer.name)).toEqual(["Box"]);
+  });
+
   it("self reports the identity and resetIdentity makes a new one and drops every peer", async () => {
     const { nodes } = setup();
     expect((await nodes.self()).nodeId).toBe("self1");

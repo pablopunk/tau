@@ -1,207 +1,254 @@
-import { readFileSync, rmSync } from "node:fs";
-import { createServer } from "node:net";
+import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { expect, type Page, test } from "@playwright/test";
+import {
+  closeSettings,
+  connect,
+  conversation,
+  disconnectInUi,
+  freePort,
+  groupOf,
+  listNodes,
+  mintNodeCode,
+  newThreadOnPeer,
+  nodeDevices,
+  nodeRow,
+  openNodesPage,
+  runInTerminal,
+  type Served,
+  served,
+  setUpWithThread,
+  sidebar,
+} from "../nodes-support";
 import { createRestartableServer, type RestartableServer } from "../restartable-server";
 
-const NODE_NAME = "Node B";
-const THREAD = "hello from node B";
-const FORTY_TWO = /(^|\s)42(\s|$)/;
-const sidebar = (page: Page) => page.getByRole("complementary").or(page.getByLabel("Projects and threads"));
-const conversation = (page: Page) => page.getByTestId("conversation");
-const terminal = (page: Page) => page.getByRole("region", { name: "Terminal" });
-const tokenOf = (server: RestartableServer) => readFileSync(join(server.home, "token"), "utf8").trim();
-
-function freePort(): Promise<number> {
-  return new Promise((resolve, reject) => {
-    const probe = createServer();
-    probe.once("error", reject);
-    probe.listen(0, "127.0.0.1", () => {
-      const { port } = probe.address() as { port: number };
-      probe.close(() => resolve(port));
-    });
-  });
-}
-
-async function completeSetup(page: Page) {
-  const addKey = page
-    .getByRole("listitem", { name: "OpenRouter", exact: true })
-    .getByRole("button", { name: "Add key" });
-  await addKey.or(page.getByRole("heading", { name: "New thread" })).waitFor();
-  if (!(await addKey.isVisible())) return;
-  await addKey.click();
-  await page.getByLabel("OpenRouter API key").fill("sk-or-v1-faux");
-  await page.getByRole("button", { name: "Save" }).click();
-  await page.getByRole("button", { name: "Continue" }).click();
-  await page.getByRole("combobox", { name: "Default model" }).click();
-  await page.getByRole("option", { name: /Faux One/ }).click();
-  await page.getByRole("button", { name: "Continue" }).click();
-}
-
-async function send(page: Page, text: string) {
-  await page.getByRole("textbox", { name: "Message" }).fill(text);
-  await page.getByRole("button", { name: "Send", exact: true }).click();
-}
-
-async function mintNodeCode(port: number, token: string): Promise<string> {
-  const response = await fetch(`http://127.0.0.1:${port}/api/pair?kind=node`, {
-    method: "POST",
-    headers: { authorization: `Bearer ${token}` },
-  });
-  expect(response.status).toBe(200);
-  return ((await response.json()) as { shortCode: string }).shortCode;
-}
+/** MVP13 Step 1: two (and a few more) real built servers on scratch homes and random loopback ports. */
+const THREAD_A = "hello from node A";
+const THREAD_B = "hello from node B";
+const ONLINE = { name: "Online" } as const;
+const OFFLINE = { name: "Offline" } as const;
 
 test.describe.configure({ mode: "serial" });
 
-test.describe("MVP12 Stage 2: two real servers linked on loopback", () => {
-  let hub: RestartableServer;
-  let node: RestartableServer;
-  let hubPort: number;
-  let nodePort: number;
-  let page: Page;
-  const groupOfNode = () => sidebar(page).getByRole("group", { name: NODE_NAME });
+test.describe("MVP13 Step 1: symmetric links between real servers", () => {
+  test.setTimeout(180_000);
+  const running: RestartableServer[] = [];
+  let a: Served;
+  let b: Served;
+  let pageA: Page;
+  let pageB: Page;
+
+  async function startNode(env: Record<string, string> = {}): Promise<Served> {
+    const port = await freePort();
+    const server = createRestartableServer({ port, env });
+    running.push(server);
+    await server.start();
+    return served(server, port);
+  }
+
+  const online = (page: Page, name: string) => expect(groupOf(page, name).getByRole("img", ONLINE).first());
 
   test.beforeAll(async ({ browser }) => {
-    test.setTimeout(120_000);
-    hubPort = await freePort();
-    nodePort = await freePort();
-    hub = createRestartableServer({ port: hubPort });
-    node = createRestartableServer({ port: nodePort });
-    await hub.start();
-    await node.start();
-    const own = await browser.newPage();
-    await own.goto(`http://127.0.0.1:${nodePort}/?token=${encodeURIComponent(tokenOf(node))}`);
-    await completeSetup(own);
-    await send(own, THREAD);
-    await expect(sidebar(own).getByRole("link", { name: /hello from node B/ })).toBeVisible();
-    await expect(conversation(own).getByText(THREAD, { exact: true }).first()).toBeVisible();
-    await own.close();
-    page = await browser.newPage();
-    await page.goto(`http://127.0.0.1:${hubPort}/?token=${encodeURIComponent(tokenOf(hub))}`);
-    await completeSetup(page);
+    test.setTimeout(150_000);
+    a = await startNode();
+    b = await startNode();
+    pageA = await setUpWithThread(browser, a, THREAD_A);
+    pageB = await setUpWithThread(browser, b, THREAD_B);
   });
 
   test.afterAll(async () => {
-    await page?.close();
-    await node?.stop().catch(() => undefined);
-    await hub?.stop().catch(() => undefined);
-    for (const server of [node, hub]) if (server) rmSync(server.home, { recursive: true, force: true });
+    await pageA?.close();
+    await pageB?.close();
+    for (const server of running) {
+      await server.stop().catch(() => undefined);
+      rmSync(server.home, { recursive: true, force: true });
+    }
   });
 
-  test("tau connect links the node; its thread shows under its group and opens through the hub", async () => {
-    const code = await mintNodeCode(hubPort, tokenOf(hub));
-    const out = await node.tau(
-      "connect",
-      "--hub",
-      `http://127.0.0.1:${hubPort}`,
-      code,
-      "--name",
-      NODE_NAME,
-      "--yes",
-    );
-    expect(out).toContain("Linked to");
-    await expect(groupOfNode()).toBeVisible({ timeout: 30_000 });
-    await expect(groupOfNode().getByRole("img", { name: "Online" }).first()).toBeVisible();
-    const link = groupOfNode().getByRole("link", { name: /hello from node B/ });
-    await expect(link).toBeVisible();
-    await link.click();
-    await expect(page).toHaveURL(/\/n\/[^/]+\/p\/[^/]+\/c\/[^/]+$/);
-    await expect(conversation(page).getByText(THREAD, { exact: true }).first()).toBeVisible();
+  test("tau connect --node from B: A sees B and B sees A (sidebar and Nodes page)", async () => {
+    await connect(b, a, "Node B");
+    const [peerOfB] = await listNodes(b.server);
+    await b.server.tau("nodes", "rename", peerOfB?.id ?? "", "Node A");
+    await online(pageA, "Node B").toBeVisible({ timeout: 30_000 });
+    await online(pageB, "Node A").toBeVisible({ timeout: 30_000 });
+    expect(await listNodes(a.server)).toHaveLength(1);
+    expect(await listNodes(b.server)).toHaveLength(1);
+
+    const onA = await openNodesPage(pageA);
+    await expect(nodeRow(onA, "Node B")).toContainText("It connected to this node: Linked");
+    await closeSettings(pageA);
+    const onB = await openNodesPage(pageB);
+    await expect(nodeRow(onB, "Node A")).toContainText("This node connected to it: Linked");
+    await closeSettings(pageB);
   });
 
-  test("a new thread on the node's project, started from the hub, gets the faux answer", async () => {
-    await page.getByRole("button", { name: "New thread", exact: true }).click();
-    await page.getByRole("combobox", { name: "Project" }).click();
-    const nodeModels = page.waitForResponse(/\/api\/n\/[^/]+\/api\/models$/);
-    await page.getByRole("option", { name: "Home" }).nth(1).click();
-    await expect(page).toHaveURL(/node=/);
-    await nodeModels;
-    const send = page.getByRole("button", { name: "Send", exact: true });
+  test("each side opens the other's thread", async () => {
+    await groupOf(pageA, "Node B")
+      .getByRole("link", { name: /hello from node B/ })
+      .click();
+    await expect(pageA).toHaveURL(/\/n\/[^/]+\/p\/[^/]+\/c\/[^/]+$/);
+    await expect(conversation(pageA).getByText(THREAD_B, { exact: true }).first()).toBeVisible();
+    await groupOf(pageB, "Node A")
+      .getByRole("link", { name: /hello from node A/ })
+      .click();
+    await expect(pageB).toHaveURL(/\/n\/[^/]+\/p\/[^/]+\/c\/[^/]+$/);
+    await expect(conversation(pageB).getByText(THREAD_A, { exact: true }).first()).toBeVisible();
+  });
+
+  test("a new thread on the other node, started from either side, gets the faux answer", async () => {
+    await newThreadOnPeer(pageA, "from A to B");
+    await newThreadOnPeer(pageB, "from B to A");
+  });
+
+  test("a terminal opened from either side runs on the other node", async () => {
+    await runInTerminal(pageA);
+    await runInTerminal(pageB);
+  });
+
+  test("killing B greys it on A within about 50 s; restarting brings it back on both", async () => {
+    await b.server.stop();
+    await expect(groupOf(pageA, "Node B").getByRole("img", OFFLINE).first()).toBeVisible({ timeout: 55_000 });
+    await expect(groupOf(pageA, "Node B").locator("[data-stale]")).toBeVisible();
+    await b.server.start();
+    await online(pageA, "Node B").toBeVisible({ timeout: 60_000 });
+    await pageB.goto(b.signedIn);
+    await online(pageB, "Node A").toBeVisible({ timeout: 60_000 });
+  });
+
+  test("a node on another protocol stays linked and shows 'update required' on both sides", async () => {
+    await b.server.stop();
+    b.server.setEnv({ TAU_FAKE_PROTOCOL_VERSION: "0".repeat(32) });
+    await b.server.start();
     await expect(async () => {
-      await page.getByRole("textbox", { name: "Message" }).fill("via the hub");
-      await expect(send).toBeEnabled({ timeout: 1000 });
-    }).toPass();
-    await send.click();
-    await expect(page).toHaveURL(/\/n\/[^/]+\/p\/[^/]+\/c\/[^/]+$/);
-    await expect(
-      conversation(page)
-        .getByText(/scripted reply from the faux model/)
-        .first(),
-    ).toBeVisible({
-      timeout: 20_000,
-    });
+      const onA = await openNodesPage(pageA);
+      await expect(nodeRow(onA, "Node B")).toContainText("Update tau on Node B", { timeout: 2000 });
+    }).toPass({ timeout: 60_000 });
+    await closeSettings(pageA);
+    await pageB.goto(b.signedIn);
+    await expect(async () => {
+      const onB = await openNodesPage(pageB);
+      await expect(nodeRow(onB, "Node A")).toContainText("Update tau on Node A", { timeout: 2000 });
+    }).toPass({ timeout: 60_000 });
+    await closeSettings(pageB);
+    await b.server.stop();
+    b.server.setEnv({ TAU_FAKE_PROTOCOL_VERSION: "" });
+    await b.server.start();
+    await online(pageA, "Node B").toBeVisible({ timeout: 60_000 });
   });
 
-  test("a terminal opened through the hub runs on the node", async () => {
-    await page.getByRole("button", { name: "Terminal", exact: true }).click();
-    await expect(page).toHaveURL(/\/n\/[^/]+\/.*\/terminal\/[^/]+$/);
-    await terminal(page).locator("textarea").focus();
-    await page.keyboard.type("echo $((6*7))");
-    await page.keyboard.press("Enter");
-    await expect(terminal(page)).toContainText(FORTY_TWO);
-  });
-
-  test("killing the node greys it within about 50 s and restarting brings it back", async () => {
-    test.setTimeout(150_000);
-    await node.stop();
-    await expect(groupOfNode().getByRole("img", { name: "Offline" }).first()).toBeVisible({
-      timeout: 55_000,
-    });
-    await expect(groupOfNode().locator("[data-stale]")).toBeVisible();
-    await node.start();
-    await expect(groupOfNode().getByRole("img", { name: "Online" }).first()).toBeVisible({
-      timeout: 60_000,
-    });
-  });
-
-  test("an offline node still shows its titles after the hub restarts", async () => {
-    test.setTimeout(150_000);
-    await expect
-      .poll(
-        async () =>
-          (
-            await fetch(`http://127.0.0.1:${hubPort}/api/nodes`, {
-              headers: { authorization: `Bearer ${tokenOf(hub)}` },
-            })
-          ).status,
-      )
-      .toBe(200);
-    await new Promise((resolve) => setTimeout(resolve, 4000));
-    await node.stop();
-    await hub.restart();
-    await page.evaluate(() => window.localStorage.clear());
-    await page.goto(`http://127.0.0.1:${hubPort}/?token=${encodeURIComponent(tokenOf(hub))}`);
-    await expect(groupOfNode().locator("[data-stale]")).toBeVisible({ timeout: 30_000 });
-    await expect(groupOfNode().getByRole("link", { name: /hello from node B/ })).toBeVisible();
-    await node.start();
-    await expect(groupOfNode().getByRole("img", { name: "Online" }).first()).toBeVisible({
-      timeout: 60_000,
-    });
-  });
-
-  test("revoking the node closes its proxied streams", async () => {
-    const nodeId = await page.evaluate(async () => {
-      const list = (await (await fetch("/api/nodes")).json()) as Array<{ id: string }>;
-      return list[0]?.id ?? "";
-    });
+  test("disconnect from A's side: both forget each other, no device is left, streams close", async () => {
+    const nodeId = (await listNodes(a.server))[0]?.id ?? "";
     expect(nodeId).not.toBe("");
-    await page.evaluate((id) => {
+    await pageA.evaluate((id) => {
       const socket = new WebSocket(`ws://${location.host}/api/n/${id}/api/live`);
       (window as unknown as { probe: WebSocket }).probe = socket;
       return new Promise<void>((resolve) => {
         socket.onopen = () => resolve();
       });
     }, nodeId);
-    await page.getByRole("button", { name: "Settings" }).click();
-    const settings = page.getByRole("dialog", { name: "Settings" });
-    await settings.getByRole("navigation", { name: "Settings sections" }).getByText("Nodes").click();
-    await settings.getByRole("button", { name: `Disconnect ${NODE_NAME}` }).click();
-    await page.getByRole("alertdialog").getByRole("button", { name: "Disconnect" }).click();
+    await disconnectInUi(pageA, "Node B");
     await expect
-      .poll(() => page.evaluate(() => (window as unknown as { probe: WebSocket }).probe.readyState))
+      .poll(() => pageA.evaluate(() => (window as unknown as { probe: WebSocket }).probe.readyState))
       .toBe(WebSocket.CLOSED);
-    await page.keyboard.press("Escape");
-    await expect(sidebar(page).getByRole("group", { name: NODE_NAME })).toHaveCount(0);
+    await expect(groupOf(pageA, "Node B")).toHaveCount(0);
+    await expect.poll(async () => (await listNodes(a.server)).length).toBe(0);
+    await expect.poll(async () => (await listNodes(b.server)).length, { timeout: 30_000 }).toBe(0);
+    expect(await nodeDevices(a.server)).toHaveLength(0);
+    expect(await nodeDevices(b.server)).toHaveLength(0);
+    expect(existsSync(join(b.server.home, "peers.json"))).toBe(true);
+    expect(JSON.parse(readFileSync(join(b.server.home, "peers.json"), "utf8"))).toEqual([]);
+  });
+
+  test("link again, then disconnect from B's side: A revokes the device, nothing is left", async () => {
+    await connect(b, a, "Node B");
+    await online(pageA, "Node B").toBeVisible({ timeout: 30_000 });
+    expect(await nodeDevices(a.server)).toHaveLength(1);
+    await pageB.goto(b.signedIn);
+    const [peer] = await listNodes(b.server);
+    await disconnectInUi(pageB, peer?.name ?? "");
+    await expect.poll(async () => (await listNodes(b.server)).length).toBe(0);
+    await expect.poll(async () => (await listNodes(a.server)).length, { timeout: 30_000 }).toBe(0);
+    expect(await nodeDevices(a.server)).toHaveLength(0);
+    await expect(groupOf(pageA, "Node B")).toHaveCount(0, { timeout: 30_000 });
+  });
+
+  test("glare: both nodes connect to each other at once: one link, no duplicate row, no orphan device", async () => {
+    const [c, d] = [await startNode(), await startNode()];
+    const [codeForD, codeForC] = [await mintNodeCode(d), await mintNodeCode(c)];
+    await Promise.all([
+      c.server.tau("connect", "--node", d.url, codeForD, "--name", "Node C", "--yes"),
+      d.server.tau("connect", "--node", c.url, codeForC, "--name", "Node D", "--yes"),
+    ]);
+    for (const node of [c, d]) {
+      await expect
+        .poll(async () => (await listNodes(node.server)).map((listed) => listed.status), { timeout: 30_000 })
+        .toEqual(["online"]);
+    }
+    await new Promise((resolve) => setTimeout(resolve, 6000));
+    for (const node of [c, d]) {
+      const list = await listNodes(node.server);
+      expect(list).toHaveLength(1);
+      expect(list[0]?.status).toBe("online");
+      expect((await nodeDevices(node.server)).length).toBeLessThanOrEqual(2);
+    }
+    const linked = (await Promise.all([c, d].map((node) => listNodes(node.server)))).flatMap((list) =>
+      (list[0]?.links ?? []).filter((link) => link.state === "linked"),
+    );
+    expect(linked.length).toBeGreaterThanOrEqual(2);
+    await c.server.stop();
+    await d.server.stop();
+  });
+
+  test("a 0.1.x-shaped home (hub.json) migrates to peers.json and links; hub.json stays", async () => {
+    const old = await startNode();
+    await old.server.stop();
+    await old.server.tau("connect", "--node", a.url, await mintNodeCode(a), "--name", "Node Old", "--yes");
+    const peers = JSON.parse(readFileSync(join(old.server.home, "peers.json"), "utf8")) as Array<{
+      url: string;
+      secret: string;
+      name: string;
+    }>;
+    const [peer] = peers;
+    writeFileSync(
+      join(old.server.home, "hub.json"),
+      JSON.stringify({ hubUrl: peer?.url, nodeSecret: peer?.secret, name: "Hub", nodeName: "Node Old" }),
+    );
+    rmSync(join(old.server.home, "peers.json"));
+    await old.server.start();
+    await expect
+      .poll(async () => (await listNodes(old.server)).map((n) => n.status), { timeout: 30_000 })
+      .toEqual(["online"]);
+    await expect
+      .poll(async () => (await listNodes(a.server)).map((n) => n.name), { timeout: 30_000 })
+      .toEqual(["Node Old"]);
+    expect(existsSync(join(old.server.home, "hub.json"))).toBe(true);
+    expect(JSON.parse(readFileSync(join(old.server.home, "peers.json"), "utf8"))).toHaveLength(1);
+    expect(readFileSync(join(a.server.home, "devices.json"), "utf8")).toContain('"kind": "machine"');
+    await old.server.stop();
+  });
+
+  test("onboarding: a node with no provider and a known peer offers 'Use my other nodes'; it is remembered on the server", async ({
+    browser,
+  }) => {
+    for (const listed of await listNodes(a.server))
+      await a.server.tau("nodes", "disconnect", listed.id, "--yes");
+    const fresh = await startNode();
+    await connect(fresh, a, "Node Fresh");
+    const first = await browser.newContext();
+    const page = await first.newPage();
+    await page.goto(fresh.signedIn);
+    await page.getByRole("button", { name: "Use my other nodes" }).click();
+    await expect(sidebar(page).getByRole("link", { name: /hello from node A/ })).toBeVisible({
+      timeout: 30_000,
+    });
+    const second = await browser.newContext();
+    const again = await second.newPage();
+    await again.goto(fresh.signedIn);
+    await expect(sidebar(again).getByRole("link", { name: /hello from node A/ })).toBeVisible({
+      timeout: 30_000,
+    });
+    await expect(again.getByRole("button", { name: "Use my other nodes" })).toHaveCount(0);
+    await first.close();
+    await second.close();
   });
 });

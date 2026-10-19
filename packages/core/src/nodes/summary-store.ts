@@ -8,6 +8,9 @@ interface StoredSummary extends NodeSummary {
   stale?: true;
 }
 
+/** A summary write can land while a folder is removed (disconnect): ENOTEMPTY is retried, never fatal. */
+const REMOVE = { recursive: true, force: true, maxRetries: 5, retryDelay: 40 } as const;
+
 /** `<directory>/<id>/summary.json`: titles and times only, mode 0600, written atomically. */
 export function createSummaryStore(directory: string) {
   const folder = (id: string) => join(directory, encodeURIComponent(id));
@@ -60,7 +63,7 @@ export function createSummaryStore(directory: string) {
       await rm(folder(to), { recursive: true, force: true });
       await rename(folder(from), folder(to));
     },
-    remove: (id: string) => rm(folder(id), { recursive: true, force: true }),
-    removeAll: () => rm(directory, { recursive: true, force: true }),
+    remove: (id: string) => rm(folder(id), REMOVE),
+    removeAll: () => rm(directory, REMOVE),
   };
 }

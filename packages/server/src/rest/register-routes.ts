@@ -25,6 +25,7 @@ export function registerRoutes(app: FastifyInstance, core: Core, sockets: Device
     core.settings.setFastThinkingLevel(body.thinkingLevel),
   );
   defineRoute(app, routes.setFastModel, ({ body }) => core.settings.setFastModel(body.model));
+  defineRoute(app, routes.setSetupSkipped, ({ body }) => core.settings.setSetupSkipped(body.skipped));
   defineRoute(app, routes.setProjectsFolder, ({ body }) => core.settings.setProjectsFolder(body.path));
   defineRoute(app, routes.getSuggestedCodeFolder, () => core.settings.suggestedCodeFolder());
   defineRoute(app, routes.getGithubStatus, () => core.github.status());

@@ -76,11 +76,14 @@ class Peer implements LinkPeer {
   private ownLinkProtocol = "";
   private peerHello: HelloFrame | undefined;
   private gotProof = false;
+  /** A verified link that never got established (glare loser, or the peer closed first) keeps its secret as a standby. */
+  private standby = true;
   private admitted = false;
   private registered = false;
   private established = false;
   private ended = false;
   private byeReceived = false;
+  private byeReason = "";
   private removed = false;
   private holding = true;
   private lastFrameAt = Date.now();
@@ -230,6 +233,7 @@ class Peer implements LinkPeer {
 
   private onBye(reason: string): void {
     this.byeReceived = true;
+    this.byeReason = reason;
     const disconnected = reason === "disconnect" && this.options.role === "acceptor" && this.registered;
     if (disconnected) {
       this.removed = true;
@@ -270,7 +274,10 @@ class Peer implements LinkPeer {
   private async establish(hello: HelloFrame): Promise<void> {
     const { core, registry } = this.options.server;
     const admission = registry.admit(this);
-    if (!admission.ok) return this.close(admission.code, admission.reason);
+    if (!admission.ok) {
+      this.standby = !admission.dropped;
+      return this.close(admission.code, admission.reason);
+    }
     this.admitted = true;
     try {
       await core.nodes.register(
@@ -285,6 +292,12 @@ class Peer implements LinkPeer {
     }
     this.established = true;
     this.release();
+  }
+
+  private async bindStandby(hello: HelloFrame): Promise<void> {
+    await this.options.server.core.nodes
+      .register(this.peerId, nodeInfoOf(hello), this.role === "dialler" ? "dialled" : "accepted")
+      .catch(() => undefined);
   }
 
   private serve(frame: IncomingOpen): void {
@@ -313,13 +326,20 @@ class Peer implements LinkPeer {
     this.ended = true;
     clearInterval(this.ticker);
     this.mux.end();
+    if (this.gotProof && this.peerHello && !this.admitted && this.standby)
+      void this.bindStandby(this.peerHello);
     const { core, registry } = this.options.server;
     if (this.admitted && registry.release(this) && this.registered && !this.removed) {
       core.nodes.markOffline(this.nodeId);
       if (this.role === "dialler")
         core.nodes.reportLink(this.nodeId, { state: "reconnecting", message: null, since: Date.now() });
     }
-    this.resolveClosed({ code, reason, linked: this.established, bye: this.byeReceived });
+    this.resolveClosed({
+      code,
+      reason: this.byeReceived ? this.byeReason : reason,
+      linked: this.established,
+      bye: this.byeReceived,
+    });
   }
 }
 

@@ -31,7 +31,13 @@ export interface RegisteredLink {
 
 export type Admission =
   | { readonly ok: true }
-  | { readonly ok: false; readonly code: number; readonly reason: string };
+  | {
+      readonly ok: false;
+      readonly code: number;
+      readonly reason: string;
+      /** The refused link's device or entry was dropped; otherwise it stays valid as a standby secret (glare). */
+      readonly dropped: boolean;
+    };
 
 export interface LinkRegistry {
   readonly gateway: NodeGateway;
@@ -51,13 +57,16 @@ export function createLinkRegistry(core: Core, now: () => number = Date.now): Li
     replacements.set(nodeId, recent);
     return recent;
   };
-  const refuse = (_link: RegisteredLink, code: number, reason: string): Admission => {
-    return { ok: false, code, reason };
-  };
+  const refuse = (code: number, reason: string, dropped: boolean): Admission => ({
+    ok: false,
+    code,
+    reason,
+    dropped,
+  });
   const flapped = (link: RegisteredLink): Admission => {
     if (link.role === "dialler")
       core.nodes.reportLink(link.peerId, { state: "duplicate", message: "duplicate identity", since: now() });
-    return refuse(link, DUPLICATE, "duplicate identity");
+    return refuse(DUPLICATE, "duplicate identity", false);
   };
   /** The arbiter says the loser's device or `peers.json` entry must go (core has only seen the winner). */
   const dropLoser = (loser: RegisteredLink) => void core.nodes.forget(loser.peerId).catch(() => undefined);
@@ -96,7 +105,8 @@ export function createLinkRegistry(core: Core, now: () => number = Date.now): Li
       }
       const verdict = arbitrateDuplicateLink(existing.facts(), incoming.facts());
       if (verdict.revokeLoser) dropLoser(verdict.survivor === "existing" ? incoming : existing);
-      if (verdict.survivor === "existing") return refuse(incoming, verdict.loserCode, "duplicate link");
+      if (verdict.survivor === "existing")
+        return refuse(verdict.loserCode, "duplicate link", verdict.revokeLoser);
       if (verdict.case === "reconnect") {
         if (recentReplacements(incoming.nodeId).length >= FLAP_LIMIT) return flapped(incoming);
         recentReplacements(incoming.nodeId).push(now());

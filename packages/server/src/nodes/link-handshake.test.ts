@@ -68,7 +68,10 @@ describe.each(ROLES)("the handshake (the real node is the %s)", (role) => {
     const peer = await manual({}, role);
     const ours = await helloOf(peer);
     const proof = peer.proofFor(ours) as { type: string; payload: string; sig: string };
-    peer.sendControl({ ...proof, sig: `${proof.sig.slice(0, -2)}AA` });
+    // Change the FIRST character (part of R): the last base64 characters of an Ed25519 signature are
+    // mostly zero bits, so overwriting them is a no-op about one time in sixteen.
+    const flipped = proof.sig.startsWith("A") ? "B" : "A";
+    peer.sendControl({ ...proof, sig: `${flipped}${proof.sig.slice(1)}` });
     expect((await peer.closed).code).toBe(LINK_CLOSE_POLICY);
   });
 

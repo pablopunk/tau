@@ -29,7 +29,10 @@ function registerRedeem({ core, tunnel }: AccessRouteDeps, app: FastifyInstance)
   app.post(
     routes.redeemPairing.path,
     { schema: { body: routes.redeemPairing.body } },
-    async (request: FastifyRequest<{ Body: { code: string; deviceName: string } }>, reply) => {
+    async (
+      request: FastifyRequest<{ Body: { code: string; deviceName: string; nodeId?: string } }>,
+      reply,
+    ) => {
       const tag = tunnel.tagOf(request.raw.socket);
       const redeemed = await core.access.redeemPairing({
         ...request.body,

@@ -146,6 +146,11 @@ export function createNodes(deps: NodesDeps): NodesService {
     return "bound";
   }
 
+  const hostOf = (url: string): string => (URL.canParse(url) ? new URL(url).host : url);
+  /** A name that is only the URL's host (`tau connect <code> --node <url>` has no better) becomes the node's own name. */
+  const learnedName = (peer: Peer, info: NodePeerInfo): string =>
+    info.name && peer.name === hostOf(peer.url) ? info.name : peer.name;
+
   async function bindDialled(peerId: string, id: string, info: NodePeerInfo): Promise<Settled> {
     const peers = await deps.peers.read();
     const peer = peers.find((entry) => peerIdOf(entry) === peerId);
@@ -153,12 +158,20 @@ export function createNodes(deps: NodesDeps): NodesService {
     if (peer.nodeId !== undefined && info.nodeId !== undefined && peer.nodeId !== info.nodeId) {
       throw new AppError("invalid_request", "This node has another identity.");
     }
-    if (!info.nodeId || !info.publicKey || peer.nodeId !== undefined) return "bound";
+    if (!info.nodeId || !info.publicKey) return "bound";
+    if (peer.nodeId !== undefined) {
+      const name = learnedName(peer, info);
+      if (name !== peer.name)
+        await deps.peers.write(peers.map((entry) => (entry === peer ? { ...peer, name } : entry)));
+      return "bound";
+    }
     const other = peers.find((entry) => entry !== peer && entry.nodeId === info.nodeId);
     if (other) return arbitrateDialled(peers, peer, other, info);
     await deps.peers.write(
       peers.map((entry) =>
-        entry === peer ? { ...peer, nodeId: info.nodeId, publicKey: info.publicKey } : entry,
+        entry === peer
+          ? { ...peer, name: learnedName(peer, info), nodeId: info.nodeId, publicKey: info.publicKey }
+          : entry,
       ),
     );
     return "bound";
@@ -179,7 +192,12 @@ export function createNodes(deps: NodesDeps): NodesService {
       if (verdict.revokeLoser) await deps.peers.write(peers.filter((entry) => entry !== peer));
       return "kept-existing";
     }
-    const learned = { ...peer, nodeId: info.nodeId, publicKey: info.publicKey };
+    const learned = {
+      ...peer,
+      name: learnedName(peer, info),
+      nodeId: info.nodeId,
+      publicKey: info.publicKey,
+    };
     const next = peers.filter((entry) => entry !== other).map((entry) => (entry === peer ? learned : entry));
     await deps.peers.write(next);
     return "bound";
@@ -250,7 +268,8 @@ export function createNodes(deps: NodesDeps): NodesService {
     async disconnect(id) {
       entries.delete(id);
       reports.delete(id);
-      await summaries.remove(id);
+      // The cache goes last in effect: a stuck folder must never keep the device or the peer entry alive.
+      const cache = summaries.remove(id).catch(() => undefined);
       for (const device of await nodeDevices())
         if ((device.nodeId ?? device.id) === id || device.id === id)
           await deps.access.revokeDevice(device.id);
@@ -258,6 +277,7 @@ export function createNodes(deps: NodesDeps): NodesService {
       if (peers.some((peer) => peerIdOf(peer) === id)) {
         await deps.peers.write(peers.filter((peer) => peerIdOf(peer) !== id));
       }
+      await cache;
       announce();
     },
     // `forget` differs from `disconnect` only in what the server sends (no `bye`); the local effect is the same.

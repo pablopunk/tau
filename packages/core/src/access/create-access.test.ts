@@ -157,6 +157,37 @@ describe("node devices (MVP13 Step 1)", () => {
     expect(await again.verifyNode(node.secret)).toBeDefined();
   });
 
+  test("a nodeId given at redeem makes the device one node before any hello, and the hello adds the key", async () => {
+    const { access } = setup();
+    const id = "a".repeat(52);
+    const m = await access.mintPairing({ kind: "node" });
+    const redeemed = await access.redeemPairing({ code: m.code, deviceName: "B", peer: PEER, nodeId: id });
+    expect((await access.listDevices("")).map((device) => device.nodeId)).toEqual([id]);
+    expect(await access.bindNodeIdentity(redeemed.deviceId, { nodeId: id, publicKey: KEY })).toEqual({
+      ok: true,
+    });
+    expect(
+      await access.bindNodeIdentity(redeemed.deviceId, { nodeId: "b".repeat(52), publicKey: KEY }),
+    ).toMatchObject({
+      ok: false,
+      reason: "identity-conflict",
+    });
+  });
+
+  test("a junk nodeId at redeem is ignored and a device pairing never takes one", async () => {
+    const { access } = setup();
+    const node = await access.mintPairing({ kind: "node" });
+    await access.redeemPairing({ code: node.code, deviceName: "B", peer: PEER, nodeId: "not an id" });
+    const device = await access.mintPairing({ kind: "device" });
+    await access.redeemPairing({
+      code: device.code,
+      deviceName: "Safari",
+      peer: PEER,
+      nodeId: "a".repeat(52),
+    });
+    expect((await access.listDevices("")).map((entry) => entry.nodeId)).toEqual([undefined, undefined]);
+  });
+
   test("reads a 0.1.x devices.json (kind machine, no ids) and a file that already says node", async () => {
     const dir = await mkdtemp(join(tmpdir(), "tau-access-"));
     const file = join(dir, "devices.json");

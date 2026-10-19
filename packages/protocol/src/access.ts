@@ -65,6 +65,8 @@ export type MintedPairing = Type.Static<typeof MintedPairingSchema>;
 export const RedeemPairingBodySchema = Type.Object({
   code: Type.String({ minLength: 1, maxLength: 256 }),
   deviceName: Type.String({ maxLength: 120 }),
+  /** A node pairing: the redeemer's own `nodeId`, so the acceptor lists it as one node even before any `hello`. */
+  nodeId: Type.Optional(Type.String({ maxLength: 64 })),
 });
 export type RedeemPairingBody = Type.Static<typeof RedeemPairingBodySchema>;
 

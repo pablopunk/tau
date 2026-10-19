@@ -132,6 +132,42 @@ describe("a node secret is looked at on exactly two paths", () => {
   });
 });
 
+describe("tagged (tunnel) sockets: /api/n/** and the link path need a device", () => {
+  const PATHS = [
+    "/api/n/abc/api/projects",
+    "/api/n/abc/api/live",
+    "/api/n/abc/api/access/devices",
+    NODE_LINK_PATH,
+  ];
+
+  it("answers 401 to anonymous, master-token and wrong-secret callers, as a request and as an upgrade", async () => {
+    await start();
+    for (const path of PATHS) {
+      for (const headers of [{}, bearer(TOKEN), bearer("0".repeat(64))]) {
+        const plain = await ctx.tunnel({ path, headers: { origin: ORIGIN, ...headers } });
+        expect(plain.status, `http ${path}`).toBe(401);
+        expect((await dialTunnel(path, headers)).status, `ws ${path}`).toBe(401);
+      }
+    }
+  });
+
+  it("lets a linked device through /api/n/** (it reaches the proxy: not found, not 401) but a node secret never", async () => {
+    await start();
+    const { cookie } = await ctx.linkDevice();
+    const { secret } = await ctx.linkNode();
+    const device = await ctx.tunnel({
+      path: "/api/n/abc/api/projects",
+      headers: { cookie, origin: ORIGIN },
+    });
+    expect(device.status).not.toBe(401);
+    const node = await ctx.tunnel({
+      path: "/api/n/abc/api/projects",
+      headers: { ...bearer(secret), origin: ORIGIN },
+    });
+    expect(node.status).toBe(401);
+  });
+});
+
 describe("the responder's loopback contract (what a symmetric link calls on its own server)", () => {
   const call = (port: number, path: string, headers: Record<string, string>) =>
     new Promise<number>((resolve, reject) => {

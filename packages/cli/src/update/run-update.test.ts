@@ -168,7 +168,7 @@ describe("tau update", () => {
     const status = s.commands.find((c) => c.args[1] === "status");
     expect(status?.args).toEqual([`${PKG}/dist/bin.js`, "status", "--home", s.home, "--json"]);
     expect(s.out.join("\n")).toContain("Linked nodes must run the same tau version");
-    expect(s.out.join("\n")).toContain("linked to a hub");
+    expect(s.out.join("\n")).toContain("linked to other nodes");
   });
 
   it("forwards only the flags typed", async () => {

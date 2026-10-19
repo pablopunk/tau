@@ -45,6 +45,15 @@ function NodeCode({ state }: { state: PairingState }) {
         {link ? (
           <CommandLine command={`npx @pablopunk/tau connect ${link}`} label="Copy command with link" />
         ) : null}
+        {link ? (
+          <>
+            <p className="text-muted-foreground">Or with the code:</p>
+            <CommandLine
+              command={`npx @pablopunk/tau connect ${pairing.shortCode} --node ${new URL(link).origin}`}
+              label="Copy command with code"
+            />
+          </>
+        ) : null}
       </div>
       <p className="text-sm text-muted-foreground">
         {expired ? "This code expired." : `Waiting for the node… Expires in ${countdown(msLeft)}`}
