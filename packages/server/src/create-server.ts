@@ -10,6 +10,7 @@ import type { MachineGateway } from "./machines/gateway";
 import { registerMachineLink } from "./machines/register-link";
 import { registerMachineRoutes } from "./machines/register-machine-routes";
 import { registerMachineProxy } from "./machines/register-proxy";
+import { startSummaryWriter } from "./machines/summary-writer";
 import { allowEmptyJsonBodies } from "./rest/json-body";
 import { registerRoutes } from "./rest/register-routes";
 import { type AllowList, allowListForPort, hostnameOfUrl } from "./security/allow-list";
@@ -115,10 +116,12 @@ export const createServer: CreateServer = async (options) => {
   });
   let stopFollowing = () => {};
   let stopReaping = () => {};
+  let stopSummaries = () => {};
   try {
     await app.listen({ port: options.port, host: options.host ?? DEFAULT_HOST });
     boundPort = portOf(app.server.address(), options.port);
     allowList = allowListForPort(boundPort);
+    stopSummaries = startSummaryWriter(options.core, gateway);
     stopFollowing = followTunnelHostname(options.core, () => allowList);
     stopReaping = options.core.onChange((change) => {
       if (change.resource === "devices") void closeSocketsOfGoneDevices(options.core, sockets);
@@ -139,6 +142,7 @@ export const createServer: CreateServer = async (options) => {
       labels.stop();
       stopFollowing();
       stopReaping();
+      stopSummaries();
       await tunnel.close();
       await app.close();
     },

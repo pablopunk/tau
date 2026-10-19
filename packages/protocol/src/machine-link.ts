@@ -21,6 +21,8 @@ export const LINK_PING_INTERVAL_MS = 15_000;
 export const LINK_OFFLINE_AFTER_MS = 45_000;
 export const LINK_NO_CREDIT_CLOSE_MS = 60_000;
 export const LINK_CLOSE_NO_CREDIT = 1013;
+/** The hub closes a link whose `hello.protocolVersion` differs from its own; the machine shows "update required". */
+export const LINK_CLOSE_UPDATE_REQUIRED = 4001;
 
 export const FLAG_END = 0x01;
 /** The payload is one text WebSocket message (`/live`), not binary. */

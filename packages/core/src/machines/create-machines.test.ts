@@ -86,6 +86,15 @@ describe("machine status", () => {
   });
 });
 
+describe("update-required after the hub closed the link", () => {
+  it("stays update-required (not offline) so the hub can say why", async () => {
+    const { machines } = setup();
+    await machines.register("m1", { ...HELLO, protocolVersion: "v0" });
+    machines.markOffline("m1");
+    expect((await machines.list())[0]?.status).toBe("update-required");
+  });
+});
+
 describe("summary cache", () => {
   it("is private, atomic, healthy-only and marked stale on disconnect of the link", async () => {
     const { machines } = setup();

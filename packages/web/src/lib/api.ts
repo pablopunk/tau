@@ -17,6 +17,7 @@ import type {
   LoginSession,
   LoopInput,
   Machine,
+  MachineSummary,
   McpServerConfig,
   McpServerStatus,
   MessageMode,
@@ -188,6 +189,8 @@ export interface Api {
     rename(id: string, name: string): Promise<void>;
     disconnect(id: string): Promise<void>;
     /** This tau's own link to a hub ("Linked to <hub>"). */
+    /** What the hub last saw of a machine (titles and times); rejects `not_found` before the first one. */
+    summary(id: string): Promise<MachineSummary>;
     hubLink(): Promise<HubLink>;
     disconnectHub(): Promise<void>;
   };
@@ -338,6 +341,7 @@ export function createApi(transport: Transport): Api {
       list: () => request("listMachines", {}),
       rename: (id, name) => request("renameMachine", { params: { id }, body: { name } }),
       disconnect: (id) => request("disconnectMachine", { params: { id } }),
+      summary: (id) => request("getMachineSummary", { params: { id } }),
       hubLink: () => request("getHubLink", {}),
       disconnectHub: () => request("disconnectHub", {}),
     },

@@ -1,4 +1,4 @@
-import { type Core, routes } from "@tau/protocol";
+import { AppError, type Core, routes } from "@tau/protocol";
 import type { FastifyInstance } from "fastify";
 import { defineRoute } from "../rest/define-route";
 import type { DeviceSockets } from "../security/device-sockets";
@@ -17,6 +17,11 @@ export function registerMachineRoutes(
 ): void {
   defineRoute(app, routes.listMachines, () => core.machines.list());
   defineRoute(app, routes.renameMachine, ({ params, body }) => core.machines.rename(params.id, body.name));
+  defineRoute(app, routes.getMachineSummary, async ({ params }) => {
+    const summary = await core.machines.readSummary(params.id);
+    if (!summary) throw new AppError("not_found", "No summary for this machine yet.");
+    return summary;
+  });
   defineRoute(app, routes.disconnectMachine, async ({ params }) => {
     await core.machines.disconnect(params.id);
     sockets.closeDevice(params.id);

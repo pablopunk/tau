@@ -1,6 +1,7 @@
 import { CHUNK_BYTES, CREDIT_WINDOW_BYTES, chunkBody, type RequestFrame } from "@tau/protocol";
 import WebSocket from "ws";
 import { type LinkContext, loopbackHeaders, type Stream } from "./link-context";
+import { targetOf } from "./link-endpoint";
 
 const MAX_INPUT_BYTES = 64 * 1024;
 const NOT_SENDABLE = new Set([1004, 1005, 1006, 1015]);
@@ -18,7 +19,7 @@ const closeCodeOf = (code: number): number =>
 /** Relays one hub stream to a loopback WebSocket of this machine's own server (`/api/live`, terminal stream). */
 export function startSocketStream(context: LinkContext, frame: OpenFrame, finished: () => void): Stream {
   const { id } = frame;
-  const socket = new WebSocket(`ws://127.0.0.1:${context.port}${frame.path}${frame.query}`, {
+  const socket = new WebSocket(`ws://127.0.0.1:${context.port}${targetOf(frame.path, frame.query)}`, {
     headers: loopbackHeaders(context, frame.hubDevice),
     maxPayload: CHUNK_BYTES * 4,
   });
@@ -54,6 +55,13 @@ export function startSocketStream(context: LinkContext, frame: OpenFrame, finish
 
   socket.on("open", () => {
     open = true;
+    context.sendControl({
+      type: "open",
+      id,
+      path: frame.path,
+      query: frame.query,
+      hubDevice: frame.hubDevice,
+    });
     for (const held of queued.splice(0)) deliver(held);
   });
 

@@ -9,12 +9,14 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
 import { conversationPath } from "@/lib/paths";
+import { useMachineSummary } from "@/lib/queries";
 import { stateLine } from "@/machines/machine-text";
 import { readSummaryCache } from "@/machines/summary-cache";
 
 /** What a machine that is not reachable last showed: titles only, greyed, each one opening the calm offline state. */
 export function OfflineMachineSection({ machine, now }: { machine: Machine; now: number }) {
-  const summary = readSummaryCache(machine.id);
+  const hubSummary = useMachineSummary(machine.id).data;
+  const summary = hubSummary ?? readSummaryCache(machine.id);
   const threads = summary?.threads ?? [];
   return (
     <SidebarGroupContent className="opacity-60" data-stale>

@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { LIVE_PATH, machineApiPrefix, terminalStreamPath } from "@tau/protocol";
+import { LINK_CLOSE_UPDATE_REQUIRED, LIVE_PATH, machineApiPrefix, terminalStreamPath } from "@tau/protocol";
 import Fastify, { type FastifyInstance } from "fastify";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import WebSocket from "ws";
@@ -271,24 +271,13 @@ describe("machine gateway over a loopback link", () => {
     expect(calls).toBe(0);
   });
 
-  it("passes a version-skewed machine's not_found through and shows update-required", async () => {
+  it("closes a version-skewed machine's link with the update code", async () => {
     ctx = await startTestServer();
-    const { id, prefix } = await linkPeer(
-      {
-        request: () => ({
-          status: 404,
-          headers: { "content-type": "application/json" },
-          body: Buffer.from(
-            JSON.stringify({ error: { code: "not_found", message: "Update tau on this machine." } }),
-          ),
-        }),
-      },
+    const { peer } = await linkPeer(
+      { request: () => ({ status: 200, headers: {}, body: Buffer.alloc(0) }) },
       { hello: { protocolVersion: "older" } },
     );
-    expect((await ctx.core.machines.list()).find((m) => m.id === id)?.status).toBe("update-required");
-    const response = await ctx.request({ url: `${prefix}/api/conversations` });
-    expect(response.statusCode).toBe(404);
-    expect(response.json()).toMatchObject({ error: { code: "not_found" } });
+    expect(await peer.closed).toBe(LINK_CLOSE_UPDATE_REQUIRED);
   });
 
   it("answers not_found for a machine that never linked", async () => {

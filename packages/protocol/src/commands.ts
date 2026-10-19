@@ -598,6 +598,13 @@ export const commands: readonly CommandDef[] = [
     destructive: false,
   },
   {
+    command: "machines summary",
+    route: "getMachineSummary",
+    summary: "Show the titles the hub last saw on a machine (what it shows while the machine is offline)",
+    positionals: ["params.id"],
+    destructive: false,
+  },
+  {
     command: "machines disconnect",
     route: "disconnectMachine",
     summary: "Cut a machine's link from the hub: its streams close and its cached summary is deleted",

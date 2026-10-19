@@ -37,7 +37,7 @@ import {
   WorkspaceDefaultSchema,
 } from "./entities";
 import { ICON_BODY_LIMIT } from "./icons";
-import { HubLinkSchema, MachineSchema, RenameMachineBodySchema } from "./machines";
+import { HubLinkSchema, MachineSchema, MachineSummarySchema, RenameMachineBodySchema } from "./machines";
 import {
   CheckpointSchema,
   McpServerConfigSchema,
@@ -156,6 +156,13 @@ export const routes = {
     status: 204,
     params: IdParams,
     body: RenameMachineBodySchema,
+  },
+  getMachineSummary: {
+    method: "GET",
+    path: `${API_PREFIX}/machines/:id/summary`,
+    status: 200,
+    params: IdParams,
+    response: MachineSummarySchema,
   },
   disconnectMachine: { method: "DELETE", path: `${API_PREFIX}/machines/:id`, status: 204, params: IdParams },
   getHubLink: { method: "GET", path: `${API_PREFIX}/machines/hub`, status: 200, response: HubLinkSchema },

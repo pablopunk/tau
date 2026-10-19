@@ -18,7 +18,7 @@ import {
   MachineRowBody,
 } from "@/components/ui/machine-row";
 import { SettingRow } from "@/components/ui/settings-layout";
-import { useAllConversations, useDisconnectMachine, useRenameMachine } from "@/lib/queries";
+import { useAllConversations, useDisconnectMachine, useHubLink, useRenameMachine } from "@/lib/queries";
 import { useMachines } from "@/machines";
 import { osLabel, stateLine, updateCommand } from "@/machines/machine-text";
 import { MachineSettingsDialog } from "./MachineSettingsDialog";
@@ -145,6 +145,8 @@ function MachineItem({
 
 function ThisMachineRow() {
   const threads = useAllConversations().data?.length ?? 0;
+  const link = useHubLink().data;
+  const hubName = link && link.state !== "none" ? (link.hubName ?? link.hubUrl ?? "a hub") : null;
   return (
     <MachineRow data-machine-id="local">
       <MachineOsIcon os="" />
@@ -152,10 +154,11 @@ function ThisMachineRow() {
         <span className="flex min-w-0 items-center gap-2 text-sm font-medium">
           <MachineDot status="online" />
           <span className="truncate">This machine</span>
-          <Badge variant="secondary">Hub</Badge>
+          {hubName ? null : <Badge variant="secondary">Hub</Badge>}
         </span>
         <span className="text-xs text-muted-foreground">
           {threads} {threads === 1 ? "thread" : "threads"} · the tau you are looking at
+          {hubName ? `, linked to ${hubName}` : ""}
         </span>
       </MachineRowBody>
     </MachineRow>

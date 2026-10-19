@@ -34,17 +34,24 @@ const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
 
 const calls: Array<{ method: string; url: string }> = [];
+let hubLink: Record<string, unknown> = {
+  state: "none",
+  hubName: null,
+  hubUrl: null,
+  since: null,
+  message: null,
+};
 
 beforeEach(() => {
   calls.length = 0;
   forgetMachineApis();
+  hubLink = { state: "none", hubName: null, hubUrl: null, since: null, message: null };
   vi.stubGlobal(
     "fetch",
     vi.fn(async (url: string, init?: RequestInit) => {
       calls.push({ method: init?.method ?? "GET", url });
       if (url === "/api/machines") return json(machines);
-      if (url === "/api/machines/hub")
-        return json({ state: "none", hubName: null, hubUrl: null, since: null, message: null });
+      if (url === "/api/machines/hub") return json(hubLink);
       if (url.startsWith("/api/pair")) {
         return json({
           kind: "machine",
@@ -109,6 +116,14 @@ describe("Settings → Machines", () => {
     expect(screen.getByText("tau connect ABCD2345 --hub https://hub.example")).toBeInTheDocument();
     expect(calls).toContainEqual({ method: "POST", url: "/api/pair?kind=machine" });
     expect(screen.getAllByText(/full power on the machine you connect/).length).toBeGreaterThan(0);
+  });
+
+  it("on a machine linked to a hub: no Connect a machine, no Hub badge, the hub is named", async () => {
+    hubLink = { state: "linked", hubName: "Home hub", hubUrl: "https://h.example", since: 1, message: null };
+    renderSection();
+    expect(await screen.findByText(/linked to Home hub/)).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Connect a machine" })).toBeNull();
+    expect(screen.queryByText("Hub")).toBeNull();
   });
 
   it("keeps the three searchable setting rows", async () => {

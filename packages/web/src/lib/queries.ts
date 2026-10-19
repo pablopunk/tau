@@ -339,6 +339,15 @@ export const useSignOutAllDevices = () => {
   return useDeviceMutation(() => api.access.signOutAll());
 };
 
+export const useMachineSummary = (machineId: string) => {
+  const api = useApi();
+  return useQuery({
+    queryKey: ["machines", "summary", machineId] as const,
+    queryFn: () => api.machines.summary(machineId),
+    retry: false,
+  });
+};
+
 export const useHubLink = () => {
   const api = useApi();
   return useQuery({ queryKey: queryKeys.hubLink, queryFn: () => api.machines.hubLink() });

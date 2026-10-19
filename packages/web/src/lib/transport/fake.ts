@@ -148,6 +148,11 @@ const handlers: Handlers = {
   },
   listMachines: (core) => core.machines.list(),
   renameMachine: (core, { params, body }) => core.machines.rename(params.id, body.name as string),
+  getMachineSummary: async (core, { params }) => {
+    const summary = await core.machines.readSummary(params.id);
+    if (!summary) throw new AppError("not_found", "No summary for this machine.");
+    return summary;
+  },
   disconnectMachine: (core, { params }) => core.machines.disconnect(params.id),
   getHubLink: (core) => core.machines.hubState(),
   disconnectHub: (core) => core.machines.disconnectHub(),

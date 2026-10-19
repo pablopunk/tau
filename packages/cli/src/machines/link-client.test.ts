@@ -1,7 +1,7 @@
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { Core, HubLink, RequestFrame } from "@tau/protocol";
+import { type Core, type HubLink, LINK_CLOSE_UPDATE_REQUIRED, type RequestFrame } from "@tau/protocol";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createHubFileStore, type HubFileStore } from "./hub-file";
 import { type LinkClient, type LinkTuning, startLinkClientWith } from "./link-client";
@@ -75,7 +75,7 @@ describe("link client", () => {
   });
 
   it("answers a request on loopback with the master token and the hub device", async () => {
-    await hub.sendFrame(request(1, "/api/hello", { query: "?a=1" }));
+    await hub.sendFrame(request(1, "/api/hello", { query: "a=1" }));
     await hub.waitFor(() => hub.ends.has(1));
     expect(responseOf(1)).toMatchObject({ status: 200 });
     expect(JSON.parse(bodyOf(hub, 1).toString())).toMatchObject({ url: "/api/hello?a=1", method: "GET" });
@@ -136,6 +136,12 @@ describe("link client", () => {
     expect(machine.socketHeaders[0]?.authorization).toBe(`Bearer ${MASTER}`);
     expect(machine.socketHeaders[0]?.origin).toBeUndefined();
     expect(machine.socketHeaders[0]?.["x-tau-hub-device"]).toBe("Phone");
+  });
+
+  it("confirms an opened stream with an open frame so the hub releases its queued frames", async () => {
+    await hub.sendFrame({ type: "open", id: 21, path: "/api/live", query: "x=1", hubDevice: "Phone" });
+    await hub.waitFor(() => hub.frames.some((frame) => frame.type === "open" && frame.id === 21));
+    await hub.sendFrame({ type: "close", id: 21, code: 1000, reason: "" });
   });
 
   it("splits binary input above 64 KB and refuses an oversize text frame", async () => {
@@ -201,6 +207,13 @@ describe("link client", () => {
     await vi.waitFor(() => expect(statesNamed()).toContain("refused"));
     await new Promise((resolve) => setTimeout(resolve, 200));
     expect(hub.upgrades.length).toBe(before + 1);
+  });
+
+  it("reports update-required when the hub closes with the update code", async () => {
+    states = [];
+    (await hub.socket()).close(LINK_CLOSE_UPDATE_REQUIRED, "update required");
+    await vi.waitFor(() => expect(statesNamed()).toContain("update-required"));
+    await vi.waitFor(() => expect(statesNamed().at(-1)).toBe("linked"), { timeout: 5000 });
   });
 
   it("drops the link when hub.json is deleted and redials when it comes back", async () => {

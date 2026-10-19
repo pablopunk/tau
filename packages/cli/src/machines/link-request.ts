@@ -1,6 +1,7 @@
 import { type ClientRequest, request as httpRequest, type IncomingHttpHeaders } from "node:http";
 import { chunkBody, type RequestFrame } from "@tau/protocol";
 import { type LinkContext, loopbackHeaders, type Stream } from "./link-context";
+import { targetOf } from "./link-endpoint";
 
 function flatten(headers: IncomingHttpHeaders): Record<string, string> {
   const out: Record<string, string> = {};
@@ -36,7 +37,7 @@ export function startRequest(context: LinkContext, frame: RequestFrame, finished
       host: "127.0.0.1",
       port: context.port,
       method: frame.method,
-      path: `${frame.path}${frame.query}`,
+      path: targetOf(frame.path, frame.query),
       headers: requestHeaders(context, frame),
     },
     (res) => {

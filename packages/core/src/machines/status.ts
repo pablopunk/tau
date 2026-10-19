@@ -10,9 +10,9 @@ export interface Liveness {
 }
 
 export function deriveStatus(entry: Liveness, now: number): MachineStatus {
-  if (entry.closed) return "offline";
   const silent = now - entry.lastSeenAt;
   if (silent >= OFFLINE_AFTER_MS) return "offline";
   if (entry.protocolMismatch) return "update-required";
+  if (entry.closed) return "offline";
   return silent >= RECONNECTING_AFTER_MS ? "reconnecting" : "online";
 }

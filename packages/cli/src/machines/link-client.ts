@@ -1,5 +1,11 @@
 import { arch, hostname, platform } from "node:os";
-import { type Core, type HubLinkStateName, type MachineHello, PROTOCOL_VERSION } from "@tau/protocol";
+import {
+  type Core,
+  type HubLinkStateName,
+  LINK_CLOSE_UPDATE_REQUIRED,
+  type MachineHello,
+  PROTOCOL_VERSION,
+} from "@tau/protocol";
 import WebSocket from "ws";
 import { cliVersion } from "../version";
 import type { HubFile, HubFileStore } from "./hub-file";
@@ -70,12 +76,20 @@ function safeVersion(): string {
   }
 }
 
-const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
-
 /** Reads `hub.json` (and watches it by polling, so `tau connect` and `tau disconnect` need no restart) and keeps the hub link up. */
 export function startLinkClientWith(options: LinkClientOptions, tuning: LinkTuning): LinkClient {
   const { core, hubFile } = options;
   let stopped = false;
+  let wakeSleeper: (() => void) | undefined;
+  /** A pause that `stop()` cuts short, so shutting down never waits for a poll tick. */
+  const sleep = (ms: number) =>
+    new Promise<void>((resolve) => {
+      const timer = setTimeout(resolve, ms);
+      wakeSleeper = () => {
+        clearTimeout(timer);
+        resolve();
+      };
+    });
   let active: WebSocket | undefined;
   let lastState: HubLinkStateName = "none";
   let since = Date.now();
@@ -130,9 +144,9 @@ export function startLinkClientWith(options: LinkClientOptions, tuning: LinkTuni
     });
   }
 
-  const outcomeOf = ({ code, reason }: { code: number; reason: string }): Outcome => {
+  const outcomeOf = ({ code }: { code: number; reason?: string }): Outcome => {
     if (code === REFUSED_CLOSE) return "refused";
-    return /update/i.test(reason) ? "update-required" : "ended";
+    return code === LINK_CLOSE_UPDATE_REQUIRED ? "update-required" : "ended";
   };
 
   async function loop(): Promise<void> {
@@ -175,6 +189,7 @@ export function startLinkClientWith(options: LinkClientOptions, tuning: LinkTuni
   return {
     async stop() {
       stopped = true;
+      wakeSleeper?.();
       const socket = active;
       if (socket) {
         socket.close(1000, "stopping");

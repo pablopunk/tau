@@ -7,3 +7,9 @@ export function linkUrlOf(hubUrl: string): string {
 }
 
 export const originOf = (hubUrl: string): string => new URL(hubUrl).origin;
+
+/** The frame's `query` has no leading `?` (the hub splits the URL there); both forms are accepted. */
+export function targetOf(path: string, query: string): string {
+  const bare = query.startsWith("?") ? query.slice(1) : query;
+  return bare === "" ? path : `${path}?${bare}`;
+}

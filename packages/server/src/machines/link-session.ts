@@ -4,6 +4,7 @@ import {
   CREDIT_WINDOW_BYTES,
   decodeDataFrame,
   encodeDataFrame,
+  LINK_CLOSE_UPDATE_REQUIRED,
   LINK_NO_CREDIT_CLOSE_MS,
   LINK_OFFLINE_AFTER_MS,
   LINK_PING_INTERVAL_MS,
@@ -191,8 +192,9 @@ export class LinkSession {
     if (this.registered) return;
     const { type: _type, ...hello } = frame;
     try {
-      await this.core.machines.register(this.machineId, hello);
+      const machine = await this.core.machines.register(this.machineId, hello);
       this.registered = true;
+      if (machine.status === "update-required") this.close(LINK_CLOSE_UPDATE_REQUIRED, "update required");
     } catch {
       this.close(INTERNAL, "register failed");
     }
