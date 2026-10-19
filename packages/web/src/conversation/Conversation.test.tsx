@@ -127,10 +127,10 @@ describe("<Conversation> tools", () => {
     expect(screen.queryByText(/Exit \d/)).not.toBeInTheDocument();
   });
 
-  it("shows live bash output while the command runs, open by default", () => {
+  it("shows live bash output while the command runs, expanding after a short delay", async () => {
     renderView(viewWhere("bash", (view) => JSON.stringify(liveDoc(view)).includes('"output":"hi')));
-    expect(screen.getByRole("figure", { name: "Command output" })).toHaveTextContent("hi");
     expect(screen.getByText("Running")).toBeInTheDocument();
+    expect(await screen.findByRole("figure", { name: "Command output" })).toHaveTextContent("hi");
   });
 
   it("shows the exit code of a failed bash call from the result diagnostics", async () => {

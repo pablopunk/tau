@@ -1,8 +1,13 @@
 import { Check, ChevronRight, CircleSlash, Loader2, X } from "lucide-react";
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
 import { isActive, type ToolStatus } from "../model/tool-state";
+
+/** Delay before auto-expanding a running tool, so fast commands never flash open. */
+export const TOOL_AUTO_EXPAND_DELAY_MS = 400;
+/** Minimum time an auto-expanded tool stays open, so it doesn't collapse in a flash. */
+export const TOOL_AUTO_OPEN_MIN_MS = 800;
 
 const STATUS_LABELS: Record<ToolStatus, string> = {
   pending: "Starting",
@@ -40,7 +45,31 @@ export function ToolCard({
   openWhileActive = true,
 }: ToolCardProps) {
   const [toggled, setToggled] = useState<boolean | undefined>(undefined);
-  const open = toggled ?? (openWhileActive && isActive(status));
+  const [autoOpen, setAutoOpen] = useState(false);
+  const active = openWhileActive && isActive(status);
+  const openedAt = useRef(0);
+
+  useEffect(() => {
+    if (!active) return;
+    const id = setTimeout(() => {
+      openedAt.current = Date.now();
+      setAutoOpen(true);
+    }, TOOL_AUTO_EXPAND_DELAY_MS);
+    return () => clearTimeout(id);
+  }, [active]);
+
+  useEffect(() => {
+    if (active || !autoOpen) return;
+    const elapsed = Date.now() - openedAt.current;
+    if (elapsed >= TOOL_AUTO_OPEN_MIN_MS) {
+      setAutoOpen(false);
+      return;
+    }
+    const id = setTimeout(() => setAutoOpen(false), TOOL_AUTO_OPEN_MIN_MS - elapsed);
+    return () => clearTimeout(id);
+  }, [active, autoOpen]);
+
+  const open = toggled ?? autoOpen;
   return (
     <Collapsible
       open={open}
