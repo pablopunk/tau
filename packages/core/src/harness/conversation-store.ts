@@ -100,6 +100,8 @@ export interface ConversationStore
   removeAllOfProject(projectId: string, now?: number): Promise<void>;
   /** Aborts live runs of tombstoned threads (a crash between the tombstone and the abort). */
   abortTombstonedRuns(): Promise<void>;
+  /** Ids of the live threads that have a run in flight right now. */
+  busyIds(): Promise<string[]>;
   watch(id: string, onOps: OpsListener): Promise<{ stop(): Promise<void> }>;
 }
 
@@ -341,6 +343,14 @@ export function createConversationStore(
         if (meta.deletedAt === undefined || !(await isBusy(harness, id))) continue;
         await (await harness.conversation(id, BACKGROUND))?.abort(BACKGROUND);
       }
+    },
+
+    async busyIds() {
+      const busy: string[] = [];
+      for (const { id, meta } of await scanAppConversations(harness)) {
+        if (meta.deletedAt === undefined && (await isBusy(harness, id))) busy.push(String(id));
+      }
+      return busy;
     },
 
     async watch(id, onOps) {
