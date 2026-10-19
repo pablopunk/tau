@@ -1,5 +1,5 @@
 import { AppError } from "@tau/protocol";
-import type { MachineGateway } from "./gateway";
+import type { MachineGateway } from "../machines/gateway";
 
 const NOT_LINKED = "That machine is not linked right now.";
 const GOING_AWAY = 1001;
