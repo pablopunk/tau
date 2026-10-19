@@ -64,7 +64,6 @@ import { createOpenTunnelAdapter } from "./remote/opentunnel-adapter";
 import type { RemoteAdapter, RemoteAdapterDeps } from "./remote/ports";
 import { createRemoteService } from "./remote/remote-service";
 import type { RemovalHooks } from "./removal-hooks";
-import { createRestartResume } from "./restart-resume";
 import { createSettingsApi } from "./settings-api";
 import { createSkillsApi } from "./skills/skills-api";
 import { createStatusTracker } from "./status/status-tracker";
@@ -321,12 +320,6 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
     await recovery.recoverAtStartup();
     await processes.reapStaleAtStartup();
     await goals.recoverAtStartup();
-    const restartResume = createRestartResume({
-      file: join(home.root, "interrupted-runs.json"),
-      conversations,
-      now: deps.now,
-    });
-    await restartResume.resumeAtStartup();
     await scheduler.start();
     archivedCleanup.start();
 
@@ -466,9 +459,6 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
       onChange: (listener) => changes.subscribe(listener),
       close() {
         closing ??= (async () => {
-          await restartResume
-            .markRunning()
-            .catch((error) => console.error("tau: could not note running threads", error));
           changes.clear();
           updates.stop();
           await remote.close();
