@@ -9,6 +9,7 @@ import { createFakeRemoteAdapter } from "../remote/fake-adapter";
 import { createRemoteService } from "../remote/remote-service";
 import { createNodes } from "./create-nodes";
 import { peerIdOf } from "./peer-id";
+import { standbyDialDue } from "./standby";
 
 const HELLO = { name: "Homelab", os: "linux", tauVersion: "1", protocolVersion: "v1" };
 const SUMMARY = {
@@ -41,6 +42,9 @@ function setup() {
       devices = devices.filter((d) => d.id !== id);
     },
     bindNodeIdentity: async (id: string, identity: { nodeId: string; publicKey: string }) => {
+      const holder = devices.find((d) => d.id !== id && d.nodeId === identity.nodeId);
+      if (holder)
+        return { ok: false as const, reason: "duplicate-device" as const, otherDeviceId: holder.id };
       devices = devices.map((d) => (d.id === id ? { ...d, nodeId: identity.nodeId } : d));
       return { ok: true as const };
     },
@@ -222,5 +226,118 @@ describe("peers from both directions (Step 1 foundation; owner A deepens)", () =
     await nodes.resetIdentity();
     expect((await nodes.self()).nodeId).toBe("self2");
     expect(await nodes.list()).toEqual([]);
+  });
+});
+
+describe("dedupe by nodeId (owner A)", () => {
+  const ID = "mac-id";
+  const info = { ...HELLO, name: "Mac", nodeId: ID, publicKey: "k" };
+  const peer = { url: "https://mac.example", name: "Mac", secret: "s1" };
+
+  it("glare: a device and a peers entry for one nodeId are one node with two links", async () => {
+    const { nodes, peers } = setup();
+    await peers.write([peer]);
+    await nodes.register(peerIdOf(peer), info, "dialled");
+    await nodes.register("m1", info, "accepted");
+    const list = await nodes.list();
+    expect(list).toHaveLength(1);
+    expect(list[0]?.links.map((link) => link.direction).sort()).toEqual(["accepted", "dialled"]);
+  });
+
+  it("hides a standby link beside a live one and shows it when it is alone", async () => {
+    const { nodes, peers } = setup();
+    await peers.write([peer]);
+    await nodes.register(peerIdOf(peer), info, "dialled");
+    await nodes.register("m1", info, "accepted");
+    nodes.reportLink(ID, { state: "standby", message: null, since: 1 });
+    expect((await nodes.list())[0]?.links.map((link) => link.state)).toEqual(["linked"]);
+    nodes.markOffline(ID);
+    nodes.reportLink(ID, { state: "standby", message: null, since: 1 });
+    expect((await nodes.list())[0]?.links.map((link) => link.state)).toEqual(["unreachable", "standby"]);
+  });
+
+  it("status: the best link wins", async () => {
+    const { nodes, peers } = setup();
+    await peers.write([peer]);
+    await nodes.register(peerIdOf(peer), info, "dialled");
+    await nodes.register("m1", info, "accepted");
+    nodes.markOffline(ID);
+    nodes.reportLink(ID, { state: "linked", message: null, since: 2 });
+    expect((await nodes.list())[0]?.status).toBe("online");
+  });
+
+  it("case (b): a second device for the same nodeId is revoked, the established one stays", async () => {
+    const { nodes } = setup();
+    devices.push({ id: "m2", name: "Again", kind: "node", createdAt: 2, lastSeenAt: 2, current: false });
+    await nodes.register("m1", info, "accepted");
+    clock += 1000;
+    const node = await nodes.register("m2", info, "accepted");
+    expect(node.id).toBe(ID);
+    expect(devices.map((d) => d.id)).toEqual(["m1"]);
+  });
+
+  it("case (b) stale: a silent established link is replaced and its device revoked", async () => {
+    const { nodes } = setup();
+    devices.push({ id: "m2", name: "Again", kind: "node", createdAt: 2, lastSeenAt: 2, current: false });
+    await nodes.register("m1", info, "accepted");
+    clock += 15_001;
+    await nodes.register("m2", info, "accepted");
+    expect(devices.map((d) => d.id)).toEqual(["m2"]);
+  });
+
+  it("case (b) on peers.json: the new entry is deleted, the standby secret of glare stays", async () => {
+    const { nodes, peers } = setup();
+    const second = { url: "https://mac2.example", name: "Mac again", secret: "s2" };
+    await peers.write([peer, second]);
+    await nodes.register(peerIdOf(peer), info, "dialled");
+    clock += 1000;
+    await nodes.register(peerIdOf(second), info, "dialled");
+    expect((await peers.read()).map((entry) => entry.secret)).toEqual(["s1"]);
+  });
+
+  it("hides a second peers entry for one nodeId", async () => {
+    const { nodes, peers } = setup();
+    await peers.write([
+      { ...peer, nodeId: ID, publicKey: "k" },
+      { url: "https://x", name: "Dup", secret: "s2", nodeId: ID, publicKey: "k" },
+    ]);
+    expect((await nodes.list()).filter((node) => node.id === ID)).toHaveLength(1);
+  });
+
+  it("moves the summary from the old id to the nodeId at the first hello", async () => {
+    const { nodes } = setup();
+    await nodes.register("m1", HELLO, "accepted");
+    await nodes.writeSummary("m1", SUMMARY);
+    await nodes.register("m1", info, "accepted");
+    expect(await nodes.readSummary(ID)).toEqual(SUMMARY);
+    expect(await nodes.readSummary("m1")).toBeUndefined();
+  });
+
+  it("disconnect and forget delete the peers entry and the device", async () => {
+    const { nodes, peers } = setup();
+    await peers.write([{ ...peer, nodeId: ID, publicKey: "k" }]);
+    await nodes.register("m1", info, "accepted");
+    await nodes.forget(ID);
+    expect(await peers.read()).toEqual([]);
+    expect(devices).toEqual([]);
+  });
+});
+
+describe("standby retry timing", () => {
+  it("dials once per minute and never beside a live link", () => {
+    expect(standbyDialDue({ lastTriedAt: 0, liveLinkExists: false }, 59_999)).toBe(false);
+    expect(standbyDialDue({ lastTriedAt: 0, liveLinkExists: false }, 60_000)).toBe(true);
+    expect(standbyDialDue({ lastTriedAt: 0, liveLinkExists: true }, 600_000)).toBe(false);
+  });
+});
+
+describe("resetIdentity (owner A)", () => {
+  it("drops peers and devices and the identity is new at once", async () => {
+    const { nodes, peers } = setup();
+    await peers.write([{ url: "https://mac.example", name: "Mac", secret: "s" }]);
+    await nodes.resetIdentity();
+    expect(await peers.read()).toEqual([]);
+    expect(devices).toEqual([]);
+    expect((await nodes.self()).nodeId).toBe("self2");
   });
 });

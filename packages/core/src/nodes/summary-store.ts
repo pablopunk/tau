@@ -1,4 +1,4 @@
-import { mkdir, rm } from "node:fs/promises";
+import { mkdir, rename, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { type NodeSummary, NodeSummarySchema } from "@tau/protocol";
 import { Value } from "typebox/value";
@@ -48,6 +48,17 @@ export function createSummaryStore(directory: string) {
     async markStale(id: string): Promise<void> {
       const stored = await read(id);
       if (stored && !stored.stale) await write(id, { ...stored, stale: true });
+    },
+    /** Moves the cache of `from` to `to` (the first `hello` learns the `nodeId`); an existing `to` wins. */
+    async move(from: string, to: string): Promise<void> {
+      if (from === to) return;
+      if ((await read(to)) !== undefined || (await read(from)) === undefined) {
+        await rm(folder(from), { recursive: true, force: true });
+        return;
+      }
+      await mkdir(directory, { recursive: true, mode: PRIVATE_DIRECTORY_MODE });
+      await rm(folder(to), { recursive: true, force: true });
+      await rename(folder(from), folder(to));
     },
     remove: (id: string) => rm(folder(id), { recursive: true, force: true }),
     removeAll: () => rm(directory, { recursive: true, force: true }),

@@ -7,6 +7,8 @@ import type { Core } from "@tau/protocol";
 import { type ContractTarget, runCoreContract } from "@tau/testkit/contract";
 import { describe } from "vitest";
 import { type CoreDependencies, createCoreWith, defaultCoreDependencies } from "./create-core";
+import { peerIdOf } from "./nodes/peer-id";
+import { createFilePeersStore, peersFilePath } from "./peers/peers-store";
 import { createFakeRemoteAdapter } from "./remote/fake-adapter";
 import { createScriptedShellDaemon } from "./terminals/scripted-shell-daemon";
 import type { FakeGhConfig } from "./test-support/fake-gh";
@@ -16,8 +18,7 @@ import { NO_UPDATE_OPTIONS } from "./test-support/update-options";
 
 const REAL_CORE_IMPLEMENTED = true;
 
-/** Owner A removes `[nodes-symmetric]` when `core/src/nodes` passes it (needs `dialPeer` on the real target: a `peers.json` entry). */
-const PENDING_TAGS: string[] = ["[nodes-symmetric]"];
+const PENDING_TAGS: string[] = [];
 
 process.env.TAU_FAKE_CLAUDE_CLI = "1";
 
@@ -88,6 +89,12 @@ async function makeRealTarget(): Promise<ContractTarget> {
   const target: ContractTarget = {
     get core() {
       return core;
+    },
+    dialPeer: async (name) => {
+      const peer = { url: `https://${name.toLowerCase()}.example`, name, secret: `secret-${name}` };
+      const store = createFilePeersStore(peersFilePath(home));
+      await store.write([...(await store.read()), peer]);
+      return peerIdOf(peer);
     },
     paths: {
       directory: async (name) => {
