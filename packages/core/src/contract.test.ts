@@ -18,7 +18,8 @@ import { NO_UPDATE_OPTIONS } from "./test-support/update-options";
 
 const REAL_CORE_IMPLEMENTED = true;
 
-const PENDING_TAGS: string[] = [];
+/** `[nodes-group]`: owners E (directory) and F (relay) fill it; the integrator removes the tag. */
+const PENDING_TAGS: string[] = ["[nodes-group]"];
 
 process.env.TAU_FAKE_CLAUDE_CLI = "1";
 

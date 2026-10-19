@@ -7,6 +7,8 @@ export {
   type FakeGithubRepo,
   fakeGithubRepos,
 } from "./fake/fake-github";
+export { createFakeGroup, type FakeGroup } from "./fake/fake-group";
+export type { FakeGroupBus } from "./fake/fake-group-bus";
 export { linkFakeCores } from "./fake/link-fake-cores";
 export {
   allFixtures,

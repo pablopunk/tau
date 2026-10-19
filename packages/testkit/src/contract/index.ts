@@ -20,6 +20,7 @@ import { loginCases } from "./login";
 import { mcpCases } from "./mcp";
 import { monitorCases } from "./monitors";
 import { nodesCases } from "./nodes";
+import { nodesGroupCases } from "./nodes-group";
 import { processCases } from "./processes";
 import { projectCases } from "./projects";
 import { providerCases } from "./providers";
@@ -39,7 +40,7 @@ import { updatesCases } from "./updates";
 import { workspaceCases } from "./workspaces";
 
 export type { ContractOptions } from "./case-runner";
-export type { ContractTarget, MakeContractTarget } from "./types";
+export type { ContractGroup, ContractTarget, MakeContractTarget } from "./types";
 
 /**
  * Behavior every `Core` must have. Run against the testkit fake (testkit's own test) and against the real core
@@ -88,6 +89,7 @@ export function runCoreContract(
     accessCases(makeTarget, test);
     remoteCases(makeTarget, test);
     nodesCases(makeTarget, test);
+    nodesGroupCases(makeTarget, test);
     updatesCases(makeTarget, test);
   });
 }

@@ -1,6 +1,6 @@
 import type { Skill } from "@tau/protocol";
 import { runCoreContract } from "./contract/index";
-import { createFakeCore, type FakeGithubRepo } from "./index";
+import { createFakeCore, createFakeGroup, type FakeGithubRepo } from "./index";
 
 const SPEED = 20;
 
@@ -40,6 +40,18 @@ runCoreContract(
         skills.push({ name, description, scope: "project", path: `.agents/skills/${name}/SKILL.md` });
       },
       dialPeer: async (name) => core.nodesControl.addDialledPeer(name),
+      group: async () => {
+        const group = await createFakeGroup({ speed: SPEED });
+        return {
+          a: group.a,
+          b: group.b,
+          c: group.c,
+          ids: group.ids,
+          cut: (node) => group.cut(group[node]),
+          reconnect: (node) => group.reconnect(group[node]),
+          dispose: () => group.dispose(),
+        };
+      },
       dispose: () => core.close(),
     };
   },

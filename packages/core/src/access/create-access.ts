@@ -160,6 +160,16 @@ export function createAccess(deps: AccessDeps): AccessService {
         await save((await load()).filter((device) => device.kind === "node"));
         deps.announce();
       }),
+    rotate: ({ keep, callerDeviceId }) =>
+      transaction(async () => {
+        const kept = new Set([...keep, ...(callerDeviceId ? [callerDeviceId] : [])]);
+        const devices = await load();
+        const revoked = devices.filter((device) => !kept.has(device.id));
+        if (revoked.length === 0) return [];
+        await save(devices.filter((device) => kept.has(device.id)));
+        deps.announce();
+        return revoked.map(({ id, name, kind }) => ({ id, name, kind }));
+      }),
     async mintPairing({ kind = "device", name }) {
       const entry = codes.mint(kind);
       const url = deps.remoteUrl();

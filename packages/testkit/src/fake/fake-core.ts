@@ -89,8 +89,13 @@ export type FakeCore = Core & {
   /** Plays tunnel behaviour (`reconnecting`, errors) over the fake remote. */
   readonly remoteControl: Pick<FakeRemote, "push">;
   /** Plays link behaviour over the fake nodes registry; `attach` makes `peer` one of this fake's nodes (see `linkFakeCores`). */
-  readonly nodesControl: Pick<FakeNodes, "setStatus" | "addDialledPeer" | "nodeId" | "selfSync"> & {
+  readonly nodesControl: Pick<
+    FakeNodes,
+    "setStatus" | "addDialledPeer" | "nodeId" | "selfSync" | "joinGroup"
+  > & {
     attach(peer: FakeCore, direction: NodeLinkDirection): Promise<void>;
+    /** Makes `peer` a routed node (hops away, handed over by `via`, which is already a direct peer): `/api/n/<id>/...` reaches it. */
+    reach(peer: FakeCore, via: FakeCore, hops: number): Promise<void>;
   };
   /** Plays the registry: what the next `updates.refresh()` finds (`null`: unreachable). */
   readonly updatesControl: Pick<FakeUpdates, "setLatest">;
@@ -400,7 +405,26 @@ export function createFakeCore(options: FakeCoreOptions = {}): FakeCore {
     if (direction === "accepted") access.addNodeDevice(self.name, self.nodeId);
     await nodes.api.register(self.nodeId, { ...self, capabilities: [] }, direction);
   }
+  async function reach(peer: FakeCore, via: FakeCore, hops: number): Promise<void> {
+    const self = peer.nodesControl.selfSync();
+    nodeCores.set(self.nodeId, peer);
+    nodes.addRouted(
+      {
+        ...self,
+        id: self.nodeId,
+        identified: true,
+        status: "online",
+        lastSeenAt: now(),
+        threadCount: 0,
+        links: [],
+      },
+      via.nodesControl.nodeId(),
+      hops,
+    );
+  }
   const control = {
+    joinGroup: nodes.joinGroup,
+    reach,
     setStatus: nodes.setStatus,
     addDialledPeer: nodes.addDialledPeer,
     nodeId: nodes.nodeId,

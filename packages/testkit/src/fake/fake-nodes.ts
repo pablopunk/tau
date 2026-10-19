@@ -2,6 +2,8 @@ import {
   AppError,
   type Change,
   type Core,
+  type DirectoryNode,
+  type ExpelFrame,
   LINK_PROTOCOL,
   NODE_CAPABILITIES,
   type Node,
@@ -14,6 +16,7 @@ import {
   PROTOCOL_VERSION,
 } from "@tau/protocol";
 import type { FakeAccess } from "./fake-access";
+import type { FakeGroupBus } from "./fake-group-bus";
 
 export interface FakeNodes {
   readonly api: Core["nodes"];
@@ -25,6 +28,10 @@ export interface FakeNodes {
   setStatus(nodeId: string, status: NodeStatus): void;
   /** A `peers.json` entry that is dialled but not yet linked: returns its peer id. */
   addDialledPeer(name: string): string;
+  /** A node known only through the group: `hops` away, handed over by `via` (a direct peer's id). */
+  addRouted(node: Node, via: string, hops: number): void;
+  /** Joins a fake group: expels reach the other members through `bus`. */
+  joinGroup(bus: FakeGroupBus): void;
 }
 
 export interface FakeNodesOptions {
@@ -49,6 +56,10 @@ export function createFakeNodes({ now, emit, access, self }: FakeNodesOptions): 
   let nodeId = newNodeId();
   const nodes = new Map<string, Node>();
   const summaries = new Map<string, NodeSummary>();
+  const routed = new Map<string, { node: Node; via: string; hops: number }>();
+  const tombstones = new Set<string>();
+  let removed: { by: string; at: number } | undefined;
+  let bus: FakeGroupBus | undefined;
   const deviceOf = new Map<string, string>();
   const announce = () => emit({ resource: "nodes" });
   const set = (node: Node) => {
@@ -93,7 +104,74 @@ export function createFakeNodes({ now, emit, access, self }: FakeNodesOptions): 
     protocolVersion: PROTOCOL_VERSION,
     linkProtocol: LINK_PROTOCOL,
     capabilities: [...NODE_CAPABILITIES],
+    ...(removed ? { removed } : {}),
   });
+  const directoryOf = (): DirectoryNode[] => {
+    const direct = [...nodes.values()].map(
+      (node): DirectoryNode => ({
+        ...node,
+        links: node.links.map((link) => ({ ...link })),
+        direct: true,
+        hops: 1,
+        nextHop: node.id,
+        via: null,
+        skewMs: null,
+        ghost: false,
+        unsynced: false,
+      }),
+    );
+    const far = [...routed.values()].map(
+      ({ node, via, hops }): DirectoryNode => ({
+        ...node,
+        links: [],
+        direct: false,
+        hops,
+        nextHop: via,
+        via: nodes.get(via)?.name ?? null,
+        skewMs: null,
+        ghost: node.status === "offline",
+        unsynced: false,
+      }),
+    );
+    return [...direct, ...far];
+  };
+  const inert = (what: string) => () => Promise.reject(new AppError("internal", `Not implemented: ${what}`));
+  const group: Core["nodes"]["group"] = {
+    localAnnounce: inert("fake NodeGroup.localAnnounce"),
+    linkUp: () => undefined,
+    linkDown: () => undefined,
+    acceptAnnounce: inert("fake NodeGroup.acceptAnnounce"),
+    acceptExpel: inert("fake NodeGroup.acceptExpel"),
+    acceptAck: inert("fake NodeGroup.acceptAck"),
+    expelSet: async () => [],
+    acceptExpelSet: inert("fake NodeGroup.acceptExpelSet"),
+    markUnsynced: () => undefined,
+    async createExpel(target, confirm) {
+      if (target === nodeId) throw new AppError("cannot_remove_self", "A node cannot remove itself.");
+      const known = directoryOf().find((node) => node.id === target);
+      if (!known) throw new AppError("not_found", `No node ${target}.`);
+      if (confirm !== known.name && confirm !== known.id) {
+        throw new AppError("confirmation_mismatch", "Type the node's name or id to confirm.");
+      }
+      bus?.expel(nodeId, target, now());
+      return {
+        type: "expel",
+        payload: `tau-expel-v1|${target}|${nodeId}|${now()}`,
+        byPublicKey: `fake-key-${nodeId}`,
+        sig: "fake-sig",
+      } satisfies ExpelFrame;
+    },
+    route: (dest) => {
+      const far = routed.get(dest);
+      if (far) return { dest, nextHop: far.via, hops: far.hops };
+      return nodes.has(dest) ? { dest, nextHop: dest, hops: 1 } : undefined;
+    },
+    isTombstoned: (id) => tombstones.has(id),
+    neighbours: () => [...nodes.keys()],
+    onTopology: () => () => undefined,
+    onTombstone: () => () => undefined,
+    recordSkew: () => undefined,
+  };
   const api: Core["nodes"] = {
     self: async () => selfSync(),
     sign: async (payload) => `fake-sig:${payload}`,
@@ -113,6 +191,8 @@ export function createFakeNodes({ now, emit, access, self }: FakeNodesOptions): 
     },
     async resetIdentity() {
       for (const id of [...nodes.keys()]) await drop(id);
+      if (removed) tombstones.clear();
+      removed = undefined;
       nodeId = newNodeId();
       announce();
     },
@@ -149,6 +229,9 @@ export function createFakeNodes({ now, emit, access, self }: FakeNodesOptions): 
         set({ ...node, status: "offline", lastSeenAt: now(), links });
       }
     },
+    directory: async () => directoryOf(),
+    expulsions: async () => bus?.expulsions() ?? [],
+    group,
     async readSummary(id) {
       return summaries.get(id);
     },
@@ -161,6 +244,31 @@ export function createFakeNodes({ now, emit, access, self }: FakeNodesOptions): 
     api,
     nodeId: () => nodeId,
     selfSync,
+    addRouted(node, via, hops) {
+      routed.set(node.id, { node, via, hops });
+      announce();
+    },
+    joinGroup(next) {
+      bus = next;
+      next.join({
+        get id() {
+          return nodeId;
+        },
+        get name() {
+          return self?.name ?? "Mac";
+        },
+        applyExpel({ target, by, at }) {
+          tombstones.add(target);
+          routed.delete(target);
+          if (target === nodeId) {
+            removed = { by, at };
+            for (const id of [...nodes.keys()]) nodes.delete(id);
+            routed.clear();
+            announce();
+          } else void dropOrRevoke(target);
+        },
+      });
+    },
     setStatus(id, status) {
       set({ ...require(id), status, lastSeenAt: now() });
     },

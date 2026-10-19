@@ -22,7 +22,8 @@ interface Entry {
   threadCount: number;
 }
 
-export type NodesService = Core["nodes"] & {
+/** Step 1 part of `Core.nodes`; `create-core.ts` adds the Step 2 directory surface (`nodes/directory`). */
+export type NodesService = Omit<Core["nodes"], "directory" | "expulsions" | "group"> & {
   /** Forgets every live entry and every cached summary (remote disable or recreate clears the devices too). */
   reset(): Promise<void>;
 };

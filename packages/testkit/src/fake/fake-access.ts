@@ -135,6 +135,15 @@ export function createFakeAccess({ now, emit, remoteUrl, nodeId: ownNodeId }: Fa
       for (const [id, { device }] of [...devices]) if (device.kind !== "node") devices.delete(id);
       announce();
     },
+    async rotate({ keep, callerDeviceId }) {
+      const kept = new Set([...keep, ...(callerDeviceId ? [callerDeviceId] : [])]);
+      const revoked = [...devices.values()]
+        .filter(({ device }) => !kept.has(device.id))
+        .map(({ device: { id, name, kind } }) => ({ id, name, kind }));
+      for (const { id } of revoked) devices.delete(id);
+      if (revoked.length > 0) announce();
+      return revoked;
+    },
     async mintPairing({ kind = "device", name }): Promise<MintedPairing> {
       const code = randomHex(16);
       const entry: Pending = { kind, code, shortCode: shortCodeOf(), expiresAt: now() + PAIRING_TTL_MS };

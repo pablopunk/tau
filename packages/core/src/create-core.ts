@@ -52,6 +52,7 @@ import { createNodeIdentityStore } from "./identity/node-identity";
 import { createMcpService } from "./mcp/mcp-service";
 import { createMcpApi } from "./mcp-api";
 import { createNodes } from "./nodes/create-nodes";
+import { createDirectory } from "./nodes/directory";
 import { createFilePeersStore, migrateHubFile, migrateSummaryDirectory } from "./peers/peers-store";
 import { createProcessService } from "./processes/process-service";
 import { createPresentProject } from "./project-view";
@@ -363,6 +364,15 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
       tauVersion: options.currentVersion,
     });
 
+    const directory = createDirectory({
+      expelledFile: home.expelledFile,
+      now: deps.now,
+      changes,
+      identity: () => identity,
+      nodes,
+      home: home.root,
+    });
+
     const remote = createRemoteService({
       adapter: tunnel,
       settings,
@@ -381,7 +391,20 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
     let closing: Promise<void> | undefined;
     return {
       access,
-      nodes,
+      nodes: {
+        ...nodes,
+        directory: directory.directory,
+        expulsions: directory.expulsions,
+        group: directory.group,
+        async resetIdentity() {
+          await nodes.resetIdentity();
+          await directory.reset();
+        },
+        async self() {
+          const removed = directory.removal();
+          return { ...(await nodes.self()), ...(removed ? { removed } : {}) };
+        },
+      },
       remote: remote.api,
       fs: { suggestDirectories },
       settings: createSettingsApi({

@@ -95,6 +95,30 @@ export function accessCases(make: MakeContractTarget, test: CaseRunner): void {
       expect(await core.access.verifyNode(node.secret)).toBeDefined();
     });
 
+    test("[access-rotate] rotate revokes every device and node not kept, but never the caller", async () => {
+      const { core } = target;
+      const caller = await link(target, "Safari on Mac");
+      const phone = await link(target, "Safari on iPhone");
+      const keptNode = await link(target, "homelab", "node");
+      const hostile = await link(target, "hostile", "node");
+      const revoked = await core.access.rotate({
+        keep: [phone.deviceId, keptNode.deviceId],
+        callerDeviceId: caller.deviceId,
+      });
+      expect(revoked.map((entry) => entry.id)).toEqual([hostile.deviceId]);
+      expect(revoked[0]).toMatchObject({ name: "hostile", kind: "node" });
+      expect(await core.access.verifyNode(hostile.secret)).toBeUndefined();
+      expect(await core.access.verifyNode(keptNode.secret)).toBeDefined();
+      expect(await core.access.verifyDevice(caller.secret)).toBeDefined();
+      expect(await core.access.verifyDevice(phone.secret)).toBeDefined();
+      expect(
+        await core.access.rotate({
+          keep: [phone.deviceId, keptNode.deviceId],
+          callerDeviceId: caller.deviceId,
+        }),
+      ).toEqual([]);
+    });
+
     test("[access] a wrong code is a generic 401, and five failures lock the peer", async () => {
       const { core } = target;
       const minted = await core.access.mintPairing({ kind: "device" });
