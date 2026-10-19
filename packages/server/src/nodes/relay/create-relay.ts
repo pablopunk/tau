@@ -53,6 +53,7 @@ export function createRelay(deps: RelayDeps): Relay {
 
   return {
     start() {
+      if (!core.nodes?.group) return () => undefined;
       const stopTimer = announcer.start();
       const offTopology = core.nodes.group.onTopology(announcer.schedule);
       const offTombstone = core.nodes.group.onTombstone((target) =>
