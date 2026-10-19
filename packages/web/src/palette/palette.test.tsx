@@ -1,4 +1,4 @@
-import { screen } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { SettingsDialogContext } from "@/app/settings-dialog";
@@ -98,5 +98,38 @@ describe("global shortcuts", () => {
     await user.keyboard("{Control>}{Shift>}o{/Shift}{/Control}");
 
     expect(screen.getByTestId("location")).toHaveTextContent("/new");
+  });
+});
+
+describe("add project and thread cycling", () => {
+  it("opens the add project dialog", async () => {
+    const user = userEvent.setup();
+    renderPalette();
+
+    await user.keyboard("{Control>}k{/Control}");
+    await user.click(await screen.findByRole("option", { name: "Add project" }));
+
+    expect(await screen.findByRole("heading", { name: "Add project" })).toBeInTheDocument();
+  });
+
+  it("goes to the next thread", async () => {
+    const user = userEvent.setup();
+    renderPalette("/p/p2/c/c2");
+
+    await user.keyboard("{Control>}k{/Control}");
+    await user.click(await screen.findByRole("option", { name: /Next thread/ }));
+
+    expect(screen.getByTestId("location")).toHaveTextContent("/p/p1/c/c1");
+  });
+
+  it("Mod+Alt+ArrowDown goes to the next thread", async () => {
+    const user = userEvent.setup();
+    renderPalette("/p/p2/c/c2");
+    await waitFor(() => expect(api.conversations.listAll).toHaveBeenCalled());
+    await screen.findByTestId("location");
+
+    await user.keyboard("{Control>}{Alt>}{ArrowDown}{/Alt}{/Control}");
+
+    await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/p/p1/c/c1"));
   });
 });

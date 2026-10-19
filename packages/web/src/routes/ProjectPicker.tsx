@@ -15,7 +15,7 @@ import { queryKeys, useGithubRepos, useGithubStatus } from "@/lib/queries";
 import { type MachineData, MachineProvider, useHubQueryClient, useMachinesData } from "@/machines";
 import { useApi, useMachineId } from "@/machines/machine-context";
 import { AddProjectDialog } from "@/sidebar/AddProjectDialog";
-import { ChooseMachineDialog } from "./ChooseMachineDialog";
+import { ChooseMachineDialog } from "@/sidebar/ChooseMachineDialog";
 
 const PROJECTS_GROUP = "Projects";
 
