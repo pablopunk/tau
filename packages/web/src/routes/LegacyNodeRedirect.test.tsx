@@ -5,6 +5,7 @@ import { MemoryRouter, Route, Routes, useLocation } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { reconcileNodeIds } from "@/lib/node-id-reconcile";
 import { forgetNodeApis, NodeApiProvider } from "@/nodes";
+import { asDirectory } from "@/test/directory";
 import { LegacyNodeRedirect } from "./LegacyNodeRedirect";
 
 function Where() {
@@ -34,7 +35,8 @@ beforeEach(() => {
   vi.stubGlobal(
     "fetch",
     vi.fn(
-      async () => new Response(JSON.stringify(list), { headers: { "content-type": "application/json" } }),
+      async () =>
+        new Response(JSON.stringify(asDirectory(list)), { headers: { "content-type": "application/json" } }),
     ),
   );
 });

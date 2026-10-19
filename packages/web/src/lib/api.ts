@@ -9,6 +9,8 @@ import type {
   DeleteArchivedInput,
   DeleteArchivedResult,
   Device,
+  DirectoryNode,
+  Expulsion,
   FileSuggestion,
   GithubRepo,
   GithubStatus,
@@ -206,6 +208,12 @@ export interface Api {
     self(): Promise<NodeSelf>;
     /** Deletes this node's key and links: a new nodeId. */
     resetIdentity(): Promise<void>;
+    /** The group as this node sees it: neighbours, routed nodes and ghosts. */
+    directory(): Promise<DirectoryNode[]>;
+    /** Nodes removed from the group, with who removed them and who has not confirmed. */
+    expulsions(): Promise<Expulsion[]>;
+    /** Group-wide remove; `confirm` is the node's exact name or id. */
+    remove(id: string, confirm: string): Promise<void>;
   };
   terminals: {
     available(): Promise<boolean>;
@@ -364,6 +372,9 @@ export function createApi(transport: Transport): Api {
       forget: (id) => request("forgetNode", { params: { id } }),
       self: () => request("getNodeSelf", {}),
       resetIdentity: () => request("resetNodeIdentity", {}),
+      directory: () => request("getNodeDirectory", {}),
+      expulsions: () => request("listExpulsions", {}),
+      remove: (id, confirm) => request("removeNode", { params: { id }, body: { confirm } }),
     },
     terminals: {
       available: async () => (await request("getTerminalsAvailable", {})).available,

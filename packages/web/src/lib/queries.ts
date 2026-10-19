@@ -44,6 +44,9 @@ export const queryKeys = {
   /** `["nodes"]` is the list of this tau's peers; `["nodes", "self"]` is this tau itself. */
   nodes: ["nodes"] as const,
   nodeSelf: ["nodes", "self"] as const,
+  /** The group as this node sees it (neighbours and routed nodes). */
+  nodeDirectory: ["nodes", "directory"] as const,
+  expulsions: ["nodes", "expulsions"] as const,
   /** This tau's version against the latest published one (the hub's own, never a node's). */
   updateStatus: ["update"] as const,
   /** Another node's data, cached in the hub's client by components outside that node's provider. */
@@ -387,6 +390,11 @@ export const useDisconnectNode = () => {
 export const useForgetNode = () => {
   const api = useApi();
   return useNodeMutation((id: string) => api.nodes.forget(id));
+};
+
+export const useRemoveNode = () => {
+  const api = useApi();
+  return useNodeMutation(({ id, confirm }: { id: string; confirm: string }) => api.nodes.remove(id, confirm));
 };
 
 export const useResetNodeIdentity = () => {

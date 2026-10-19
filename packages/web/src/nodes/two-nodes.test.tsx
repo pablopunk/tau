@@ -11,6 +11,7 @@ import { nodeKey, scopeTarget } from "@/lib/node-keys";
 import { preferences } from "@/lib/preferences";
 import { AppSidebar } from "@/sidebar/AppSidebar";
 import { conversation, project } from "@/sidebar/test-support";
+import { asDirectory } from "@/test/directory";
 import { forgetNodeApis, forgetNodeClients, NodeProvider, useApi } from ".";
 import { writeSummaryCache } from "./summary-cache";
 
@@ -50,6 +51,7 @@ function stubBackend(backend: Backend) {
     vi.fn(async (url: string) => {
       backend.seen.push(url);
       if (url === "/api/nodes") return json(backend.nodes);
+      if (url === "/api/nodes/directory") return json(asDirectory(backend.nodes));
       return backend.routes[url]?.() ?? json([]);
     }),
   );

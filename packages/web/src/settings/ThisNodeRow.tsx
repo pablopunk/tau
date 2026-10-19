@@ -5,7 +5,13 @@ import { NodeName } from "@/components/ui/node-name";
 import { NodeRow, NodeRowActions, NodeRowBody, NodeRowVersion } from "@/components/ui/node-row";
 import { StatusChip } from "@/components/ui/status-chip";
 import { isConnected } from "@/lib/api";
-import { useAllConversations, useNodeSelf, useProviders, useUpdateStatus } from "@/lib/queries";
+import {
+  useAllConversations,
+  useNodeSelf,
+  useProviders,
+  useResetNodeIdentity,
+  useUpdateStatus,
+} from "@/lib/queries";
 import { localNodeName } from "@/nodes/local-node-name";
 import { osLabel } from "@/nodes/node-text";
 import { versionState } from "./NodesVersion";
@@ -22,12 +28,24 @@ function SetUp() {
   );
 }
 
+function RemovedSelf({ onReset }: { onReset: () => void }) {
+  return (
+    <div className="flex flex-wrap items-center gap-2 pt-1 text-xs text-muted-foreground">
+      <p>This node was removed from its group. Reset its identity to join a group again.</p>
+      <Button variant="outline" size="xs" onClick={onReset}>
+        Reset identity
+      </Button>
+    </div>
+  );
+}
+
 /** This tau: its own name and OS from `Core.nodes.self`, "Not set up" with a "Set up" action while it has no provider. */
 export function ThisNodeRow() {
   const threads = useAllConversations().data?.length ?? 0;
   const self = useNodeSelf().data;
   const providers = useProviders().data;
   const status = useUpdateStatus().data;
+  const reset = useResetNodeIdentity();
   const notSetUp = providers !== undefined && !providers.some(isConnected);
   return (
     <NodeRow data-node-id="local">
@@ -40,6 +58,7 @@ export function ThisNodeRow() {
           {self ? `${osLabel(self.os)} · ` : ""}
           {threads} {threads === 1 ? "thread" : "threads"}
         </span>
+        {self?.removed ? <RemovedSelf onReset={() => reset.mutate()} /> : null}
       </NodeRowBody>
       {status ? (
         <NodeRowVersion

@@ -1,4 +1,4 @@
-import type { Node } from "@tau/protocol";
+import type { DirectoryNode as Node } from "@tau/protocol";
 import { useState } from "react";
 import { FormError } from "@/app/FormError";
 import { useSubmit } from "@/app/use-submit";
@@ -9,9 +9,12 @@ import { SettingRow } from "@/components/ui/settings-layout";
 import { useDisconnectNode, useForgetNode, useResetNodeIdentity } from "@/lib/queries";
 import { useNodes } from "@/nodes";
 import { ConnectNodeDialog } from "./ConnectNodeDialog";
+import { ExpulsionsList } from "./ExpulsionsList";
+import { NodeGroupNotes } from "./NodeGroupNotes";
 import { NodeItem } from "./NodeItem";
 import { NodeSettingsDialog } from "./NodeSettingsDialog";
 import { NodesUpdateBar } from "./NodesVersion";
+import { RemoveNodeDialog } from "./RemoveNodeDialog";
 import { ThisNodeRow } from "./ThisNodeRow";
 
 type Pending = { kind: "disconnect" | "forget"; node: Node } | { kind: "reset" } | null;
@@ -79,6 +82,7 @@ export function NodesList() {
   const { perform, error } = useNodeActions();
   const [pending, setPending] = useState<Pending>(null);
   const [settingsOf, setSettingsOf] = useState<Node | null>(null);
+  const [removing, setRemoving] = useState<Node | null>(null);
   const [connectTo, setConnectTo] = useState<Node | null>(null);
   const now = Date.now();
   return (
@@ -86,6 +90,7 @@ export function NodesList() {
       <div className="flex flex-col gap-3">
         <FieldLabel>Nodes</FieldLabel>
         <NodesUpdateBar nodes={nodes} />
+        <NodeGroupNotes nodes={nodes} />
         <NodeList aria-label="Nodes">
           <ThisNodeRow />
           {nodes.map((node) => (
@@ -95,6 +100,7 @@ export function NodesList() {
               now={now}
               onDisconnect={(target) => setPending({ kind: "disconnect", node: target })}
               onForget={(target) => setPending({ kind: "forget", node: target })}
+              onRemove={setRemoving}
               onSettings={setSettingsOf}
               onConnect={setConnectTo}
               onResetIdentity={() => setPending({ kind: "reset" })}
@@ -103,6 +109,7 @@ export function NodesList() {
         </NodeList>
         {nodes.length === 0 ? <FieldDescription>No other node is linked yet.</FieldDescription> : null}
         <FormError message={error} />
+        <ExpulsionsList />
       </div>
       <PendingConfirm
         pending={pending}
@@ -112,6 +119,7 @@ export function NodesList() {
           void perform(chosen);
         }}
       />
+      <RemoveNodeDialog node={removing} onClose={() => setRemoving(null)} />
       {settingsOf ? <NodeSettingsDialog node={settingsOf} onClose={() => setSettingsOf(null)} /> : null}
       <ConnectNodeDialog
         open={connectTo !== null}

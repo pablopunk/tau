@@ -1,13 +1,13 @@
 import { useQuery } from "@tanstack/react-query";
-import type { Node } from "@tau/protocol";
+import type { DirectoryNode } from "@tau/protocol";
 import { type Api, api as hubApi } from "@/lib/api";
 import { queryKeys } from "@/lib/queries";
 import { useHubQueryClient } from "./hub-client";
 import { apiOfNode } from "./node-apis";
 
 export interface NodeRegistry {
-  /** The nodes linked to this hub, with their status. The hub's own node is not in the list. */
-  readonly nodes: readonly Node[];
+  /** The group as this hub sees it: neighbours, then routed nodes (`via`). The hub's own node is not in the list. */
+  readonly nodes: readonly DirectoryNode[];
   readonly isLoading: boolean;
 }
 
@@ -18,7 +18,7 @@ export interface NodeRegistry {
 export function useNodes(): NodeRegistry {
   const client = useHubQueryClient();
   const { data = [], isLoading } = useQuery(
-    { queryKey: queryKeys.nodes, queryFn: () => hubApi.nodes.list() },
+    { queryKey: queryKeys.nodeDirectory, queryFn: () => hubApi.nodes.directory() },
     client,
   );
   return { nodes: data, isLoading };
@@ -26,3 +26,9 @@ export function useNodes(): NodeRegistry {
 
 /** The typed client of any node by id (`undefined`: the hub's own). No provider needed. */
 export const useNodeApi = (nodeId?: string): Api => apiOfNode(nodeId);
+
+/** Nodes removed from the group, read from the hub like the directory. */
+export function useExpulsions() {
+  const client = useHubQueryClient();
+  return useQuery({ queryKey: queryKeys.expulsions, queryFn: () => hubApi.nodes.expulsions() }, client);
+}

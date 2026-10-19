@@ -1,4 +1,4 @@
-import type { Node } from "@tau/protocol";
+import type { DirectoryNode as Node } from "@tau/protocol";
 import { FoldersIcon, ListIcon, MessageSquarePlusIcon, SettingsIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";

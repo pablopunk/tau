@@ -4,6 +4,7 @@ import { render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { forgetNodeApis, NodeApiProvider } from "@/nodes";
+import { asDirectory } from "@/test/directory";
 import { NodesSection } from "./NodesSection";
 
 const json = (body: unknown) =>
@@ -15,6 +16,7 @@ function browserOf(core: FakeCore) {
     "fetch",
     vi.fn(async (url: string) => {
       if (url === "/api/nodes") return json(await core.nodes.list());
+      if (url === "/api/nodes/directory") return json(asDirectory(await core.nodes.list()));
       if (url === "/api/nodes/self") return json(await core.nodes.self());
       if (url === "/api/providers") return json(await core.providers.list());
       if (url === "/api/update") return json(await core.updates.status());

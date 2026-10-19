@@ -1,4 +1,4 @@
-import type { Node } from "@tau/protocol";
+import type { DirectoryNode } from "@tau/protocol";
 import type { ReactNode } from "react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { NodeAvatar } from "@/components/ui/node-avatar";
@@ -6,12 +6,13 @@ import { NodeName } from "@/components/ui/node-name";
 import type { NodeDotStatus } from "@/components/ui/node-row";
 import { SidebarGroup, SidebarGroupLabel } from "@/components/ui/sidebar";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { viaText } from "@/nodes/directory-text";
 import { useHubOs } from "@/nodes/use-node-avatar";
 import { useCollapsedNodes } from "./use-sidebar-preferences";
 
 interface NodeGroupProps {
   /** `undefined`: the hub's own node. */
-  node: Node | undefined;
+  node: DirectoryNode | undefined;
   /** The label of the group: the node's name. */
   name: string;
   /** Shows a dim "local" after the name. */
@@ -49,6 +50,9 @@ export function NodeGroup({ node, name, local, children }: NodeGroupProps) {
               <NodeAvatar os={os} status={status} />
             )}
             <NodeName name={name} local={local} />
+            {node && viaText(node) ? (
+              <span className="truncate text-xs font-normal text-muted-foreground">{viaText(node)}</span>
+            ) : null}
           </CollapsibleTrigger>
         </SidebarGroupLabel>
         <CollapsibleContent className="pr-1 pl-2">{children}</CollapsibleContent>

@@ -6,6 +6,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { forgetNodeApis, NodeApiProvider } from "@/nodes";
+import { asDirectory } from "@/test/directory";
 import { NodesSection } from "./NodesSection";
 
 const nodes: Node[] = [
@@ -57,6 +58,7 @@ beforeEach(() => {
     vi.fn(async (url: string, init?: RequestInit) => {
       calls.push({ method: init?.method ?? "GET", url });
       if (url === "/api/nodes") return json(nodes.map((node) => ({ ...node })));
+      if (url === "/api/nodes/directory") return json(asDirectory(nodes.map((node) => ({ ...node }))));
       if (url === "/api/providers") return json(providers);
       if (url === "/api/nodes/self")
         return json({

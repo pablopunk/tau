@@ -7,6 +7,7 @@ import { SettingsDialogProvider } from "@/app/settings-dialog";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { forgetNodeApis, forgetNodeClients, NodeProvider } from "@/nodes";
 import { project } from "@/sidebar/test-support";
+import { asDirectory } from "@/test/directory";
 import { MainLayout } from "./MainLayout";
 
 const json = (body: unknown) =>
@@ -44,6 +45,7 @@ const seen: string[] = [];
 function route(url: string): Response {
   seen.push(url);
   if (url === "/api/nodes") return json(nodes);
+  if (url === "/api/nodes/directory") return json(asDirectory(nodes));
   if (url === "/api/nodes/self")
     return json({ nodeId: "me", publicKey: "k", name: "Mac", os: "darwin arm64", tauVersion: "0.2.0" });
   if (url === "/api/providers") return json(localProviders);

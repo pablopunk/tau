@@ -1,10 +1,11 @@
-import type { Node } from "@tau/protocol";
+import type { DirectoryNode as Node } from "@tau/protocol";
 import { PROTOCOL_VERSION } from "@tau/protocol";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { NodeAvatar } from "@/components/ui/node-avatar";
 import { NodeRow, NodeRowActions, NodeRowBody, NodeRowVersion } from "@/components/ui/node-row";
 import { useUpdateStatus } from "@/lib/queries";
+import { placeText } from "@/nodes/directory-text";
 import { wasRemoved } from "@/nodes/node-links";
 import { osLabel, stateLine } from "@/nodes/node-text";
 import { NodeLinks } from "./NodeLinks";
@@ -42,6 +43,7 @@ export interface NodeItemProps {
   now: number;
   onDisconnect: (node: Node) => void;
   onForget: (node: Node) => void;
+  onRemove: (node: Node) => void;
   onSettings: (node: Node) => void;
   onConnect: (node: Node) => void;
   onResetIdentity: () => void;
@@ -53,6 +55,7 @@ export function NodeItem({
   now,
   onDisconnect,
   onForget,
+  onRemove,
   onSettings,
   onConnect,
   onResetIdentity,
@@ -76,6 +79,7 @@ export function NodeItem({
               {osLabel(node.os)} · {node.threadCount} {node.threadCount === 1 ? "thread" : "threads"} ·{" "}
               {stateLine(node, now)}
             </span>
+            <span className="text-xs text-muted-foreground">{placeText(node)}</span>
             <NodeLinks node={node} />
             {node.status === "update-required" ? <UpdateNote node={node} /> : null}
             {wasRemoved(node) ? <RemovedNote node={node} onReset={onResetIdentity} /> : null}
@@ -112,7 +116,7 @@ export function NodeItem({
             >
               Rename
             </Button>
-            <NodeMenu node={node} onDisconnect={onDisconnect} onForget={onForget} />
+            <NodeMenu node={node} onDisconnect={onDisconnect} onForget={onForget} onRemove={onRemove} />
           </NodeRowActions>
         </>
       )}
