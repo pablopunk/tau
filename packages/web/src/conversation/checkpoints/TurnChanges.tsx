@@ -29,7 +29,7 @@ function FileDiff({
   if (diff.isPending) return <Spinner aria-label="Loading diff" />;
   if (diff.isError) return <p className="text-sm text-destructive">{errorMessage(diff.error)}</p>;
   return diff.data ? (
-    <DiffView diff={diff.data} contained={false} />
+    <DiffView diff={diff.data} />
   ) : (
     <p className="text-sm text-muted-foreground">No changes.</p>
   );
