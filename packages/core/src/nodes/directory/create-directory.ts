@@ -1,6 +1,8 @@
-import type { Core, DirectoryNode, NodeGroup } from "@tau/protocol";
+import type { NodeGroup } from "@tau/protocol";
 import { notImplemented } from "../../not-implemented";
-import type { Directory, DirectoryDeps } from "./ports";
+import { createDirectoryState } from "./directory-state";
+import type { Directory } from "./ports";
+import type { DirectoryDepsWithSelf } from "./sign-frames";
 
 const reject = (what: string) => () => Promise.reject(notImplemented(what));
 const unsubscribe = () => () => undefined;
@@ -27,29 +29,7 @@ export function createInertGroup(): NodeGroup {
   };
 }
 
-/** TODO(E): announces, sequence, expiry, topology (`routing.ts` from protocol), tombstones, expel, forget, reset-identity. */
-export function createDirectory(deps: DirectoryDeps): Directory {
-  const directory: Core["nodes"]["directory"] = async () => {
-    // Transitional shim: every peer is a direct neighbour one hop away.
-    const peers = await deps.nodes.list();
-    return peers.map(
-      (node): DirectoryNode => ({
-        ...node,
-        direct: true,
-        hops: 1,
-        nextHop: node.id,
-        via: null,
-        skewMs: null,
-        ghost: false,
-        unsynced: false,
-      }),
-    );
-  };
-  return {
-    group: createInertGroup(),
-    directory,
-    expulsions: async () => [],
-    reset: async () => undefined,
-    removal: () => undefined,
-  };
+/** The `Directory` behind `Core.nodes`: announces, routes, tombstones and expels (see `directory-state.ts`). */
+export function createDirectory(deps: DirectoryDepsWithSelf): Directory {
+  return createDirectoryState(deps);
 }
