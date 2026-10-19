@@ -19,17 +19,23 @@ const statusOf = (server: FakeConnectorServer): ClaudeMcpServerStatus => ({
 const STATUS = [FAKE_LINEAR, FAKE_SLACK, FAKE_NEEDS_AUTH].map(statusOf);
 
 describe("chooseServers", () => {
-  it("chooses nothing when nothing is on", () => {
-    expect(chooseServers({ enabled: [], alwaysAllow: [], askBeforeWrites: false }, STATUS)).toEqual({
+  it("chooses nothing when everything is switched off", () => {
+    const disabled = ["claude.ai Linear", "claude.ai Slack"];
+    expect(chooseServers({ disabled, alwaysAllow: [], askBeforeWrites: false }, STATUS)).toEqual({
       names: [],
       allowedTools: [],
     });
   });
 
+  it("chooses every connected server by default, never one that needs sign-in", () => {
+    const chosen = chooseServers({ disabled: [], alwaysAllow: [], askBeforeWrites: false }, STATUS);
+    expect(chosen.names).toEqual(["claude.ai Linear", "claude.ai Slack"]);
+  });
+
   it("allows tau, exact read-only names and always-allowed tools of chosen servers only", () => {
     const chosen = chooseServers(
       {
-        enabled: ["claude.ai Linear"],
+        disabled: ["claude.ai Slack"],
         alwaysAllow: ["mcp__claude_ai_Linear__save_comment", "mcp__claude_ai_Slack__slack_send_message"],
         askBeforeWrites: true,
       },
@@ -46,7 +52,7 @@ describe("chooseServers", () => {
 
   it("allows the exact name of every tool of chosen servers when writes do not ask", () => {
     const chosen = chooseServers(
-      { enabled: ["claude.ai Linear"], alwaysAllow: [], askBeforeWrites: false },
+      { disabled: ["claude.ai Slack"], alwaysAllow: [], askBeforeWrites: false },
       STATUS,
     );
     expect(chosen.allowedTools).toEqual(
@@ -57,10 +63,10 @@ describe("chooseServers", () => {
     );
   });
 
-  it("skips enabled servers that are not connected or not listed", () => {
+  it("skips servers that are not connected, and ignores unknown disabled names", () => {
     const chosen = chooseServers(
-      { enabled: ["claude.ai Notion", "claude.ai Gone"], alwaysAllow: [], askBeforeWrites: false },
-      STATUS,
+      { disabled: ["claude.ai Gone", "claude.ai Slack"], alwaysAllow: [], askBeforeWrites: false },
+      STATUS.filter((server) => server.name !== "claude.ai Linear"),
     );
     expect(chosen).toEqual({ names: [], allowedTools: [] });
   });

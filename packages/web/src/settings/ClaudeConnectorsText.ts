@@ -7,7 +7,8 @@ const STATUS_BADGE: Partial<Record<ClaudeConnector["status"], string>> = {
   pending: "Connecting",
 };
 
-export const CONNECTORS_NOTE = "Connectors from your Claude account, for Claude CLI models. All are on; switch off the ones you do not want.";
+export const CONNECTORS_NOTE =
+  "Connectors from your Claude account, for Claude CLI models. All are on; switch off the ones you do not want.";
 export const NOT_AVAILABLE_NOTE = "Connectors show up here once a Claude CLI login is ready.";
 
 export const ASK_BEFORE_WRITES_LABEL = "Ask before writes";

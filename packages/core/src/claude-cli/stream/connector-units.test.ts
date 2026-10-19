@@ -143,7 +143,7 @@ describe("adapter paths with connectors", () => {
 
 describe("optionsKeyOf askBeforeWrites", () => {
   it("changes when askBeforeWrites flips", () => {
-    const off = { enabled: ["claude.ai Linear"], alwaysAllow: [], askBeforeWrites: false };
+    const off = { disabled: ["claude.ai Linear"], alwaysAllow: [], askBeforeWrites: false };
     expect(optionsKeyOf({ ...off, askBeforeWrites: true })).not.toBe(optionsKeyOf(off));
   });
 });

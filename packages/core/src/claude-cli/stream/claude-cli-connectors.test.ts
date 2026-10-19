@@ -247,7 +247,7 @@ describe("hash and options", () => {
 
   it("closes an idle query when the chosen servers change and resumes with the new options", async () => {
     const harness = connectorHarness({
-      connectorSettings: { enabled: [], alwaysAllow: [], askBeforeWrites: false },
+      connectorSettings: { disabled: [LINEAR, SLACK], alwaysAllow: [], askBeforeWrites: false },
       script: scriptOf([[{ kind: "text", text: "a" }], [{ kind: "text", text: "b" }]]),
     });
     const messages = base();
@@ -263,7 +263,7 @@ describe("hash and options", () => {
 
   it("never closes a busy query for a changed choice", async () => {
     const harness = connectorHarness({
-      connectorSettings: { enabled: [], alwaysAllow: [], askBeforeWrites: false },
+      connectorSettings: { disabled: [LINEAR, SLACK], alwaysAllow: [], askBeforeWrites: false },
       script: scriptOf([
         [
           { kind: "tools", calls: [{ name: "get_word" }] },

@@ -135,6 +135,10 @@ export interface HarnessOptions extends FakeClaudeSdkOptions {
   readonly connectorStatus?: () => Promise<readonly ClaudeMcpServerStatus[] | null>;
 }
 
+/** A harness without fake connectors has none to probe: with the manual clock the probe would never settle. */
+const noConnectorsUnless = (options: HarnessOptions): HarnessOptions["connectorStatus"] =>
+  options.connectors && options.connectors.length > 0 ? undefined : async () => [];
+
 export function createHarness(options: HarnessOptions = {}): Harness {
   const fake = createFakeClaudeSdk(options);
   const clock = createManualClock();
@@ -160,7 +164,7 @@ export function createHarness(options: HarnessOptions = {}): Harness {
     onProcessCount: (count) => void processCounts.push(count),
     observed,
     approvals: options.approvals,
-    connectorStatus: options.connectorStatus,
+    connectorStatus: options.connectorStatus ?? noConnectorsUnless(options),
     onConnectorsLate: (notes) => void late.push(notes),
     connectorSettings: async () => connectorSettings,
   });

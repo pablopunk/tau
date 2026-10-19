@@ -42,7 +42,7 @@ describe("http transport", () => {
       messageMode: "steer",
       workspaceDefault: "per-project",
       claudeCliNoticeAt: null,
-      claudeConnectors: { enabled: [], alwaysAllow: [], askBeforeWrites: false },
+      claudeConnectors: { disabled: [], alwaysAllow: [], askBeforeWrites: false },
       remote: { enabled: false },
       setupSkipped: false,
     };

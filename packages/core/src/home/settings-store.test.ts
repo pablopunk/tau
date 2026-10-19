@@ -16,7 +16,7 @@ const DEFAULTS = {
   workspaceDefault: "per-project",
   claudeCliNoticeAt: null,
   setupSkipped: false,
-  claudeConnectors: { enabled: [], alwaysAllow: [], askBeforeWrites: false },
+  claudeConnectors: { disabled: [], alwaysAllow: [], askBeforeWrites: false },
   remote: { enabled: false },
 };
 const ref = { provider: "openrouter", modelId: "x/y" };
@@ -40,10 +40,7 @@ describe("settings store", () => {
 
   it("defaults askBeforeWrites to false for connector settings stored without it", async () => {
     const file = join(await tempDir(), "settings.json");
-    await writeFile(
-      file,
-      JSON.stringify({ claudeConnectors: { disabled: [], alwaysAllow: [] } }),
-    );
+    await writeFile(file, JSON.stringify({ claudeConnectors: { disabled: [], alwaysAllow: [] } }));
     const store = createSettingsStore(file, PROJECTS);
     expect((await store.get()).claudeConnectors).toEqual({
       disabled: [],
@@ -73,7 +70,7 @@ describe("settings store", () => {
 
   it("stores askBeforeWrites", async () => {
     const store = createSettingsStore(join(await tempDir(), "settings.json"), PROJECTS);
-    await store.setClaudeConnectors({ enabled: [], alwaysAllow: [], askBeforeWrites: true });
+    await store.setClaudeConnectors({ disabled: [], alwaysAllow: [], askBeforeWrites: true });
     expect((await store.get()).claudeConnectors.askBeforeWrites).toBe(true);
   });
 

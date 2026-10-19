@@ -34,7 +34,7 @@ export function settingsAndProviderCases(make: MakeContractTarget, test: CaseRun
         messageMode: "steer",
         workspaceDefault: "per-project",
         claudeCliNoticeAt: null,
-        claudeConnectors: { enabled: [], alwaysAllow: [], askBeforeWrites: false },
+        claudeConnectors: { disabled: [], alwaysAllow: [], askBeforeWrites: false },
         remote: { enabled: false },
         setupSkipped: false,
       });
