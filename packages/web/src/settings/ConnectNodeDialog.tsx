@@ -1,4 +1,5 @@
 import { FormError } from "@/app/FormError";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { CodeDisplay } from "@/components/ui/code-display";
 import { CopyButton } from "@/components/ui/copy-button";
@@ -12,9 +13,9 @@ import {
 } from "@/components/ui/dialog";
 import { QrCode } from "@/components/ui/qr-code";
 import { Spinner } from "@/components/ui/spinner";
-import { CONNECT_POWER_NOTE } from "@/nodes/node-text";
+import { CONNECT_POWER_DETAIL, CONNECT_POWER_TITLE } from "@/nodes/node-text";
 import { countdown } from "./RemoteText";
-import { hubUrlOf, useNodePairing } from "./use-node-pairing";
+import { useNodePairing } from "./use-node-pairing";
 
 type PairingState = ReturnType<typeof useNodePairing>;
 
@@ -44,10 +45,6 @@ function NodeCode({ state }: { state: PairingState }) {
         {link ? (
           <CommandLine command={`npx @pablopunk/tau connect ${link}`} label="Copy command with link" />
         ) : null}
-        <CommandLine
-          command={`tau connect ${pairing.shortCode} --hub ${hubUrlOf(pairing)}`}
-          label="Copy command with short code"
-        />
       </div>
       <p className="text-sm text-muted-foreground">
         {expired ? "This code expired." : `Waiting for the node… Expires in ${countdown(msLeft)}`}
@@ -56,21 +53,25 @@ function NodeCode({ state }: { state: PairingState }) {
   );
 }
 
+/** `node` is the node the new one links to; absent: this node. */
 export function ConnectNodeDialog({
   open,
   onOpenChange,
+  node,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  node?: { id: string; name: string } | undefined;
 }) {
-  const state = useNodePairing(open);
+  const state = useNodePairing(open, node?.id);
+  const target = node?.name ?? "this node";
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] grid-cols-[minmax(0,1fr)] overflow-y-auto sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Connect a node</DialogTitle>
           <DialogDescription>
-            Run one command on the other computer. It links itself to this tau and shows up in the sidebar.
+            Run one command on the other computer. It links itself to {target} and shows up in the sidebar.
           </DialogDescription>
         </DialogHeader>
         {state.linked ? (
@@ -81,7 +82,10 @@ export function ConnectNodeDialog({
           <NodeCode state={state} />
         )}
         <FormError message={state.error} />
-        <p className="text-sm text-muted-foreground">{CONNECT_POWER_NOTE}</p>
+        <Alert role="note">
+          <AlertTitle>{CONNECT_POWER_TITLE}</AlertTitle>
+          <AlertDescription>{CONNECT_POWER_DETAIL}</AlertDescription>
+        </Alert>
         <DialogFooter>
           {state.linked ? null : (
             <Button variant="outline" onClick={() => void state.create()}>

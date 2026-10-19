@@ -27,16 +27,8 @@ const userFacing = (text: string): string[] =>
     piece.replace(/Git[Hh]ub/g, ""),
   );
 
-/** Hub-link copy that Step 1 replaces with peer links; remove each entry as Step 1 rewrites it. */
-const HUB_ALLOWED = new Set([
-  "lib/queries.ts", // the `["nodes", "hub"]` query key
-  "nodes/node-text.ts",
-  "settings/ConnectNodeDialog.tsx",
-  "settings/HubLinkRow.tsx",
-  "settings/NodesList.tsx",
-  "settings/NodesVersion.tsx",
-  "settings/settings-index.ts",
-]);
+/** Files that may still say "hub": none, the word is "node" everywhere. */
+const HUB_ALLOWED = new Set<string>([]);
 
 describe("vocabulary", () => {
   const files = sourceFiles(SRC).map((path) => ({

@@ -10,7 +10,7 @@ import { apiOfNode } from "./node-apis";
 function useHubInfo() {
   const client = useHubQueryClient();
   const { data } = useQuery(
-    { queryKey: queryKeys.hubLink, queryFn: () => apiOfNode().nodes.hubLink() },
+    { queryKey: queryKeys.nodeSelf, queryFn: () => apiOfNode().nodes.self() },
     client,
   );
   return data;

@@ -41,9 +41,9 @@ export const queryKeys = {
   allMcpServers: ["mcp"] as const,
   remoteStatus: ["remote"] as const,
   devices: ["devices"] as const,
-  /** `["nodes"]` is the hub's list; `["nodes", "hub"]` is this tau's own link to a hub. */
+  /** `["nodes"]` is the list of this tau's peers; `["nodes", "self"]` is this tau itself. */
   nodes: ["nodes"] as const,
-  hubLink: ["nodes", "hub"] as const,
+  nodeSelf: ["nodes", "self"] as const,
   /** This tau's version against the latest published one (the hub's own, never a node's). */
   updateStatus: ["update"] as const,
   /** Another node's data, cached in the hub's client by components outside that node's provider. */
@@ -361,9 +361,9 @@ export const useNodeSummary = (nodeId: string) => {
   });
 };
 
-export const useHubLink = () => {
+export const useNodeSelf = () => {
   const api = useApi();
-  return useQuery({ queryKey: queryKeys.hubLink, queryFn: () => api.nodes.hubLink() });
+  return useQuery({ queryKey: queryKeys.nodeSelf, queryFn: () => api.nodes.self() });
 };
 
 function useNodeMutation<V>(run: (value: V) => Promise<void>) {
@@ -384,9 +384,14 @@ export const useDisconnectNode = () => {
   return useNodeMutation((id: string) => api.nodes.disconnect(id));
 };
 
-export const useDisconnectHub = () => {
+export const useForgetNode = () => {
   const api = useApi();
-  return useNodeMutation(() => api.nodes.disconnectHub());
+  return useNodeMutation((id: string) => api.nodes.forget(id));
+};
+
+export const useResetNodeIdentity = () => {
+  const api = useApi();
+  return useNodeMutation(() => api.nodes.resetIdentity());
 };
 
 const UPDATE_POLL_UNKNOWN_MS = 5_000;

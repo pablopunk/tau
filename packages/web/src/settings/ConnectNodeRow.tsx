@@ -11,8 +11,13 @@ export function ConnectNodeRow() {
     <SettingRow id="connect-node">
       <Field className="gap-2">
         <div className="flex items-center justify-between gap-3">
-          <FieldLabel>Connect a node</FieldLabel>
-          <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
+          <FieldLabel>Connect a node to this node</FieldLabel>
+          <Button
+            variant="outline"
+            size="sm"
+            aria-label="Connect a node to this node"
+            onClick={() => setOpen(true)}
+          >
             Connect a node
           </Button>
         </div>

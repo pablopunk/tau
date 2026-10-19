@@ -223,9 +223,9 @@ describe("no cross-node cache leak", () => {
 describe("per-node drafts and preferences", () => {
   it("keeps today's keys on the hub's own node and adds the id on a linked one", () => {
     expect(nodeKey("tau:last-project")).toBe("tau:last-project");
-    expect(nodeKey("tau:last-project", "m1")).toBe("tau:last-project:m:m1");
+    expect(nodeKey("tau:last-project", "m1")).toBe("tau:last-project:n:m1");
     expect(scopeTarget("c1")).toBe("c1");
-    expect(scopeTarget("c1", "m1")).toBe("m:m1:c1");
+    expect(scopeTarget("c1", "m1")).toBe("n:m1:c1");
   });
 
   it("does not share a draft between two nodes with the same thread id", () => {

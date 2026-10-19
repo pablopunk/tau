@@ -25,16 +25,30 @@ function ConnectStep({ connected, onContinue }: { connected: boolean; onContinue
   );
 }
 
+function UseOtherNodes({ onUse }: { onUse: () => void }) {
+  return (
+    <section aria-label="Use other nodes" className="flex flex-col gap-2 rounded-lg border bg-muted/40 p-3">
+      <p className="text-sm text-muted-foreground">
+        This node is linked to other nodes. Skip setup here and work on their threads; you can set this node
+        up later from Settings → Nodes.
+      </p>
+      <Button type="button" variant="outline" onClick={onUse}>
+        Use my other nodes
+      </Button>
+    </section>
+  );
+}
+
 /**
  * `onUseOtherNodes` is given by the gate in `app/App.tsx` only when a peer is known (online or not): it sets
- * `Settings.setupSkipped`. Owner C renders the "Use my other nodes" action from it (Step 1 foundation hand-off).
+ * `Settings.setupSkipped`, and the action below renders only then.
  */
 export interface SetupScreenProps {
   readonly keyConfigured: boolean;
   readonly onUseOtherNodes?: (() => void) | undefined;
 }
 
-export function SetupScreen({ keyConfigured }: SetupScreenProps) {
+export function SetupScreen({ keyConfigured, onUseOtherNodes }: SetupScreenProps) {
   const [continued, setContinued] = useState(false);
   const onModelStep = continued && keyConfigured;
   return (
@@ -50,6 +64,7 @@ export function SetupScreen({ keyConfigured }: SetupScreenProps) {
               : "Step 1 of 2. Review your providers."}
           </p>
         </header>
+        {onUseOtherNodes ? <UseOtherNodes onUse={onUseOtherNodes} /> : null}
         {onModelStep ? (
           <ModelStep />
         ) : (

@@ -17,9 +17,9 @@ export function versionState(version: string, latest: string | null | undefined)
   return behind ? "behind" : "current";
 }
 
-export function behindCount(nodes: readonly Node[], hubVersion: string, latest: string | null | undefined) {
-  const hub = versionState(hubVersion, latest) === "behind" ? 1 : 0;
-  return hub + nodes.filter((node) => versionState(node.tauVersion, latest) === "behind").length;
+export function behindCount(nodes: readonly Node[], ownVersion: string, latest: string | null | undefined) {
+  const own = versionState(ownVersion, latest) === "behind" ? 1 : 0;
+  return own + nodes.filter((node) => versionState(node.tauVersion, latest) === "behind").length;
 }
 
 export function UpdateCommand() {
@@ -59,7 +59,7 @@ export function NodesUpdateBar({ nodes }: { nodes: readonly Node[] }) {
     <Alert>
       <AlertTitle>{count === 1 ? "1 node is behind" : `${count} nodes are behind`}</AlertTitle>
       <AlertDescription className="flex flex-col gap-2">
-        <span>Run this on each one, they must run the same tau as this hub.</span>
+        <span>Run this on each one, they must run the same tau as this node.</span>
         <UpdateCommand />
         {check}
       </AlertDescription>

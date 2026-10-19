@@ -14,6 +14,7 @@ import { queryKeys, useModels, useProjects, useSettings } from "@/lib/queries";
 import { clearDraftRequestId, draftRequestId } from "@/lib/start-request";
 import { useApi, useNodeId } from "@/nodes/node-context";
 import { WorktreeToggle } from "@/workspaces/WorktreeToggle";
+import { NotSetUpNotice } from "./NotSetUpNotice";
 import { ProjectPicker } from "./ProjectPicker";
 
 const toRef = ({ provider, modelId }: ModelRef): ModelRef => ({ provider, modelId });
@@ -67,6 +68,7 @@ export function NewThreadPage() {
   );
   const levels = findModel(models.data, model ?? null)?.thinkingLevels ?? ["off"];
 
+  const notSetUp = models.data.length === 0;
   const cloning = projects.data.find((project) => project.id === projectId)?.status === "cloning";
 
   const start = async ({ text, images }: { text: string; images: ImageInput[] }) => {
@@ -120,12 +122,13 @@ export function NewThreadPage() {
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-4 p-6">
       <h2 className="text-lg font-semibold">New thread</h2>
+      {notSetUp ? <NotSetUpNotice nodeId={nodeId} /> : null}
       <div className="w-full max-w-2xl">
         <Composer
           target="new"
           imagesAllowed={model?.images ?? true}
           busy={busy}
-          disabled={cloning}
+          disabled={cloning || notSetUp}
           toolbar={toolbar}
           projectId={projectId}
           commands={commands}
@@ -136,7 +139,7 @@ export function NewThreadPage() {
   );
 }
 
-function NewThreadSkeleton() {
+export function NewThreadSkeleton() {
   return (
     <div role="status" aria-label="Loading" className="flex flex-col gap-3 p-4">
       <Skeleton className="h-8 w-48" />

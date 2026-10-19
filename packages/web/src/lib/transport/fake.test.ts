@@ -87,7 +87,7 @@ describe("fake transport: nodes (Stage 2)", () => {
     ]);
     await api.nodes.rename(nodes[0]?.id ?? "", "NAS");
     expect((await api.nodes.list())[0]?.name).toBe("NAS");
-    expect(await api.nodes.hubLink()).toMatchObject({ state: "none" });
+    expect(await api.nodes.self()).toMatchObject({ name: expect.any(String), os: expect.any(String) });
     await api.nodes.disconnect(nodes[1]?.id ?? "");
     expect(await api.nodes.list()).toHaveLength(1);
   });

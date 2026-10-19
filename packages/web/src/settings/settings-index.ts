@@ -128,7 +128,8 @@ export const SETTINGS_INDEX: readonly SettingEntry[] = [
     id: "nodes",
     section: "nodes",
     label: "Nodes",
-    description: "This node and the nodes linked to it: rename, disconnect, open their settings.",
+    description:
+      "This node and every node linked to it, in either direction: rename, disconnect, forget, reset identity, open their settings.",
     keywords: [
       "computers",
       "servers",
@@ -137,23 +138,19 @@ export const SETTINGS_INDEX: readonly SettingEntry[] = [
       "online",
       "offline",
       "runtimes",
-      "hub",
+      "group",
       "federation",
+      "forget",
+      "reset identity",
     ],
   },
   {
     id: "connect-node",
     section: "nodes",
     label: "Connect a node",
-    description: "Link another tau with one command: a code, a link and a QR.",
+    description:
+      "Link another tau with one command: a code, a link and a QR. Every node in the group gets full power over every other.",
     keywords: ["link", "add node", "tau connect", "pair", "code", "qr", "second computer", "server"],
-  },
-  {
-    id: "hub-link",
-    section: "nodes",
-    label: "Linked to a hub",
-    description: "When this node is linked to another tau: the hub's name, its state, and Disconnect.",
-    keywords: ["hub", "disconnect", "unlink", "tau disconnect", "unreachable", "update tau"],
   },
 ];
 

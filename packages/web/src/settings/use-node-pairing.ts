@@ -1,8 +1,9 @@
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { type MintedPairing, type Node, PAIRING_TTL_MS } from "@tau/protocol";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { errorMessage } from "@/lib/error-message";
-import { useMintPairing } from "@/lib/queries";
-import { useNodes } from "@/nodes";
+import { queryKeys } from "@/lib/queries";
+import { apiOfNode, useNodes } from "@/nodes";
 
 const TICK_MS = 1000;
 
@@ -11,16 +12,28 @@ export function newNode(nodes: readonly Node[], knownIds: ReadonlySet<string>): 
   return nodes.find((node) => !knownIds.has(node.id)) ?? null;
 }
 
-/** The address a node must dial: the origin of the link, or this page when there is no public link. */
-export function hubUrlOf(pairing: MintedPairing | null): string {
-  if (pairing?.link) return new URL(pairing.link).origin;
-  return window.location.origin;
+const WATCH_MS = 3000;
+
+/** The peers of the node that mints the code: this tau's own list, or the other node's, polled while the dialog is open. */
+function usePeersOf(nodeId: string | undefined, active: boolean) {
+  const own = useNodes();
+  const other = useQuery({
+    queryKey: [...queryKeys.nodeData(nodeId ?? ""), "nodes"],
+    queryFn: () => apiOfNode(nodeId).nodes.list(),
+    enabled: active && nodeId !== undefined,
+    refetchInterval: WATCH_MS,
+  });
+  if (nodeId === undefined) return own;
+  return { nodes: other.data ?? [], isLoading: other.isLoading };
 }
 
-/** Mints a node code while `active`, counts down to its expiry and notices the node that links. */
-export function useNodePairing(active: boolean) {
-  const mint = useMintPairing();
-  const { nodes, isLoading } = useNodes();
+/**
+ * Mints a code on `nodeId` (`undefined`: this node) while `active`, counts down to its expiry and notices the node
+ * that links to it.
+ */
+export function useNodePairing(active: boolean, nodeId?: string) {
+  const mint = useMutation({ mutationFn: () => apiOfNode(nodeId).access.mintPairing({ kind: "node" }) });
+  const { nodes, isLoading } = usePeersOf(nodeId, active);
   const [pairing, setPairing] = useState<MintedPairing | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [now, setNow] = useState(() => Date.now());
@@ -34,7 +47,7 @@ export function useNodePairing(active: boolean) {
     setPairing(null);
     known.current = new Set(latest.current.map((node) => node.id));
     try {
-      setPairing(await mutateAsync({ kind: "node" }));
+      setPairing(await mutateAsync());
     } catch (caught) {
       setError(errorMessage(caught));
     }

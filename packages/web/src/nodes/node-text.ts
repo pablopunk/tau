@@ -24,8 +24,15 @@ export function stateLine(node: Node, now: number): string {
 
 export const updateCommand = "npm i -g @pablopunk/tau@latest";
 
-export const CONNECT_POWER_NOTE =
-  "The hub gets full power on the node you connect: its terminals, its agents and its Claude login. Everything on that node, threads and files in them, shows up in this tau. Connect only nodes you own.";
+export const CONNECT_POWER_TITLE = "Every node in the group gets full power over every other node";
 
-export const osLabel = (os: string): string =>
-  ({ darwin: "macOS", linux: "Linux", win32: "Windows" })[os] ?? os;
+export const CONNECT_POWER_DETAIL =
+  "That includes its terminals, its agents, its files and its Claude login. Everything on a node, threads included, shows up on the others. Connect only nodes you own.";
+
+export const CONNECT_POWER_NOTE = `${CONNECT_POWER_TITLE}. ${CONNECT_POWER_DETAIL}`;
+
+/** "darwin arm64" and "darwin" both say "macOS". */
+export const osLabel = (os: string): string => {
+  const platform = os.trim().split(/\s+/)[0] ?? "";
+  return ({ darwin: "macOS", linux: "Linux", win32: "Windows" } as Record<string, string>)[platform] ?? os;
+};

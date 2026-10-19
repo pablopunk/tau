@@ -4,16 +4,21 @@ import { preferences } from "@/lib/preferences";
 import { useNodes } from "@/nodes";
 import { NodeScope } from "@/nodes/NodeScope";
 import { isUsable } from "@/nodes/node-text";
+import { useDefaultTarget } from "@/nodes/use-default-target";
+import { useNodeIdReconcile } from "@/nodes/use-node-id-reconcile";
 import { NotificationWatcher } from "@/notifications";
 import { CommandPalette, GlobalShortcuts } from "@/palette";
 import { AppSidebar } from "@/sidebar/AppSidebar";
 import { ConversationRoute } from "./ConversationRoute";
 import { LegacyNodeRedirect } from "./LegacyNodeRedirect";
-import { NewThreadPage } from "./NewThreadPage";
+import { NewThreadPage, NewThreadSkeleton } from "./NewThreadPage";
 
 function NewThreadRoute() {
-  const nodeId = useSearchParams()[0].get("node") ?? undefined;
+  const asked = useSearchParams()[0].get("node") ?? undefined;
   const { nodes } = useNodes();
+  const fallback = useDefaultTarget();
+  if (asked === undefined && !fallback.ready) return <NewThreadSkeleton />;
+  const nodeId = asked ?? fallback.nodeId;
   const usable = nodes.some((node) => node.id === nodeId && isUsable(node));
   return (
     <NodeScope nodeId={usable ? nodeId : undefined}>
@@ -34,6 +39,7 @@ function MainHeader() {
 }
 
 export function MainLayout() {
+  useNodeIdReconcile();
   return (
     <SidebarProvider
       defaultOpen={preferences.getSidebarOpen()}

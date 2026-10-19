@@ -50,7 +50,6 @@ import type {
   WorkspaceStatus,
 } from "@tau/protocol";
 import { fillPath, routes, terminalStreamPath } from "@tau/protocol";
-import { type HubLinkView, hubLinkViewOf, hubPeerIdOf } from "./hub-link";
 import { createHttpTransport } from "./transport/http";
 import { createLazyTransport } from "./transport/lazy";
 import type { LiveTransport, StreamHandlers, StreamSocket, Transport } from "./transport/types";
@@ -206,9 +205,6 @@ export interface Api {
     self(): Promise<NodeSelf>;
     /** Deletes this node's key and links: a new nodeId. */
     resetIdentity(): Promise<void>;
-    /** TRANSITIONAL: the one-hub view derived from the peers (`lib/hub-link.ts`); owner C replaces it with `Node.links`. */
-    hubLink(): Promise<HubLinkView>;
-    disconnectHub(): Promise<void>;
   };
   terminals: {
     available(): Promise<boolean>;
@@ -366,14 +362,6 @@ export function createApi(transport: Transport): Api {
       forget: (id) => request("forgetNode", { params: { id } }),
       self: () => request("getNodeSelf", {}),
       resetIdentity: () => request("resetNodeIdentity", {}),
-      hubLink: async () => {
-        const [nodes, self] = await Promise.all([request("listNodes", {}), request("getNodeSelf", {})]);
-        return hubLinkViewOf(nodes, self);
-      },
-      disconnectHub: async () => {
-        const id = hubPeerIdOf(await request("listNodes", {}));
-        if (id) await request("disconnectNode", { params: { id } });
-      },
     },
     terminals: {
       available: async () => (await request("getTerminalsAvailable", {})).available,
