@@ -21,6 +21,8 @@ export const BACKEND_VERIFIED = { systemd: false, launchd: false, detached: true
 export const MIN_SYSTEMD_VERSION = 236;
 const NO_PID_GRACE_MS = 30_000;
 const MAX_JOB_MS = 10 * 60_000;
+export const FOREGROUND_REASON =
+  "tau was not started as a service, so it will not restart. Restart it yourself afterwards.";
 export const STOPPED_ERROR = "The update stopped before it finished.";
 
 export interface UpdaterDeps {
@@ -37,6 +39,8 @@ export interface UpdaterDeps {
   readonly now?: () => number;
   readonly newNonce?: () => string;
   readonly isAlive?: (pid: number) => boolean;
+  /** True when this server was not started with `--service` (a terminal `tau serve`): it cannot restart itself. */
+  readonly foreground?: boolean;
 }
 
 /** The job file `<home>/update.json`; `from` stays here and is never sent to the web. */
@@ -88,7 +92,7 @@ function planOf(deps: UpdaterDeps, facts: Facts, target: string): UpdateInstall 
   if (facts.kind === "systemd" && (facts.systemdVersion ?? 0) < MIN_SYSTEMD_VERSION) {
     return manual(`Automatic update needs systemd ${MIN_SYSTEMD_VERSION} or newer.`);
   }
-  return { mode: "run", command: null, reason: null };
+  return { mode: "run", command: null, reason: deps.foreground ? FOREGROUND_REASON : null };
 }
 
 async function factsOf(deps: UpdaterDeps): Promise<Facts> {

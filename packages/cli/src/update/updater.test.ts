@@ -40,6 +40,7 @@ interface Options {
   now?: () => number;
   alive?: (pid: number) => boolean;
   version?: string;
+  foreground?: boolean;
 }
 
 async function setup(options: Options = {}) {
@@ -57,6 +58,7 @@ async function setup(options: Options = {}) {
     execPath: "/n/bin/node",
     env: options.env ?? { PATH: "/usr/bin", TAU_THREAD_ID: "t1", HOME: "/h" },
     now: options.now ?? (() => 1_000_000),
+    foreground: options.foreground,
     newNonce: () => "nonce-1",
     isAlive: options.alive ?? ((pid) => pid === 4242),
   };
@@ -67,6 +69,13 @@ describe("updater.plan", () => {
   it("runs on the detached backend (no service installed)", async () => {
     const { updater } = await setup();
     expect(updater.plan("1.1.0")).toEqual({ mode: "run", command: null, reason: null });
+  });
+
+  it("tells a foreground run it will not restart, and stays quiet for a service run", async () => {
+    const reason = "tau was not started as a service, so it will not restart. Restart it yourself afterwards.";
+    const { updater } = await setup({ foreground: true });
+    expect(updater.plan("1.1.0")).toEqual({ mode: "run", command: null, reason });
+    expect((await setup({ foreground: false })).updater.plan("1.1.0").reason).toBeNull();
   });
 
   it("runs on pnpm and mise installs too when detached", async () => {

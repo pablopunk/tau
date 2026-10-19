@@ -15,5 +15,6 @@ export async function createRealUpdater(home: string, version: string = cliVersi
     cli: cliEntry(),
     entry,
     execPath: process.execPath,
+    foreground: !process.argv.includes("--service"),
   });
 }

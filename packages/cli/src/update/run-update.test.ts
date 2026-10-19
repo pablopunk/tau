@@ -1,7 +1,9 @@
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import type { LockInfo } from "@tau/core";
 import type { ConversationSummary } from "@tau/protocol";
 import { describe, expect, it } from "vitest";
 import { summary } from "../commands/test-support";
+import { pidFileOf } from "../service/spec";
 import { createServiceManager } from "../service/manager";
 import { CLI, createTestNode } from "../service/test-context";
 import type { CommandResult } from "./command-runner";
@@ -179,6 +181,26 @@ describe("tau update", () => {
     const s = await setup();
     await runUpdateWith(s.deps, ["--yes"]);
     expect(restartCalls(s)[0]?.args).toEqual([`${PKG}/dist/bin.js`, "restart"]);
+  });
+
+  it("installs the missing service for a background tau before the restart step", async () => {
+    const s = await setup({ active: false });
+    mkdirSync(s.home, { recursive: true });
+    writeFileSync(pidFileOf(s.home), "4242");
+    const calls = (s.deps.context.runner as unknown as { calls: string[] }).calls;
+    const flipped: UpdateDeps = {
+      ...s.deps,
+      pollInstance: async () => {
+        s.instance.current = NEW;
+        return NEW;
+      },
+    };
+    expect(await runUpdateWith(flipped, ["--yes", "--home", s.home]), s.err.join("\n")).toBe(0);
+    const bootstrap = calls.findIndex((line) => line.startsWith("launchctl bootstrap"));
+    expect(bootstrap).toBeGreaterThanOrEqual(0);
+    expect(existsSync(pidFileOf(s.home))).toBe(false);
+    expect(restartCalls(s)).toHaveLength(1);
+    expect(s.out.join("\n")).toContain("Installing the tau service");
   });
 
   it("fails with the skew message when the lock keeps the old version (also a stale detached restart)", async () => {
