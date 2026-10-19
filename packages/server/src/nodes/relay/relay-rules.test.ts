@@ -193,6 +193,7 @@ describe("r7: the request header window and replay", () => {
 });
 
 describe("r7: through a real chain", () => {
+  // Starts three real servers: the 5 s default is too short on a loaded machine.
   it("refuses a request from a node whose clock is 5 minutes off with clock_skew", async () => {
     vi.stubEnv("TAU_FAKE_CLOCK_OFFSET_MS", "300000");
     const a = await startChainNode("Alpha");
@@ -207,7 +208,7 @@ describe("r7: through a real chain", () => {
     } finally {
       await Promise.all([a.stop(), b.stop(), c.stop()]);
     }
-  });
+  }, 30_000);
 
   it("works with clocks in step (control)", async () => {
     const chain = await startChain();

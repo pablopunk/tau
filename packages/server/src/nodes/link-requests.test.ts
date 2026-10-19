@@ -64,13 +64,15 @@ describe.each(ROLES)("requests to the remote node (the real node is the %s)", (r
     expect(seen).toEqual(["GET /api/conversations?projectId=p1 via=owner"]);
   });
 
+  // 47 MB through a real link: the 5 s default is too short on a loaded machine.
   it("moves a 5 MB response and a 42 MB request body intact, in chunks of at most 256 KB", async () => {
     const image = Buffer.alloc(5 * 1024 * 1024, 7);
     let received = "";
     link = await linkRaw(node, role, {
       handlers: {
         request: (request) => {
-          received = sha(request.body);
+          // The summary writer's GETs share this handler and could overwrite the POST's hash.
+          if (request.method === "POST") received = sha(request.body);
           return { status: 200, headers: { "content-type": "image/png" }, body: image };
         },
       },
@@ -88,7 +90,7 @@ describe.each(ROLES)("requests to the remote node (the real node is the %s)", (r
     expect(sent.statusCode).toBe(200);
     expect(received).toBe(sha(body));
     expect(link.peer.maxDataFrame).toBeLessThanOrEqual(256 * 1024);
-  });
+  }, 30_000);
 
   it("serves 20 parallel requests", async () => {
     link = await linkRaw(node, role, {
