@@ -1,5 +1,5 @@
 import type { LockInfo } from "@tau/core";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { createServiceManager } from "../service/manager";
 import { CLI, createTestNode } from "../service/test-context";
 import { runBareWith } from "./bare";
@@ -131,5 +131,34 @@ describe("bare output", () => {
     ]);
     expect(process.exitCode).toBe(1);
     expect(node.runner.calls.filter((call) => /bootstrap|kickstart|start/.test(call))).toEqual([]);
+  });
+});
+
+describe("bare waiting notice", () => {
+  afterEach(() => vi.useRealTimers());
+
+  it("prints 'Waiting for tau to start...' once after 3 s of waiting, not before", async () => {
+    vi.useFakeTimers();
+    const { deps: base, output } = setup();
+    let release: (value: LockInfo) => void = () => undefined;
+    let waiting = false;
+    const deps: LifecycleDeps = {
+      ...base,
+      waitForInstanceUrl: () =>
+        new Promise<LockInfo>((resolve) => {
+          waiting = true;
+          release = resolve;
+        }),
+    };
+    const run = runBareWith(deps, ["--no-open"]);
+    await vi.waitFor(() => expect(waiting).toBe(true), { interval: 1 });
+    await vi.advanceTimersByTimeAsync(2900);
+    expect(output).not.toContain("Waiting for tau to start...");
+    await vi.advanceTimersByTimeAsync(200);
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(output.filter((line) => line === "Waiting for tau to start...")).toHaveLength(1);
+    release(RUNNING);
+    await run;
+    expect(output).toContain(URL_LINE);
   });
 });

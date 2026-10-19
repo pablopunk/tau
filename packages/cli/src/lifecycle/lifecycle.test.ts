@@ -151,7 +151,7 @@ describe("start, stop, restart, open", () => {
   it("stop leaves a foreground tau alone", async () => {
     const { deps, output, node } = setup({ instance: { ...RUNNING, pid: 99 } });
     await runStopWith(deps, []);
-    expect(output[0]).toContain("foreground");
+    expect(output[0]).toContain("Ctrl+C");
     expect(node.runner.calls.filter((call) => call.includes("bootout"))).toEqual([]);
   });
 

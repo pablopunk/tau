@@ -6,6 +6,7 @@ import { realContext, type ServiceContext } from "../service/context";
 import { createServiceManager, type ServiceManager } from "../service/manager";
 import { readOrCreateToken } from "../token";
 import { cliVersion } from "../version";
+import { WAITING_TO_STOP } from "./bare-text";
 import type { BootstrapDeps } from "./bootstrap";
 import { realExtras, type StatusExtras } from "./status-extras";
 
@@ -28,7 +29,9 @@ export interface LifecycleDeps {
 export const withToken = (origin: string, token: string) => `${origin}/?token=${encodeURIComponent(token)}`;
 
 export const managerOf = (deps: LifecycleDeps, home: string): ServiceManager =>
-  createServiceManager(deps.context, deps.cli(), home);
+  createServiceManager(deps.context, deps.cli(), home, {
+    onWaiting: () => deps.out(WAITING_TO_STOP),
+  });
 
 export const NOT_RUNNING = "tau is not running. Run `tau` to start it.";
 

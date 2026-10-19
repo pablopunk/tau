@@ -1,3 +1,4 @@
+import { ForegroundHolderError } from "../service/detached";
 import { TemporaryEntryError } from "../service/entry-guard";
 import { FALLBACK_WARNING } from "../service/pick-backend";
 import * as text from "./bare-text";
@@ -9,7 +10,6 @@ import { writeStoredPort } from "./port-store";
 import { gatherStatus } from "./status";
 
 const WAITING_NOTICE_MS = 3000;
-const FOREGROUND_PREFIX = "tau is already running in a terminal";
 
 function finishHandover(deps: LifecycleDeps, result: Exclude<BootstrapResult, { kind: "skip" }>): void {
   if (result.kind === "handedOver") {
@@ -37,7 +37,7 @@ async function waitForStart(deps: LifecycleDeps, home: string) {
 
 function installFailure(error: unknown): string {
   if (error instanceof TemporaryEntryError) return text.RUN_NPX_HINT;
-  if (error instanceof Error && error.message.startsWith(FOREGROUND_PREFIX)) return error.message;
+  if (error instanceof ForegroundHolderError) return error.message;
   return text.serviceInstallFailed(error instanceof Error ? error.message : String(error));
 }
 

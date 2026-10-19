@@ -6,7 +6,9 @@ export async function runStopWith(deps: LifecycleDeps, argv: readonly string[]):
   const { home } = lifecycleFlagsOf(argv, deps.context);
   const status = await gatherStatus(deps, home);
   if (status.running === "foreground") {
-    deps.out(`tau runs in the foreground (pid ${status.pid}). Stop it with Ctrl-C.`);
+    deps.out(
+      `A terminal holds this tau (pid ${status.pid}), so there is no service to stop. Stop it with Ctrl+C.`,
+    );
     return;
   }
   await managerOf(deps, home).stop();
