@@ -3,7 +3,9 @@ import { dirname } from "node:path";
 import type { CliEntry } from "../cli-entry";
 import type { DefinitionFile, ServiceBackend, ServiceState } from "./backend";
 import type { ServiceContext } from "./context";
+import { type DetachedOptions, ForegroundHolderError } from "./detached";
 import { refuseTemporaryEntry } from "./entry-guard";
+import { miseNotice } from "./mise-notice";
 import { detachedBackendOf, FALLBACK_WARNING, nativeBackendOf } from "./pick-backend";
 import { providerKeyNotice, shellOnlyProviderKeys } from "./provider-keys";
 import { buildSpec, recordFileOf, type ServiceSpec } from "./spec";
@@ -56,10 +58,15 @@ function readRecord(home: string): RecordedPaths | undefined {
   }
 }
 
-export function createServiceManager(context: ServiceContext, cli: CliEntry, home: string): ServiceManager {
+export function createServiceManager(
+  context: ServiceContext,
+  cli: CliEntry,
+  home: string,
+  detachedOptions: DetachedOptions = {},
+): ServiceManager {
   const spec = buildSpec(context, cli, home);
   const native = nativeBackendOf(context);
-  const detached = detachedBackendOf(context);
+  const detached = detachedBackendOf(context, detachedOptions);
 
   const installed = async () => (native ? native.isInstalled(spec) : false);
   const activeBackend = async () => ((await installed()) && native ? native : detached);
@@ -67,6 +74,11 @@ export function createServiceManager(context: ServiceContext, cli: CliEntry, hom
   function record() {
     mkdirSync(home, { recursive: true });
     writeFileSync(recordFileOf(home), JSON.stringify({ node: spec.node, entry: spec.entry }));
+  }
+
+  async function refuseForegroundHolder(spare: number | undefined) {
+    const holder = await detached.foregroundHolder(spec);
+    if (holder !== undefined && holder !== spare) throw new ForegroundHolderError(holder);
   }
 
   async function installNatively(backend: ServiceBackend): Promise<string[]> {
@@ -85,14 +97,23 @@ export function createServiceManager(context: ServiceContext, cli: CliEntry, hom
     installed,
     recorded: () => readRecord(home),
     async needsRepair() {
-      if (!(await installed())) return false;
       const recorded = readRecord(home);
+      if (!native)
+        return recorded !== undefined && (recorded.node !== spec.node || recorded.entry !== spec.entry);
+      if (!(await installed())) return false;
       return recorded?.node !== spec.node || recorded?.entry !== spec.entry;
     },
     async install() {
       refuseTemporaryEntry(spec.entry);
       record();
-      const warnings = [providerKeyNotice(shellOnlyProviderKeys(context.env))];
+      const warnings = [
+        providerKeyNotice(shellOnlyProviderKeys(context.env)),
+        miseNotice(spec.node, spec.entry),
+      ];
+      const held = native && (await detached.lockHolder(spec)) !== undefined;
+      const nativePid = held && native ? (await native.state(spec)).pid : undefined;
+      await detached.stopExcept(spec, nativePid);
+      await refuseForegroundHolder(nativePid);
       if (!native) {
         await detached.install(spec);
         return [FALLBACK_WARNING, ...warnings].filter((line): line is string => line !== undefined);
