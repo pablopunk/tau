@@ -14,6 +14,7 @@ import { runStop } from "./lifecycle/stop";
 import { commandWordOf } from "./options";
 import { serveInForeground } from "./serve";
 import { runServiceCommand } from "./service/service-command";
+import { cliVersion } from "./version";
 
 /** `argv` is what follows the command word; for bare `tau` it is everything. */
 export type CommandHandler = (argv: readonly string[]) => Promise<void>;
@@ -65,7 +66,14 @@ export function resolveCommand(
   return { handler, argv: rest };
 }
 
+const wantsVersion = (argv: readonly string[]) =>
+  argv.length === 1 && (argv[0] === "--version" || argv[0] === "-v");
+
 export async function main(argv: readonly string[]): Promise<void> {
+  if (wantsVersion(argv)) {
+    console.log(cliVersion());
+    return;
+  }
   const { handler, argv: rest } = resolveCommand(argv);
   await handler(rest);
 }

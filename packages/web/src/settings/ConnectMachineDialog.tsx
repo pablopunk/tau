@@ -41,7 +41,9 @@ function MachineCode({ state }: { state: PairingState }) {
       <CodeDisplay code={pairing.shortCode} />
       <div className="flex w-full min-w-0 flex-col gap-2 text-sm">
         <p className="text-muted-foreground">On the other machine, run:</p>
-        {link ? <CommandLine command={`npx tau connect ${link}`} label="Copy command with link" /> : null}
+        {link ? (
+          <CommandLine command={`npx @pablopunk/tau connect ${link}`} label="Copy command with link" />
+        ) : null}
         <CommandLine
           command={`tau connect ${pairing.shortCode} --hub ${hubUrlOf(pairing)}`}
           label="Copy command with short code"

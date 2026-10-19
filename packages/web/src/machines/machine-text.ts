@@ -23,7 +23,7 @@ export function stateLine(machine: Machine, now: number): string {
   return `Offline, last seen ${agoText(machine.lastSeenAt, now)}`;
 }
 
-export const updateCommand = "npm i -g tau@latest";
+export const updateCommand = "npm i -g @pablopunk/tau@latest";
 
 export const CONNECT_POWER_NOTE =
   "The hub gets full power on the machine you connect: its terminals, its agents and its Claude login. Everything on that machine, threads and files in them, shows up in this tau. Connect only machines you own.";

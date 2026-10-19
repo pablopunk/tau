@@ -10,7 +10,7 @@ export const isTemporaryRunnerEntry = (entry: string): boolean =>
 
 export class TemporaryEntryError extends Error {
   constructor(entry: string) {
-    super(`tau runs from a temporary cache (${entry}). Install tau globally first.`);
+    super(`tau runs from a temporary cache (${entry}). Install tau globally first: npm i -g @pablopunk/tau.`);
     this.name = "TemporaryEntryError";
   }
 }

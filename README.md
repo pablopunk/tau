@@ -19,7 +19,7 @@
 ## Run
 
 ```sh
-npx tau
+npx @pablopunk/tau
 ```
 
 Requires Node.js 22.19+ and an OpenRouter API key (asked on first start, or `OPENROUTER_API_KEY`).

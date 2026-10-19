@@ -95,7 +95,7 @@ describe("Settings → Machines", () => {
     renderSection();
     const home = (await screen.findByText("Homelab")).closest("li") as HTMLElement;
     expect(within(home).getByText(/Update tau on Homelab/, { selector: "p" })).toBeInTheDocument();
-    expect(within(home).getByText("npm i -g tau@latest")).toBeInTheDocument();
+    expect(within(home).getByText("npm i -g @pablopunk/tau@latest")).toBeInTheDocument();
     expect(within(home).getByRole("button", { name: "Copy update command" })).toBeInTheDocument();
   });
 
@@ -112,7 +112,9 @@ describe("Settings → Machines", () => {
     const user = userEvent.setup();
     renderSection();
     await user.click(await screen.findByRole("button", { name: "Connect a machine" }));
-    expect(await screen.findByText("npx tau connect https://hub.example/pair#ABCD2345")).toBeInTheDocument();
+    expect(
+      await screen.findByText("npx @pablopunk/tau connect https://hub.example/pair#ABCD2345"),
+    ).toBeInTheDocument();
     expect(screen.getByText("tau connect ABCD2345 --hub https://hub.example")).toBeInTheDocument();
     expect(calls).toContainEqual({ method: "POST", url: "/api/pair?kind=machine" });
     expect(screen.getAllByText(/full power on the machine you connect/).length).toBeGreaterThan(0);

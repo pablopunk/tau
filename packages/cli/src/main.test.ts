@@ -1,7 +1,8 @@
 import { COMMAND_NOUNS } from "@tau/protocol";
 import { describe, expect, it, vi } from "vitest";
-import { type CommandHandler, commandTable, resolveCommand, UnknownCommandError } from "./main";
+import { type CommandHandler, commandTable, main, resolveCommand, UnknownCommandError } from "./main";
 import { commandWordOf } from "./options";
+import { cliVersion } from "./version";
 
 function spies() {
   const bare = vi.fn<CommandHandler>(async () => undefined);
@@ -62,5 +63,14 @@ describe("resolveCommand", () => {
 
   it("finds the word after a server flag with a value", () => {
     expect(commandWordOf(["--home", "/h", "start"])).toEqual({ word: "start", rest: ["--home", "/h"] });
+  });
+});
+
+describe("main --version", () => {
+  it("prints the version and starts nothing", async () => {
+    const log = vi.spyOn(console, "log").mockImplementation(() => undefined);
+    await main(["--version"]);
+    expect(log).toHaveBeenCalledWith(cliVersion());
+    log.mockRestore();
   });
 });
