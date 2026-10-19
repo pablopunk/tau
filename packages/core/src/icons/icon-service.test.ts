@@ -79,10 +79,43 @@ describe("icon discovery", () => {
     expect(await s.names()).toEqual(["public/favicon.ico", "build/Icon.icon/Assets/logo.png"]);
   });
 
-  it("finds a favicon kept in public/favicon", async () => {
+  it("finds a favicon kept in a nested folder such as public/favicon", async () => {
     const s = await setup();
     await s.put("public/favicon/favicon.ico", "folder");
     expect(await s.text()).toBe("folder");
+  });
+
+  it("scans three levels deep and no further", async () => {
+    const s = await setup();
+    await s.put("a/b/c/d/favicon.ico", "four");
+    expect(await s.names()).toEqual([]);
+    await s.put("a/b/c/favicon.ico", "three");
+    expect(await s.text()).toBe("three");
+  });
+
+  it("prefers a shallower icon over a better-ranked deeper one, and a known folder over both", async () => {
+    const s = await setup();
+    await s.put("a/b/favicon.ico", "deep");
+    await s.put("a/logo.svg", "shallow");
+    expect(await s.text()).toBe("shallow");
+    await s.put("public/logo.png", "known");
+    s.advance(61_000);
+    expect(await s.text()).toBe("known");
+  });
+
+  it("does not follow a folder symlink out of the project", async () => {
+    const s = await setup();
+    await s.put("../outside/favicon.ico", "outside");
+    await symlink(join(s.root, "outside"), join(s.project, "linked"));
+    expect(await s.names()).toEqual([]);
+  });
+
+  it("skips node_modules, dist and dot-folders when scanning", async () => {
+    const s = await setup();
+    await s.put("node_modules/pkg/favicon.ico", "modules");
+    await s.put("dist/client/favicon.ico", "dist");
+    await s.put(".cache/favicon.ico", "dot");
+    expect(await s.names()).toEqual([]);
   });
 
   it("scans src/*/public and apps/*/public, repository-named apps first", async () => {
