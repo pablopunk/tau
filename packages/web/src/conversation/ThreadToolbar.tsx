@@ -43,10 +43,12 @@ export function ThreadToolbar({
         level={agent.thinkingLevel}
         onLevel={(thinkingLevel: ThinkingLevel) => void configure(id, { thinkingLevel })}
       />
-      {usage ? <ContextMeter used={usage.used} total={usage.total} label={usage.label} /> : null}
-      <GoalChip conversationId={id} />
-      <ProcessesChip conversationId={id} />
-      <TimersChip conversationId={id} />
+      <div className="ml-auto flex items-center gap-2">
+        {usage ? <ContextMeter used={usage.used} total={usage.total} label={usage.label} /> : null}
+        <GoalChip conversationId={id} />
+        <ProcessesChip conversationId={id} />
+        <TimersChip conversationId={id} />
+      </div>
     </>
   );
 }
