@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/sidebar";
 import { Spinner } from "@/components/ui/spinner";
 import { ChangeIconDialog } from "@/icons/ChangeIconDialog";
-import { newThreadPath, nodeAssetUrl } from "@/lib/paths";
+import { homeRelative, newThreadPath, nodeAssetUrl } from "@/lib/paths";
 import { queryKeys } from "@/lib/queries";
 import { useApi, useNodeId } from "@/nodes/node-context";
 import { ArchivedConversations } from "./ArchivedConversations";
@@ -29,7 +29,7 @@ import { ChangeFolderDialog } from "./ChangeFolderDialog";
 import { CloneFailed } from "./CloneFailed";
 import { NameDialog } from "./NameDialog";
 import { RemoveProjectDialog } from "./RemoveProjectDialog";
-import { homeRelative, nestThreads, type ProjectSection } from "./sidebar-model";
+import { nestThreads, type ProjectSection } from "./sidebar-model";
 import { ThreadTree } from "./ThreadTree";
 import { useRemoveProject } from "./use-remove-project";
 
@@ -70,7 +70,7 @@ export function ProjectGroup({
   return (
     <SidebarGroup role="group" aria-label={project.name}>
       <Collapsible open={open} onOpenChange={onOpenChange}>
-        <SidebarGroupLabel asChild title={project.path} className="pr-14">
+        <SidebarGroupLabel asChild title={homeRelative(project.path)} className="pr-14">
           <CollapsibleTrigger className="w-full gap-1.5">
             <ChevronRightIcon className={open ? "rotate-90 transition-transform" : "transition-transform"} />
             <ProjectIcon

@@ -5,6 +5,7 @@ import { useSubmit } from "@/app/use-submit";
 import { Button } from "@/components/ui/button";
 import { PathInput } from "@/components/ui/path-input";
 import { SettingRow } from "@/components/ui/settings-layout";
+import { homeRelative } from "@/lib/paths";
 import { queryKeys, useSettings } from "@/lib/queries";
 import { useApi } from "@/nodes/node-context";
 import { useOnNode } from "@/nodes/use-on-node";
@@ -16,7 +17,7 @@ export function ProjectsFolderField() {
   const queryClient = useQueryClient();
   const settings = useSettings();
   const { run, error, pending } = useSubmit();
-  const saved = settings.data?.projectsFolder ?? "";
+  const saved = homeRelative(settings.data?.projectsFolder ?? "");
   const [value, setValue] = useState(saved);
   useEffect(() => setValue(saved), [saved]);
 

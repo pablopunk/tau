@@ -47,8 +47,6 @@ export function projectSections(
   return [...busy, ...sections.filter((section) => !hasActiveThreads(section))];
 }
 
-export const homeRelative = (path: string): string => path.replace(/^(\/Users|\/home)\/[^/]+/, "~");
-
 /** The project in the URL, but only when the URL belongs to `nodeId` (`undefined`: the hub's own node). */
 export const projectIdFromPath = (pathname: string, nodeId?: string): string | undefined => {
   const match =

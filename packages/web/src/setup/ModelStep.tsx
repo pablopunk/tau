@@ -1,6 +1,6 @@
 import { useQueryClient } from "@tanstack/react-query";
 import type { ModelRef } from "@tau/protocol";
-import { useId, useState } from "react";
+import { type ReactNode, useId, useState } from "react";
 import { FormError } from "@/app/FormError";
 import { useSubmit } from "@/app/use-submit";
 import { Button } from "@/components/ui/button";
@@ -10,10 +10,12 @@ import { queryKeys, useModels } from "@/lib/queries";
 import { useApi } from "@/nodes/node-context";
 import { ModelCombobox } from "./ModelCombobox";
 
-export function ModelStep() {
+/** `children` render between the model fields and Continue, so Continue stays last. */
+export function ModelStep({ children }: { children?: ReactNode }) {
   const api = useApi();
   const defaultId = useId();
   const fastId = useId();
+  const formId = useId();
   const queryClient = useQueryClient();
   const models = useModels();
   const { run, error, pending } = useSubmit();
@@ -32,36 +34,40 @@ export function ModelStep() {
     });
 
   return (
-    <form
-      className="flex flex-col gap-3"
-      onSubmit={(event) => {
-        event.preventDefault();
-        void submit();
-      }}
-    >
-      <label htmlFor={defaultId} className="text-sm font-medium">
-        Default model
-      </label>
-      <ModelCombobox id={defaultId} models={models.data} value={defaultModel} onChange={setDefaultModel} />
-      <label htmlFor={fastId} className="text-sm font-medium">
-        Fast model (optional)
-      </label>
-      <ModelCombobox
-        id={fastId}
-        models={models.data}
-        value={fastModel}
-        onChange={setFastModel}
-        clearLabel="Same as thread"
-        onClear={() => setFastModel(null)}
-      />
-      <p className="text-sm text-muted-foreground">
-        The fast model names new threads. Changing the default model only affects new conversations. Existing
-        ones keep their model.
-      </p>
-      <FormError message={error} />
-      <Button type="submit" disabled={!defaultModel || pending}>
+    <>
+      <form
+        id={formId}
+        className="flex flex-col gap-3"
+        onSubmit={(event) => {
+          event.preventDefault();
+          void submit();
+        }}
+      >
+        <label htmlFor={defaultId} className="text-sm font-medium">
+          Default model
+        </label>
+        <ModelCombobox id={defaultId} models={models.data} value={defaultModel} onChange={setDefaultModel} />
+        <label htmlFor={fastId} className="text-sm font-medium">
+          Fast model (optional)
+        </label>
+        <ModelCombobox
+          id={fastId}
+          models={models.data}
+          value={fastModel}
+          onChange={setFastModel}
+          clearLabel="Same as thread"
+          onClear={() => setFastModel(null)}
+        />
+        <p className="text-sm text-muted-foreground">
+          The fast model names new threads. Changing the default model only affects new conversations.
+          Existing ones keep their model.
+        </p>
+        <FormError message={error} />
+      </form>
+      {children}
+      <Button type="submit" form={formId} disabled={!defaultModel || pending}>
         Continue
       </Button>
-    </form>
+    </>
   );
 }

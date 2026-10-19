@@ -32,3 +32,6 @@ export const NODE_CONVERSATION_ROUTE = "/n/:nodeId/p/:projectId/c/:conversationI
 /** A node's root-relative asset URL (such as `iconUrl`), reachable from the hub: linked nodes go through `/api/n/<nodeId>`. */
 export const nodeAssetUrl = (url: string, nodeId?: string): string =>
   nodeId === undefined || !url.startsWith("/") ? url : `${nodeApiPrefix(nodeId)}${url}`;
+
+/** A path for display: the home folder (`/Users/x`, `/home/x`) shows as `~`. */
+export const homeRelative = (path: string): string => path.replace(/^(\/Users|\/home)\/[^/]+/, "~");

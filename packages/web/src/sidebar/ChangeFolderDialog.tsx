@@ -14,6 +14,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { PathInput } from "@/components/ui/path-input";
+import { homeRelative } from "@/lib/paths";
 import { queryKeys } from "@/lib/queries";
 import { useApi } from "@/nodes/node-context";
 import { useOnNode } from "@/nodes/use-on-node";
@@ -50,7 +51,7 @@ export function ChangeFolderDialog({ project, onClose }: { project: Project; onC
             </DialogDescription>
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
-            Current folder: <span className="font-mono">{project.path}</span>
+            Current folder: <span className="font-mono">{homeRelative(project.path)}</span>
           </p>
           <div className="flex flex-col gap-2">
             <label htmlFor={pathId} className="text-sm font-medium">

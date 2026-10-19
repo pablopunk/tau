@@ -12,6 +12,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { PathInput } from "@/components/ui/path-input";
+import { homeRelative } from "@/lib/paths";
 import { useApi } from "@/nodes/node-context";
 import { useOnNode } from "@/nodes/use-on-node";
 
@@ -55,7 +56,7 @@ function UseRepoForm({ repo, onUsed }: { repo: GithubRepo; onUsed(project: Proje
       <>
         <DialogHeader>
           <DialogTitle>Cloning {repo.nameWithOwner}</DialogTitle>
-          <DialogDescription>Cloning into {claimed.path}</DialogDescription>
+          <DialogDescription>Cloning into {homeRelative(claimed.path)}</DialogDescription>
         </DialogHeader>
         <DialogFooter>
           <Button type="button" onClick={() => onUsed(claimed)}>
