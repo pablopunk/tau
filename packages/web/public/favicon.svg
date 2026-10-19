@@ -1,14 +1,1 @@
-<svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-<title>tau</title>
-<g clip-path="url(#clip0_1_2)">
-<path d="M25 0H7C3.13401 0 0 3.13401 0 7V25C0 28.866 3.13401 32 7 32H25C28.866 32 32 28.866 32 25V7C32 3.13401 28.866 0 25 0Z" fill="#151C27"/>
-<path d="M11 10H13.1737M13.1737 10H15.7059M13.1737 10V19.1481C13.1737 21.6519 15.0381 23 18.0678 23H19" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" stroke="#F08C7E"/>
-<path d="M12 10H14.1737M14.1737 10H16.7059M14.1737 10V19.1481C14.1737 21.6519 16.0381 23 19.0678 23H20" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" stroke="#4D9BC1"/>
-<path d="M9.5 10H15.5619M15.5619 10H20.9699M15.5619 10V19.1481C15.5619 21.6519 17.6221 23 20.9699 23" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" stroke="#F2BD57"/>
-</g>
-<defs>
-<clipPath id="clip0_1_2">
-<rect width="32" height="32" fill="white"/>
-</clipPath>
-</defs>
-</svg>
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" fill="none" viewBox="0 0 32 32"><title>tau</title><g clip-path="url(#clip0_1_2)"><path fill="#151C27" d="M25 0H7C3.13401 0 0 3.13401 0 7V25C0 28.866 3.13401 32 7 32H25C28.866 32 32 28.866 32 25V7C32 3.13401 28.866 0 25 0Z"/><path stroke="#F08C7E" stroke-linecap="round" stroke-linejoin="round" stroke-width="3.2" d="M11 10H13.1737M13.1737 10H15.7059M13.1737 10V19.1481C13.1737 21.6519 15.0381 23 18.0678 23H19"/><path stroke="#4D9BC1" stroke-linecap="round" stroke-linejoin="round" stroke-width="3.2" d="M12 10H14.1737M14.1737 10H16.7059M14.1737 10V19.1481C14.1737 21.6519 16.0381 23 19.0678 23H20"/><path stroke="#F2BD57" stroke-linecap="round" stroke-linejoin="round" stroke-width="3.2" d="M9.5 10H15.5619M15.5619 10H20.9699M15.5619 10V19.1481C15.5619 21.6519 17.6221 23 20.9699 23"/></g><defs><clipPath id="clip0_1_2"><rect width="32" height="32" fill="#fff"/></clipPath></defs></svg>
