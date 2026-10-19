@@ -15,6 +15,7 @@ import {
   connectorBadge,
   connectorCounts,
   connectorDisplayName,
+  isServerOn,
   NOT_AVAILABLE_NOTE,
   needsConnecting,
   signInConnectors,
@@ -92,7 +93,7 @@ function ConnectorList({ connectors, current, disabled, onSave, label }: ListPro
         <ConnectorRow
           key={connector.name}
           connector={connector}
-          enabled={current.enabled.includes(connector.name)}
+          enabled={isServerOn(current, connector.name)}
           disabled={disabled}
           onToggle={(on) => onSave(withServerEnabled(current, connector.name, on))}
         />

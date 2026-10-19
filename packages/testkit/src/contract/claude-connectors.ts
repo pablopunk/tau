@@ -5,7 +5,7 @@ import type { ContractTarget, MakeContractTarget } from "./types";
 
 const CONNECTOR_KEYS = ["name", "readOnlyCount", "source", "status", "toolCount"];
 const CHOICE = {
-  enabled: ["claude.ai Linear"],
+  disabled: [],
   alwaysAllow: ["mcp__claude_ai_Linear__save_comment"],
   askBeforeWrites: true,
 };
@@ -24,7 +24,7 @@ export function claudeConnectorCases(make: MakeContractTarget, test: CaseRunner)
 
     test("[claude-connectors] settings start with no connector and no always-allowed tool", async () => {
       expect((await target.core.settings.get()).claudeConnectors).toEqual({
-        enabled: [],
+        disabled: [],
         alwaysAllow: [],
         askBeforeWrites: false,
       });
@@ -34,9 +34,9 @@ export function claudeConnectorCases(make: MakeContractTarget, test: CaseRunner)
       const { core } = target;
       await core.settings.setClaudeConnectors(CHOICE);
       expect((await core.settings.get()).claudeConnectors).toEqual(CHOICE);
-      await core.settings.setClaudeConnectors({ enabled: [], alwaysAllow: [], askBeforeWrites: false });
+      await core.settings.setClaudeConnectors({ disabled: [], alwaysAllow: [], askBeforeWrites: false });
       expect((await core.settings.get()).claudeConnectors).toEqual({
-        enabled: [],
+        disabled: [],
         alwaysAllow: [],
         askBeforeWrites: false,
       });

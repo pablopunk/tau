@@ -32,7 +32,7 @@ const cliToolNameOf = (approval: Approval): string => `mcp__claude_ai_${approval
 
 /** In memory: a decision removes the approval, and `allow_always` stores the tool in the settings. */
 export function createFakeConnectors(ctx: FakeConnectorsContext): FakeConnectors {
-  let settings: ClaudeConnectorSettings = { enabled: [], alwaysAllow: [], askBeforeWrites: false };
+  let settings: ClaudeConnectorSettings = { disabled: [], alwaysAllow: [], askBeforeWrites: false };
   const pending = new Map<string, Approval[]>();
   let nextId = 1;
   const pendingOf = (conversationId: string) => pending.get(conversationId) ?? [];
@@ -56,13 +56,13 @@ export function createFakeConnectors(ctx: FakeConnectorsContext): FakeConnectors
 
   return {
     settings: () => ({
-      enabled: [...settings.enabled],
+      disabled: [...settings.disabled],
       alwaysAllow: [...settings.alwaysAllow],
       askBeforeWrites: settings.askBeforeWrites,
     }),
     setSettings: (value) => {
       settings = {
-        enabled: [...value.enabled],
+        disabled: [...value.disabled],
         alwaysAllow: [...value.alwaysAllow],
         askBeforeWrites: value.askBeforeWrites,
       };

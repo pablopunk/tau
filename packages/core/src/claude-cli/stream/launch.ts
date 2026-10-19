@@ -60,7 +60,7 @@ interface ConnectorSetup {
 async function setupConnectors(rt: Runtime, port: ClaudeSdkPort): Promise<ConnectorSetup> {
   const settings = await connectorSettingsOf(rt);
   const key = optionsKeyOf(settings);
-  if (!settings || settings.enabled.length === 0) return { key, choice: NO_CONNECTORS };
+  if (!settings) return { key, choice: NO_CONNECTORS };
   return { key, choice: chooseConnectors(settings, await readConnectorStatus(rt, port)) };
 }
 

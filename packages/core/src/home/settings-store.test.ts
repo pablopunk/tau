@@ -42,13 +42,32 @@ describe("settings store", () => {
     const file = join(await tempDir(), "settings.json");
     await writeFile(
       file,
-      JSON.stringify({ claudeConnectors: { enabled: ["claude.ai Linear"], alwaysAllow: [] } }),
+      JSON.stringify({ claudeConnectors: { disabled: [], alwaysAllow: [] } }),
     );
     const store = createSettingsStore(file, PROJECTS);
     expect((await store.get()).claudeConnectors).toEqual({
-      enabled: ["claude.ai Linear"],
+      disabled: [],
       alwaysAllow: [],
       askBeforeWrites: false,
+    });
+  });
+
+  it("drops a legacy opt-in `enabled` list so every connector starts on", async () => {
+    const file = join(await tempDir(), "settings.json");
+    await writeFile(
+      file,
+      JSON.stringify({
+        claudeConnectors: {
+          enabled: ["claude.ai Linear"],
+          alwaysAllow: ["mcp__claude_ai_Linear__save_comment"],
+          askBeforeWrites: true,
+        },
+      }),
+    );
+    expect((await createSettingsStore(file, PROJECTS).get()).claudeConnectors).toEqual({
+      disabled: [],
+      alwaysAllow: ["mcp__claude_ai_Linear__save_comment"],
+      askBeforeWrites: true,
     });
   });
 

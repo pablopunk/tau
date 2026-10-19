@@ -26,17 +26,17 @@ export interface ConnectorOfferingDeps {
 
 const isClaudeCliModel = (model: ModelRef | undefined): boolean => model?.provider === CLAUDE_CLI_PROVIDER_ID;
 
-const isUsable = (known: readonly ClaudeConnector[] | null, name: string): boolean =>
-  known === null || known.some((server) => server.name === name && server.status === "connected");
+const isOn = (settings: ClaudeConnectorSettings, server: ClaudeConnector): boolean =>
+  server.status === "connected" && !settings.disabled.includes(server.name);
 
 const offerChange: ModelToolsChange = { modelTools: { add: [CONNECTOR_TOOL_REFERENCE] } };
 const withdrawChange: ModelToolsChange = { modelTools: null };
 
 export function createConnectorOffering(deps: ConnectorOfferingDeps): ConnectorOffering {
   const hasChosenServer = async (): Promise<boolean> => {
-    const { enabled } = await deps.settings();
+    const settings = await deps.settings();
     const known = deps.connectors();
-    return enabled.some((name) => isUsable(known, name));
+    return known !== null && known.some((server) => isOn(settings, server));
   };
 
   const isOffered = async (model: ModelRef | undefined) =>

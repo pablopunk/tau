@@ -1,6 +1,5 @@
 import type { ClaudeConnectorSettings } from "@tau/protocol";
 import { chooseServers, disallowedToolsOf } from "../connectors/chosen-servers";
-import { connectorServerOf, parseConnectorToolName } from "../connectors/names";
 import type { ClaudeMcpServerStatus } from "../sdk-types";
 
 /** What the query options need to know about the connectors the user switched on. */
@@ -22,9 +21,9 @@ export const NO_CONNECTORS: ConnectorChoice = {
   disallowedTools: [],
 };
 
-/** Changes when the user switches a server on or off. */
+/** Changes when the user switches a server off or on. */
 export const optionsKeyOf = (settings: ClaudeConnectorSettings | null): string =>
-  [...(settings?.enabled ?? [])].sort().join("|") + (settings?.askBeforeWrites ? "|ask" : "");
+  [...(settings?.disabled ?? [])].sort().join("|") + (settings?.askBeforeWrites ? "|ask" : "");
 
 function chooseFromStatus(
   settings: ClaudeConnectorSettings,
@@ -39,23 +38,10 @@ function chooseFromStatus(
   };
 }
 
-const belongsTo = (cliToolName: string, servers: readonly string[]): boolean => {
-  const parsed = parseConnectorToolName(cliToolName);
-  return parsed !== null && servers.some((name) => connectorServerOf(name) === parsed.server);
-};
-
-/** Without a status list, every enabled server counts as chosen and only the always-allowed tools skip the ask. */
-const chooseWithoutStatus = (settings: ClaudeConnectorSettings): ConnectorChoice => ({
-  names: [...settings.enabled],
-  askBeforeWrites: settings.askBeforeWrites,
-  allowedTools: settings.alwaysAllow.filter((tool) => belongsTo(tool, settings.enabled)),
-  disallowedTools: [],
-});
-
 export function chooseConnectors(
   settings: ClaudeConnectorSettings | null,
   status: readonly ClaudeMcpServerStatus[] | null,
 ): ConnectorChoice {
-  if (!settings || settings.enabled.length === 0) return NO_CONNECTORS;
-  return status ? chooseFromStatus(settings, status) : chooseWithoutStatus(settings);
+  if (!settings || !status) return NO_CONNECTORS;
+  return chooseFromStatus(settings, status);
 }

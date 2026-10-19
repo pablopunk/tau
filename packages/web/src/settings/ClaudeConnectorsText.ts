@@ -7,7 +7,7 @@ const STATUS_BADGE: Partial<Record<ClaudeConnector["status"], string>> = {
   pending: "Connecting",
 };
 
-export const CONNECTORS_NOTE = "Connectors from your Claude account, for Claude CLI models.";
+export const CONNECTORS_NOTE = "Connectors from your Claude account, for Claude CLI models. All are on; switch off the ones you do not want.";
 export const NOT_AVAILABLE_NOTE = "Connectors show up here once a Claude CLI login is ready.";
 
 export const ASK_BEFORE_WRITES_LABEL = "Ask before writes";
@@ -47,11 +47,14 @@ export const connectorCounts = (connector: ClaudeConnector): string =>
 
 export const needsConnecting = needsSignIn;
 
+export const isServerOn = (settings: ClaudeConnectorSettings, name: string): boolean =>
+  !settings.disabled.includes(name);
+
 export function withServerEnabled(
   settings: ClaudeConnectorSettings,
   name: string,
   on: boolean,
 ): ClaudeConnectorSettings {
-  const others = settings.enabled.filter((entry) => entry !== name);
-  return { ...settings, enabled: on ? [...others, name] : others };
+  const others = settings.disabled.filter((entry) => entry !== name);
+  return { ...settings, disabled: on ? others : [...others, name] };
 }

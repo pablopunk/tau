@@ -2,7 +2,7 @@
 
 **Verdict: works with a one-line change.** `tools: []` (`stream/query-options.ts:79`) disables `ToolSearch`, so MCP schemas load in full. Use `tools: ["ToolSearch"]` and they are deferred.
 
-Measured for real (SDK 0.3.302 / CLI 2.1.302, the user's claude.ai account: 51 servers, 14 connected, ~600 MCP tools). Scripts: `packages/core/spike/*.mjs`.
+Measured for real (SDK 0.3.302 / CLI 2.1.302, the user's claude.ai account: 51 servers, 14 connected, ~600 MCP tools). Scripts: `packages/core/spike/*.mjs` (removed from the tree; see commit 7c230f1).
 Query options are tau's connector options (`strictMcpConfig:false`, `disableClaudeAiConnectors:false`, `settingSources:[]`) with the variant below; numbers from `getContextUsage()`.
 
 ## 1. Deferral per variant

@@ -146,7 +146,7 @@ export function createHarness(options: HarnessOptions = {}): Harness {
   const observed = createTestObservedStore();
   const late: (readonly string[])[] = [];
   let connectorSettings: ClaudeConnectorSettings = options.connectorSettings ?? {
-    enabled: [],
+    disabled: [],
     alwaysAllow: [],
     askBeforeWrites: false,
   };

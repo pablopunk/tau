@@ -54,7 +54,8 @@ export const ThreadWorkspaceSchema = Type.Object({
 export type ThreadWorkspace = Type.Static<typeof ThreadWorkspaceSchema>;
 
 export const ClaudeConnectorSettingsSchema = Type.Object({
-  enabled: Type.Array(Type.String()),
+  /** Servers the user switched off. Every other connected connector is on. */
+  disabled: Type.Array(Type.String()),
   alwaysAllow: Type.Array(Type.String()),
   askBeforeWrites: Type.Boolean(),
 });

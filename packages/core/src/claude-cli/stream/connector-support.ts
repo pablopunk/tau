@@ -24,8 +24,9 @@ export const connectedStatuses = async (): Promise<readonly ClaudeMcpServerStatu
 export const LINEAR = "claude.ai Linear";
 export const SLACK = "claude.ai Slack";
 
+/** Slack is switched off, so Linear is the only chosen connector. */
 export const linearOnly: ClaudeConnectorSettings = {
-  enabled: [LINEAR],
+  disabled: [SLACK],
   alwaysAllow: [],
   askBeforeWrites: false,
 };

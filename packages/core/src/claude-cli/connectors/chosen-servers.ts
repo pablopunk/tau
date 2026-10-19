@@ -3,7 +3,7 @@ import type { ClaudeMcpServerStatus } from "../sdk-types";
 import { connectorAllowGlobOf, connectorToolPrefixOf, isClaudeAiServer } from "./names";
 
 export interface ChosenServers {
-  /** Status names (`claude.ai Linear`) the user switched on and that are connected. */
+  /** Status names (`claude.ai Linear`) the user did not switch off and that are connected. */
   readonly names: readonly string[];
   /** `allowedTools` for the query: the `tau` glob, the exact tools of the chosen servers (read-only ones when writes ask first), the always-allowed tools. */
   readonly allowedTools: readonly string[];
@@ -11,8 +11,9 @@ export interface ChosenServers {
 
 const TAU_TOOLS_GLOB = "mcp__tau__*";
 
+/** Every connected connector is on unless the user switched it off. */
 const isChosen = (settings: ClaudeConnectorSettings, server: ClaudeMcpServerStatus): boolean =>
-  server.status === "connected" && settings.enabled.includes(server.name);
+  server.source !== "sdk" && server.status === "connected" && !settings.disabled.includes(server.name);
 
 const readOnlyToolNamesOf = (server: ClaudeMcpServerStatus): string[] =>
   server.tools

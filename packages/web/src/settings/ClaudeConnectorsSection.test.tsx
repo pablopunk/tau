@@ -51,13 +51,22 @@ describe("ClaudeConnectorsSection", () => {
     expect(screen.queryByText(/Claude Code/)).toBeNull();
   });
 
-  it("saves the enabled list when a switch flips", async () => {
+  it("shows every connected server on by default", async () => {
+    await renderSection(true);
+    const linear = await screen.findByRole("switch", { name: "Linear" });
+    expect(linear.getAttribute("aria-checked")).toBe("true");
+    expect(screen.getByRole("switch", { name: "Slack" }).getAttribute("aria-checked")).toBe("true");
+  });
+
+  it("saves the disabled list when a switch flips off and back on", async () => {
     const user = userEvent.setup();
     const core = await renderSection(true);
     await user.click(await screen.findByRole("switch", { name: "Linear" }));
     await waitFor(async () =>
-      expect((await core.settings.get()).claudeConnectors.enabled).toEqual(["claude.ai Linear"]),
+      expect((await core.settings.get()).claudeConnectors.disabled).toEqual(["claude.ai Linear"]),
     );
+    await user.click(screen.getByRole("switch", { name: "Linear" }));
+    await waitFor(async () => expect((await core.settings.get()).claudeConnectors.disabled).toEqual([]));
   });
 
   it("strips the claude.ai prefix and sorts connected servers alphabetically", async () => {

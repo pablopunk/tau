@@ -79,15 +79,27 @@ const validLastWorkspaceModes = (value: unknown): Record<string, WorkspaceMode> 
 };
 
 const copyConnectorSettings = (value: ClaudeConnectorSettings): ClaudeConnectorSettings => ({
-  enabled: [...value.enabled],
+  disabled: [...value.disabled],
   alwaysAllow: [...value.alwaysAllow],
   askBeforeWrites: value.askBeforeWrites,
 });
 
-const validClaudeConnectors = (value: unknown): ClaudeConnectorSettings | undefined =>
-  Value.Check(ClaudeConnectorSettingsSchema, { askBeforeWrites: false, ...(value as object) })
-    ? copyConnectorSettings({ askBeforeWrites: false, ...(value as object) } as ClaudeConnectorSettings)
+/** Older files stored an opt-in `enabled` list; it is dropped so every connector starts on. */
+const withoutLegacyEnabled = (value: unknown): object => {
+  const { enabled: _legacy, ...rest } = (typeof value === "object" && value !== null ? value : {}) as Record<
+    string,
+    unknown
+  >;
+  return { disabled: [], askBeforeWrites: false, ...rest };
+};
+
+const validClaudeConnectors = (value: unknown): ClaudeConnectorSettings | undefined => {
+  if (typeof value !== "object" || value === null) return undefined;
+  const candidate = withoutLegacyEnabled(value);
+  return Value.Check(ClaudeConnectorSettingsSchema, candidate)
+    ? copyConnectorSettings(candidate as ClaudeConnectorSettings)
     : undefined;
+};
 
 const validMcpServers = (value: unknown): McpServerConfig[] =>
   Array.isArray(value)
@@ -132,7 +144,7 @@ const withDefaults = (stored: StoredSettings, defaultProjectsFolder: string): Se
   messageMode: stored.messageMode ?? "steer",
   workspaceDefault: stored.workspaceDefault ?? "per-project",
   claudeCliNoticeAt: stored.claudeCliNoticeAt ?? null,
-  claudeConnectors: stored.claudeConnectors ?? { enabled: [], alwaysAllow: [], askBeforeWrites: false },
+  claudeConnectors: stored.claudeConnectors ?? { disabled: [], alwaysAllow: [], askBeforeWrites: false },
   remote: stored.remote ?? { enabled: false },
   setupSkipped: stored.setupSkipped ?? false,
 });
