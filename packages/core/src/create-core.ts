@@ -104,6 +104,9 @@ const exitAfterLogging = (error: unknown) => {
   process.exit(1);
 };
 
+/** Interrupted runs resume at open; with no models yet they would fail `no_model` and stay aborted. */
+const MODELS_READY_TIMEOUT_MS = 10_000;
+
 export const defaultCoreDependencies = (): CoreDependencies => {
   const ghPath = resolveGhPath(process.env);
   return {
@@ -148,7 +151,10 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
       storage: await openSqliteStorage(home.agentDatabase),
       models: provider.models,
       onReport: (error) => console.error("tau: agent report", error),
-      beforeResume: (opened) => status.attach(opened),
+      beforeResume: async (opened) => {
+        status.attach(opened);
+        await provider.ready(MODELS_READY_TIMEOUT_MS);
+      },
     });
     harness.closed.then((end) => {
       if (end.reason === "failed") deps.onFatal(end.error);

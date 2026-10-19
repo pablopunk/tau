@@ -192,3 +192,23 @@ describe("provider service (faux)", () => {
     expect(stub.requests).toEqual([]);
   });
 });
+
+describe("provider service ready", () => {
+  it("resolves at once when Claude CLI is turned off", async () => {
+    const { service } = await serviceWith({ env: { TAU_DISABLE_CLAUDE_CLI: "1" } });
+    await expect(service.ready(5_000)).resolves.toBeUndefined();
+  });
+
+  it("never waits longer than the timeout", async () => {
+    vi.useFakeTimers();
+    try {
+      const { service } = await serviceWith({ env: { PATH: "/nonexistent" } });
+      const settled = vi.fn();
+      void service.ready(50).then(settled);
+      await vi.advanceTimersByTimeAsync(60);
+      expect(settled).toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});

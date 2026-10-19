@@ -52,6 +52,8 @@ export interface ProviderService {
   setApiKey(id: ProviderId, key: string): Promise<ProviderInfo>;
   disconnect(id: ProviderId): Promise<ProviderInfo>;
   listModels(): Promise<ModelInfo[]>;
+  /** Resolves once the first Claude CLI check and its model list are in, or after `timeoutMs`. Never rejects. */
+  ready(timeoutMs: number): Promise<void>;
   lists(ref: ModelRef): Promise<boolean>;
   acknowledgeClaudeCli(): Promise<ProviderInfo>;
   refreshClaudeCli(): Promise<ProviderInfo>;
@@ -62,6 +64,14 @@ export interface ProviderService {
   /** The last connector probe; `null` before one ran. */
   claudeConnectors(): readonly ClaudeConnector[] | null;
   close(): Promise<void>;
+}
+
+function settleWithin(work: Promise<void>, timeoutMs: number): Promise<void> {
+  let timer: NodeJS.Timeout | undefined;
+  const timeout = new Promise<void>((resolve) => {
+    timer = setTimeout(resolve, timeoutMs);
+  });
+  return Promise.race([work, timeout]).finally(() => clearTimeout(timer));
 }
 
 export function createProviderService(options: ProviderServiceOptions): ProviderService {
@@ -109,6 +119,14 @@ export function createProviderService(options: ProviderServiceOptions): Provider
     );
     return firstCheck;
   };
+
+  const readyModels = () =>
+    firstClaudeCliCheck()
+      .then(() => lister.list())
+      .then(
+        () => undefined,
+        () => undefined,
+      );
 
   async function readAfterFirstCheck(entry: ProviderEntry) {
     if (entry.kind === "cli") await firstClaudeCliCheck();
@@ -196,6 +214,7 @@ export function createProviderService(options: ProviderServiceOptions): Provider
       await firstClaudeCliCheck();
       return lister.list();
     },
+    ready: (timeoutMs) => settleWithin(readyModels(), timeoutMs),
     acknowledgeClaudeCli,
     refreshClaudeCli,
     installClaudeCliSdk,
