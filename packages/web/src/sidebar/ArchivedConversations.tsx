@@ -28,7 +28,7 @@ export function ArchivedConversations({
   const topLevel = conversations.filter((conversation) => conversation.parentId === null);
   return (
     <Collapsible>
-      <CollapsibleTrigger className="flex w-full items-center gap-1 rounded-md px-2 py-1 text-xs text-muted-foreground hover:bg-sidebar-accent">
+      <CollapsibleTrigger className="flex w-full cursor-pointer items-center gap-1 rounded-md px-2 py-1 text-xs text-muted-foreground hover:bg-sidebar-accent">
         Archived ({conversations.length})
       </CollapsibleTrigger>
       {confirming && <DeleteArchivedDialog archived={topLevel} onClose={() => setConfirming(false)} />}

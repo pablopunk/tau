@@ -37,7 +37,7 @@ export function NodeGroup({ node, name, local, children }: NodeGroupProps) {
     >
       <Collapsible open={open} onOpenChange={(next) => setOpen(key, next)}>
         <SidebarGroupLabel asChild>
-          <CollapsibleTrigger data-group-header className="w-full gap-1.5">
+          <CollapsibleTrigger data-group-header className="w-full cursor-pointer gap-1.5">
             {status === "update-required" ? (
               <Tooltip>
                 <TooltipTrigger asChild>

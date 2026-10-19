@@ -75,7 +75,7 @@ export function ProjectGroup({
     >
       <Collapsible open={open} onOpenChange={onOpenChange}>
         <SidebarGroupLabel asChild title={homeRelative(project.path)} className="pr-14">
-          <CollapsibleTrigger data-group-header className="w-full gap-1.5">
+          <CollapsibleTrigger data-group-header className="w-full cursor-pointer gap-1.5">
             <ProjectIcon
               id={project.id}
               name={project.name}
