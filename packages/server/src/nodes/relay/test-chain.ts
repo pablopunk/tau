@@ -11,6 +11,10 @@ export interface GroupControl {
   readonly tombstones: Set<string>;
   readonly expels: ExpelFrame[];
   readonly skews: Array<[string, number]>;
+  /** What this node's group heard, in order: `sync:<peer>`, `announce:<peer>:<ttl>`. */
+  readonly heard: string[];
+  /** Fires `onTopology` listeners: the relay re-announces. */
+  topology(): void;
   tombstone(nodeId: string): void;
 }
 
@@ -44,6 +48,8 @@ function steerGroup(nodes: Core["nodes"]): GroupControl {
   const listeners = new Set<(target: string) => void>();
   const expels: ExpelFrame[] = [];
   const skews: Array<[string, number]> = [];
+  const heard: string[] = [];
+  const topologyListeners = new Set<() => void>();
   const base: Group = nodes.group;
   nodes.group = {
     ...base,
@@ -53,7 +59,21 @@ function steerGroup(nodes: Core["nodes"]): GroupControl {
       listeners.add(listener);
       return () => listeners.delete(listener);
     },
+    onTopology(listener) {
+      topologyListeners.add(listener);
+      return () => topologyListeners.delete(listener);
+    },
     recordSkew: (id, skew) => void skews.push([id, skew]),
+    localAnnounce: async () => ({ type: "announce", payload: "tau-announce-v1|x", sig: "s", ttl: 4 }),
+    expelSet: async () => [],
+    acceptExpelSet: async (frames, from) => {
+      heard.push(`sync:${from}`);
+      return frames.map(() => ({ fresh: false, reflood: false, selfExpelled: false }));
+    },
+    acceptAnnounce: async (frame, from) => {
+      heard.push(`announce:${from}:${frame.ttl}`);
+      return { accepted: true, forwardTtl: 3 };
+    },
     async acceptExpel(frame) {
       expels.push(frame);
       return { fresh: false, reflood: false, selfExpelled: false };
@@ -67,6 +87,10 @@ function steerGroup(nodes: Core["nodes"]): GroupControl {
     tombstones,
     expels,
     skews,
+    heard,
+    topology() {
+      for (const listener of topologyListeners) listener();
+    },
     tombstone(nodeId) {
       tombstones.add(nodeId);
       for (const listener of listeners) listener(nodeId);
