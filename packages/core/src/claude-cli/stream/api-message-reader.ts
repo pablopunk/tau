@@ -85,6 +85,7 @@ export function createApiMessageReader(
   const open = new Map<number, OpenBlock>();
   let blocksStarted = 0;
   let assistantsSeen = 0;
+  let started = false;
   let stopped = false;
   let completed = false;
   let rawStop: string | undefined;
@@ -96,6 +97,19 @@ export function createApiMessageReader(
     if (completed || !stopped || assistantsSeen < blocksStarted) return;
     completed = true;
     onComplete({ stopReason: stopReasonOf(rawStop), errorCode, lastUuid, toolUseIds });
+  };
+
+  /** The CLI retried the API request: what the abandoned attempt streamed no longer counts. */
+  const restartMessage = () => {
+    open.clear();
+    message.content = [];
+    toolUseIds.length = 0;
+    blocksStarted = 0;
+    assistantsSeen = 0;
+    stopped = false;
+    rawStop = undefined;
+    errorCode = null;
+    lastUuid = null;
   };
 
   const startBlock = (index: number, block: BlockPayload) => {
@@ -181,6 +195,8 @@ export function createApiMessageReader(
 
   const onStreamEvent = (event: StreamEventPayload) => {
     if (event.type === "message_start") {
+      if (started) restartMessage();
+      started = true;
       message.responseId = event.message?.id;
       message.responseModel = event.message?.model;
       mergeUsage(message.usage, event.message?.usage);
