@@ -6,7 +6,7 @@
 <h1 align="center">tau</h1>
 
 <p align="center">
-  <i align="center">Chat with a coding agent that works in your project folders, from the browser.</i>
+  <i align="center">The pi coding agent, everywhere you go.</i>
 </p>
 
 
