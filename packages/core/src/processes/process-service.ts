@@ -195,6 +195,8 @@ export function createProcessService(deps: ProcessDeps): ProcessService {
     running.stopRequested = true;
     await terminateGroup(running.pid, grace);
     await running.exited;
+    // onExit saves the final state in the background: a stop is done only once it is on disk.
+    await entry.writes;
   }
 
   async function launch(request: StartProcessRequest, foreground?: Attachment): Promise<Entry> {
