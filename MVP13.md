@@ -1,155 +1,175 @@
 # MVP13 plan: nodes (every tau sees every tau in its group)
 
-Status: DRAFT v3 (scope agreed with the user; the user wants group-wide expulsion from any node; review rounds pending). Builds on MVP12 Stage 2 (machines, federation). Facts marked with a file were read; everything else is a proposal for the reviewer to attack.
+Status: DRAFT v4 (one clean text; round 1 applied; round 2 pending). Scope agreed with the user. Builds on MVP12 Stage 2 (machines, federation). Facts marked with a file were read; the rest is for the reviewer to attack.
 
 ## Goal
 
-> I link taus once. From any node, in any browser or on my phone, I see the threads of **every** node in the group and can work on any of them, even when no direct link exists (A–B and B–C means A sees C). There is no "hub" and no "machine": every tau is a **node**.
+> I link taus once. From any node, in any browser or on my phone, I see the threads of **every** node in the group and can work on any of them, even with no direct link (A–B and B–C means A sees C). I can remove any node from the whole group from wherever I am. There is no "hub" and no "machine": every tau is a **node**.
 
 ## What exists (MVP12) and what is wrong with it
 
-- A link is one WebSocket dialled by the machine (`cli/src/machines/link-client.ts`) to `GET /api/machines/link` on the hub (`server/src/machines/register-link.ts`). Requests flow **hub → machine only**: the hub's gateway sends `request` and `open` frames (`protocol/src/machine-link.ts`, stream ids allocated by the hub); the machine answers by calling **its own server on loopback** with its master token.
-- `protocol/src/machine-rules.ts`: a linked tau refuses links (no chains), a tau with machines refuses `tau connect` (no loops), one hub per tau (`hub.json`).
-- Seen on 2026-10-19: a phone paired to vibemachine (linked to the Mac) shows first-run onboarding and no threads, because vibemachine knows the Mac only as a name and URL.
+- A link is one WebSocket dialled by the machine (`cli/src/machines/link-client.ts`, 203 lines) to `GET /api/machines/link` on the hub (`server/src/machines/register-link.ts`). Requests flow **hub → machine only**: the hub's `link-session.ts` allocates all stream ids from 1 and sends `request` and `open`; the machine answers by calling **its own server on loopback** with the owner token (`cli/src/machines/link-request.ts`). The machine's reply to `open` (an echo) is the ready-ack (`link-session.ts:157,178`).
+- The path filter runs **only on the hub** (`register-proxy.ts`); the machine trusts the hub's path.
+- `protocol/src/machine-rules.ts`: a linked tau refuses links, a tau with machines refuses `tau connect`, one hub per tau (`hub.json`).
+- Seen on 2026-10-19: a phone paired to vibemachine (linked to the Mac) shows first-run onboarding and no threads, because vibemachine knows the Mac only as a name and a URL.
 
 ## Decisions (agreed with the user)
 
-1. **Full power in all directions**, no scopes: every linked node has the owner's power on every other node in its group.
-2. **Onboarding** is per node, once, and only when the node cannot run threads yet (no provider). A node with a reachable peer may skip it ("Use my other nodes"); its own setup stays available.
+1. **Full power in all directions**, no scopes.
+2. **Onboarding** is per node, once, only when the node cannot run threads yet (no provider). A node with a reachable peer may skip it; its own setup stays available.
 3. The word is **node** (UI, CLI, URLs, code).
-4. **Propagation**: every node learns every other node in the group and can reach it through intermediate nodes.
-5. **Expel from anywhere**: from any node the user can remove any node from the whole group, in one action.
+4. **Propagation**: every node learns every other node and reaches it through intermediate nodes.
+5. **Expel from anywhere**: from any node the user removes any node from the whole group in one action.
 
 ## Scope
 
-Two stages. Stage 2 starts after Stage 1 passes check, test, build, e2e.
+Three steps, each releasable. A later step starts after the earlier one passes check, test, build and e2e.
 
-### Stage 1: symmetric links, one peer, nodes
+- **Step 0: the rename** (machine → node), one mechanical commit, no behaviour change.
+- **Step 1: symmetric links** (both ways, one peer implementation, signed identity, onboarding skip).
+- **Step 2: group routing and expulsion** (node directory, routed requests and streams, signed expel).
 
-1. The same WebSocket carries requests **both ways**; after `tau connect` each side lists the other.
-2. **One peer implementation** (multiplexer + responder) in `server`, used by both ends; the duplicate in `cli/src/machines/link-*` goes away; the dialler only opens the socket.
-3. Many links per node (dial several, accept several), at most one per pair; the chain and loop refusals go; **no forwarding yet** (a request that arrives over a link stays on that node).
-4. Onboarding skip with a reachable peer.
-5. Rename machine → node: UI, CLI (`tau nodes`, `tau connect`, `tau disconnect [node]`; `tau machines` stays as an alias for one release), URLs (`/n/:nodeId/...`; `/m/...` redirects), code identifiers (a mechanical rename in Phase 0), published 0.1.x files (`hub.json`) migrate.
+Out (later plans): per-link permissions or scopes; a second factor; threads that move between nodes; direct LAN links; groups above 16 nodes; wiping an expelled node.
 
-### Stage 2: group propagation and routing
+## Step 0: the rename
 
-6. A **node directory**: every node learns every node of the group (name, OS, version, status, thread count, links) and shows it in the sidebar and Settings → Nodes.
-7. **Routed requests and streams**: a request or stream for a node that is not a neighbour is relayed hop by hop to it (`/live`, terminals, 42 MB bodies included).
-8. Failover: when a link drops, routes are recomputed; a node reachable over another path stays online.
-9. **Expel** (`tau nodes remove <node>`, Settings → Nodes → Remove): a signed `expel` message is flooded; every node cuts its link to the expelled node, forgets its secret and refuses its `nodeId` for good.
+- Its own commit, with `check`, `test`, `build` and the e2e specs green, **before** any protocol change. 269 files mention `machine` today.
+- Renames: protocol routes (`/api/machines/**` → `/api/nodes/**`, `/api/m/<id>/**` → `/api/n/<id>/**`), `Core.machines` → `Core.nodes`, types, files and folders (`machines/` → `nodes/`), UI text, CLI (`tau nodes ...`; `tau machines` is an alias in the argument parser only, not a second `COMMANDS` entry), web URLs `/m/...` → `/n/...`, `PROTOCOL_VERSION` bump.
+- **Compatibility with published 0.1.x**:
+  - The device `kind` literal **stays `"machine"` on disk** (`core/src/access/file-device-store.ts:9-13` is a closed union; a 0.1.x tau reading `"node"` fails to load, which would break downgrade). The reader accepts both; the writer writes `"machine"` for one release. The protocol type says `node`.
+  - The old path `/api/machines/link` stays as an **alias** that accepts the upgrade and closes with 4001 (update required), so a 0.1.x dialler shows "Update tau" and not "unreachable".
+  - `/m/<id>` URLs resolve through the node list (the old id is the device id seen from this viewpoint) and redirect to `/n/<nodeId>`.
+  - localStorage keys (`machineKey`, `scopeTarget`, `summary-cache`, `preferences`) are migrated once from the device id to the `nodeId` through the same lookup; a test covers drafts, seen-baselines and the summary cache.
+- `DENIED_FIRST_SEGMENTS` (`server/src/machines/path-filter.ts:11`) lists `machines`, `update`; the rename updates it to `nodes` and keeps `update` denied. `machine-text`, grep test: no `machine` or `hub` strings in UI text (Step 1 finishes this).
 
-Out (later plans): per-link permissions or scopes; a second factor; threads that move between nodes; direct LAN links; a group larger than 16 nodes.
+## Design, Step 1: symmetric links
 
-## Design, Stage 1
+### Identity (frozen in Step 1, so ids never change later)
 
-### Protocol
+- Each node has an **Ed25519 key pair** in `<home>/node.json` (0600). `nodeId = base32(sha256(publicKey))`: self-certifying, no PKI, cannot be claimed by another key. A node without `node.json` creates it at start.
+- **Handshake**: after the upgrade each end sends `hello { nodeId, publicKey, nonce, name, os, tauVersion, protocolVersion, linkProtocol }`, then `proof { sig }` = signature over the **peer's nonce** and both node ids. A peer whose `nodeId` does not match its key, or whose proof fails, is closed (1008). `hello` carries no `threadCount` (thread counts come from the summary writer).
+- The acceptor stores `nodeId` and the public key on the **node device** at the first `hello` (`FileDeviceStore` gets optional fields). The dialler stores them in its `peers.json` entry. A 0.1.x `hub.json` entry has none: the fields are optional until the first `hello`.
 
-- **Stream ids**: the dialler allocates odd ids, the acceptor even ids. `credit`, `close`, data frames unchanged and symmetric.
-- `hello` is sent by **both** ends: `nodeId` (stable random id, `<home>/node.json`, never reused), name, os, tauVersion, protocolVersion, threadCount. A different `protocolVersion` closes the link on both sides (4001); each shows "Update tau on <node>".
-- `request.hubDevice` becomes `via`: label of whoever acted (a device name, or `<node name>` for a request started by that node's own users); header `x-tau-via` on the loopback call; logged by the responder.
-- `PROTOCOL_VERSION` bumped (`bump-protocol`).
+### Frames and ids
 
-### Server: one symmetric peer (`server/src/machines/**` → `nodes/**`)
+- **Stream ids**: the dialler allocates **odd** ids, the acceptor **even** ids. A peer-initiated `request` or `open` whose id has the wrong parity or is already in use is refused and closes the link (1008).
+- The overloaded `open` echo goes: a new explicit **`ready { id }`** frame acknowledges a stream; `open` always means "new stream".
+- `bye { reason }` is sent before an intended close (disconnect, remove, expel); on `bye` the other side marks the link intentionally closed and does not retry.
+- `request.hubDevice` becomes `via` (label of whoever acted; header `x-tau-via` on the loopback call; sanitised and capped as in `device-labels.ts`).
+- Close codes: 4001 update required, 4002 duplicate (not retried), 4003 expelled (not retried).
+- **`linkProtocol`** (hash of the frame schemas, the announce schema and the relay rules) decides whether two nodes may link and route. **`PROTOCOL_VERSION`** (routes, frames, `Change`) only drives the "Update tau" hint and whether the web may open that node's API: a node with a different `PROTOCOL_VERSION` stays reachable and routed through, but shows "update required" and is not opened. Both bumped with `bump-protocol`.
 
-- `createLinkPeer({ socket, role, localPort, token })` replaces the hub-only `link-session.ts` and the CLI's `link-session/request/socket/sender`. It exposes the gateway methods (`request`, `openStream`, `isOnline`, `close`) for the remote side and runs the responder for the remote side's requests, calling its own server on loopback with the server's own token (the server already holds token and port).
-- Path filter and header allow-lists (`path-filter.ts`) apply in **both** directions: only `routes` templates plus `/api/live` and the terminal stream; denylist `access`, `remote`, `nodes`, `pair`, `health`; `set-cookie` dropped; `Host`, `Origin`, `Cookie`, `Authorization` never forwarded. In Stage 1 `/api/n/**` is not allowed through a link (no forwarding); Stage 2 changes this on purpose.
-- The guard still accepts a node secret only on exactly `GET /api/nodes/link` with `Upgrade: websocket` (machine branch unchanged, renamed). A second link from the same `nodeId` is refused ("already linked") and so is a link to itself (`nodeId` equal).
-- Revoke or disconnect on either side closes the link and every proxied stream on **both** sides.
+### Glare and duplicates
+
+- After the handshake both ends know both node ids. If a link for that pair already exists (or both nodes dialled at once), the link whose **dialler has the lower `nodeId`** survives; the other closes with 4002 and is not retried. A link to oneself (equal `nodeId`) closes with 4002.
+- The superseded or duplicate **node device is revoked** on the acceptor, so no orphan secret stays.
+
+### Server: one symmetric peer (`server/src/nodes/**`)
+
+- `createLinkPeer({ socket, role, server, peer })` replaces the hub-only `link-session.ts` and the CLI's `link-session`, `link-request`, `link-socket`, `link-sender`. It is both the gateway for requests **to** the remote node and the **responder** for requests **from** it.
+- Seam: `server.attachPeer(socket, role, peerInfo)`; the dialler in `cli/src/nodes/link-client.ts` keeps the state machine and backoff (connecting, refused, unreachable, update-required, linked), `peers.json` polling, and calls `core.nodes.reportLink(peerId, state)` (**per peer**, replacing the global `HubLink`/`hubState`; `register-link.ts:24` and `register-access-routes.ts:59` change with it). The responder calls the server on loopback at the **bound port** (`RunningServer.port`, not `ServerOptions.port`) with the server's own token; loopback sockets are untagged, so the owner token works (as the CLI link client does today).
+- **The responder enforces the path filter itself** (`filterProxyPath`), in both directions, plus the header allow-lists: only `routes` templates plus `/api/live` and the terminal stream; denylist `access`, `remote`, `nodes`, `n`, `update`, `pair`, `health`; `set-cookie` dropped; `Host`, `Origin`, `Cookie`, `Authorization` never forwarded. A peer therefore cannot reach `/api/access`, `/api/nodes/**` or `/api/n/**` through a link (Step 1 test); forwarding is Step 2's change, made on purpose.
+- The guard accepts a node secret only on exactly `GET /api/nodes/link` with `Upgrade: websocket` (unchanged rule, renamed); the per-peer rate limit stays. The `acceptLinkRefusal` chain/loop rules are removed.
+- Revoke or disconnect on either side sends `bye`, closes the link and every proxied stream on **both** sides.
 
 ### Core and files
 
-- `Core.nodes` lists **peers** from both directions (accepted: node devices; dialled: `peers.json`). The list id is the peer's `nodeId` (global, stable): a URL `/n/<nodeId>` means the same node from every viewpoint.
-- `<home>/hub.json` → `<home>/peers.json`, `{ url, name, nodeId, secret }[]` (0600, atomic). **Migration**: a 0.1.x `hub.json` is read once, written as a one-entry `peers.json`, deleted. Accepted peers keep their node device; the device store migrates kind `machine` → `node`. A node that has no `node.json` creates it at start.
-- Offline cache per known node (`<home>/nodes/<nodeId>/summary.json`, titles and times only), fed by the same summary writer while the link is healthy.
-- `HubLink` ("Linked to X") is replaced by `Node.links: { direction, state }` ; the machines page shows one table.
+- `Core.nodes` lists **peers from both directions** (accepted: node devices; dialled: `peers.json`). The id in the list and in URLs is the peer's **`nodeId`** (same from every viewpoint); until the first `hello` of a migrated entry the old device id is used (and mapped).
+- `<home>/hub.json` → `<home>/peers.json`: `{ url, name, nodeId?, publicKey?, secret }[]` (0600, atomic). **Migration**: a 0.1.x `hub.json` is read once, written as a one-entry `peers.json`, then deleted; a test starts from a real 0.1.x home.
+- Offline cache per known node (`<home>/nodes/<nodeId>/summary.json`, titles and times only), written by the summary writer while the link is healthy.
+- `disconnect` on the dialler sends `bye(disconnect)`; the acceptor then revokes the node device (no offline node forever).
 
 ### Web
 
-- Per-node providers, grouping, offline state, OS icons, `/n/:nodeId/...` URLs as in MVP12; `useNodes()` returns the node's peers (Stage 2: the whole group).
-- **Onboarding gate** (`web/src/setup/**`): with a reachable peer, "Use my other nodes" leaves the wizard (per-browser flag); this node's row says "Not set up" with a "Set up" action until a provider exists. Without peers, nothing changes.
-- Settings → Nodes: "Connect a node" on every node; hub badge and "Linked to <hub>" removed; the dialog says plainly **every node in the group gets full power over every other**.
+- Per-node providers, grouping, offline state, OS icons, `/n/:nodeId/...` as in MVP12; `useNodes()` returns the node's peers.
+- **Onboarding gate** lives in `app/App.tsx:32` (`!connected || !defaultModel` → `SetupScreen`), not in `setup/**`. The gate uses a **server-side flag** `Settings.setupSkipped` (persisted on the node, so a fresh phone browser does not see onboarding again), set by "Use my other nodes", which is offered only when an online peer exists. `MainLayout` must render with a local node that has no provider (new thread, model picker, settings paths are checked; the node's own row says "Not set up" with a "Set up" action until a provider exists).
+- Settings → Nodes: "Connect a node" on every node; "Linked to <hub>" and the hub badge are removed; the dialog says plainly **every node in the group gets full power over every other**; accessible names and roles for the table and any "via" hint (never hover-only).
 
 ### CLI
 
-`tau connect <link|code> [--name]` allowed everywhere ("already linked" and "yourself" refusals stay). `tau disconnect [node]`, `tau nodes list|rename|disconnect`. Coverage test and `COMMAND_EXCLUSIONS` updated on purpose; destructive list unchanged in size.
+`tau connect <link|code> [--name]` works on any node ("already linked" and "yourself" refusals stay). `tau disconnect [node]`, `tau nodes list|rename|disconnect|remove|forget`. Coverage test and `COMMAND_EXCLUSIONS` updated on purpose; the exact destructive list (`commands.test.ts:68`, eight today) gains `nodes forget` and `nodes remove` and is updated deliberately.
 
-## Design, Stage 2: propagation and routing
+## Design, Step 2: group routing and expulsion
 
-### Node directory (link-state, flooded)
+### Node directory (signed link-state, flooded)
 
-- Each node announces **itself** with `announce { origin: nodeId, seq, name, os, tauVersion, protocolVersion, threadCount, neighbours: nodeId[], ttl }` on link-up, on any change of its own record or neighbours, and every 15 s (heartbeat). `seq` is a per-origin counter persisted across restarts (a restart that loses it uses time-based seq `Date.now()`).
-- A node stores the highest `seq` per origin, drops older or equal ones, and **re-floods** to every link except the one it came from (ttl decremented; ttl starts at 8). An origin not heard from for 45 s is `offline`; one whose `protocolVersion` differs is `update-required`.
-- Each node builds the **topology graph** from the neighbour lists and computes shortest paths (BFS, hop count; ties by lowest `nodeId`) to every origin. The directory is that table: `{ nodeId, name, os, ..., status, nextHop: linkId, hops }`.
-- A group is capped at **16 nodes**; a 17th announcement is ignored and shown as a warning. Announce traffic is O(nodes × links) every 15 s: small.
-- Only nodes with the **same `protocolVersion`** exchange announces; a link to a node with another version carries nothing but a "needs update" status.
+- Each node announces itself with `announce { origin, boot, seq, name, os, tauVersion, protocolVersion, linkProtocol, neighbours: nodeId[], expelled: nodeId[], ttl, sig }` on link-up, on any change of its own record or neighbours, and every 15 s. Signed by the origin key; a node ignores an unsigned, wrongly signed, or unknown-key announce (the key comes from the `hello` of the first link, or from an announce signed by a key whose `nodeId = hash(key)`, which proves ownership). No `threadCount` (the summary writer carries it); announces on change are rate-limited to one per 2 s per origin.
+- **Sequence** is `(boot, counter)` with `counter = max(last + 1, Date.now())`, persisted; a node ignores a record that is not newer, and a **signature** stops a relay from forging a huge `seq` for another origin.
+- A node re-floods each new announce to every link except the one it came from (ttl − 1, **ttl starts at 16**; the group cap is 16 nodes, diameter at most 15).
+- **Topology**: an edge A–B counts **only if both endpoints list each other** (so a liar cannot claim adjacency to attract routes). Reachability comes from the **live-edge graph**: a closed local link removes its edge at once, and the node announces it; origin expiry (45 s without an announce) is only the fallback status, so failover does not wait for it. Routes are shortest hop count (ties by lowest `nodeId`), recomputed on every change by a pure, tested `routing.ts`.
+- Cap: 16 nodes; the 17th announcement is ignored and shown as a warning. Only nodes with the same **`linkProtocol`** exchange announces.
 
-### Routed requests and streams
+### Routed requests and streams (in the link layer, not in HTTP)
 
-- `request` and `open` frames gain `dest: nodeId` and `trail: nodeId[]` (nodes already passed) and `ttl`. A node that is not `dest` looks up `nextHop`, **relays** onto that link with a **new stream id of its own on that link**, keeps a table `(inLink, inId) ↔ (outLink, outId)`, and copies data frames both ways. A node refuses a frame whose `trail` contains its own `nodeId` or whose `ttl` reached 0 (no loops even while routes converge).
-- Flow control stays **per hop**: every link has the credit window of MVP12; a relay forwards a chunk only when the outgoing link has credit and returns credit upstream only after the chunk was sent downstream; so a slow browser at the far end slows only its own stream, and a relay buffers at most one window per stream. 60 s without credit closes the stream (1013) on that hop and the close propagates.
-- **The destination enforces the path filter** (relays forward opaque and never parse bodies); the origin also filters (early rejection). A relay only checks the frame header and the `trail`.
-- `x-tau-via` carries the chain of labels (`device name via NodeB`) for audit on the destination.
-- Revoke or disconnect closes the streams that use that link on every hop (each relay closes the matching pair).
-- Failover: a link drop recomputes routes; streams that used it close with 1013 (the web already reconnects `/live`); new requests use the new path.
+- Routing lives in `LinkPeer.request(dest, ...)` and `openStream(dest, ...)`. The node the browser talks to resolves `/api/n/<nodeId>` through the directory and calls it. **Relays never touch loopback and never parse bodies**: they copy frames. (The existing hub proxy buffers whole bodies in `GatewayRequest.body`; the first node's `/api/n/<id>` handler keeps that for its own browser leg, and the relay path is chunked frames only, so a 42 MB body is never buffered per hop.)
+- `request` and `open` gain `dest`, `origin`, `trail: nodeId[]`, `ttl`, `ts`, `nonce` and **`originSig`**, a signature by the origin over the header fields (`dest`, `id`, `method`, `path`, `query`, `ts`, `nonce`). A relay allocates its **own stream id on the outgoing link** (parity by its role on that link), keeps a table `(inLink, inId) ↔ (outLink, outId)`, **rewrites the 4-byte id of every binary frame**, and copies data and control frames both ways. The table has a cap per link and both entries die together.
+- A node refuses a frame whose `trail` contains its own id or whose `ttl` is 0 (no loops while routes converge), and the **destination** verifies `originSig` against the origin's known key, rejects a stale `ts`/replayed `nonce`, rejects a tombstoned origin, **applies the path filter**, then calls loopback. The origin also filters (early rejection).
+- Flow control stays **per hop** (MVP12's credit window per link); a relay forwards a chunk only when the outgoing link has credit and returns credit upstream only after the chunk was sent downstream, so it buffers at most one window per stream; 60 s without credit closes the stream (1013) on that hop and the close propagates.
+- **Audit**: the destination logs the authenticated origin (verified by `originSig`) and the `via` device label; the relay chain in `trail` is best effort (relays write it). Labels are sanitised per hop and the chain is capped.
+- Failover: a link drop recomputes routes; streams that used it close with 1013 (the web reconnects `/live`); new requests use the new path.
 
-### Web (Stage 2)
+### Expulsion (group-wide, from any node)
 
-- `useNodes()` returns the **directory**; a node that is not a neighbour shows exactly like one, with a "via B" tooltip. The per-node provider's `Transport` prefixes `/api/n/<nodeId>` as today; the first node (the one the browser talks to) resolves the route.
-- The sidebar groups by node as now; the offline cache covers every known node (fed by the routed summary writer, at most every 15 s per node).
-- Settings → Nodes shows hops and "via". "Disconnect" acts on **this node's** link only and says so.
+- `tau nodes remove <node>` / Settings → Nodes → Remove creates **`expel { target, by, seq, sig }`**, signed by `by`, flooded like an announce. On receipt (valid signature by a known, non-tombstoned member, newer `seq`) a node: sends `bye(expelled)`/closes with 4003 on its own link to the target and every relayed stream through it, deletes the target's secret and node device, and adds the target (`nodeId` and public key) to the persisted **tombstone list** `<home>/expelled.json` (0600, atomic) with `by` and time.
+- A tombstoned id is refused on link (`hello`), in announces, as a route and as a request `origin` (a relay refuses frames whose `trail[0]` or `origin` is tombstoned). The list also travels in every announce (`expelled`), so a node that was **offline** learns it when it reconnects, **before it accepts any route**; a node that was partitioned merges tombstones on first contact (union; tombstones never expire).
+- The expelled node can rejoin only with a **new pairing code** from a member, with a **new key and `nodeId`** (so the old tombstone does not match). Any member may expel any member (full power is the agreed model); a compromised node can therefore expel others: they can be re-linked, and Settings lists expulsions with `by`. An expelled node that never reconnects keeps what is on its own disk: it is cut off, not wiped (the UI says so). `tau nodes forget <id>` stays as a local-only action (closes this node's links to it, revokes its device here, no flood).
+- Partitions: if the expelled node was the only path between two others, they lose that path (and see each other offline); they are not told it was an expulsion beyond the tombstone list.
 
-## Security (the main risk)
+### Web (Step 2)
 
-- A link gives each side the owner's power on the other, and with propagation **every node has owner power on every node it can route to**. Joining one node means trusting the whole group. The link dialog says it.
-- Mitigations unchanged: the denylist keeps a peer away from devices, remote and linking; no master token over a tunnel; revoke closes both sides; the `via` chain is logged on the destination.
-- **Expulsion (group-wide)**: each node has an Ed25519 key pair (`<home>/node.json`, public key announced and pinned by neighbours on first link). Announces and `expel` messages are **signed**; a node ignores an unsigned or wrongly signed one. `expel { target: nodeId, by: nodeId, seq, sig }` floods like an announce. On receipt a node: closes its own link to the target and every relayed stream through it, deletes the target's secret and node device, and adds the target to a persisted **tombstone list** `<home>/expelled.json` (nodeId and public key). A tombstoned id is refused on link, in announces and as a route. Tombstones travel in the periodic announce sync, so a node that was offline learns them on reconnect (before it accepts any route). The expelled node can rejoin only with a new pairing code from a member, with a **new `nodeId` and key**. Any member may expel any member (full power is the agreed model); a compromised node can therefore expel others: the expelled can be re-linked, and the list of expulsions with `by` is shown in Settings. `tau nodes forget <id>` stays as a local-only action. A node that is itself expelled and never contacted again keeps whatever it already holds: it is cut off from the group but not wiped (stated in the UI).
-- Announces are **signed by their origin** (see Expulsion): a relay cannot forge another node's record. A member can still lie about **its own** neighbours; a test shows a lying announce cannot make a node accept a request for a different `dest`, and that a node never trusts an announce about itself.
+`useNodes()` returns the **directory**; a non-neighbour shows like a neighbour with a "via B" label (text, not tooltip-only). The sidebar groups by node as now; the offline cache covers every known node (the summary writer fetches routed summaries at most every 15 s per node). Settings → Nodes shows hops, "via", expulsions with `by`, and a Remove action with a confirm that says the whole group is affected.
+
+## Security
+
+- Every link gives each side the owner's power on the other; with routing, **every node has owner power on every node it can route to**. Joining one node means trusting the whole group. The dialog says it.
+- Identity is a key; announces, `expel` and routed request headers are **signed by their origin**, so a relay cannot forge another node's record, expulsion or request. A member can still lie about its **own** neighbours (edges need both ends' agreement) and read what it relays (relays see plaintext frames: stated in Settings; per-hop TLS ends at each node, there is no end-to-end encryption between origin and destination in this plan).
+- Mitigations from MVP12 stay: the denylist keeps a peer away from devices, remote and linking; no master token over a tunnel; revoke closes both sides.
+- A lost laptop that is still in the group is a full compromise until someone expels it (the user's point of "kick out from wherever").
 
 ## Phase 0 pins (foundation runs these first; results in this doc)
 
-Stage 1:
-- (p1) A request from the dialler to the acceptor over an existing link (reverse direction) works for a GET, a 5 MB response, a 42 MB body, 20 parallel requests, `/live` and a binary terminal stream, with odd and even ids interleaved; a stalled stream in one direction does not stall the other.
-- (p2) The responder on the acceptor uses its own token on loopback and the guard sees an untagged socket.
-- (p3) `hub.json` → `peers.json`, kind `machine` → `node` migration from a real 0.1.x home.
-- (p4) The mechanical rename: `tsc`, tests, the protocol hash, the e2e specs and the web URL redirect `/m/...` → `/n/...`.
+Step 1:
+- (p1) The reverse direction over an existing link: GET, 5 MB response, 42 MB body, 20 parallel requests, `/live` and a binary terminal stream, odd and even ids interleaved; a stalled stream one way does not stall the other; wrong-parity and reused ids are refused.
+- (p2) The responder on the acceptor calls loopback at the bound port with the server's token; the guard sees an untagged socket; the responder's own path filter refuses `/api/access`, `/api/nodes/**`, `/api/n/**`.
+- (p3) Glare: A and B dial each other at once, and a second `tau connect` from the same node: exactly one link survives, no orphan device, no retry loop.
+- (p4) `hub.json` → `peers.json` and the device-store reader with a real 0.1.x home; a 0.1.x dialler against the new server gets 4001 on the alias path and shows "Update tau".
+- (p5) Handshake: a wrong key, a forged `nodeId`, a replayed proof are refused.
 
-Stage 2:
-- (r1) Three real built servers on scratch homes (A–B–C chain): A sees C within 20 s; a GET, a terminal stream and a 42 MB body from A reach C through B; kill B: C goes offline on A within 45 s; add a link A–C: C stays reachable after B dies (failover).
-- (r2) Loop: link A–B, B–C, C–A (triangle): no frame circulates, `trail` and `ttl` stop a forged looping frame (test), announces converge.
-- (r3) A lying announce (wrong neighbours, huge counts, ttl 255, an announce about the receiver itself) is bounded: sizes capped, ttl clamped to 8, self-announce ignored.
-- (r4) Credit flow across two hops: stalled browser at the far end, 20 other requests unaffected; memory per relayed stream stays within the window.
-- (r5) Group cap of 16 and the 17th node warning.
-- (r6) Expel: in a chain A–B–C and a triangle, `expel C` issued on A reaches B and C's other links within 5 s; C cannot relink, cannot route, is refused with its old id; an offline node learns the tombstone on reconnect; a forged `expel` (bad signature, wrong `by`) is ignored; a replayed older `seq` is ignored.
+Step 2:
+- (r1) Three real built servers A–B–C on scratch homes: A sees C within 20 s; a GET, a terminal stream and a 42 MB body from A reach C through B with the right ids on every hop; kill B: C goes offline on A within 5 s (live-edge) and not later than 45 s (fallback); add a link A–C: C stays reachable after B dies.
+- (r2) Triangle A–B–C–A: no frame circulates; a forged looping frame dies by `trail` and `ttl`; announces converge; a 16-node chain still routes (ttl 16).
+- (r3) A lying announce (forged origin, huge `seq`, wrong signature, one-sided neighbours, an announce about the receiver, oversized lists) is ignored or bounded; the origin's real announces still win.
+- (r4) Credit across two hops: a stalled browser at the far end, 20 other requests unaffected; memory per relayed stream within the window.
+- (r5) Group cap of 16 and the warning.
+- (r6) Expel in a chain and in a triangle: `expel C` issued on A reaches B and C's other links within 5 s; C cannot relink, route or originate requests; refused with its old id; an offline node learns the tombstone on reconnect before accepting routes; a forged `expel` and a replayed older `seq` are ignored; rejoin with a new key works.
 
 ## Phases and owners
 
-### Stage 1
-0. **Foundation** (one agent, owns every seam file): the mechanical rename; pins p1–p4; protocol (`hello` both ways, ids odd/even, `via`, `Node` with `links`, routes `/api/nodes/**`, commands, coverage test, hash bump); `peers.json` store and migrations; `Core.nodes` for the real core, `faux-core.ts`, testkit fake with two directions; stubs.
-1. **Parallel**: **A** `core/src/nodes/**`; **B** `server/src/nodes/**` (`createLinkPeer`, responder, refusals, revoke both sides); **C** `web/src/**` (onboarding skip, Nodes page, wording, redirects); **D** `cli/src/nodes/**` and the connect/disconnect commands (dialler only, removal of the duplicated link code and tests).
-2. **Integration**: e2e two real servers both ways (A sees B and B sees A; threads, terminals, kill, version skew, revoke on each side, migration), then the user's real run (Mac + vibemachine).
-3. **Verify for real**: build, browser on this Mac with two scratch homes; pair a phone to either node and see both.
+Phase 0 of each step is **one foundation agent that owns every seam file**: `cli/src/serve.ts`, `server/src/create-server.ts`, `security/guard.ts`, `security/register-access-routes.ts`, `core/src/access/**` (device store fields, `signOutAll` kind rule), `core/src/create-core.ts`, `app/App.tsx`, `protocol/**`, the testkit fake and contract tags, the e2e specs and the web fake transport. Owners fill only their folders; needed changes go in a note for the integrator. Agents run on Sonnet, low effort, in worktrees; the orchestrator commits their work.
 
-### Stage 2
-0. **Foundation**: pins r1–r5 (spike), frame schemas (`announce`, `dest`, `trail`, `ttl`), directory and routing interfaces with a pure, tested `routing.ts` (BFS, ties, failover, clamping), fakes with a three-node group, contract tag.
-1. **Parallel**: **E** `core/src/nodes/directory/**` (announce handling, seq, expiry, topology, `forget`); **F** `server/src/nodes/relay/**` (relay table, per-hop credit, trail/ttl checks, destination filter, close propagation); **G** `web/src/**` (directory in `useNodes`, "via", cache for routed nodes); **H** `cli/**` (`tau nodes list` with hops, `forget`).
-2. **Integration**: three real servers on scratch homes (chain, triangle, failover, lying announce); then the user's real group.
-3. **Verify for real**: browser, three nodes, phone on the middle node.
+- **Step 0** (one agent): the mechanical rename and the compatibility items above; green check, test, build, e2e specs (terminal, mvp12-remote, mvp12-machines renamed).
+- **Step 1 foundation**: pins p1–p5; protocol (`hello`/`proof`/`ready`/`bye`, parity, `via`, close codes, `linkProtocol`, `Node` with links, commands and coverage test, hash bumps); identity and `node.json`; `peers.json` and migrations; `Settings.setupSkipped`; `Core.nodes` for the real core, `faux-core.ts`, testkit fake with two directions; stubs.
+- **Step 1 parallel**: **A** `core/src/nodes/**`; **B** `server/src/nodes/**` (`createLinkPeer`, responder with filter, glare, refusals, revoke both sides, `attachPeer`); **C** `web/src/**` (onboarding gate, Nodes page, wording, redirects and key migration); **D** `cli/src/nodes/**` and connect/disconnect (dialler only, removal of the duplicated link code and tests).
+- **Step 1 integration**: e2e with two real servers both ways (A sees B and B sees A; threads, terminals, kill, version skew, revoke each side, migration, glare); docs (README, PLAN.md federation text, AGENTS.md wording); release `0.2.0` with the release skill, with a skew note for 0.1.x nodes; a check that a link over the tunnel host still works and that `/api/n/**` is denied on tunnelled sockets for non-device callers; the user's real run (Mac + vibemachine); verify in a browser on two scratch homes.
+- **Step 2 foundation**: pins r1–r6; frame schemas (`announce`, `expel`, `dest`, `trail`, `ttl`, `originSig`); pure `routing.ts` (BFS, ties, live edges, clamping) and signature helpers with tests; fakes with a three-node group; contract tag; stubs.
+- **Step 2 parallel**: **E** `core/src/nodes/directory/**` (announces, seq, expiry, topology, tombstones, expel, forget); **F** `server/src/nodes/relay/**` (relay table, id rewrite, per-hop credit, trail/ttl, `originSig` check, destination filter, close propagation); **G** `web/src/**` (directory, "via", Remove, cache for routed nodes); **H** `cli/**` (`nodes list` with hops, `remove`, `forget`).
+- **Step 2 integration**: three real servers on scratch homes (chain, triangle, failover, lying announce, expel); then the user's real group; verify in a browser with the phone on the middle node.
 
 ## Testing
 
-- Server: MVP12's gateway tests run in both directions; odd/even ids; second link per node refused; self link refused; path filter in both directions; revoke closes both sides; Stage 2: relay tables, per-hop credit, `trail` and `ttl`, destination filter, close propagation, failover.
-- Core: peers from both directions; migration; announce ordering (`seq`), expiry, restart seq; BFS ties; cap of 16; lying announces.
-- Web: onboarding skip; "Not set up" row; no "machine" or "hub" strings (grep test); `/m/` redirect; three-node grouping; "via" tooltip.
-- CLI: connect on a node with peers; disconnect by name; `forget`.
+- Server: MVP12 gateway tests in both directions; parity and reuse; glare and duplicates; responder filter; revoke and `bye` on both sides; Step 2: relay tables, id rewrite on binary frames, per-hop credit, `trail`/`ttl`, `originSig` and replay, destination filter, close propagation, failover.
+- Core: peers from both directions; migrations (`hub.json`, device kind, keys); handshake; announce ordering and signatures; BFS ties and mutual edges; cap of 16; tombstones, expel, rejoin, offline sync.
+- Web: onboarding gate with the server flag; "Not set up"; no `machine` or `hub` strings; `/m/` redirect and key migration; three-node grouping; "via" as text.
+- CLI: connect on a node with peers; disconnect by name; `remove`, `forget`.
 - e2e as in the phases.
 
 ## Risks
 
-- **Every node controls every node** (see Security); expulsion cuts a node off but does not wipe what it already holds.
-- **The rename is wide** (protocol routes, files, UI, URLs, published 0.1.x); the foundation does it mechanically and the hash, tests and redirects prove it.
+- **Every node controls every node**; expulsion cuts a node off but does not wipe it.
+- **Relays read plaintext** of what they forward (no end-to-end encryption between origin and destination).
+- **The rename is wide** (269 files); it is its own green commit first.
 - **Link refactor** (about 700 lines move from `cli` to `server`): the MVP12 tests run in both directions are the net.
-- **Routing bugs** (loops, black holes, stale routes) are the weakest part of Stage 2: pure routing module, `trail` and `ttl` as a second line, real triangle test.
-- **Published 0.1.x nodes** speak the old protocol: they show "Update tau"; files migrate.
-- **Version skew splits the group**: a node with another protocol version is not routed through; the UI says which nodes need an update.
-- **Setup skip hides a half-configured node**: its row says "Not set up".
+- **Routing bugs** (loops, black holes, stale routes) are the weakest part of Step 2: pure routing module, mutual edges, `trail` and `ttl`, signed headers, a real triangle test.
+- **Published 0.1.x nodes** speak the old protocol: they show "Update tau" through the alias; files migrate.
+- **Version skew**: `linkProtocol` mismatch splits routing; `PROTOCOL_VERSION` mismatch only blocks opening that node's API. The UI says which nodes need an update.
+- **A skipped setup hides a half-configured node**: its row says "Not set up".
