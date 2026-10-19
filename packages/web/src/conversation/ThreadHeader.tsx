@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { Badge } from "@/components/ui/badge";
-import { NodeAvatar } from "@/components/ui/node-avatar";
 import { NodeName } from "@/components/ui/node-name";
+import { OsIcon } from "@/components/ui/os-icon";
 import { useAllConversations } from "@/lib/queries";
 import { useNodeId } from "@/nodes/node-context";
 import { useNodeAvatar } from "@/nodes/use-node-avatar";
@@ -17,7 +17,7 @@ export function ThreadHeader({ id, extras }: { id: string; extras?: ReactNode })
       <h1 className="min-w-0 flex-1 truncate text-sm font-medium">{title}</h1>
       {nodeName ? (
         <Badge variant="outline">
-          <NodeAvatar os={avatar.os} status={avatar.status} />
+          <OsIcon os={avatar.os} className="text-muted-foreground" />
           <NodeName name={nodeName} local={nodeId === undefined} />
         </Badge>
       ) : null}
