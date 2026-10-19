@@ -122,8 +122,11 @@ async function main() {
     const tarball = await packTarball(packDir);
     await copyFile(tarball, join(root, "npx", "_npx", "abc123", "tau.tgz"));
     // Start the CLI like npx does: unpacked into an `_npx` cache folder.
-    await run("tar", ["-xzf", tarball, "-C", npxDir]);
-    const entry = join(npxDir, "package", "dist", "bin.js");
+    const npxRoot = join(root, "npx", "_npx", "abc123");
+    await run("npm", ["install", "--prefix", npxRoot, "--no-audit", "--no-fund", tarball], {
+      maxBuffer: 16 * 1024 * 1024,
+    });
+    const entry = join(npxDir, "@pablopunk", "tau", "dist", "bin.js");
     expect(existsSync(entry), `the packed CLI entry at ${entry}`);
 
     const port = await freePort();
@@ -134,6 +137,11 @@ async function main() {
       npm_config_prefix: prefix,
       TAU_BOOTSTRAP_SPEC: tarball,
       TAU_NO_UPDATE_CHECK: "1",
+      MISE_SKIP_RESHIM: "1",
+      MISE_CONFIG_DIR: join(root, "mise-config"),
+      MISE_DATA_DIR: join(root, "mise-data"),
+      MISE_CACHE_DIR: join(root, "mise-cache"),
+      MISE_STATE_DIR: join(root, "mise-state"),
       TAU_FAUX: "1",
       PATH: `${bin}${delimiter}${process.env.PATH ?? ""}`,
     };
@@ -170,6 +178,62 @@ async function main() {
     expect(again.code === 0, `exit 0 on re-run\n${again.output}`);
     expect(again.output.includes("already running"), `"already running"\n${again.output}`);
     expect((await servicePid(stateDir)) === pidBefore, "the same pid after a re-run");
+
+    const args = ["--no-open", "--port", String(port), "--home", tauHome];
+    step("tau restart replaces the server pid");
+    const restarted = await bare(env, globalBin, ["restart", ...args]);
+    expect(restarted.code === 0, `exit 0 on restart\n${restarted.output}`);
+    const pidRestarted = await servicePid(stateDir);
+    spawned.add(pidRestarted);
+    expect(pidRestarted !== pidBefore, `a new pid after restart (still ${pidBefore})`);
+    await waitForHealth(`http://127.0.0.1:${port}`);
+
+    step("a stale service record is repaired (restart, new pid)");
+    const recordFile = join(tauHome, "service.json");
+    const record = JSON.parse(await readFile(recordFile, "utf8")) as { node: string; entry: string };
+    await writeFile(recordFile, JSON.stringify({ ...record, node: "/old/node" }));
+    const repaired = await bare(env, globalBin, args);
+    expect(repaired.code === 0, `exit 0 on repair\n${repaired.output}`);
+    expect(repaired.output.includes("Repairing the tau service"), `"Repairing"\n${repaired.output}`);
+    const pidRepaired = await servicePid(stateDir);
+    spawned.add(pidRepaired);
+    expect(pidRepaired !== pidRestarted, "a new pid after the repair");
+    await waitForHealth(`http://127.0.0.1:${port}`);
+
+    step("no service manager: background warning, Open line, exit 0");
+    const brokenBin = join(root, "broken-bin");
+    await mkdir(brokenBin, { recursive: true });
+    for (const tool of ["launchctl", "systemctl", "loginctl"]) {
+      await writeFile(join(brokenBin, tool), "#!/bin/sh\nexit 1\n");
+      await chmod(join(brokenBin, tool), 0o755);
+    }
+    const bareHome = join(root, "tau-home-bare");
+    const barePort = await freePort();
+    const bareEnv: NodeJS.ProcessEnv = {
+      ...env,
+      TAU_HOME: bareHome,
+      PATH: `${brokenBin}${delimiter}${process.env.PATH ?? ""}`,
+    };
+    delete bareEnv.XDG_RUNTIME_DIR;
+    assertInside(root, "TAU_HOME", bareHome);
+    const background = await bare(bareEnv, globalBin, [
+      "--no-open",
+      "--port",
+      String(barePort),
+      "--home",
+      bareHome,
+    ]);
+    const detachedPid = Number(await readFile(join(bareHome, "service.pid"), "utf8").catch(() => "0"));
+    spawned.add(detachedPid);
+    expect(background.code === 0, `exit 0 without a service manager\n${background.output}`);
+    expect(
+      background.output.includes("No service manager here"),
+      `the background warning\n${background.output}`,
+    );
+    expect(
+      /Open: http:\/\/127\.0\.0\.1:\d+\/\?token=/.test(background.output),
+      `Open line\n${background.output}`,
+    );
   } finally {
     for (const pid of spawned) killPid(pid);
     await rm(root, { recursive: true, force: true });
