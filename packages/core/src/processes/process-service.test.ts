@@ -17,7 +17,8 @@ const makeService = () =>
   createProcessService({ home, emitChange: (id) => changes.push(id), stopGraceMs: 300 });
 
 async function waitFor(check: () => Promise<boolean> | boolean) {
-  for (let attempt = 0; attempt < 100; attempt++) {
+  // 15 s: a loaded machine (load 30+) can take seconds to start `sh`.
+  for (let attempt = 0; attempt < 300; attempt++) {
     if (await check()) return;
     await sleep(50);
   }
