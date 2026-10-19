@@ -11,8 +11,8 @@ export interface DeviceLabels {
 export function createDeviceLabels(core: Core): DeviceLabels {
   const names = new Map<string, string>();
   const refresh = () =>
-    core.access
-      .listDevices()
+    Promise.resolve()
+      .then(() => core.access.listDevices())
       .then((devices) => {
         names.clear();
         for (const device of devices) names.set(device.id, device.name);
