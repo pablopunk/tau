@@ -39,10 +39,13 @@ export type MintPairingInput = Type.Static<typeof MintPairingInputSchema>;
  * The one place that builds a pairing link: `<url>/pair#<code>[.<name>][&node=<nodeId>]`.
  * `node` is the acceptor's own `nodeId`, so the dialler can check it at the first `hello`.
  */
+/** Like `encodeURIComponent`, but also encodes `'`, so the link fits inside a single-quoted shell argument. */
+const encodeShellSafe = (value: string): string => encodeURIComponent(value).replaceAll("'", "%27");
+
 export function pairingLink(url: string, code: string, name?: string, nodeId?: string): string {
   const label = name?.trim();
-  const node = nodeId ? `&node=${encodeURIComponent(nodeId)}` : "";
-  return `${url}/pair#${code}${label ? `.${encodeURIComponent(label)}` : ""}${node}`;
+  const node = nodeId ? `&node=${encodeShellSafe(nodeId)}` : "";
+  return `${url}/pair#${code}${label ? `.${encodeShellSafe(label)}` : ""}${node}`;
 }
 
 export const PAIRING_TTL_MS = 5 * 60 * 1000;

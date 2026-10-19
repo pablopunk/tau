@@ -10,11 +10,11 @@ export type ModelToolsChange = Pick<AgentChange, "modelTools">;
 export const CONNECTOR_TOOL_REFERENCE = { name: CONNECTOR_TOOL_NAME } as ToolRegistration;
 
 export interface ConnectorOffering {
-  /** The `modelTools` change that offers `claude_connector` (or clears the offer) for a thread on `model`. */
+  /** The `modelTools` change that offers `claude_connector`, clears the offer, or `{}` while connectors are unknown. */
   modelToolsFor(model: ModelRef | undefined): Promise<ModelToolsChange>;
   /** Whether a thread on `model` is offered the tool right now. */
   isOffered(model: ModelRef | undefined): Promise<boolean>;
-  /** Settings changed: offers or withdraws the tool in every live thread. */
+  /** Settings or the connector list changed: offers or withdraws the tool in every live thread. */
   resyncAll(): Promise<void>;
 }
 
@@ -33,27 +33,37 @@ const offerChange: ModelToolsChange = { modelTools: { add: [CONNECTOR_TOOL_REFER
 const withdrawChange: ModelToolsChange = { modelTools: null };
 
 export function createConnectorOffering(deps: ConnectorOfferingDeps): ConnectorOffering {
-  const hasChosenServer = async (): Promise<boolean> => {
-    const settings = await deps.settings();
+  /** `null` while the connector list is unknown (startup, a failed or pending probe): then nothing changes. */
+  const chosenServer = async (): Promise<boolean | null> => {
     const known = deps.connectors();
-    return known !== null && known.some((server) => isOn(settings, server));
+    if (known === null) return null;
+    const settings = await deps.settings();
+    return known.some((server) => isOn(settings, server));
   };
 
-  const isOffered = async (model: ModelRef | undefined) =>
-    isClaudeCliModel(model) && (await hasChosenServer());
+  /** `null`: keep whatever the thread has. */
+  const wantedFor = async (model: ModelRef | undefined): Promise<boolean | null> =>
+    isClaudeCliModel(model) ? chosenServer() : false;
+
+  const isOffered = async (model: ModelRef | undefined) => (await wantedFor(model)) === true;
 
   async function syncThread(id: number): Promise<void> {
     const conversation = await deps.harness.conversation(id as never, BACKGROUND);
     if (!conversation) return;
     const agent = await conversation.agent(BACKGROUND);
-    const wanted = await isOffered(agent.model);
+    const wanted = await wantedFor(agent.model);
+    if (wanted === null) return;
     const has = agent.tools.some((tool) => tool.name === CONNECTOR_TOOL_NAME);
     if (wanted !== has) await conversation.configure(wanted ? offerChange : withdrawChange, BACKGROUND);
   }
 
   return {
     isOffered,
-    modelToolsFor: async (model) => ((await isOffered(model)) ? offerChange : withdrawChange),
+    async modelToolsFor(model) {
+      const wanted = await wantedFor(model);
+      if (wanted === null) return {};
+      return wanted ? offerChange : withdrawChange;
+    },
     async resyncAll() {
       for (const { id, meta } of await scanAppConversations(deps.harness)) {
         if (meta.deletedAt !== undefined) continue;

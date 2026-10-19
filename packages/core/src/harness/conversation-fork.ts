@@ -7,6 +7,8 @@ import type {
   Harness,
 } from "@earendil-works/pi-durable";
 import { AppError, type ConversationSummary } from "@tau/protocol";
+import { CONNECTOR_TOOL_NAME } from "../claude-cli/connectors/names";
+import { CONNECTOR_TOOL_REFERENCE } from "./connector-offering";
 import { ConversationDoc, INDEX_SEED, ProjectIndexDoc } from "./conversation-docs";
 import type { ConversationStore } from "./conversation-store";
 import { forkedWorkspace } from "./forked-workspace";
@@ -97,8 +99,13 @@ export function createConversationForker(
 
   /** A fork with no history at all: the message is the first entry, so there is nothing to fork from. */
   async function startEmptyLike(conversation: Conversation, options: ConversationCreateOptions) {
-    const { model, cwd, thinkingLevel } = await conversation.agent(BACKGROUND);
-    return harness.createConversation({ ...options, agent: { model, cwd, thinkingLevel } }, BACKGROUND);
+    const { model, cwd, thinkingLevel, tools } = await conversation.agent(BACKGROUND);
+    const connector = tools.some((tool) => tool.name === CONNECTOR_TOOL_NAME);
+    const modelTools = connector ? { modelTools: { add: [CONNECTOR_TOOL_REFERENCE] } } : {};
+    return harness.createConversation(
+      { ...options, agent: { model, cwd, thinkingLevel, ...modelTools } },
+      BACKGROUND,
+    );
   }
 
   return {

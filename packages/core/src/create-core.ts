@@ -30,6 +30,7 @@ import { checkinMinutesFrom, createGoalService } from "./goals/goal-service";
 import { createJudgeModel } from "./goals/judge-model";
 import { createGoalsApi } from "./goals-api";
 import { createConnectorOffering } from "./harness/connector-offering";
+import { resyncWhenConnectorsChange } from "./harness/connector-resync";
 import { createConversationForker } from "./harness/conversation-fork";
 import { type ConversationOfSession, createConversationOfSession } from "./harness/conversation-of-session";
 import { createConversationStore } from "./harness/conversation-store";
@@ -159,6 +160,7 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
       settings: async () => (await settings.get()).claudeConnectors,
       connectors: () => provider.claudeConnectors(),
     });
+    resyncWhenConnectorsChange(changes, provider, connectorOffering);
     const conversations = createConversationStore(harness, async (id) => (await projects.require(id)).path, {
       offering: connectorOffering,
       beforeAbort: (id) => approvals.denyAll(id),
