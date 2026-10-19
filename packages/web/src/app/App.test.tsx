@@ -36,6 +36,7 @@ async function openAddProject(user: ReturnType<typeof userEvent.setup>) {
 }
 
 describe("setup", () => {
+  // About 1 s alone; the whole setup flow took over 20 s twice with load at 50-70 from other threads.
   it("takes the key, then the default model, then shows the main screen", async () => {
     const user = await renderApp({ ready: false });
 
@@ -63,7 +64,7 @@ describe("setup", () => {
     await user.click(screen.getByRole("button", { name: "Continue" }));
 
     expect(await screen.findByRole("heading", { name: "New thread" })).toBeInTheDocument();
-  });
+  }, 60_000);
 
   it("shows detected providers before models and lets the user go back", async () => {
     const user = await renderApp({ ready: false, connected: true });
