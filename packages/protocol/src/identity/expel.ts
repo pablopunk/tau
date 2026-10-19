@@ -10,8 +10,11 @@ export interface ExpelRecord {
 }
 
 /** `tau-expel-v1|<target>|<by>|<time>`: no sequence number, idempotent per target. */
+export const expelPayload = (target: string, by: string, time: number): string =>
+  signedPayload(DOMAIN_TAGS.expel, target, by, String(time));
+
 export function createExpel(keys: NodeKeys, target: string, time: number): ExpelFrame {
-  const payload = signedPayload(DOMAIN_TAGS.expel, target, nodeIdOf(keys.publicKey), String(time));
+  const payload = expelPayload(target, nodeIdOf(keys.publicKey), time);
   return { type: "expel", payload, byPublicKey: keys.publicKey, sig: signPayload(keys, payload) };
 }
 
@@ -44,8 +47,11 @@ export interface AckRecord {
 }
 
 /** `tau-ack-v1|<target>|<node>|<time>`, signed by `node`: it applied the expel of `target`. */
+export const ackPayload = (target: string, node: string, time: number): string =>
+  signedPayload(DOMAIN_TAGS.ack, target, node, String(time));
+
 export function createAck(keys: NodeKeys, target: string, time: number): ExpelAckFrame {
-  const payload = signedPayload(DOMAIN_TAGS.ack, target, nodeIdOf(keys.publicKey), String(time));
+  const payload = ackPayload(target, nodeIdOf(keys.publicKey), time);
   return { type: "expel-ack", payload, nodePublicKey: keys.publicKey, sig: signPayload(keys, payload) };
 }
 

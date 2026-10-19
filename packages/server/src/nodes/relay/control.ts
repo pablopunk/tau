@@ -24,6 +24,12 @@ export function cutNode(registry: LinkRegistry, closers: Closers, target: string
   );
 }
 
+/** This node was expelled: every link and relayed stream is cut, the group no longer carries it. */
+export function cutEverything(registry: LinkRegistry, closers: Closers): void {
+  for (const link of registry.links()) link.close(REMOVED, "node removed", true);
+  closers.closeWhere(() => true, POLICY, REFUSAL_REASONS.node_removed);
+}
+
 export const expelTarget = (frame: ExpelFrame): string => frame.payload.split("|")[1] ?? "";
 
 /** The `announce`, `expel`, `expel-ack` and `expel-sync` frames: handed to `core.nodes.group`, flooded as it says. */
@@ -46,8 +52,9 @@ export function createControl(deps: {
   async function afterExpel(outcome: ExpelOutcome, frame: ExpelFrame, from: RegisteredLink): Promise<void> {
     if (outcome.reflood) await flood(registry, frame, from.nodeId);
     if (outcome.ack) await flood(registry, outcome.ack);
-    if (outcome.fresh && outcome.target && !outcome.selfExpelled)
-      cutNode(registry, deps.closers, outcome.target);
+    if (!outcome.fresh) return;
+    if (outcome.selfExpelled) cutEverything(registry, deps.closers);
+    else if (outcome.target) cutNode(registry, deps.closers, outcome.target);
   }
 
   async function handle(link: RegisteredLink, frame: LinkFrame): Promise<void> {

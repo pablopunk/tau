@@ -23,11 +23,11 @@ const FIELD_COUNT = 10;
 export const ANNOUNCE_MAX_NEIGHBOURS = GROUP_NODE_CAP - 1;
 
 /** `tau-announce-v1|origin|publicKey|boot|counter|name|os|tauVersion|protocolVersion|linkProtocol|n1,n2`. `ttl` is outside it. */
-export function createAnnounce(keys: NodeKeys, body: AnnounceBody, ttl: number): AnnounceFrame {
-  const payload = signedPayload(
+export function announcePayload(origin: string, publicKey: string, body: AnnounceBody): string {
+  return signedPayload(
     DOMAIN_TAGS.announce,
-    nodeIdOf(keys.publicKey),
-    keys.publicKey,
+    origin,
+    publicKey,
     String(body.boot),
     String(body.counter),
     encodeField(body.name),
@@ -37,6 +37,10 @@ export function createAnnounce(keys: NodeKeys, body: AnnounceBody, ttl: number):
     encodeField(body.linkProtocol),
     [...body.neighbours].join(","),
   );
+}
+
+export function createAnnounce(keys: NodeKeys, body: AnnounceBody, ttl: number): AnnounceFrame {
+  const payload = announcePayload(nodeIdOf(keys.publicKey), keys.publicKey, body);
   return { type: "announce", payload, sig: signPayload(keys, payload), ttl };
 }
 

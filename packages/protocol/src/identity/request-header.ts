@@ -17,7 +17,13 @@ export interface RequestHeaderFields {
   readonly via: string;
 }
 
-const canonical = (fields: RequestHeaderFields, origin: string, ts: number, nonce: string): string =>
+/** The one canonical text of a routed request header; origin signing (core) and the relay use it too. */
+export const requestPayload = (
+  fields: RequestHeaderFields,
+  origin: string,
+  ts: number,
+  nonce: string,
+): string =>
   signedPayload(
     DOMAIN_TAGS.request,
     fields.dest,
@@ -40,7 +46,7 @@ export function signRequestHeader(
   nonce: string = randomBytes(12).toString("base64url"),
 ): Required<Pick<RoutedFields, "dest" | "origin" | "originPublicKey" | "payload" | "originSig">> {
   const origin = nodeIdOf(keys.publicKey);
-  const payload = canonical(fields, origin, now, nonce);
+  const payload = requestPayload(fields, origin, now, nonce);
   return {
     dest: fields.dest,
     origin,
@@ -94,7 +100,7 @@ export function verifyRequestHeader(
   const ts = Number(parts[9]);
   const nonce = parts[10];
   if (parts.length !== 11 || !Number.isSafeInteger(ts) || !nonce) return { ok: false, reason: "mismatch" };
-  if (payload !== canonical(frame, origin, ts, nonce)) return { ok: false, reason: "mismatch" };
+  if (payload !== requestPayload(frame, origin, ts, nonce)) return { ok: false, reason: "mismatch" };
   if (!verifySignature(originPublicKey, payload, originSig)) return { ok: false, reason: "bad-signature" };
   if (!withinWindow(ts, context.now, context.windowMs ?? REQUEST_WINDOW_MS)) {
     return { ok: false, reason: "skew", skewMs: ts - context.now };

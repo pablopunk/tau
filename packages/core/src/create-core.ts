@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import { homedir } from "node:os";
+import { homedir, hostname } from "node:os";
 import { join } from "node:path";
 import type { Harness } from "@earendil-works/pi-durable";
 import {
@@ -384,6 +384,13 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
       identity: () => identity,
       nodes,
       home: home.root,
+      self: () => ({
+        name: hostname().replace(/\.local$/i, ""),
+        os: `${process.platform} ${process.arch}`,
+        tauVersion: options.currentVersion,
+        protocolVersion: process.env.TAU_FAKE_PROTOCOL_VERSION || PROTOCOL_VERSION,
+        linkProtocol: LINK_PROTOCOL,
+      }),
     });
 
     const remote = createRemoteService({

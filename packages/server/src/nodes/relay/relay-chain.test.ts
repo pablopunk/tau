@@ -128,4 +128,18 @@ describe("tombstones and expels", () => {
     await gone;
     expect(order).toEqual(["expel", "closed"]);
   });
+
+  it("cuts every link when this node learns it was expelled", async () => {
+    const { a, b, c } = chain;
+    const statusOf = async (id: string) => (await b.core.nodes.list()).find((node) => node.id === id)?.status;
+    await vi.waitFor(async () => expect(await statusOf(c.nodeId)).toBe("online"));
+    c.control.expelSelfNext();
+    const response = await b.ctx.request({
+      method: "POST",
+      url: `/api/nodes/${a.nodeId}/remove`,
+      payload: { confirm: "Alpha" },
+    });
+    expect(response.statusCode).toBeLessThan(300);
+    await vi.waitFor(async () => expect(await statusOf(c.nodeId)).not.toBe("online"));
+  });
 });

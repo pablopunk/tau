@@ -16,6 +16,8 @@ export interface GroupControl {
   /** Fires `onTopology` listeners: the relay re-announces. */
   topology(): void;
   tombstone(nodeId: string): void;
+  /** The next `acceptExpel` says this node itself was expelled. */
+  expelSelfNext(): void;
 }
 
 export interface ChainNode extends TestNode {
@@ -50,6 +52,7 @@ function steerGroup(nodes: Core["nodes"]): GroupControl {
   const skews: Array<[string, number]> = [];
   const heard: string[] = [];
   const topologyListeners = new Set<() => void>();
+  let selfNext = false;
   const base: Group = nodes.group;
   nodes.group = {
     ...base,
@@ -76,7 +79,9 @@ function steerGroup(nodes: Core["nodes"]): GroupControl {
     },
     async acceptExpel(frame) {
       expels.push(frame);
-      return { fresh: false, reflood: false, selfExpelled: false };
+      if (!selfNext) return { fresh: false, reflood: false, selfExpelled: false };
+      selfNext = false;
+      return { fresh: true, target: "self", reflood: true, selfExpelled: true };
     },
     async createExpel(target, _confirm) {
       return { type: "expel", payload: `tau-expel-v1|${target}|by|1`, byPublicKey: "k", sig: "s" };
@@ -90,6 +95,9 @@ function steerGroup(nodes: Core["nodes"]): GroupControl {
     heard,
     topology() {
       for (const listener of topologyListeners) listener();
+    },
+    expelSelfNext() {
+      selfNext = true;
     },
     tombstone(nodeId) {
       tombstones.add(nodeId);

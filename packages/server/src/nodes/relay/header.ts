@@ -1,4 +1,4 @@
-import { DOMAIN_TAGS, signedPayload } from "@tau/protocol/identity";
+import { type RequestHeaderFields, requestPayload } from "@tau/protocol/identity";
 
 /** What the origin signs about a request or an open (an open has no method, content type or body). */
 export interface HeaderInput {
@@ -10,7 +10,7 @@ export interface HeaderInput {
   readonly bodyBytes?: number;
 }
 
-/** The origin side of `signRequestHeader`: same canonical text, signed by core (the key never leaves it). */
+/** The origin side of `signRequestHeader`: the same `requestPayload`, signed by core (the key never leaves it). */
 export function headerPayload(
   dest: string,
   origin: string,
@@ -18,17 +18,6 @@ export function headerPayload(
   ts: number,
   nonce: string,
 ): string {
-  return signedPayload(
-    DOMAIN_TAGS.request,
-    dest,
-    origin,
-    encodeURIComponent(input.method ?? ""),
-    encodeURIComponent(input.path),
-    encodeURIComponent(input.query),
-    encodeURIComponent(input.contentType ?? ""),
-    input.bodyBytes === undefined ? "" : String(input.bodyBytes),
-    encodeURIComponent(input.via),
-    String(ts),
-    nonce,
-  );
+  const fields: RequestHeaderFields = { dest, method: input.method ?? "", ...input };
+  return requestPayload(fields, origin, ts, nonce);
 }

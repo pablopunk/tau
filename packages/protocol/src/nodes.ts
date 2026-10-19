@@ -1,4 +1,5 @@
 import { Type } from "typebox";
+import { STEP2_CAPABILITIES } from "./node-link-routing";
 
 /** `reconnecting` is "no heartbeat for 15 s"; `offline` is 45 s or a closed link; `update-required` is a protocol hash mismatch. */
 export const NodeStatusSchema = Type.Union([
@@ -119,12 +120,8 @@ export interface NodePeerInfo {
   readonly publicKey?: string;
 }
 
-/**
- * What `hello.capabilities` lists today. TRANSITIONAL SHIM: empty until the Step 2 integrator switches it to
- * `STEP2_CAPABILITIES` (`announce`, `relay`) once owners E and F are merged; advertising them earlier
- * would make peers wait for an expel set nobody sends.
- */
-export const NODE_CAPABILITIES: readonly string[] = [];
+/** What `hello.capabilities` lists: `announce` and `relay` (Step 2). */
+export const NODE_CAPABILITIES: readonly string[] = STEP2_CAPABILITIES;
 
 /** Titles and times only, never transcripts: what the hub shows for an offline node. */
 export const NodeSummarySchema = Type.Object({
