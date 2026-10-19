@@ -2,7 +2,7 @@ import { mkdtemp, readFile, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Change, Device } from "@tau/protocol";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createChangeEmitter } from "../change-emitter";
 import type { Peer } from "../peers/peers-store";
 import { createFakeRemoteAdapter } from "../remote/fake-adapter";
@@ -133,8 +133,8 @@ describe("summary cache", () => {
     expect((await stat(file)).mode & 0o777).toBe(0o600);
     expect(JSON.parse(await readFile(file, "utf8"))).toEqual(SUMMARY);
     nodes.markOffline("m1");
-    await new Promise((r) => setTimeout(r, 50));
-    expect(JSON.parse(await readFile(file, "utf8")).stale).toBe(true);
+    // markOffline writes in the background: wait for the write, a fixed sleep is too short under load.
+    await vi.waitFor(async () => expect(JSON.parse(await readFile(file, "utf8")).stale).toBe(true));
     expect(await nodes.readSummary("m1")).toEqual(SUMMARY);
     await nodes.writeSummary("m1", { ...SUMMARY, savedAt: 9 });
     expect((await nodes.readSummary("m1"))?.savedAt).toBe(1);
