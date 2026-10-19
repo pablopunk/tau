@@ -11,9 +11,11 @@ const renderMeter = (used: number) =>
   );
 
 describe("<ContextMeter>", () => {
-  it("always prints its percentage so it reads as a gauge", () => {
+  it("shows only the ring, with the percentage as its accessible label", () => {
     renderMeter(3);
-    expect(screen.getByRole("meter")).toHaveTextContent("3%");
+    const meter = screen.getByRole("meter");
+    expect(meter).toHaveTextContent("");
+    expect(meter).toHaveAttribute("aria-label", "3%");
   });
 
   it("is hidden until something is used", () => {

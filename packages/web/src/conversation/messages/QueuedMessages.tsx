@@ -3,8 +3,8 @@ import { QueuedNotificationRow } from "../notifications/QueuedNotificationRow";
 import { QueuedItemActions } from "../queue/QueuedItemActions";
 import { UserMessage } from "./UserMessage";
 
-const MODE_LABELS: Record<QueuedMessage["mode"], string> = {
-  steer: "Will steer the agent",
+const MODE_LABELS: Record<QueuedMessage["mode"], string | null> = {
+  steer: null,
   followUp: "Will send when the agent is done",
 };
 
@@ -26,7 +26,9 @@ export function QueuedMessages({
             <UserMessage text={item.text} images={item.images} pending />
           )}
           <div className="flex items-center justify-end gap-2">
-            <p className="text-xs text-muted-foreground">{MODE_LABELS[item.mode]}</p>
+            {MODE_LABELS[item.mode] ? (
+              <p className="text-xs text-muted-foreground">{MODE_LABELS[item.mode]}</p>
+            ) : null}
             {conversationId ? <QueuedItemActions conversationId={conversationId} item={item} /> : null}
           </div>
         </li>
