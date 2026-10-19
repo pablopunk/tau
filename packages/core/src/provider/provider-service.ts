@@ -52,7 +52,7 @@ export interface ProviderService {
   setApiKey(id: ProviderId, key: string): Promise<ProviderInfo>;
   disconnect(id: ProviderId): Promise<ProviderInfo>;
   listModels(): Promise<ModelInfo[]>;
-  /** Resolves once the first Claude CLI check and its model list are in, or after `timeoutMs`. Never rejects. */
+  /** Resolves once the Claude CLI check and its model list are in (no connector probe), or after `timeoutMs`. Never rejects. */
   ready(timeoutMs: number): Promise<void>;
   lists(ref: ModelRef): Promise<boolean>;
   acknowledgeClaudeCli(): Promise<ProviderInfo>;
@@ -119,14 +119,6 @@ export function createProviderService(options: ProviderServiceOptions): Provider
     );
     return firstCheck;
   };
-
-  const readyModels = () =>
-    firstClaudeCliCheck()
-      .then(() => lister.list())
-      .then(
-        () => undefined,
-        () => undefined,
-      );
 
   async function readAfterFirstCheck(entry: ProviderEntry) {
     if (entry.kind === "cli") await firstClaudeCliCheck();
@@ -214,7 +206,7 @@ export function createProviderService(options: ProviderServiceOptions): Provider
       await firstClaudeCliCheck();
       return lister.list();
     },
-    ready: (timeoutMs) => settleWithin(readyModels(), timeoutMs),
+    ready: (timeoutMs) => settleWithin(claudeCli.loadModels(), timeoutMs),
     acknowledgeClaudeCli,
     refreshClaudeCli,
     installClaudeCliSdk,
