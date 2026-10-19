@@ -27,11 +27,20 @@ export interface ToolCardProps {
   readonly status: ToolStatus;
   readonly badge?: ReactNode;
   readonly children?: ReactNode;
+  readonly openWhileActive?: boolean;
 }
 
-export function ToolCard({ icon, title, subtitle, status, badge, children }: ToolCardProps) {
+export function ToolCard({
+  icon,
+  title,
+  subtitle,
+  status,
+  badge,
+  children,
+  openWhileActive = true,
+}: ToolCardProps) {
   const [toggled, setToggled] = useState<boolean | undefined>(undefined);
-  const open = toggled ?? isActive(status);
+  const open = toggled ?? (openWhileActive && isActive(status));
   return (
     <Collapsible
       open={open}

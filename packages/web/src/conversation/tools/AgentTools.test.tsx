@@ -63,6 +63,8 @@ describe("agent tool cards", () => {
     const state = stateOf("agent", { description: "look around" }, "", { conversationId: "kid" });
     renderAt("/", <AgentTool state={state} />);
     expect(screen.getByText("fork")).toBeTruthy();
+    expect(screen.queryByText("model-9")).toBeNull();
+    await userEvent.click(screen.getByRole("button"));
     expect(screen.getByText("model-9")).toBeTruthy();
     expect(screen.getByText("running")).toBeTruthy();
     expect(screen.getByRole("link", { name: "Open" })).toBeTruthy();
@@ -96,6 +98,7 @@ describe("agent tool cards", () => {
   it("shows the model's display name instead of its id", async () => {
     models.current = [{ provider: "x", modelId: "model-9", name: "Nine" }];
     renderAt("/", <AgentTool state={stateOf("agent", {}, "", { conversationId: "kid" })} />);
+    await userEvent.click(screen.getByRole("button"));
     expect(screen.getByText("Nine")).toBeTruthy();
     expect(screen.queryByText("model-9")).toBeNull();
   });

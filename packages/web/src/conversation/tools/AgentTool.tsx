@@ -25,6 +25,7 @@ export function AgentTool({ state }: ToolRendererProps) {
   return (
     <ToolCard
       icon={<Bot />}
+      openWhileActive={false}
       title={child?.title.trim() || "Subagent"}
       subtitle={argText(state, "description")}
       status={cardStatusOf(child, state.status)}
