@@ -14,7 +14,7 @@ function CodeBlock({ text, copyable = false, className, ...props }: CodeBlockPro
     <div data-slot="code-block" className="relative min-w-0">
       <pre
         className={cn(
-          "max-h-60 overflow-auto rounded-md bg-muted p-3 font-mono text-xs break-all whitespace-pre-wrap",
+          "max-h-60 overflow-auto rounded-md bg-muted p-3 font-mono text-xs break-words whitespace-pre-wrap",
           copyable && "pr-10",
           className,
         )}

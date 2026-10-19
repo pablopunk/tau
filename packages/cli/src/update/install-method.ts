@@ -55,8 +55,7 @@ function refusalOf(entry: string, target: string): Refusal | undefined {
   }
   if (temporaryRunnerOf(entry) !== undefined) {
     return {
-      reason:
-        "Running from a temporary npx/dlx cache: nothing to update. Run `npx @pablopunk/tau@latest` again.",
+      reason: "It runs from a temporary npx copy. Install it globally to update it.",
       manualCommand: GLOBAL_LATEST_COMMAND,
     };
   }

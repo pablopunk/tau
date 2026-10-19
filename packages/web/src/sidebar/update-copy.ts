@@ -23,7 +23,7 @@ export const confirmLabel = (hasWork: boolean): string =>
 
 export const manualTitle = "Update tau";
 export const manualBody = (reason: string | null): string =>
-  `This tau can't update itself${reason ? `: ${reason}` : "."}`;
+  `This tau can't update itself.${reason ? ` ${reason}` : ""}`;
 
 export const progressLabel = (job: UpdateStatus["job"]): string =>
   job.state === "restarting" ? "Restarting…" : `Installing ${job.target ?? ""}…`.replace(" …", "…");
