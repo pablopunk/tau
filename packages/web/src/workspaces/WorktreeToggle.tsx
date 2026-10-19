@@ -18,7 +18,7 @@ function ModeItem({ value, label, icon: Icon }: { value: WorkspaceMode; label: s
         <ToggleGroupItem
           value={value}
           aria-label={label}
-          className="aria-checked:bg-primary aria-checked:text-primary-foreground"
+          className="text-muted-foreground aria-checked:bg-muted aria-checked:text-foreground"
         >
           <Icon />
         </ToggleGroupItem>
