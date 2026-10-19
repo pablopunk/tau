@@ -14,6 +14,7 @@ const FIXED_DIRECTORIES = [
   "build/Icon.icon/Assets",
   "",
   "public",
+  "public/favicon",
   "static",
   "assets",
   "web",

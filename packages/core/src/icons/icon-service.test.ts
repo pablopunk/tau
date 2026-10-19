@@ -79,6 +79,12 @@ describe("icon discovery", () => {
     expect(await s.names()).toEqual(["public/favicon.ico", "build/Icon.icon/Assets/logo.png"]);
   });
 
+  it("finds a favicon kept in public/favicon", async () => {
+    const s = await setup();
+    await s.put("public/favicon/favicon.ico", "folder");
+    expect(await s.text()).toBe("folder");
+  });
+
   it("scans src/*/public and apps/*/public, repository-named apps first", async () => {
     const s = await setup();
     await s.put("src/zed/public/mark.png", "src");
