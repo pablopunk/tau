@@ -3,8 +3,7 @@ import type { Change, ConversationView } from "@tau/protocol";
 export type LiveStatus = "connecting" | "open" | "reconnecting" | "closed";
 
 /**
- * One WebSocket for the whole app. FROZEN: workstream D implements it, workstream C only uses `onChanged`.
- * Changes to this interface go through `CONTRACT-CHANGES.md`.
+ * One WebSocket for the whole app.
  */
 export interface LiveClient {
   /**
