@@ -1,6 +1,6 @@
 # Update button in the sidebar
 
-Status: plan (final revision); foundation done, owners next.
+Status: integrated on the detached backend; systemd and launchd restart-survival still unverified (see Integration).
 
 Fixed decisions: check every 15 min; npx-cache installs show a copy command and run nothing; owner only (403 for paired devices and linked nodes); after success the page reloads by itself, then a short toast with the new version; the detached updater must survive the service restart on systemd and launchd in v1.
 
@@ -173,3 +173,20 @@ None. macOS default is decided (detached spawn, `launchctl submit` only if verif
 - Core returns the owner's view of `canUpdate`; only the server may downgrade it. Do not let the web trust `canUpdate` from a fake without `canUpdate: false` tests.
 - Real client validates responses against the schema, so any test fixture of `UpdateStatus` needs the three new fields (`NodesSection.test.tsx` was updated).
 - `server/src/nodes/link-requests.test.ts` "42 MB request body" failed once under full-suite load (empty body hashed), passes alone and in reruns; unrelated to this change.
+
+## Integration
+
+**Applied**
+- CLI notes: all read; `INTEGRATOR-NOTES-UPDATE.md` deleted. `TAU_FAKE_LATEST` / `TAU_FAKE_UPDATE` need a home under `os.tmpdir()`; new `TAU_FAKE_VERSION` (same rule, `update/fake-hooks.ts` `versionOf`, used by `serve.ts`) lets a fake update change the version the server reports.
+- Stale rules: already applied in the CLI updater's `readJob` (`settled()` in `update/updater.ts`: dead pid after the child's pid or 30 s, `from` change clears `failed`, target = current gives `idle`), with tests in `updater.test.ts` ("job staleness").
+- `start` and the caller's lineage: left as is. `UpdateStartBody` has no thread id and the plan does not require one; a button click comes from the browser, not from a thread, so `update_busy` counts every running thread and the dialog's `force: true` is the user's answer. A thread that runs `tau update` itself is refused by the unconditional `TAU_THREAD_ID` guard anyway.
+- Foreground run: `UpdaterDeps.foreground` (real: no `--service` in argv) sets `install.reason` to "tau was not started as a service, so it will not restart. Restart it yourself afterwards." in `run` mode; tested in `updater.test.ts`. The web dialog already shows `reason` in place of the restart sentence.
+- `useUpdateStatus` polling every 60 s with Settings sharing the hook: fine. It is one query key (one request per interval), the job poll drops to 2 s only while a job runs, and the Settings refresh button forces a check.
+- Server: the node-link bearer is rejected with 4xx before `ownerOnly`; the test stays.
+- Update restart step installing a missing service for a background tau: tested with injected runners (`run-update.test.ts`).
+- E2E `e2e/tests/update-button.spec.ts` (+ `e2e/update-support.ts`): a copy of the built CLI in an npm-global layout (and an `_npx` layout), scratch home under tmpdir, random port, `tau start` (detached backend only). Covers: paired device cookie gets 403 on `POST /api/update/start` and `canUpdate: false`; owner sees Update; confirm dialog and Cancel; fake update installing, restarting, done, reload, toast "tau updated to 9.9.9"; npx shows the copy command and starts nothing. The failure-with-log-tail path is covered by web and cli unit tests only.
+- README and PLAN.md describe the button and `tau update`.
+
+**Still unverified**
+- The real systemd (`systemd-run` transient unit surviving `systemctl --user restart`) and launchd (`kickstart -k` and `bootout`/`bootstrap`) restart-survival runs. `BACKEND_VERIFIED` stays `{ systemd: false, launchd: false, detached: true }`, so those services show the copy command. `LAUNCHD_USE_SUBMIT` stays false; stale `tau-update-*` label cleanup is not implemented.
+- The real registry availability check (`TAU_FAKE_LATEST` bypasses it); a real `npm i -g`.

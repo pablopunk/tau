@@ -11,6 +11,7 @@ import { defaultHome, parseCliOptions } from "./options";
 import { writePrivateFile } from "./private-files";
 import { run } from "./run";
 import { findStaticDir } from "./static-dir";
+import { versionOf } from "./update/fake-hooks";
 import { cliVersion } from "./version";
 
 async function openBrowser(url: string): Promise<void> {
@@ -66,7 +67,7 @@ async function serveOnce(argv: readonly string[]): Promise<void> {
     log: (message) => console.log(message),
     staticDir: findStaticDir(),
     cliEntry: cliEntry().entry,
-    version: cliVersion(),
+    version: versionOf(cliVersion(), options.home),
   });
   if (!app) return options.service ? process.exit(1) : undefined;
   writeStoredPort(options.home, portOfUrl(app.url));

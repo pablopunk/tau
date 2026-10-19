@@ -44,6 +44,10 @@ Working name. Goal: my own app to run Pi agents on my machines and use them from
 - Global settings are the default.
 - Every setting can be overridden per project.
 
+### Updates
+- Core checks the registry every 15 minutes and only reports versions that can be installed.
+- The sidebar shows an Update button (owner only) that runs `tau update --target <v>` in a detached child, then the page reloads on the new version. Details and status: `UPDATE-BUTTON.md`.
+
 ### Claude Code compatibility (optional extension)
 - Match Claude Code behavior as much as possible: hooks, rules, CLAUDE.md, custom agents, skills, directories.
 - Hook mapping (to check): PreToolUse → tool call hook, PostToolUse → tool result hook, UserPromptSubmit → input hook, Stop → end-of-run hook, SessionStart/End → session events.
