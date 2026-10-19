@@ -178,6 +178,8 @@ describe("node routes on the hub", () => {
     expect(((await ctx.request({ url: "/api/nodes" })).json() as Array<{ name: string }>)[0]?.name).toBe(
       "NAS",
     );
-    expect((await ctx.request({ url: "/api/nodes/hub" })).json()).toMatchObject({ state: "none" });
+    const self = (await ctx.request({ url: "/api/nodes/self" })).json() as { nodeId: string; name: string };
+    expect(self.nodeId.length).toBeGreaterThan(0);
+    expect(list.map((node) => node.id)).not.toContain(self.nodeId);
   });
 });

@@ -15,6 +15,7 @@ const DEFAULTS = {
   messageMode: "steer",
   workspaceDefault: "per-project",
   claudeCliNoticeAt: null,
+  setupSkipped: false,
   claudeConnectors: { enabled: [], alwaysAllow: [], askBeforeWrites: false },
   remote: { enabled: false },
 };
@@ -140,5 +141,24 @@ describe("settings store", () => {
     expect(await createSettingsStore(path, PROJECTS).get()).toEqual(DEFAULTS);
     await writeFile(path, JSON.stringify({ defaultModel: 3 }));
     expect(await createSettingsStore(path, PROJECTS).get()).toEqual(DEFAULTS);
+  });
+});
+
+describe("setupSkipped", () => {
+  it("is false until set, persists as true and is dropped again when cleared", async () => {
+    const path = join(await tempDir(), "settings.json");
+    const store = createSettingsStore(path, PROJECTS);
+    expect((await store.get()).setupSkipped).toBe(false);
+    await store.setSetupSkipped(true);
+    expect((await createSettingsStore(path, PROJECTS).get()).setupSkipped).toBe(true);
+    await store.setSetupSkipped(false);
+    expect((await createSettingsStore(path, PROJECTS).get()).setupSkipped).toBe(false);
+    expect(JSON.parse(await readFile(path, "utf8"))).not.toHaveProperty("setupSkipped");
+  });
+
+  it("ignores anything but true in the file", async () => {
+    const path = join(await tempDir(), "settings.json");
+    await writeFile(path, JSON.stringify({ setupSkipped: "yes" }));
+    expect((await createSettingsStore(path, PROJECTS).get()).setupSkipped).toBe(false);
   });
 });

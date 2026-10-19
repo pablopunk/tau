@@ -7,8 +7,11 @@ import {
   decodeDataFrame,
   encodeDataFrame,
   FLAG_END,
+  firstStreamId,
+  isPeerStreamId,
   LINK_MAX_PAYLOAD_BYTES,
   LinkFrameSchema,
+  STREAM_ID_STEP,
 } from "./node-link";
 import { LIVE_MAX_FRAME_BYTES, TERMINAL_STREAM_MAX_INPUT_BYTES } from "./terminal-stream";
 
@@ -53,13 +56,44 @@ describe("data frames", () => {
   });
 });
 
+describe("stream id parity", () => {
+  it("gives the dialler odd ids and the acceptor even ids", () => {
+    expect(firstStreamId("dialler")).toBe(1);
+    expect(firstStreamId("acceptor")).toBe(2);
+    expect(STREAM_ID_STEP).toBe(2);
+  });
+
+  it("accepts only the peer's parity: the acceptor receives odd ids, the dialler even ids", () => {
+    expect(isPeerStreamId("acceptor", 1)).toBe(true);
+    expect(isPeerStreamId("acceptor", 2)).toBe(false);
+    expect(isPeerStreamId("dialler", 2)).toBe(true);
+    expect(isPeerStreamId("dialler", 3)).toBe(false);
+    expect(isPeerStreamId("dialler", 0)).toBe(false);
+    expect(isPeerStreamId("acceptor", 0xffffffff + 1)).toBe(false);
+  });
+});
+
 describe("text frames", () => {
   it("accepts every control frame and rejects unknown ones", () => {
     const valid = [
-      { type: "hello", name: "m", os: "darwin", tauVersion: "1", protocolVersion: "p", threadCount: 2 },
-      { type: "request", id: 1, method: "GET", path: "/api/conversations", query: "", hubDevice: "Safari" },
+      {
+        type: "hello",
+        nodeId: "a".repeat(52),
+        publicKey: "k".repeat(43),
+        nonce: "n".repeat(22),
+        name: "m",
+        os: "darwin",
+        tauVersion: "1",
+        protocolVersion: "p",
+        linkProtocol: "l",
+        capabilities: [],
+      },
+      { type: "proof", payload: "tau-proof-v1|n|a|b", sig: "s" },
+      { type: "ready", id: 2 },
+      { type: "bye", reason: "disconnect" },
+      { type: "request", id: 1, method: "GET", path: "/api/conversations", query: "", via: "Safari" },
       { type: "response", id: 1, status: 200, headers: { "content-type": "application/json" } },
-      { type: "open", id: 2, path: "/api/live", query: "", hubDevice: "Safari" },
+      { type: "open", id: 2, path: "/api/live", query: "", via: "Safari" },
       { type: "close", id: 2, code: 1000, reason: "" },
       { type: "credit", id: 2, bytes: 1024 },
       { type: "ping" },
@@ -70,6 +104,8 @@ describe("text frames", () => {
       { type: "nope" },
       { type: "credit", id: 0, bytes: 1 },
       { type: "credit", id: 1, bytes: 0 },
+      { type: "ready", id: 0 },
+      { type: "request", id: 1, method: "GET", path: "/", query: "", hubDevice: "old" },
     ]) {
       expect(Value.Check(LinkFrameSchema, frame), JSON.stringify(frame)).toBe(false);
     }

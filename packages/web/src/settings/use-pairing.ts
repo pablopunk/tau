@@ -12,7 +12,7 @@ export function linkedDevice(
 ): Device | null {
   if (!pairing || !devices) return null;
   const mintedAt = pairing.expiresAt - PAIRING_TTL_MS;
-  return devices.find((device) => device.kind !== "machine" && device.createdAt >= mintedAt) ?? null;
+  return devices.find((device) => device.kind !== "node" && device.createdAt >= mintedAt) ?? null;
 }
 
 /** Mints a code while `active`, counts down to its expiry and notices the device that links. */

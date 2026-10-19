@@ -24,6 +24,11 @@ export interface ContractTarget {
   writeProjectFile?(directory: string, name: string, content: string): Promise<void>;
   /** Adds `.agents/skills/<name>/SKILL.md` to a project folder. Absent when the target has no file system. */
   addProjectSkill?(directory: string, name: string, description: string): Promise<void>;
+  /**
+   * Adds a dialled peer (a `peers.json` entry that is not linked yet) and returns its peer id, for the
+   * `[nodes-symmetric]` cases. Absent when the target cannot.
+   */
+  dialPeer?(name: string): Promise<string>;
   /** Closes `core` and opens a new one on the same data. Absent when the target cannot persist. */
   reopen?(): Promise<Core>;
   dispose(): Promise<void>;

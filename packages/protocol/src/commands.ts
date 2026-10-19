@@ -102,6 +102,13 @@ export const commands: readonly CommandDef[] = [
     destructive: false,
   },
   {
+    command: "settings set-setup-skipped",
+    route: "setSetupSkipped",
+    summary: "Skip or restore first-run setup on this node (a peer can run threads)",
+    positionals: ["body.skipped"],
+    destructive: false,
+  },
+  {
     command: "settings set-claude-connectors",
     route: "setClaudeConnectors",
     summary:
@@ -586,7 +593,14 @@ export const commands: readonly CommandDef[] = [
   {
     command: "nodes list",
     route: "listNodes",
-    summary: "List the nodes linked to this hub",
+    summary: "List the nodes linked to this node, in both directions",
+    positionals: [],
+    destructive: false,
+  },
+  {
+    command: "nodes self",
+    route: "getNodeSelf",
+    summary: "Show this node's id, name and versions",
     positionals: [],
     destructive: false,
   },
@@ -600,28 +614,29 @@ export const commands: readonly CommandDef[] = [
   {
     command: "nodes summary",
     route: "getNodeSummary",
-    summary: "Show the titles the hub last saw on a node (what it shows while the node is offline)",
+    summary: "Show the titles last seen on a node (what is shown while the node is offline)",
     positionals: ["params.id"],
     destructive: false,
   },
   {
     command: "nodes disconnect",
     route: "disconnectNode",
-    summary: "Cut a node's link from the hub: its streams close and its cached summary is deleted",
+    summary: "Cut a node's link: its streams close, its device is revoked and its cached summary is deleted",
     positionals: ["params.id"],
     destructive: true,
   },
   {
-    command: "nodes hub",
-    route: "getHubLink",
-    summary: "Show this node's link to its hub",
-    positionals: [],
-    destructive: false,
+    command: "nodes forget",
+    route: "forgetNode",
+    summary:
+      "Forget a node on this node only: revoke its device here and close its links (no other node is told)",
+    positionals: ["params.id"],
+    destructive: true,
   },
   {
-    command: "nodes unlink",
-    route: "disconnectHub",
-    summary: "Cut this node's link to its hub (`tau disconnect` does the same and forgets the hub)",
+    command: "nodes reset-identity",
+    route: "resetNodeIdentity",
+    summary: "Delete this node's key and links: a new nodeId, every peer disconnected",
     positionals: [],
     destructive: true,
   },
@@ -655,7 +670,7 @@ export const COMMAND_EXCLUSIONS = {
     "Called by the pair page and `tau connect` with a one-time code, never by an agent or the CLI.",
   getHealth: "A probe for the watchdog and the service manager; `tau status` shows the same facts.",
   recreateRemote: "UI only: it clears every linked device, so it needs the confirmation dialog.",
-  linkNode: "A WebSocket the node's server dials with its node secret; not an HTTP call.",
+  linkNode: "A WebSocket one node's server dials with a node secret; not an HTTP call.",
   signOutAllDevices: "UI only: it signs out every browser and phone, this one included.",
 } as const satisfies Partial<Record<RouteName, string>>;
 

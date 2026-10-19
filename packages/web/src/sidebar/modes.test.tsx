@@ -55,6 +55,7 @@ beforeEach(() => {
     messageMode: "steer",
     workspaceDefault: "per-project",
     claudeCliNoticeAt: null,
+    setupSkipped: false,
     claudeConnectors: { enabled: [], alwaysAllow: [], askBeforeWrites: false },
     remote: { enabled: false },
   });

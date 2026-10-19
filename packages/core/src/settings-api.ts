@@ -41,6 +41,7 @@ export function createSettingsApi(deps: {
     get: () => settings.get(),
     suggestedCodeFolder: () => suggestCodeFolder(codeFolder),
     setMessageMode: (mode) => settings.setMessageMode(mode),
+    setSetupSkipped: (skipped) => settings.setSetupSkipped(skipped),
     setWorkspaceDefault: (mode) => settings.setWorkspaceDefault(mode),
     async setClaudeConnectors(value) {
       await settings.setClaudeConnectors(value);

@@ -16,8 +16,8 @@ import { NO_UPDATE_OPTIONS } from "./test-support/update-options";
 
 const REAL_CORE_IMPLEMENTED = true;
 
-/** Owners A (`[access]`), B (`[remote]`) and F (`[nodes]`) remove their tag when their folder passes the contract. */
-const PENDING_TAGS: string[] = [];
+/** Owner A removes `[nodes-symmetric]` when `core/src/nodes` passes it (needs `dialPeer` on the real target: a `peers.json` entry). */
+const PENDING_TAGS: string[] = ["[nodes-symmetric]"];
 
 process.env.TAU_FAKE_CLAUDE_CLI = "1";
 

@@ -54,7 +54,7 @@ export function proxyRequest(session: LinkSession, request: GatewayRequest): Pro
       method: request.method,
       path: request.path,
       query: request.query,
-      hubDevice: request.hubDevice.slice(0, 120),
+      via: request.hubDevice.slice(0, 120),
       ...(request.contentType ? { contentType: request.contentType } : {}),
       ...(body ? { bodyBytes: body.length } : {}),
     });

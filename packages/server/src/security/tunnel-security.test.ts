@@ -275,7 +275,7 @@ describe("redeem", () => {
 
   it("returns a node secret in the body, with no cookie", async () => {
     ctx = await startTunneledServer();
-    const minted = await ctx.core.access.mintPairing({ kind: "machine" });
+    const minted = await ctx.core.access.mintPairing({ kind: "node" });
     const response = await redeem(minted.code);
     expect(response.headers["set-cookie"]).toBeUndefined();
     expect(JSON.parse(response.body).secret).toMatch(/^[0-9a-f]{64}$/);

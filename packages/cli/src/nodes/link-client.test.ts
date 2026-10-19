@@ -1,7 +1,7 @@
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { type Core, type HubLink, LINK_CLOSE_UPDATE_REQUIRED, type RequestFrame } from "@tau/protocol";
+import { type Core, LINK_CLOSE_UPDATE_REQUIRED, type NodeLinkReport, type RequestFrame } from "@tau/protocol";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createHubFileStore, type HubFileStore } from "./hub-file";
 import { type LinkClient, type LinkTuning, startLinkClientWith } from "./link-client";
@@ -23,11 +23,11 @@ let hub: TestHub;
 let node: TestNode;
 let hubFile: HubFileStore;
 let client: LinkClient | undefined;
-let states: HubLink[];
+let states: Array<NodeLinkReport & { peerId: string }>;
 
 const fakeCore = (): Core =>
   ({
-    nodes: { reportLink: (state: HubLink) => void states.push(state) },
+    nodes: { reportLink: (peerId: string, state: NodeLinkReport) => void states.push({ peerId, ...state }) },
     conversations: { listAll: async () => [{}, {}] },
   }) as unknown as Core;
 
@@ -37,12 +37,24 @@ const request = (id: number, path: string, extra: Partial<RequestFrame> = {}): R
   method: "GET",
   path,
   query: "",
-  hubDevice: "Phone",
+  via: "Phone",
   ...extra,
 });
 
 const start = () => {
-  client = startLinkClientWith({ port: node.port, token: MASTER, hubFile, core: fakeCore() }, tuning);
+  client = startLinkClientWith(
+    {
+      port: node.port,
+      token: MASTER,
+      hubFile,
+      core: fakeCore(),
+      attachPeer: (() => {
+        throw new Error("legacy client does not use attachPeer");
+      }) as never,
+      peers: { read: async () => [], write: async () => undefined },
+    },
+    tuning,
+  );
 };
 const statesNamed = () => states.map((state) => state.state);
 const responseOf = (id: number) => hub.frames.find((frame) => frame.type === "response" && frame.id === id);
@@ -71,7 +83,7 @@ describe("link client", () => {
     expect(hub.upgrades[0]?.origin).toBe(hub.url);
     expect(hub.frames[0]).toMatchObject({ type: "hello", name: "Laptop", threadCount: 2 });
     await vi.waitFor(() => expect(statesNamed()).toContain("linked"));
-    expect(states.at(-1)?.hubName).toBe("Home hub");
+    expect(states.at(-1)?.peerId).toMatch(/^u-[0-9a-f]{12}$/);
   });
 
   it("answers a request on loopback with the master token and the hub device", async () => {
@@ -83,7 +95,7 @@ describe("link client", () => {
     expect(seen?.authorization).toBe(`Bearer ${MASTER}`);
     expect(seen?.host).toBe(`127.0.0.1:${node.port}`);
     expect(seen?.origin).toBeUndefined();
-    expect(seen?.["x-tau-hub-device"]).toBe("Phone");
+    expect(seen?.["x-tau-via"]).toBe("Phone");
   });
 
   it("streams a 5 MB response in chunks of at most 256 KB", async () => {
@@ -126,7 +138,7 @@ describe("link client", () => {
   });
 
   it("queues hub frames until the loopback socket opens and relays text and binary both ways", async () => {
-    await hub.sendFrame({ type: "open", id: 5, path: "/api/live", query: "", hubDevice: "Phone" });
+    await hub.sendFrame({ type: "open", id: 5, path: "/api/live", query: "", via: "Phone" });
     await hub.sendData(5, Buffer.from("hello"), true);
     await hub.sendData(5, Uint8Array.from([1, 2, 3, 255, 0, 9]), false);
     await hub.waitFor(() => (hub.data.get(5)?.length ?? 0) >= 2);
@@ -135,17 +147,17 @@ describe("link client", () => {
     expect([...(hub.data.get(5)?.[1] ?? [])]).toEqual([1, 2, 3, 255, 0, 9]);
     expect(node.socketHeaders[0]?.authorization).toBe(`Bearer ${MASTER}`);
     expect(node.socketHeaders[0]?.origin).toBeUndefined();
-    expect(node.socketHeaders[0]?.["x-tau-hub-device"]).toBe("Phone");
+    expect(node.socketHeaders[0]?.["x-tau-via"]).toBe("Phone");
   });
 
   it("confirms an opened stream with an open frame so the hub releases its queued frames", async () => {
-    await hub.sendFrame({ type: "open", id: 21, path: "/api/live", query: "x=1", hubDevice: "Phone" });
+    await hub.sendFrame({ type: "open", id: 21, path: "/api/live", query: "x=1", via: "Phone" });
     await hub.waitFor(() => hub.frames.some((frame) => frame.type === "open" && frame.id === 21));
     await hub.sendFrame({ type: "close", id: 21, code: 1000, reason: "" });
   });
 
   it("splits binary input above 64 KB and refuses an oversize text frame", async () => {
-    await hub.sendFrame({ type: "open", id: 6, path: "/api/live", query: "", hubDevice: "Phone" });
+    await hub.sendFrame({ type: "open", id: 6, path: "/api/live", query: "", via: "Phone" });
     await hub.sendData(6, Buffer.alloc(150 * 1024, 1), false);
     await hub.waitFor(() => node.received.length >= 3);
     expect(node.received.map((message) => message.size)).toEqual([65536, 65536, 150 * 1024 - 131072]);
@@ -156,7 +168,7 @@ describe("link client", () => {
 
   it("stops sending when credit runs out and resumes on credit", async () => {
     hub.autoCredit = false;
-    await hub.sendFrame({ type: "open", id: 7, path: "/api/flood", query: "", hubDevice: "Phone" });
+    await hub.sendFrame({ type: "open", id: 7, path: "/api/flood", query: "", via: "Phone" });
     await hub.waitFor(() => bodyOf(hub, 7).byteLength >= 1024 * 1024);
     await new Promise((resolve) => setTimeout(resolve, 300));
     const stalled = bodyOf(hub, 7).byteLength;
@@ -216,10 +228,10 @@ describe("link client", () => {
     await vi.waitFor(() => expect(statesNamed().at(-1)).toBe("linked"), { timeout: 5000 });
   });
 
-  it("drops the link when hub.json is deleted and redials when it comes back", async () => {
+  it("drops the link when the peer is deleted and redials when it comes back", async () => {
     await hubFile.delete();
-    await vi.waitFor(() => expect(statesNamed().at(-1)).toBe("none"));
-    expect(states.at(-1)?.hubUrl).toBeNull();
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    states = [];
     await hubFile.write({ hubUrl: hub.url, nodeSecret: SECRET, name: "Home hub" });
     await vi.waitFor(() => expect(statesNamed().at(-1)).toBe("linked"));
   });

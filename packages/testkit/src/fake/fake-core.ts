@@ -5,7 +5,7 @@ import {
   type Core,
   type MessageMode,
   type ModelRef,
-  PROTOCOL_VERSION,
+  type NodeLinkDirection,
   type Project,
   type Settings,
   type Skill,
@@ -43,6 +43,7 @@ import { suggestFakeDirectories } from "./fake-suggest";
 import { createFakeTerminals } from "./fake-terminals";
 import type { SpawnParams } from "./fake-thread-ops";
 import { createFakeUpdates, type FakeUpdates } from "./fake-updates";
+import { linkFakeCores } from "./link-fake-cores";
 
 export interface FakeCoreOptions {
   /** Replay speed multiplier: 1 is the recorded timing, larger is faster. Default 1. */
@@ -62,8 +63,11 @@ export interface FakeCoreOptions {
   readonly terminals?: boolean;
   /** Start with remote on. Default false. */
   readonly remote?: boolean;
-  /** Start as a hub with two linked nodes (`Homelab` online, `Work laptop` offline). Default false. */
+  /** Start in a group with two linked nodes (`Homelab` online, `Work laptop` offline), each linked both ways. Default false. */
   readonly nodes?: boolean;
+  /** How this fake names itself in `nodes.self()` (and to its peers). Default `Mac`, `darwin arm64`. */
+  readonly nodeName?: string;
+  readonly nodeOs?: string;
   /** This tau's version for `updates.status()`. Default `0.0.0`. */
   readonly currentVersion?: string;
   /** The latest version the registry answers, known from the start. Default none (unreachable). */
@@ -84,8 +88,10 @@ export type FakeCore = Core & {
   readonly seedApproval: FakeConnectors["seedApproval"];
   /** Plays tunnel behaviour (`reconnecting`, errors) over the fake remote. */
   readonly remoteControl: Pick<FakeRemote, "push">;
-  /** Plays link behaviour over the fake nodes registry. */
-  readonly nodesControl: Pick<FakeNodes, "setStatus">;
+  /** Plays link behaviour over the fake nodes registry; `attach` makes `peer` one of this fake's nodes (see `linkFakeCores`). */
+  readonly nodesControl: Pick<FakeNodes, "setStatus" | "addDialledPeer" | "nodeId" | "selfSync"> & {
+    attach(peer: FakeCore, direction: NodeLinkDirection): Promise<void>;
+  };
   /** Plays the registry: what the next `updates.refresh()` finds (`null`: unreachable). */
   readonly updatesControl: Pick<FakeUpdates, "setLatest">;
   /**
@@ -125,6 +131,7 @@ export function createFakeCore(options: FakeCoreOptions = {}): FakeCore {
   };
   let messageMode: MessageMode = "steer";
   let workspaceDefault: WorkspaceDefault = "per-project";
+  let setupSkipped = false;
   const lastWorkspaceModes = new Map<string, WorkspaceMode>();
   let projectsFolder = FAKE_PROJECTS_FOLDER;
   let nextProjectId = 1;
@@ -365,32 +372,63 @@ export function createFakeCore(options: FakeCoreOptions = {}): FakeCore {
     conversation.remove();
   };
 
-  const access = createFakeAccess({ now, emit, remoteUrl: () => remote.status().url });
+  const access = createFakeAccess({
+    now,
+    emit,
+    remoteUrl: () => remote.status().url,
+    nodeId: () => nodes.nodeId(),
+  });
   const remote = createFakeRemote({ now, emit, access, enabled: options.remote });
 
-  const nodes = createFakeNodes({ now, emit, access });
+  const nodes = createFakeNodes({
+    now,
+    emit,
+    access,
+    self: { name: options.nodeName, os: options.nodeOs },
+  });
   const updates = createFakeUpdates({
     now,
     currentVersion: options.currentVersion,
     latest: options.latestVersion,
   });
   const nodeCores = new Map<string, FakeCore>();
-  if (options.nodes) seedNodes();
 
-  function seedNodes() {
+  /** Everything happens before the first `await`, so a caller that does not wait still sees the link. */
+  async function attach(peer: FakeCore, direction: NodeLinkDirection): Promise<void> {
+    const self = peer.nodesControl.selfSync();
+    nodeCores.set(self.nodeId, peer);
+    if (direction === "accepted") access.addNodeDevice(self.name, self.nodeId);
+    await nodes.api.register(self.nodeId, { ...self, capabilities: [] }, direction);
+  }
+  const control = {
+    setStatus: nodes.setStatus,
+    addDialledPeer: nodes.addDialledPeer,
+    nodeId: nodes.nodeId,
+    selfSync: nodes.selfSync,
+    attach,
+  };
+
+  function seedNodes(core: FakeCore) {
     for (const seed of FAKE_NODE_SEEDS) {
-      const { id } = access.addNodeDevice(seed.name);
-      void nodes.api
-        .register(id, { ...seed, protocolVersion: PROTOCOL_VERSION })
-        .then(() => (seed.status === "offline" ? nodes.api.markOffline(id) : undefined));
-      nodeCores.set(id, createFakeCore({ configured: true, now, speed, terminals: options.terminals }));
+      const peer = createFakeCore({
+        configured: true,
+        now,
+        speed,
+        terminals: options.terminals,
+        nodeName: seed.name,
+        nodeOs: seed.os,
+      });
+      void linkFakeCores(peer, core);
+      const peerId = peer.nodesControl.nodeId();
+      nodes.api.heartbeat(peerId, seed.threadCount);
+      if (seed.status === "offline") nodes.api.markOffline(peerId);
     }
   }
 
-  return {
+  const core: FakeCore = {
     access,
     nodes: nodes.api,
-    nodesControl: nodes,
+    nodesControl: control,
     updates: updates.api,
     updatesControl: updates,
     nodeCores,
@@ -417,7 +455,11 @@ export function createFakeCore(options: FakeCoreOptions = {}): FakeCore {
           claudeCliNoticeAt: connections.claudeCliNoticeAt(),
           claudeConnectors: connectors.settings(),
           remote: { enabled: remote.status().state !== "off" },
+          setupSkipped,
         };
+      },
+      async setSetupSkipped(skipped) {
+        setupSkipped = skipped;
       },
       async setDefaultModel(ref) {
         requireProvider();
@@ -633,6 +675,8 @@ export function createFakeCore(options: FakeCoreOptions = {}): FakeCore {
       listeners.clear();
     },
   };
+  if (options.nodes) seedNodes(core);
+  return core;
 }
 
 function modelRef(index: number): ModelRef {

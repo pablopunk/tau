@@ -40,7 +40,7 @@ import type {
 } from "./mvp5";
 import type { Goal, LoopInput, Timer } from "./mvp8";
 import type { Approval, ApprovalDecision } from "./mvp10";
-import type { HubLink, Node, NodeHello, NodeSummary } from "./nodes";
+import type { Node, NodeLinkDirection, NodeLinkReport, NodePeerInfo, NodeSelf, NodeSummary } from "./nodes";
 import type { RemoteStatus } from "./remote";
 import type { OpenTerminalInput, TerminalInfo } from "./terminals";
 import type { UpdateStatus } from "./updates";
@@ -126,6 +126,8 @@ export interface Core {
     setWorkspaceDefault(mode: WorkspaceDefault): Promise<void>;
     /** Replaces the chosen connectors and the always-allowed tools. Takes effect at the next idle call of each thread. */
     setClaudeConnectors(value: ClaudeConnectorSettings): Promise<void>;
+    /** `Settings.setupSkipped`: "Use my other nodes". The gate in `App.tsx` also needs a known peer, so it is harmless alone. */
+    setSetupSkipped(skipped: boolean): Promise<void>;
   };
   github: {
     /** Cached for a minute. Never rejects for a missing or logged-out `gh`: that is a state. */
@@ -353,7 +355,7 @@ export interface Core {
     revokeDevice(id: string): Promise<void>;
     /** Drops browsers, phones and cli devices, not nodes. */
     signOutAll(): Promise<void>;
-    /** Single use, five minutes, at most five live; the oldest is dropped. A node pairing without remote has a `null` link (nodes are Stage 2). */
+    /** Single use, five minutes, at most five live; the oldest is dropped. A node pairing without remote has a `null` link. */
     mintPairing(input: MintPairingInput): Promise<MintedPairing>;
     /** Takes the link code or the short code. Rejects `unauthorized` (generic text) for a wrong or burnt code and for a locked peer. */
     redeemPairing(input: RedeemPairingInput): Promise<RedeemedPairing>;
@@ -369,24 +371,30 @@ export interface Core {
     recreate(): Promise<RemoteStatus>;
   };
   /**
-   * Nodes (Stage 2). The hub side is a registry fed by the link route (`register`, `heartbeat`, `markOffline`);
-   * the node side reports its own link to a hub (`reportLink`). Node ids are the nodes' device ids.
+   * Nodes: every tau is a node and links to peers in BOTH directions (MVP13 Step 1). The list is the union of
+   * accepted peers (node devices) and dialled peers (`<home>/peers.json`), deduped by `nodeId`; the id is the
+   * peer's `nodeId` (a migrated entry keeps its old device id until its first `hello`).
+   * The server owns sockets and frames; the dialler in the CLI reports per-peer link state with `reportLink`.
    */
   nodes: {
-    /** Linked nodes with a status computed from heartbeats (online, reconnecting after 15 s, offline after 45 s). */
+    /** This tau itself (identity from `<home>/node.json`, created at start). */
+    self(): Promise<NodeSelf>;
+    /** Signs `payload` with this node's private key (base64url Ed25519). The key never leaves core. */
+    sign(payload: string): Promise<string>;
+    /** Peers from both directions with a status computed from heartbeats (online, reconnecting after 15 s, offline after 45 s). */
     list(): Promise<Node[]>;
     /** Rejects `not_found`. Announces `nodes`. */
     rename(id: string, name: string): Promise<void>;
-    /** Idempotent. Revokes the node's device, deletes its summary cache, announces `nodes`. The server closes its link. */
+    /** Idempotent. Revokes the peer's device here, deletes its `peers.json` entry and standby and its summary cache, announces `nodes`. The server sends `bye` and closes its links. */
     disconnect(id: string): Promise<void>;
-    /** This tau's link to its own hub. `none` when it has no `hub.json`. */
-    hubState(): Promise<HubLink>;
-    /** "Disconnect" on the node: forgets the hub (`hub.json`) and closes the link. Idempotent. */
-    disconnectHub(): Promise<void>;
-    /** The link client reports its state; core keeps it for `hubState` and announces `nodes`. */
-    reportLink(state: HubLink): void;
-    /** The link opened (`hello`). `update-required` when `hello.protocolVersion` differs from ours. Announces `nodes`. */
-    register(nodeId: string, hello: NodeHello): Promise<Node>;
+    /** Like `disconnect`, but local only and no `bye`: for a peer that must not be told. Idempotent. */
+    forget(id: string): Promise<void>;
+    /** Deletes `node.json` and `peers.json` and revokes every node device: a new key and `nodeId` at the next start. */
+    resetIdentity(): Promise<void>;
+    /** The dialler reports the state of its link to one peer (`peerId` is the `peers.json` entry's nodeId or old device id); core keeps it per peer and announces `nodes`. */
+    reportLink(peerId: string, state: NodeLinkReport): void;
+    /** A link passed the handshake (`hello` + `proof` verified). Stores `nodeId` and the public key on the node device (accepted) or the `peers.json` entry (dialled). `update-required` when `info.protocolVersion` differs from ours. Announces `nodes`. */
+    register(peerId: string, info: NodePeerInfo, direction: NodeLinkDirection): Promise<Node>;
     /** A ping or any frame arrived; `threadCount` refreshes the count. */
     heartbeat(nodeId: string, threadCount?: number): void;
     /** The link closed. Announces `nodes`. */
@@ -419,8 +427,6 @@ export interface CreateCoreOptions {
   readonly currentVersion: string;
   /** The registry's latest published version; rejects when unknown. The CLI supplies it (core cannot run npm). */
   readonly latestVersion: () => Promise<string>;
-  /** Forgets this tau's hub (deletes `hub.json`); the CLI supplies it, core never reads `hub.json`. */
-  readonly forgetHub?: () => Promise<void>;
 }
 
 export type CreateCore = (options: CreateCoreOptions) => Promise<Core>;

@@ -5,11 +5,7 @@ import type { ContractTarget, MakeContractTarget } from "./types";
 
 const PEER = "203.0.113.7";
 
-async function link(
-  target: ContractTarget,
-  name = "Safari on iPhone",
-  kind: "device" | "machine" = "device",
-) {
+async function link(target: ContractTarget, name = "Safari on iPhone", kind: "device" | "node" = "device") {
   const minted = await target.core.access.mintPairing({ kind });
   return target.core.access.redeemPairing({ code: minted.code, deviceName: name, peer: PEER });
 }
@@ -78,14 +74,14 @@ export function accessCases(make: MakeContractTarget, test: CaseRunner): void {
     test("[access] a node secret is not a device secret, and the other way round", async () => {
       const { core } = target;
       const device = await link(target, "Safari on iPhone");
-      const node = await link(target, "homelab", "machine");
-      expect(node.kind).toBe("machine");
+      const node = await link(target, "homelab", "node");
+      expect(node.kind).toBe("node");
       expect(await core.access.verifyNode(node.secret)).toEqual({ deviceId: node.deviceId });
       expect(await core.access.verifyDevice(node.secret)).toBeUndefined();
       expect(await core.access.verifyNode(device.secret)).toBeUndefined();
       const listed = await core.access.listDevices(node.deviceId);
       expect(listed.find((entry) => entry.id === node.deviceId)).toMatchObject({
-        kind: "machine",
+        kind: "node",
         current: false,
       });
     });
@@ -93,7 +89,7 @@ export function accessCases(make: MakeContractTarget, test: CaseRunner): void {
     test("[access] sign out all drops devices but keeps nodes", async () => {
       const { core } = target;
       const device = await link(target);
-      const node = await link(target, "homelab", "machine");
+      const node = await link(target, "homelab", "node");
       await core.access.signOutAll();
       expect(await core.access.verifyDevice(device.secret)).toBeUndefined();
       expect(await core.access.verifyNode(node.secret)).toBeDefined();

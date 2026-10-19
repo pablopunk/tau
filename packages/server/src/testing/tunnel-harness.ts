@@ -110,7 +110,7 @@ export async function startTunneledServer(
     },
     tunnelSocket: (socketOptions) => openTunnelSocket(tunnelPort, socketOptions),
     async linkNode(name = "Homelab") {
-      const minted = await core.access.mintPairing({ kind: "machine" });
+      const minted = await core.access.mintPairing({ kind: "node" });
       const redeemed = await core.access.redeemPairing({
         code: minted.code,
         deviceName: name,

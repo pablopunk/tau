@@ -47,7 +47,7 @@ import {
 } from "./mvp5";
 import { GoalInputSchema, GoalSchema, LoopInputSchema, TimerSchema } from "./mvp8";
 import { ApprovalDecisionSchema, ApprovalSchema } from "./mvp10";
-import { HubLinkSchema, NodeSchema, NodeSummarySchema, RenameNodeBodySchema } from "./nodes";
+import { NodeSchema, NodeSelfSchema, NodeSummarySchema, RenameNodeBodySchema } from "./nodes";
 import { HealthSchema, RemoteStatusSchema } from "./remote";
 import { OpenTerminalInputSchema, TerminalAvailabilitySchema, TerminalInfoSchema } from "./terminals";
 import { UpdateStatusSchema } from "./updates";
@@ -166,9 +166,13 @@ export const routes = {
     response: NodeSummarySchema,
   },
   disconnectNode: { method: "DELETE", path: `${API_PREFIX}/nodes/:id`, status: 204, params: IdParams },
-  getHubLink: { method: "GET", path: `${API_PREFIX}/nodes/hub`, status: 200, response: HubLinkSchema },
-  disconnectHub: { method: "POST", path: `${API_PREFIX}/nodes/hub/disconnect`, status: 204 },
-  /** A WebSocket route: the node dials the hub here with its node secret (`node-link.ts`). */
+  /** This tau itself: nodeId, name, os, versions. */
+  getNodeSelf: { method: "GET", path: `${API_PREFIX}/nodes/self`, status: 200, response: NodeSelfSchema },
+  /** Local only: revokes the node's device here and closes its links; no flood (Step 2 adds the group-wide `remove`). */
+  forgetNode: { method: "POST", path: `${API_PREFIX}/nodes/:id/forget`, status: 204, params: IdParams },
+  /** Deletes `node.json` and `peers.json`: a new key and `nodeId`, every link closed. */
+  resetNodeIdentity: { method: "POST", path: `${API_PREFIX}/nodes/identity/reset`, status: 204 },
+  /** A WebSocket route: either node dials the other here with a node secret (`node-link.ts`). `/api/machines/link` is the 0.1.x alias. */
   linkNode: { method: "GET", path: `${API_PREFIX}/nodes/link`, status: 200 },
   getUpdateStatus: { method: "GET", path: `${API_PREFIX}/update`, status: 200, response: UpdateStatusSchema },
   refreshUpdateStatus: {
@@ -201,6 +205,12 @@ export const routes = {
     path: `${API_PREFIX}/settings/fast-model`,
     status: 204,
     body: Type.Object({ model: Type.Union([ModelRefSchema, Type.Null()]) }),
+  },
+  setSetupSkipped: {
+    method: "PUT",
+    path: `${API_PREFIX}/settings/setup-skipped`,
+    status: 204,
+    body: Type.Object({ skipped: Type.Boolean() }),
   },
   setMessageMode: {
     method: "PUT",

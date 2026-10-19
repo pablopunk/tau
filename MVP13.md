@@ -76,7 +76,7 @@ Out (later plans): per-link permissions or scopes; a second factor; threads that
 ### Core and files
 
 - `Core.nodes` lists **peers from both directions** (accepted: node devices; dialled: `peers.json`). The id in the list and in URLs is the peer's **`nodeId`** (same from every viewpoint); a migrated entry uses its old device id until its first `hello`.
-- `<home>/hub.json` → `<home>/peers.json`: `{ url, name, nodeId?, publicKey?, secret }[]` (0600, atomic). **Migration**: a 0.1.x `hub.json` is read once and written as a one-entry `peers.json`; `hub.json` **stays for one release** (renamed `hub.json.migrated`), so a downgrade keeps its link. A test starts from a real 0.1.x home.
+- `<home>/hub.json` → `<home>/peers.json`: `{ url, name, nodeId?, publicKey?, secret }[]` (0600, atomic). **Migration**: a 0.1.x `hub.json` is **copied** into a one-entry `peers.json` (only while `peers.json` does not exist); `hub.json` **stays** (decided after the foundation pin F3: a rename would hide it from a downgraded 0.1.x), so a downgrade keeps its link. `tau disconnect` removes both files; an unreadable `hub.json` is moved aside as `hub.json.migrated`. A test starts from a real 0.1.x home.
 - Offline cache per known node (`<home>/nodes/<nodeId>/summary.json`, titles and times only), written by the summary writer while the link is healthy.
 
 ### Web
@@ -185,3 +185,81 @@ Phase 0 of each step is **one foundation agent that owns every seam file** (one 
 - **Version skew**: `linkProtocol` mismatch splits routing; `PROTOCOL_VERSION` mismatch only blocks opening that node's API.
 - **A skipped setup hides a half-configured node**: its row says "Not set up".
 - **Clock skew** on phones or small boards breaks routed requests: shown in the UI.
+
+## Phase 0 results (Step 1)
+
+Run by the Step 1 foundation agent on 2026-10-19, before the code. The spikes are throwaway scripts in `/tmp/mvp13-spikes` (not committed): `peer.mjs` is a minimal symmetric peer that implements the **planned** frame rules with `node:crypto` and `ws` only, two loopback nodes with their own http servers (bound ports, own tokens), no OpenTunnel, no SSH, scratch homes under `/tmp`. The permanent versions of what the spikes showed are tests in the repo (named below). All pins pass; findings F1–F6 are the things that surprised us and became decisions.
+
+| Pin | Result | Evidence |
+|---|---|---|
+| p1 reverse direction | **pass**: GET both ways; 5 MB response in 18 ms; 42 MB body intact (sha256) both ways in 57–75 ms; 20 parallel requests with odd and even ids interleaved; `/live` and a 300 KB binary terminal echo both ways; `ready` arrives before the first data; a 20 MB response nobody reads stops at one 1 MiB window while 10 same-direction requests and the opposite direction keep working; wrong parity, a reused id and a stray `ready` close 1008; a data frame for a stream that was never opened is ignored (no implicit ready) | `p1.mjs` (30 checks) |
+| p2 responder at loopback | **pass**: the responder calls loopback at the **bound** port with the server's own token; the guard sees an untagged socket; `Host: 127.0.0.1:0` (the configured port) is refused 403, a foreign `Origin` 403, a peer's node secret 401; the responder's own filter refuses `/api/access`, `/api/nodes/**`, `/api/n/**`, `remote`, `pair`, `update`, `health` and both link paths for every method, and none of them reaches loopback | `p1.mjs` (spike) and `server/src/security/node-link-guard.test.ts` (real server) |
+| p3 glare and duplicates | **pass** with the pure arbiter now in `core/src/access/duplicate-links.ts`, driven by real sockets: A and B dial each other at once, both ends keep the link dialled by the lower `nodeId` and close the other 4002 without revoking either device; the standby secret still works and the link recovers when the survivor drops; a second `tau connect` (new device) closes 4002 and its device is revoked; the same secret replaces the older link (1001); a link silent for more than 15 s is replaced | `p3.mts` (12 checks), `duplicate-links.test.ts` |
+| p4 migration and 0.1.x | **pass, with F3**: a 0.1.x home (devices.json with `machine`, hub.json) is read by the new code; `hub.json` becomes a one-entry `peers.json` (0600, no `nodeId`) and is kept as `hub.json.migrated`; the new writer writes `"machine"` on disk with `nodeId`/`publicKey` that the **real 0.1.x reader** still accepts, whereas a device written as `"node"` is silently dropped by it; on the new server a 0.1.x dialler on `/api/machines/link` is upgraded (no 401/403) and closed 4001, a wrong secret there is 401, the real path accepts the same secret | `p4/p4.mts` (15 checks, old code from `git show beabe27`), `peers-store.test.ts`, `create-access.test.ts`, `node-link-guard.test.ts` |
+| p5 handshake negatives | **pass**: a forged `nodeId`, a reflected `hello` (4002), a wrong key, a replayed proof (another nonce), a reflected proof (ids swapped), a proof of another domain tag, a different key at a pinned id are refused; the right id is accepted | `p1.mjs`, `protocol/src/identity/identity.test.ts` |
+
+Findings and decisions:
+
+- **F1 handshake order**: a `proof` that arrives before the peer's `hello` is a protocol error (1008). Both ends send `hello` immediately when the socket opens (any order between them) and send `proof` only after verifying the peer's `hello`. A client that attaches its `message` listener late loses the first frame: attach it at socket creation.
+- **F2 stale replacement revokes**: case (b) with a link silent for more than 15 s replaces it; the foundation also revokes the **replaced** device (`revokeLoser: true`, `stale-replaced`), otherwise "repair with `tau connect` again" leaves an orphan device and breaks "no orphan device". Silence is measured **locally by each end**, so both ends must have seen the silence (a half-open link usually is, because the acceptor holds it for up to 45 s while the dialler's pings fail).
+- **F3 downgrade (plan change proposed)**: renaming `hub.json` to `hub.json.migrated` means a 0.1.x tau finds **no hub** after a downgrade until `mv hub.json.migrated hub.json`. The plan says the rename keeps the downgrade link, which is not true by itself. Implemented as the plan says; proposal for the integrator: **copy** instead of rename (leave `hub.json`, treat the existence of `peers.json` as "migrated"), accepting that a later `tau disconnect` leaves a stale `hub.json` whose secret is revoked (harmless: a downgraded tau is refused 401 and shows "refused"). One line in `migrateHubFile` plus its test.
+- **F4 destructive list is nine, not ten**: `nodes unlink` and `nodes hub` disappear with the hub concept, so Step 1 has the eight of today minus `nodes unlink` plus `nodes forget` and `nodes reset-identity` = nine (`commands.test.ts` says nine). Step 2 adds `nodes remove` and `access rotate` (eleven), not twelve.
+- **F5 pairing kind**: `DeviceKind` and `PairingKind` in the protocol say `node`; `POST /api/pair?kind=machine` is now a 400. Only an old web UI or script would send it, and the web is served by the same server; the disk literal stays `"machine"`.
+- **F6 summary directory**: moved to `<home>/nodes/<id>/summary.json`. `migrateSummaryDirectory` renames `machines/` to `nodes/` at start when `nodes/` does not exist (a downgrade just rebuilds its cache). A dialled peer without a `nodeId` yet has the id `u-<12 hex of sha256(url)>` (`peerIdOf`, exported from `@tau/core`); owner A moves `nodes/<oldId>/` to `nodes/<nodeId>/` at the first `hello`.
+
+## Step 1 foundation hand-off
+
+Done when `pnpm check`, `pnpm test` and `pnpm build` pass. Nothing is committed; the orchestrator commits.
+
+### Frozen by the foundation (owners may not change these; ask via a note)
+
+- **Protocol** (`packages/protocol`): the base frames `hello`, `proof`, `ready`, `bye`, `request` (`via`), `response`, `open` (`via`), `close`, `credit`, `ping`, `pong`; `LinkRole`, `firstStreamId`, `isPeerStreamId` (odd ids for the dialler, even for the acceptor); close codes `LINK_CLOSE_*` (1001, 1008, 1013, 4001, 4002, 4003); `NODE_LINK_PATH` and `NODE_LINK_LEGACY_PATH`; `PROTOCOL_VERSION` and the new `LINK_PROTOCOL` (hash of the BASE frames, bumped by the same `bump-protocol`); `NodeHello` with `nodeId`, `publicKey`, `nonce`, `linkProtocol`, `capabilities` and no `threadCount`; `Node` with `identified` and `links: NodeLink[]` (direction `accepted|dialled`, state `connecting|linked|reconnecting|unreachable|update-required|refused|duplicate|standby`); `NodeSelf`; `NodePeerInfo`; `NodeLinkReport`; `Core.nodes` = `self`, `sign`, `list`, `rename`, `disconnect`, `forget`, `resetIdentity`, `reportLink(peerId, state)`, `register(peerId, info, direction)`, `heartbeat`, `markOffline`, `readSummary`, `writeSummary`; `Core.settings.setSetupSkipped` and `Settings.setupSkipped`; routes `getNodeSelf`, `forgetNode`, `resetNodeIdentity`, `setSetupSkipped` (the hub routes `getHubLink` and `disconnectHub` are gone); `DeviceKind`/`PairingKind` say `node`; `Device.nodeId`; `MintedPairing.nodeId`, `RedeemPairingResponse.nodeId`, `pairingLink(url, code, name, nodeId)` (`#code.name&node=<nodeId>`); commands `nodes list|self|rename|summary|disconnect|forget|reset-identity`, `settings set-setup-skipped`; nine destructive commands.
+- **Identity** (`@tau/protocol/identity`, a subpath, not in the browser-bound index): `generateNodeKeys`, `nodeIdOf`, `signPayload`, `verifySignature`, `DOMAIN_TAGS`, `signedPayload`, `createHello`, `verifyHello` (reasons `bad-key|bad-nonce|id-mismatch|self|pin-mismatch`, `closeCodeFor`), `createProof`, `verifyProof`. `<home>/node.json` is created by `createNodeIdentityStore` (core); the private key never leaves core: the server asks `core.nodes.self()` and `core.nodes.sign(payload)`.
+- **Stores and migrations** (core): `peers.json` (`createFilePeersStore`, `Peer`, `peerIdOf`), `migrateHubFile`, `migrateSummaryDirectory` (both run in `createCore`), the device store (kind `"machine"` on disk, both literals read, optional `nodeId`/`publicKey`), `AccessService.bindNodeIdentity` and `findNodeDevice`, `arbitrateDuplicateLink` (glare/duplicate rules, `core/src/access/duplicate-links.ts`).
+- **Seams**: `server.attachPeer(socket, role, peerInfo): PeerHandle` (`server/src/nodes/peer-seam.ts`, stub in `attach-peer.ts`), `LinkClientOptions.attachPeer` and `.peers` (`cli/src/nodes/link-client.ts`, passed by `run.ts`), the guard (alias path, exact paths), `registerLegacyLink`, `app/setup-gate.ts` and the gate in `app/App.tsx`, `SetupScreenProps.onUseOtherNodes`, `lib/node-key-migration.ts`, the testkit fake with two directions (`linkFakeCores`, `nodesControl.attach`), the contract tag `[nodes-symmetric]`.
+
+### Transitional shims (each owner deletes theirs with the code it replaces)
+
+- `protocol/src/node-link-legacy.ts` (the 0.1.x `hello` with `threadCount`): used only by `server/src/nodes/link-session.ts`, `server/src/testing/loopback-node.ts`, `cli/src/nodes/link-*.ts`. Deleted by B and D together.
+- `cli/src/nodes/hub-file.ts` is now a one-hub view of `peers.json` for the old one-way dialler and `tau connect` (first entry = "the hub"); D replaces it with the multi-peer client and deletes `hub-file.ts` and its test.
+- `web/src/lib/hub-link.ts` derives the old "linked to a hub" row from the peers (first dialled link); C rewrites the Nodes page around `Node.links` and deletes it, `useHubLink`, `useDisconnectHub` and `api.nodes.hubLink/disconnectHub`.
+- The old server gateway (`create-gateway`, `link-session`, `link-request`, `link-socket`, `link-stream`) still serves accepted links through `registerNodeLink`; B replaces it with `createLinkPeer` behind `attachPeer`.
+- `vocabulary.test.ts` still allows the hub files above; C shrinks `HUB_ALLOWED` as it rewrites each (the `"machine"` literal exemption is gone: no `"machine"` string is left in `web/src`).
+
+### Owner A (`core/src/nodes/**`)
+
+- Fill the `TODO(A)` in `create-nodes.ts`: dedupe two links to one `nodeId` (use `arbitrateDuplicateLink`), hide standby entries (retry every 60 s, not while a live link to that `nodeId` exists), the status of a node with two links, move the summary from the old id to the `nodeId` at the first `hello`, `forget` without `bye` (core's local effect equals `disconnect`; the `bye` difference is the server's).
+- Implement `dialPeer` on the real contract target (`core/src/contract.test.ts`: write a `peers.json` entry) and remove `"[nodes-symmetric]"` from `PENDING_TAGS`.
+- A peer whose `nodeId` is already held by another device: `register` ignores `duplicate-device` (the arbiter decides before core is told); decide where the revoke happens with B.
+
+### Owner B (`server/src/nodes/**`)
+
+- Replace `attach-peer.ts` with `createLinkPeer({ socket, role, server, peer })`: handshake (`createHello`, `verifyHello` with `pinnedNodeId`, `createProof`, `verifyProof`, close codes from `closeCodeFor`), parity and `ready`, `bye`, per-stream credit as in the p1 spike, the responder at the **bound** port with the server's own token (`RunningServer.port`), `filterProxyPath` on the responder (the denylist is already tested), `via` -> `x-tau-via`, heartbeat and `core.nodes.register(peerId, info, direction)`, glare/duplicate through `arbitrateDuplicateLink` (a map `nodeId -> link facts`), revoke/disconnect sends `bye` and closes every proxied stream on both sides.
+- Point `register-link.ts` at `attachPeer(socket, "acceptor", { peerId: request.deviceId, secretKey })` for `NODE_LINK_PATH`; the alias is already handled by `registerLegacyLink` (4001).
+- Delete the legacy gateway, `node-link-legacy.ts` use in `link-session`/`loopback-node`, and port the MVP12 gateway tests to both directions.
+
+### Owner C (`web/src/**`)
+
+- The Nodes page around `Node.links` (OS icons, offline state, "Connect a node" on every node, the "every node gets full power over every other" text, accessible names), delete `lib/hub-link.ts` and the hub hooks.
+- `SetupScreen`: render "Use my other nodes" from `onUseOtherNodes` (the gate already passes it only when a peer is known); `MainLayout` with a local node that has no provider ("Not set up", "Set up", default target = first node with a provider).
+- Keys: `lib/node-key-migration.ts` (the seam documents trigger and rules), `/m/<id>` -> `/n/<nodeId>` redirect through the node list, `nodeKey` marker from `:m:` to `:n:` with the lazy migration.
+- Fake transport (`lib/transport/fake.ts`) is the foundation's; ask by note.
+
+### Owner D (`cli/src/nodes/**`, `cli/src/commands/**` for connect and disconnect)
+
+- A multi-peer dialler on `LinkClientOptions.peers` and `.attachPeer`: poll `peers.json`, open one websocket per entry (not for a standby that has a live link), call `attachPeer(socket, "dialler", { peerId: peerIdOf(peer), pinnedNodeId: peer.nodeId, secretKey })`, map `PeerClosed` to `core.nodes.reportLink(peerId, state)` with the backoff of today's client (4001 `update-required`, 4002 and `bye` not retried, 1008 `refused`, 401/403 `refused`), delete the old `link-session`, `link-request`, `link-socket`, `link-sender`, `hub-file` and their tests.
+- `tau connect` on any node (the "already linked" and "yourself" refusals use `alreadyLinkedRefusal` and `selfLinkRefusal`; read the acceptor's `nodeId` from the link's `&node=` and from the redeem response and write it, pinned, in `peers.json`), `tau disconnect [node]`, `tau nodes list|rename|disconnect|forget|reset-identity` through the routes (reset-identity must restart the dialler: core already makes a new identity live and clears `peers.json`).
+
+### Notes for the integrator
+
+- Run `bump-protocol` after any change to routes, base frames or `Change` (it rewrites `PROTOCOL_VERSION` and `LINK_PROTOCOL`).
+- `hub.json` handling and the downgrade note (F3), the nine destructive commands (F4) and the 400 for `kind=machine` (F5) need your decision before 0.2.0 notes.
+- `e2e/tests/mvp12-nodes.spec.ts` mints `kind=node` now; the e2e suite was not run by the foundation (it needs the built CLI, a browser and ports); the integration step runs it with the two-way specs.
+- The alias `/api/machines/link` closes 4001 for **every** caller, also a 0.2.0 dialler that used it by mistake.
+
+
+### Foundation decisions (orchestrator, after review of the hand-off)
+
+- **F3**: `migrateHubFile` now **copies** (leaves `hub.json`, `peers.json` existing means migrated); `tau disconnect` (owner D) must delete both `peers.json` entry and `hub.json`. An unreadable `hub.json` is still moved to `hub.json.migrated`.
+- **F4**: the destructive list is nine after Step 1 (`nodes unlink` and `nodes hub` are gone), Step 2 ends at eleven.
+- F1, F2, F5, F6 accepted as implemented.

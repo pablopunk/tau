@@ -1,5 +1,5 @@
 import { ChangeSchema } from "./entities";
-import { CHUNK_BYTES, DATA_HEADER_BYTES, LinkFrameSchema } from "./node-link";
+import { BASE_FRAME_SCHEMAS, CHUNK_BYTES, DATA_HEADER_BYTES, LinkFrameSchema } from "./node-link";
 import { routes } from "./rest";
 
 function stableStringify(value: unknown): string {
@@ -35,6 +35,16 @@ export function protocolSurface(): string {
     binary: { CHUNK_BYTES, DATA_HEADER_BYTES },
     change: ChangeSchema,
   });
+}
+
+/** What two nodes must agree on to link at all: the BASE frames (hello, proof, ready, bye, request, response, open, close, credit) and the binary header. */
+export function linkSurface(): string {
+  return stableStringify({ frames: BASE_FRAME_SCHEMAS, binary: { CHUNK_BYTES, DATA_HEADER_BYTES } });
+}
+
+export function computeLinkProtocol(): string {
+  const surface = linkSurface();
+  return `${cyrb53(surface, 3)}${cyrb53(surface, 4)}`;
 }
 
 export function computeProtocolVersion(): string {

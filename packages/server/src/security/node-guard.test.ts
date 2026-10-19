@@ -243,24 +243,18 @@ describe("pin (m1): frame caps on the shared WebSocket server", () => {
   });
 });
 
-describe("no chains: a tau linked to a hub accepts no nodes", () => {
-  const LINKED = {
-    state: "linked",
-    hubName: "Hub",
-    hubUrl: "https://hub.test",
-    since: 1,
-    message: null,
-  } as const;
-
-  it("refuses to mint a node code and closes a link socket, but still mints device codes", async () => {
+describe("every node accepts links, whatever it dials itself", () => {
+  it("mints node codes and accepts a link socket while this node has a linked peer of its own", async () => {
     await start();
     const { secret } = await ctx.linkNode();
-    ctx.core.nodes.reportLink(LINKED);
-    const node = await ctx.request({ method: "POST", url: "/api/pair?kind=machine" });
-    expect(node.statusCode).toBe(400);
+    const peerId = (await ctx.core.nodes.list())[0]?.id ?? "peer";
+    ctx.core.nodes.reportLink(peerId, { state: "linked", message: null, since: 1 });
+    const node = await ctx.request({ method: "POST", url: "/api/pair?kind=node" });
+    expect(node.statusCode).toBe(200);
     expect((await ctx.request({ method: "POST", url: "/api/pair?kind=device" })).statusCode).toBe(200);
-    const { socket } = await dialTunnel(NODE_LINK_PATH, bearer(secret));
-    expect(await closeOf(socket)).toBe(1008);
-    expect(gateway.links.size).toBe(0);
+    const { status, socket } = await dialTunnel(NODE_LINK_PATH, bearer(secret));
+    expect(status).toBe(101);
+    expect(gateway.links.size).toBe(1);
+    socket.close();
   });
 });

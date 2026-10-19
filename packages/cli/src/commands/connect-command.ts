@@ -1,12 +1,4 @@
-import { readdir } from "node:fs/promises";
-import { join } from "node:path";
-import {
-  alreadyLinkedRefusal,
-  connectRefusal,
-  type HubLink,
-  type Node,
-  RedeemPairingResponseSchema,
-} from "@tau/protocol";
+import { alreadyLinkedRefusal, type Node, RedeemPairingResponseSchema } from "@tau/protocol";
 import { Value } from "typebox/value";
 import { parseConnectArgs } from "../nodes/connect-args";
 import { type AfterLink, type ConnectIo, terminalIo } from "../nodes/connect-io";
@@ -24,16 +16,6 @@ async function runningServer(env: CommandEnv): Promise<Server | undefined> {
     return await discoverServer(env);
   } catch {
     return undefined;
-  }
-}
-
-async function linkedNodeCount(server: Server | undefined, env: CommandEnv): Promise<number> {
-  if (server) return ((await callRoute(server, "listNodes", {}, env)) as Node[]).length;
-  try {
-    // The summaries directory keeps its on-disk name `machines` until MVP13 Step 1.
-    return (await readdir(join(env.home, "machines"))).length;
-  } catch {
-    return 0;
   }
 }
 
@@ -90,8 +72,6 @@ export async function executeConnect(
   const refusal = alreadyLinkedRefusal((await hubFile.read()) !== undefined);
   if (refusal) throw usageError(refusal);
   const server = await runningServer(env);
-  const loop = connectRefusal(await linkedNodeCount(server, env));
-  if (loop) throw usageError(loop);
 
   const hubName = target.hubName ?? new URL(target.hubUrl).host;
   if (!args.yes && !(await io.confirm(`Link this node to ${hubName} (${target.hubUrl})?`))) {
@@ -112,8 +92,9 @@ export async function executeDisconnect(argv: readonly string[], env: CommandEnv
   const server = await runningServer(env);
   if (!file && !server) return env.stdout("This tau is not linked to a hub.");
   if (server) {
-    const link = (await callRoute(server, "getHubLink", {}, env)) as HubLink;
-    if (link.state !== "none") await callRoute(server, "disconnectHub", {}, env);
+    const peers = (await callRoute(server, "listNodes", {}, env)) as Node[];
+    const hub = peers.find((peer) => peer.links.some((link) => link.direction === "dialled"));
+    if (hub) await callRoute(server, "disconnectNode", { params: { id: hub.id } }, env);
   }
   await hubFile.delete();
   if (!file) return env.stdout("This tau is not linked to a hub.");

@@ -245,6 +245,16 @@ export function useDecideApproval(conversationId: string) {
   });
 }
 
+/** "Use my other nodes": sets `Settings.setupSkipped` on this node (the gate in `app/App.tsx` reads it). */
+export function useSetSetupSkipped() {
+  const api = useApi();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (skipped: boolean) => api.settings.setSetupSkipped(skipped),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.settings }),
+  });
+}
+
 export function useSetClaudeConnectors() {
   const api = useApi();
   const queryClient = useQueryClient();

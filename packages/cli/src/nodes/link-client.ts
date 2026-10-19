@@ -1,17 +1,13 @@
 import { arch, hostname, platform } from "node:os";
-import {
-  type Core,
-  type HubLinkStateName,
-  LINK_CLOSE_UPDATE_REQUIRED,
-  type NodeHello,
-  PROTOCOL_VERSION,
-} from "@tau/protocol";
+import type { PeersStore } from "@tau/core";
+import { type Core, type LegacyNodeHello, LINK_CLOSE_UPDATE_REQUIRED, PROTOCOL_VERSION } from "@tau/protocol";
+import type { AttachPeer } from "@tau/server";
 import WebSocket from "ws";
 import { cliVersion } from "../version";
 import type { HubFile, HubFileStore } from "./hub-file";
 import { linkUrlOf, originOf } from "./link-endpoint";
 import { runLinkSession } from "./link-session";
-import { fileKey, hubLinkOf } from "./link-state";
+import { fileKey, type HubLinkStateName, linkReportOf, peerIdOfFile } from "./link-state";
 
 /** Frozen in Phase 0: `serve.ts` calls exactly this. */
 export interface LinkClientOptions {
@@ -19,8 +15,13 @@ export interface LinkClientOptions {
   readonly port: number;
   /** The master token, sent as `Authorization: Bearer`, with `Host: 127.0.0.1:<port>` and no Origin. */
   readonly token: string;
+  /** TRANSITIONAL: the one-hub view the 0.1.x dialler still uses until owner D replaces it. */
   readonly hubFile: HubFileStore;
-  /** The client reports its state with `core.nodes.reportLink(state)`. */
+  /** FROZEN seam for owner D: the symmetric peer runs on a dialled socket through `server.attachPeer(socket, "dialler", peerInfo)`. */
+  readonly attachPeer: AttachPeer;
+  /** FROZEN seam for owner D: every dialled peer (`<home>/peers.json`), polled so `tau connect` needs no restart. */
+  readonly peers: PeersStore;
+  /** The client reports its state per peer with `core.nodes.reportLink(peerId, state)`. */
   readonly core: Core;
 }
 
@@ -54,7 +55,7 @@ type Outcome = "ended" | "failed" | "refused" | "update-required";
 const REFUSED_STATUSES = new Set([401, 403]);
 const REFUSED_CLOSE = 1008;
 
-async function helloOf(file: HubFile, core: Core): Promise<NodeHello> {
+async function helloOf(file: HubFile, core: Core): Promise<LegacyNodeHello> {
   const threadCount = await core.conversations.listAll().then(
     (all) => all.length,
     () => 0,
@@ -97,7 +98,8 @@ export function startLinkClientWith(options: LinkClientOptions, tuning: LinkTuni
   const report = (state: HubLinkStateName, file: HubFile | undefined) => {
     if (state !== lastState) since = Date.now();
     lastState = state;
-    core.nodes.reportLink(hubLinkOf(state, file, since));
+    const linkReport = linkReportOf(state, since);
+    if (file && linkReport) core.nodes.reportLink(peerIdOfFile(file), linkReport);
   };
 
   async function waitFor(ms: number, key: string): Promise<void> {

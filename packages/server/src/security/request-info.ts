@@ -2,6 +2,7 @@ import {
   API_PREFIX,
   AppError,
   ERROR_STATUS,
+  NODE_LINK_LEGACY_PATH,
   NODE_LINK_PATH,
   PAIR_PAGE_PATH,
   routes,
@@ -55,7 +56,13 @@ export function bearerOf(request: FastifyRequest): string | undefined {
   return BEARER.exec(request.headers.authorization ?? "")?.[1];
 }
 
-/** Exactly `GET /api/nodes/link` with `Upgrade: websocket`: the only place a node secret is looked at. */
+const NODE_LINK_PATHS: ReadonlySet<string> = new Set([NODE_LINK_PATH, NODE_LINK_LEGACY_PATH]);
+
+/**
+ * Exactly `GET /api/nodes/link` (or the 0.1.x alias `/api/machines/link`) with `Upgrade: websocket`: the only
+ * places a node secret is looked at. The alias exists so a 0.1.x dialler is upgraded and then told to update
+ * (close 4001) instead of being answered 401, which it reads as "refused".
+ */
 export function isNodeLink(request: FastifyRequest): boolean {
-  return request.method === "GET" && pathOf(request) === NODE_LINK_PATH && isWebSocketUpgrade(request);
+  return request.method === "GET" && NODE_LINK_PATHS.has(pathOf(request)) && isWebSocketUpgrade(request);
 }

@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import { mkdtemp, readFile } from "node:fs/promises";
+import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, test } from "vitest";
@@ -18,8 +18,9 @@ function setup(store = createMemoryDeviceStore()) {
     randomBytes: (n) => randomBytes(n),
     remoteUrl: () => "https://x.example",
     announce: () => undefined,
+    nodeId: () => "ownnode",
   });
-  const link = async (kind: "device" | "machine" = "device", name = "Safari") => {
+  const link = async (kind: "device" | "node" = "device", name = "Safari") => {
     const m = await access.mintPairing({ kind });
     return access.redeemPairing({ code: m.code, deviceName: name, peer: PEER });
   };
@@ -113,7 +114,7 @@ describe("access", () => {
   test("node and device secrets do not cross, sign out keeps nodes, revoke works", async () => {
     const { access, link } = setup();
     const device = await link();
-    const node = await link("machine", "homelab");
+    const node = await link("node", "homelab");
     expect(await access.verifyDevice(node.secret)).toBeUndefined();
     expect(await access.verifyNode(device.secret)).toBeUndefined();
     await access.signOutAll();
@@ -121,5 +122,97 @@ describe("access", () => {
     expect(await access.verifyNode(node.secret)).toBeDefined();
     await access.revokeDevice(node.deviceId);
     expect(await access.verifyNode(node.secret)).toBeUndefined();
+  });
+});
+
+describe("node devices (MVP13 Step 1)", () => {
+  const KEY = "k".repeat(43);
+
+  test("a node pairing carries this node's id in the redeem response, the link and the minted code", async () => {
+    const { access } = setup();
+    const minted = await access.mintPairing({ kind: "node", name: "Phone" });
+    expect(minted.nodeId).toBe("ownnode");
+    expect(minted.link).toContain("&node=ownnode");
+    const redeemed = await access.redeemPairing({ code: minted.code, deviceName: "x", peer: PEER });
+    expect(redeemed).toMatchObject({ kind: "node", nodeId: "ownnode" });
+    const device = await access.mintPairing({ kind: "device" });
+    expect(
+      (await access.redeemPairing({ code: device.code, deviceName: "Safari", peer: PEER })).nodeId,
+    ).toBeUndefined();
+  });
+
+  test('the file stays kind "machine" on disk, reads back as node, and keeps nodeId and publicKey', async () => {
+    const dir = await mkdtemp(join(tmpdir(), "tau-access-"));
+    const file = join(dir, "devices.json");
+    const { access, link } = setup(createFileDeviceStore(file));
+    const node = await link("node", "homelab");
+    expect(await access.bindNodeIdentity(node.deviceId, { nodeId: "peer1", publicKey: KEY })).toEqual({
+      ok: true,
+    });
+    const onDisk = JSON.parse(await readFile(file, "utf8")) as Array<Record<string, unknown>>;
+    expect(onDisk[0]).toMatchObject({ kind: "machine", nodeId: "peer1", publicKey: KEY });
+    const again = setup(createFileDeviceStore(file)).access;
+    expect(await again.listDevices()).toMatchObject([{ kind: "node", nodeId: "peer1" }]);
+    expect(JSON.stringify(await again.listDevices())).not.toContain(KEY);
+    expect(await again.verifyNode(node.secret)).toBeDefined();
+  });
+
+  test("reads a 0.1.x devices.json (kind machine, no ids) and a file that already says node", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "tau-access-"));
+    const file = join(dir, "devices.json");
+    const base = { createdAt: 1, lastSeenAt: 2, secretHash: "h" };
+    await writeFile(
+      file,
+      JSON.stringify([
+        { id: "a", name: "Old", kind: "machine", ...base },
+        { id: "b", name: "New", kind: "node", ...base },
+        { id: "c", name: "Bad", kind: "toaster", ...base },
+      ]),
+    );
+    const devices = await createFileDeviceStore(file).read();
+    expect(devices.map((device) => [device.id, device.kind])).toEqual([
+      ["a", "node"],
+      ["b", "node"],
+    ]);
+  });
+
+  test("a node identity is never overwritten and a held nodeId is reported as a duplicate", async () => {
+    const { access, link } = setup();
+    const first = await link("node", "a");
+    const second = await link("node", "b");
+    expect(await access.bindNodeIdentity(first.deviceId, { nodeId: "peer1", publicKey: KEY })).toEqual({
+      ok: true,
+    });
+    expect(await access.bindNodeIdentity(first.deviceId, { nodeId: "peer1", publicKey: KEY })).toEqual({
+      ok: true,
+    });
+    expect(await access.bindNodeIdentity(first.deviceId, { nodeId: "peer2", publicKey: KEY })).toEqual({
+      ok: false,
+      reason: "identity-conflict",
+    });
+    expect(await access.bindNodeIdentity(second.deviceId, { nodeId: "peer1", publicKey: KEY })).toEqual({
+      ok: false,
+      reason: "duplicate-device",
+      otherDeviceId: first.deviceId,
+    });
+    expect(
+      await access.bindNodeIdentity(second.deviceId, { nodeId: "peer1", publicKey: "z".repeat(43) }),
+    ).toMatchObject({
+      ok: false,
+      reason: "identity-conflict",
+    });
+    expect(await access.bindNodeIdentity("nope", { nodeId: "x", publicKey: KEY })).toMatchObject({
+      reason: "not-found",
+    });
+    expect((await access.findNodeDevice("peer1"))?.id).toBe(first.deviceId);
+    expect(await access.findNodeDevice("peer2")).toBeUndefined();
+  });
+
+  test("a browser device cannot be bound to a node identity", async () => {
+    const { access, link } = setup();
+    const device = await link("device");
+    expect(await access.bindNodeIdentity(device.deviceId, { nodeId: "p", publicKey: KEY })).toMatchObject({
+      reason: "not-found",
+    });
   });
 });

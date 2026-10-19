@@ -14,6 +14,15 @@ export function settingsAndProviderCases(make: MakeContractTarget, test: CaseRun
     });
     afterEach(() => target.dispose());
 
+    test("[settings] setupSkipped is false at first, and setSetupSkipped sets it and clears it", async () => {
+      const { core } = target;
+      expect((await core.settings.get()).setupSkipped).toBe(false);
+      await core.settings.setSetupSkipped(true);
+      expect((await core.settings.get()).setupSkipped).toBe(true);
+      await core.settings.setSetupSkipped(false);
+      expect((await core.settings.get()).setupSkipped).toBe(false);
+    });
+
     test("starts without a key, models or default model", async () => {
       const { core } = target;
       expect(await core.settings.get()).toEqual({
@@ -27,6 +36,7 @@ export function settingsAndProviderCases(make: MakeContractTarget, test: CaseRun
         claudeCliNoticeAt: null,
         claudeConnectors: { enabled: [], alwaysAllow: [], askBeforeWrites: false },
         remote: { enabled: false },
+        setupSkipped: false,
       });
       expect(await hasConnectedProvider(core)).toBe(false);
       expect(await core.models.list()).toEqual([]);

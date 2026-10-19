@@ -11,9 +11,9 @@ describe("access routes with the master token on loopback", () => {
   it("mints a pairing code with an empty or a JSON body", async () => {
     ctx = await startTestServer();
     const bare = await ctx.request({ method: "POST", url: "/api/pair" });
-    const typed = await ctx.request({ method: "POST", url: "/api/pair?kind=machine" });
+    const typed = await ctx.request({ method: "POST", url: "/api/pair?kind=node" });
     expect(bare.statusCode, bare.body).toBe(200);
-    expect(typed.json()).toMatchObject({ kind: "machine", link: null });
+    expect(typed.json()).toMatchObject({ kind: "node", link: null });
   });
 
   it("lists, renames, revokes and signs out all", async () => {

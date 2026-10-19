@@ -10,6 +10,8 @@ import { NodesSection } from "./NodesSection";
 const nodes: Node[] = [
   {
     id: "m1",
+    identified: true,
+    links: [{ direction: "accepted", state: "linked", message: null, since: null }],
     name: "Homelab",
     os: "linux",
     tauVersion: "0.1.0",
@@ -20,6 +22,8 @@ const nodes: Node[] = [
   },
   {
     id: "m2",
+    identified: true,
+    links: [{ direction: "accepted", state: "unreachable", message: null, since: null }],
     name: "Work laptop",
     os: "darwin",
     tauVersion: "0.2.0",
@@ -48,6 +52,20 @@ let hubLink: Record<string, unknown> = {
   message: null,
 };
 
+/** The 0.1.x "linked to a hub" fixture, as a peer this tau dials. */
+const hubPeer = () => ({
+  id: "hub1",
+  identified: true,
+  name: hubLink.hubName,
+  os: "linux",
+  tauVersion: "0.2.0",
+  protocolVersion: "same",
+  status: "online",
+  lastSeenAt: Date.now(),
+  threadCount: 0,
+  links: [{ direction: "dialled", state: hubLink.state, message: hubLink.message, since: hubLink.since }],
+});
+
 beforeEach(() => {
   calls.length = 0;
   forgetNodeApis();
@@ -57,8 +75,21 @@ beforeEach(() => {
     "fetch",
     vi.fn(async (url: string, init?: RequestInit) => {
       calls.push({ method: init?.method ?? "GET", url });
-      if (url === "/api/nodes") return json(nodes);
-      if (url === "/api/nodes/hub") return json(hubLink);
+      if (url === "/api/nodes") {
+        const hub = hubLink.state === "none" ? [] : [hubPeer()];
+        return json([...nodes.map((node) => ({ ...node })), ...hub]);
+      }
+      if (url === "/api/nodes/self")
+        return json({
+          nodeId: "self",
+          publicKey: "k",
+          name: "Mac",
+          os: "darwin arm64",
+          tauVersion: "0.2.0",
+          protocolVersion: "same",
+          linkProtocol: "l",
+          capabilities: [],
+        });
       if (url === "/api/update") return json(updateStatus);
       if (url === "/api/update/refresh") {
         updateStatus = { ...updateStatus, latest: "0.3.0", checkedAt: Date.now(), behind: true };
@@ -66,7 +97,7 @@ beforeEach(() => {
       }
       if (url.startsWith("/api/pair")) {
         return json({
-          kind: "machine",
+          kind: "node",
           code: "code",
           shortCode: "ABCD2345",
           link: "https://hub.example/pair#ABCD2345",
@@ -169,7 +200,7 @@ describe("Settings → Nodes", () => {
       await screen.findByText("npx @pablopunk/tau connect https://hub.example/pair#ABCD2345"),
     ).toBeInTheDocument();
     expect(screen.getByText("tau connect ABCD2345 --hub https://hub.example")).toBeInTheDocument();
-    expect(calls).toContainEqual({ method: "POST", url: "/api/pair?kind=machine" });
+    expect(calls).toContainEqual({ method: "POST", url: "/api/pair?kind=node" });
     expect(screen.getAllByText(/full power on the node you connect/).length).toBeGreaterThan(0);
   });
 

@@ -1,8 +1,11 @@
-import { readFile, rm } from "node:fs/promises";
-import { join } from "node:path";
-import { writePrivateFile } from "../private-files";
+import { createFilePeersStore, peersFilePath } from "@tau/core";
 
-/** `<home>/hub.json`: where this tau dials. The one module that owns the file (owner I): `serve.ts` and `tau connect` only call it. */
+/**
+ * TRANSITIONAL (MVP13 Step 1 foundation): the 0.1.x one-hub view of `<home>/peers.json`, kept so the old one-way
+ * dialler and `tau connect` work on the new store until owner D replaces them with the multi-peer client.
+ * `<home>/hub.json` itself is migrated to `peers.json` by core at start (and kept as `hub.json.migrated`).
+ * Only the first entry is "the hub".
+ */
 export interface HubFile {
   readonly hubUrl: string;
   readonly nodeSecret: string;
@@ -13,35 +16,42 @@ export interface HubFile {
 }
 
 export interface HubFileStore {
-  /** `undefined` when absent or unreadable. */
+  /** `undefined` when there is no peer. */
   read(): Promise<HubFile | undefined>;
-  /** Mode 0600, atomic. */
+  /** Puts this peer first (mode 0600, atomic through the peers store). */
   write(file: HubFile): Promise<void>;
-  /** Idempotent. */
+  /** Removes the first peer only. Idempotent. */
   delete(): Promise<void>;
 }
 
-export const hubFilePath = (home: string): string => join(home, "hub.json");
-
-function isHubFile(value: unknown): value is HubFile {
-  const file = value as Partial<HubFile> | null;
-  return (
-    typeof file?.hubUrl === "string" && typeof file.nodeSecret === "string" && typeof file.name === "string"
-  );
-}
-
 export function createHubFileStore(home: string): HubFileStore {
-  const path = hubFilePath(home);
+  const peers = createFilePeersStore(peersFilePath(home));
   return {
     async read() {
-      try {
-        const parsed: unknown = JSON.parse(await readFile(path, "utf8"));
-        return isHubFile(parsed) ? parsed : undefined;
-      } catch {
-        return undefined;
-      }
+      const [first] = await peers.read();
+      if (!first) return undefined;
+      return {
+        hubUrl: first.url,
+        nodeSecret: first.secret,
+        name: first.name,
+        ...(first.nodeName ? { nodeName: first.nodeName } : {}),
+      };
     },
-    write: (file) => writePrivateFile(path, `${JSON.stringify(file)}\n`),
-    delete: () => rm(path, { force: true }),
+    async write(file) {
+      const rest = (await peers.read()).filter((peer) => peer.url !== file.hubUrl);
+      await peers.write([
+        {
+          url: file.hubUrl,
+          name: file.name,
+          secret: file.nodeSecret,
+          ...(file.nodeName ? { nodeName: file.nodeName } : {}),
+        },
+        ...rest,
+      ]);
+    },
+    async delete() {
+      const [, ...rest] = await peers.read();
+      await peers.write(rest);
+    },
   };
 }

@@ -4,12 +4,12 @@ import {
   CREDIT_WINDOW_BYTES,
   decodeDataFrame,
   encodeDataFrame,
+  type LegacyLinkFrame,
+  LegacyLinkFrameSchema,
   LINK_CLOSE_UPDATE_REQUIRED,
   LINK_NO_CREDIT_CLOSE_MS,
   LINK_OFFLINE_AFTER_MS,
   LINK_PING_INTERVAL_MS,
-  type LinkFrame,
-  LinkFrameSchema,
 } from "@tau/protocol";
 import { Value } from "typebox/value";
 import type { RawData, WebSocket } from "ws";
@@ -67,7 +67,7 @@ export class LinkSession {
     this.streams.set(stream.id, stream);
   }
 
-  sendControl(frame: LinkFrame): void {
+  sendControl(frame: LegacyLinkFrame): void {
     if (this.socket.readyState === this.socket.OPEN) this.socket.send(JSON.stringify(frame));
   }
 
@@ -143,7 +143,7 @@ export class LinkSession {
       this.close(POLICY_VIOLATION, "bad frame");
       return;
     }
-    if (!Value.Check(LinkFrameSchema, frame)) {
+    if (!Value.Check(LegacyLinkFrameSchema, frame)) {
       this.close(POLICY_VIOLATION, "bad frame");
       return;
     }
@@ -158,7 +158,7 @@ export class LinkSession {
     stream.onData(frame);
   }
 
-  private receiveControl(frame: LinkFrame): void {
+  private receiveControl(frame: LegacyLinkFrame): void {
     switch (frame.type) {
       case "hello":
         return void this.register(frame);
@@ -188,11 +188,12 @@ export class LinkSession {
     }
   }
 
-  private async register(frame: Extract<LinkFrame, { type: "hello" }>): Promise<void> {
+  private async register(frame: Extract<LegacyLinkFrame, { type: "hello" }>): Promise<void> {
     if (this.registered) return;
-    const { type: _type, ...hello } = frame;
+    const { type: _type, threadCount, ...info } = frame;
     try {
-      const node = await this.core.nodes.register(this.nodeId, hello);
+      const node = await this.core.nodes.register(this.nodeId, info, "accepted");
+      this.core.nodes.heartbeat(this.nodeId, threadCount);
       this.registered = true;
       if (node.status === "update-required") this.close(LINK_CLOSE_UPDATE_REQUIRED, "update required");
     } catch {

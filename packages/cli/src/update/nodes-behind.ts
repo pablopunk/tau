@@ -4,7 +4,7 @@ import { callRoute, discoverServer } from "../commands/client";
 import { processEnv } from "../commands/command-env";
 
 export interface LinkedNodes {
-  readonly nodes: readonly Pick<Node, "name" | "tauVersion" | "linkedTo">[];
+  readonly nodes: readonly Pick<Node, "name" | "tauVersion">[];
   /** The hub's own latest; null when it does not know it. */
   readonly hubLatest: string | null;
 }
@@ -27,12 +27,10 @@ export async function fetchLinkedNodes(home: string): Promise<LinkedNodes | unde
 export function linkedNodesLine(linked: LinkedNodes | undefined, fallbackLatest: string): string | undefined {
   if (!linked) return undefined;
   const latest = linked.hubLatest ?? fallbackLatest;
-  const items = linked.nodes
-    .filter((m) => !m.linkedTo)
-    .flatMap((m) => {
-      const behind = isBehind(m.tauVersion, latest);
-      if (behind === undefined) return [`${m.name} (version unknown)`];
-      return behind ? [`${m.name} (${m.tauVersion})`] : [];
-    });
+  const items = linked.nodes.flatMap((m) => {
+    const behind = isBehind(m.tauVersion, latest);
+    if (behind === undefined) return [`${m.name} (version unknown)`];
+    return behind ? [`${m.name} (${m.tauVersion})`] : [];
+  });
   return items.length === 0 ? undefined : `Linked nodes behind: ${items.join(", ")}`;
 }

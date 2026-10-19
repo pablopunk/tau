@@ -39,7 +39,7 @@ const hubAnswers = (body: unknown, status = 200) =>
 const emptyHome = () => mkdtempSync(join(tmpdir(), "tau-connect-"));
 
 describe("tau connect", () => {
-  it("asks, redeems with the hub origin, and stores hub.json privately", async () => {
+  it("asks, redeems with the hub origin, and stores the peer privately", async () => {
     const home = emptyHome();
     const fetchImpl = hubAnswers({ deviceId: "d1", secret: SECRET });
     const questions = io();
@@ -59,7 +59,7 @@ describe("tau connect", () => {
       name: "Home hub",
       nodeName: "Laptop",
     });
-    expect(statSync(join(home, "hub.json")).mode & 0o777).toBe(0o600);
+    expect(statSync(join(home, "peers.json")).mode & 0o777).toBe(0o600);
     expect(out.join("\n")).not.toContain(SECRET);
   });
 
@@ -88,11 +88,12 @@ describe("tau connect", () => {
     await expect(executeConnect([LINK, "--yes"], env, io())).rejects.toThrow("already linked");
   });
 
-  it("refuses when nodes are linked to this tau", async () => {
+  it("links even when other nodes are linked to this tau: every node may link to every other", async () => {
     const home = emptyHome();
-    mkdirSync(join(home, "machines", "m1"), { recursive: true });
-    const { env } = envFor(home, hubAnswers({}));
-    await expect(executeConnect([LINK, "--yes"], env, io())).rejects.toThrow("Disconnect them first");
+    mkdirSync(join(home, "nodes", "m1"), { recursive: true });
+    const { env } = envFor(home, hubAnswers({ deviceId: "d", secret: SECRET }));
+    await executeConnect([LINK, "--yes"], env, io());
+    expect((await createHubFileStore(home).read())?.name).toBe("Home hub");
   });
 
   it("fails calmly on a refused code or an answer without a secret", async () => {
@@ -104,7 +105,7 @@ describe("tau connect", () => {
 });
 
 describe("tau disconnect", () => {
-  it("removes hub.json when no server runs", async () => {
+  it("removes the peer when no server runs", async () => {
     const home = emptyHome();
     const store = createHubFileStore(home);
     await store.write({ hubUrl: "https://a.b", nodeSecret: SECRET, name: "A" });
@@ -120,16 +121,15 @@ describe("tau disconnect", () => {
     await store.write({ hubUrl: "https://a.b", nodeSecret: SECRET, name: "A" });
     const calls: string[] = [];
     const fetchImpl = vi.fn(async (url: string, init?: RequestInit) => {
-      calls.push(`${init?.method} ${new URL(url).pathname}`);
-      return url.endsWith("/hub")
-        ? new Response(
-            JSON.stringify({ state: "linked", hubName: "A", hubUrl: null, since: 1, message: null }),
-          )
-        : new Response(null, { status: 204 });
+      calls.push(`${init?.method ?? "GET"} ${new URL(url).pathname}`);
+      const peer = { id: "peer-1", links: [{ direction: "dialled", state: "linked" }] };
+      return init?.method === "DELETE"
+        ? new Response(null, { status: 204 })
+        : new Response(JSON.stringify([peer]));
     }) as unknown as typeof fetch;
     const { env } = envFor(home, fetchImpl);
     await executeDisconnect([], env);
-    expect(calls).toEqual(["GET /api/nodes/hub", "POST /api/nodes/hub/disconnect"]);
+    expect(calls).toEqual(["GET /api/nodes", "DELETE /api/nodes/peer-1"]);
     expect(await store.read()).toBeUndefined();
   });
 

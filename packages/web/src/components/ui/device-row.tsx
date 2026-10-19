@@ -2,13 +2,13 @@ import { GlobeIcon, MonitorIcon, ServerIcon, SmartphoneIcon, TerminalIcon } from
 import type * as React from "react"
 import { cn } from "@/lib/utils"
 
-type DeviceKindName = "browser" | "phone" | "cli" | "machine"
+type DeviceKindName = "browser" | "phone" | "cli" | "node"
 
 const KIND_ICONS = {
   browser: GlobeIcon,
   phone: SmartphoneIcon,
   cli: TerminalIcon,
-  machine: ServerIcon, // stays "machine" until MVP13 Step 1
+  node: ServerIcon,
 } satisfies Record<DeviceKindName, typeof MonitorIcon>
 
 /** Rows inside one bordered container with dividers. */

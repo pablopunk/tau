@@ -6,7 +6,7 @@ import { targetOf } from "./link-endpoint";
 const MAX_INPUT_BYTES = 64 * 1024;
 const NOT_SENDABLE = new Set([1004, 1005, 1006, 1015]);
 
-type OpenFrame = Pick<RequestFrame, "id" | "path" | "query" | "hubDevice">;
+type OpenFrame = Pick<RequestFrame, "id" | "path" | "query" | "via">;
 
 interface Held {
   readonly payload: Uint8Array;
@@ -20,7 +20,7 @@ const closeCodeOf = (code: number): number =>
 export function startSocketStream(context: LinkContext, frame: OpenFrame, finished: () => void): Stream {
   const { id } = frame;
   const socket = new WebSocket(`ws://127.0.0.1:${context.port}${targetOf(frame.path, frame.query)}`, {
-    headers: loopbackHeaders(context, frame.hubDevice),
+    headers: loopbackHeaders(context, frame.via),
     maxPayload: CHUNK_BYTES * 4,
   });
   const queued: Held[] = [];
@@ -60,7 +60,7 @@ export function startSocketStream(context: LinkContext, frame: OpenFrame, finish
       id,
       path: frame.path,
       query: frame.query,
-      hubDevice: frame.hubDevice,
+      via: frame.via,
     });
     for (const held of queued.splice(0)) deliver(held);
   });

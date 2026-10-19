@@ -5,9 +5,9 @@ import {
   type DataFrame,
   decodeDataFrame,
   encodeDataFrame,
-  type LinkFrame,
+  type LegacyLinkFrame,
+  type LegacyNodeHello,
   NODE_LINK_PATH,
-  type NodeHello,
   PROTOCOL_VERSION,
 } from "@tau/protocol";
 import type { FastifyInstance } from "fastify";
@@ -44,7 +44,7 @@ export interface LoopbackNodeOptions {
   readonly port: number;
   readonly secret: string;
   readonly handlers: PeerHandlers;
-  readonly hello?: Partial<NodeHello>;
+  readonly hello?: Partial<LegacyNodeHello>;
   /** Never send credit for incoming bodies and stream data (a stuck node). */
   readonly withholdCredit?: boolean;
 }
@@ -63,7 +63,7 @@ export interface LoopbackNode {
 }
 
 interface Upload {
-  readonly frame: Extract<LinkFrame, { type: "request" }>;
+  readonly frame: Extract<LegacyLinkFrame, { type: "request" }>;
   readonly chunks: Buffer[];
   received: number;
 }
@@ -110,12 +110,12 @@ class PeerLink {
     socket.on("message", (data, isBinary) => {
       const bytes = Array.isArray(data) ? Buffer.concat(data) : Buffer.from(data as Buffer);
       if (isBinary) return this.onData(bytes);
-      this.onControl(JSON.parse(bytes.toString("utf8")) as LinkFrame);
+      this.onControl(JSON.parse(bytes.toString("utf8")) as LegacyLinkFrame);
     });
   }
 
   sendHello(): void {
-    const hello: NodeHello = {
+    const hello: LegacyNodeHello = {
       name: "Loopback",
       os: "test",
       tauVersion: "0.0.0",
@@ -133,11 +133,11 @@ class PeerLink {
     });
   }
 
-  private control(frame: LinkFrame): void {
+  private control(frame: LegacyLinkFrame): void {
     if (this.socket.readyState === WebSocket.OPEN) this.socket.send(JSON.stringify(frame));
   }
 
-  private onControl(frame: LinkFrame): void {
+  private onControl(frame: LegacyLinkFrame): void {
     switch (frame.type) {
       case "ping":
         this.control({ type: "pong" });
@@ -164,7 +164,7 @@ class PeerLink {
     }
   }
 
-  private onRequest(frame: Extract<LinkFrame, { type: "request" }>): void {
+  private onRequest(frame: Extract<LegacyLinkFrame, { type: "request" }>): void {
     this.uploads.set(frame.id, { frame, chunks: [], received: 0 });
     if (!frame.bodyBytes) void this.answer(frame.id);
   }
@@ -202,7 +202,7 @@ class PeerLink {
       method: frame.method,
       path: frame.path,
       query: frame.query,
-      hubDevice: frame.hubDevice,
+      hubDevice: frame.via,
       contentType: frame.contentType,
       body: Buffer.concat(upload.chunks),
     });
@@ -211,7 +211,7 @@ class PeerLink {
     this.flush();
   }
 
-  private onOpen(frame: Extract<LinkFrame, { type: "open" }>): void {
+  private onOpen(frame: Extract<LegacyLinkFrame, { type: "open" }>): void {
     const { handlers } = this.options;
     if (!handlers.open) {
       this.control({ type: "close", id: frame.id, code: 1011, reason: "no streams" });
@@ -226,7 +226,7 @@ class PeerLink {
     const close = (code: number, reason: string) =>
       this.control({ type: "close", id: frame.id, code, reason });
     this.streams.set(frame.id, handlers.open(frame.path, send, close));
-    this.control({ type: "open", id: frame.id, path: frame.path, query: frame.query, hubDevice: "" });
+    this.control({ type: "open", id: frame.id, path: frame.path, query: frame.query, via: "" });
   }
 
   private queue(id: number, frame: DataFrame): void {
@@ -263,7 +263,7 @@ export function fastifyHandler(app: FastifyInstance): PeerHandlers["request"] {
       payload: request.body.length > 0 ? request.body : undefined,
       headers: {
         ...(request.contentType ? { "content-type": request.contentType } : {}),
-        "x-tau-hub-device": request.hubDevice,
+        "x-tau-via": request.hubDevice,
       },
     });
     const headers: Record<string, string> = {};

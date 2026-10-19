@@ -1,7 +1,13 @@
 import { randomBytes } from "node:crypto";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { type Core, type CreateCore, type CreateCoreOptions, PROTOCOL_VERSION } from "@tau/protocol";
+import {
+  type Core,
+  type CreateCore,
+  type CreateCoreOptions,
+  LINK_PROTOCOL,
+  PROTOCOL_VERSION,
+} from "@tau/protocol";
 import { createAccess } from "./access/create-access";
 import { createFileDeviceStore } from "./access/file-device-store";
 import { createAgentTypeLoader } from "./agents/agent-types";
@@ -41,9 +47,11 @@ import { openDataHome } from "./home/data-home";
 import { acquireHomeLock } from "./home/lock";
 import { createSettingsStore } from "./home/settings-store";
 import { createIconService } from "./icons/icon-service";
+import { createNodeIdentityStore } from "./identity/node-identity";
 import { createMcpService } from "./mcp/mcp-service";
 import { createMcpApi } from "./mcp-api";
 import { createNodes } from "./nodes/create-nodes";
+import { createFilePeersStore, migrateHubFile, migrateSummaryDirectory } from "./peers/peers-store";
 import { createProcessService } from "./processes/process-service";
 import { createPresentProject } from "./project-view";
 import { createProjectsApi } from "./projects-api";
@@ -319,12 +327,17 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
       tunnelTarget: options.tunnelTarget ?? (() => Promise.reject(new Error("No tunnel listener"))),
       now: deps.now,
     });
+    await migrateHubFile(home.root);
+    await migrateSummaryDirectory(home.root);
+    const identityStore = createNodeIdentityStore(home.identityFile, deps.now);
+    let identity = await identityStore.load();
     const access = createAccess({
       store: createFileDeviceStore(home.devicesFile),
       now: deps.now,
       randomBytes: (size) => randomBytes(size),
       remoteUrl: () => tunnel.status().url,
       announce: () => changes.emit({ resource: "devices" }),
+      nodeId: () => identity.nodeId,
     });
     const updates = createUpdateService({
       currentVersion: options.currentVersion,
@@ -336,8 +349,15 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
       now: deps.now,
       changes,
       access,
-      forgetHub: options.forgetHub,
+      peers: createFilePeersStore(home.peersFile),
+      identity: () => identity,
+      resetIdentity: async () => {
+        await identityStore.reset();
+        identity = await identityStore.load();
+      },
       protocolVersion: PROTOCOL_VERSION,
+      linkProtocol: LINK_PROTOCOL,
+      tauVersion: options.currentVersion,
     });
 
     const remote = createRemoteService({

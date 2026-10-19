@@ -12,6 +12,7 @@ export * from "./mvp5";
 export * from "./mvp8";
 export * from "./mvp10";
 export * from "./node-link";
+export * from "./node-link-legacy";
 export * from "./node-rules";
 export * from "./nodes";
 export * from "./ops";

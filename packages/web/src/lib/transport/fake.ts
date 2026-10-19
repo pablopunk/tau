@@ -142,8 +142,8 @@ const handlers: Handlers = {
       deviceName: body.deviceName as string,
       peer: "fake",
     });
-    return redeemed.kind === "machine"
-      ? { deviceId: redeemed.deviceId, secret: redeemed.secret }
+    return redeemed.kind === "node"
+      ? { deviceId: redeemed.deviceId, secret: redeemed.secret, nodeId: redeemed.nodeId }
       : { deviceId: redeemed.deviceId };
   },
   listNodes: (core) => core.nodes.list(),
@@ -154,10 +154,12 @@ const handlers: Handlers = {
     return summary;
   },
   disconnectNode: (core, { params }) => core.nodes.disconnect(params.id),
-  getHubLink: (core) => core.nodes.hubState(),
+  getNodeSelf: (core) => core.nodes.self(),
+  forgetNode: (core, { params }) => core.nodes.forget(params.id),
+  resetNodeIdentity: (core) => core.nodes.resetIdentity(),
+  setSetupSkipped: (core, { body }) => core.settings.setSetupSkipped(body.skipped as boolean),
   getUpdateStatus: (core) => core.updates.status(),
   refreshUpdateStatus: (core) => core.updates.refresh(),
-  disconnectHub: (core) => core.nodes.disconnectHub(),
   linkNode: async () => {
     throw new AppError("not_found", "The node link is a socket, not an HTTP call.");
   },

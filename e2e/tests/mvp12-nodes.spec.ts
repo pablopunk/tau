@@ -44,7 +44,7 @@ async function send(page: Page, text: string) {
 }
 
 async function mintNodeCode(port: number, token: string): Promise<string> {
-  const response = await fetch(`http://127.0.0.1:${port}/api/pair?kind=machine`, {
+  const response = await fetch(`http://127.0.0.1:${port}/api/pair?kind=node`, {
     method: "POST",
     headers: { authorization: `Bearer ${token}` },
   });

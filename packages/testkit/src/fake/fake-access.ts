@@ -15,7 +15,7 @@ export type FakeAccess = Core["access"] & {
   /** Removes every device and node, as a new URL or remote off does. */
   clearAll(): Promise<void>;
   /** Adds a node device without a pairing code (the fake hub's seeded nodes). */
-  addNodeDevice(name: string): { id: string; secret: string };
+  addNodeDevice(name: string, nodeId?: string): { id: string; secret: string };
 };
 
 export interface FakeAccessOptions {
@@ -23,6 +23,8 @@ export interface FakeAccessOptions {
   readonly emit: (change: Change) => void;
   /** `https://<hostname>` while remote is on. */
   readonly remoteUrl: () => string | null;
+  /** This fake's own `nodeId`, carried by node pairings. */
+  readonly nodeId?: () => string;
 }
 
 interface Stored {
@@ -74,7 +76,7 @@ function kindForName(name: string): DeviceKind {
 }
 
 /** A working in-memory access store: codes, devices, per-peer limits, throttled touch. */
-export function createFakeAccess({ now, emit, remoteUrl }: FakeAccessOptions): FakeAccess {
+export function createFakeAccess({ now, emit, remoteUrl, nodeId: ownNodeId }: FakeAccessOptions): FakeAccess {
   const devices = new Map<string, Stored>();
   const pending: Pending[] = [];
   const failures = new Map<string, { at: number[]; lockedUntil: number }>();
@@ -95,7 +97,7 @@ export function createFakeAccess({ now, emit, remoteUrl }: FakeAccessOptions): F
   const find = (secret: string, node: boolean) => {
     const hash = sha256(secret);
     return [...devices.values()].find(
-      (entry) => entry.secretHash === hash && (entry.device.kind === "machine") === node,
+      (entry) => entry.secretHash === hash && (entry.device.kind === "node") === node,
     );
   };
   return {
@@ -116,7 +118,7 @@ export function createFakeAccess({ now, emit, remoteUrl }: FakeAccessOptions): F
       return [...devices.values()]
         .map(({ device }) => ({
           ...device,
-          current: device.kind !== "machine" && device.id === currentDeviceId,
+          current: device.kind !== "node" && device.id === currentDeviceId,
         }))
         .sort((a, b) => b.createdAt - a.createdAt);
     },
@@ -130,7 +132,7 @@ export function createFakeAccess({ now, emit, remoteUrl }: FakeAccessOptions): F
       if (devices.delete(id)) announce();
     },
     async signOutAll() {
-      for (const [id, { device }] of [...devices]) if (device.kind !== "machine") devices.delete(id);
+      for (const [id, { device }] of [...devices]) if (device.kind !== "node") devices.delete(id);
       announce();
     },
     async mintPairing({ kind = "device", name }): Promise<MintedPairing> {
@@ -144,8 +146,9 @@ export function createFakeAccess({ now, emit, remoteUrl }: FakeAccessOptions): F
         kind,
         code,
         shortCode: entry.shortCode,
-        link: url === null ? null : pairingLink(url, code, name),
+        link: url === null ? null : pairingLink(url, code, name, kind === "node" ? ownNodeId?.() : undefined),
         expiresAt: entry.expiresAt,
+        ...(ownNodeId ? { nodeId: ownNodeId() } : {}),
       };
     },
     async redeemPairing({ code, deviceName, peer }) {
@@ -161,7 +164,7 @@ export function createFakeAccess({ now, emit, remoteUrl }: FakeAccessOptions): F
       }
       pending.splice(index, 1);
       const secret = randomHex(32);
-      const kind: DeviceKind = found.kind === "machine" ? "machine" : kindForName(deviceName);
+      const kind: DeviceKind = found.kind === "node" ? "node" : kindForName(deviceName);
       const id = `device-${++counter}`;
       const at = now();
       devices.set(id, {
@@ -169,14 +172,15 @@ export function createFakeAccess({ now, emit, remoteUrl }: FakeAccessOptions): F
         secretHash: sha256(secret),
       });
       announce();
-      return { deviceId: id, kind: found.kind, secret };
+      const nodeId = found.kind === "node" ? ownNodeId?.() : undefined;
+      return { deviceId: id, kind: found.kind, secret, ...(nodeId ? { nodeId } : {}) };
     },
-    addNodeDevice(name) {
+    addNodeDevice(name, nodeId) {
       const secret = randomHex(32);
       const id = `device-${++counter}`;
       const at = now();
       devices.set(id, {
-        device: { id, name, kind: "machine", createdAt: at, lastSeenAt: at },
+        device: { id, name, kind: "node", createdAt: at, lastSeenAt: at, ...(nodeId ? { nodeId } : {}) },
         secretHash: sha256(secret),
       });
       return { id, secret };

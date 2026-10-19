@@ -1,20 +1,26 @@
 import { createServer, type IncomingHttpHeaders, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
-import { CHUNK_BYTES, chunkBody, decodeDataFrame, encodeDataFrame, type LinkFrame } from "@tau/protocol";
+import {
+  CHUNK_BYTES,
+  chunkBody,
+  decodeDataFrame,
+  encodeDataFrame,
+  type LegacyLinkFrame,
+} from "@tau/protocol";
 import { type WebSocket, WebSocketServer } from "ws";
 
 /** A scripted hub for tests: one link socket, recorded frames, credit-aware senders. */
 export interface TestHub {
   readonly url: string;
   readonly upgrades: IncomingHttpHeaders[];
-  readonly frames: LinkFrame[];
+  readonly frames: LegacyLinkFrame[];
   readonly data: Map<number, Buffer[]>;
   readonly ends: Set<number>;
   readonly textFlags: Map<number, boolean[]>;
   /** Refuse the next upgrades with this status instead of accepting. */
   refuseWith: number | undefined;
   socket(): Promise<WebSocket>;
-  sendFrame(frame: LinkFrame): Promise<void>;
+  sendFrame(frame: LegacyLinkFrame): Promise<void>;
   /** Sends a body honouring the node's credits. */
   sendBody(id: number, body: Uint8Array): Promise<void>;
   sendData(id: number, payload: Uint8Array, text: boolean): Promise<void>;
@@ -90,7 +96,7 @@ export async function startTestHub(): Promise<TestHub> {
       socket.on("message", (raw, isBinary) => {
         const bytes = Buffer.isBuffer(raw) ? raw : Buffer.concat(raw as Buffer[]);
         if (!isBinary) {
-          const frame = JSON.parse(bytes.toString()) as LinkFrame;
+          const frame = JSON.parse(bytes.toString()) as LegacyLinkFrame;
           hub.frames.push(frame);
           if (frame.type === "credit")
             credits.set(frame.id, (credits.get(frame.id) ?? 1024 * 1024) + frame.bytes);

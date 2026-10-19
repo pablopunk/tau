@@ -39,6 +39,7 @@ runCoreContract(
       addProjectSkill: async (_directory, name, description) => {
         skills.push({ name, description, scope: "project", path: `.agents/skills/${name}/SKILL.md` });
       },
+      dialPeer: async (name) => core.nodesControl.addDialledPeer(name),
       dispose: () => core.close(),
     };
   },

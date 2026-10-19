@@ -1,4 +1,10 @@
-import { createTunnelTargetRef, publishServerUrl, readRunningInstance } from "@tau/core";
+import {
+  createFilePeersStore,
+  createTunnelTargetRef,
+  peersFilePath,
+  publishServerUrl,
+  readRunningInstance,
+} from "@tau/core";
 import type { Core, CreateCore } from "@tau/protocol";
 import type { CreateServer } from "@tau/server";
 import { listenOnFreePort } from "./listen-on-free-port";
@@ -17,7 +23,7 @@ export interface RunDependencies {
   readonly staticDir: string | undefined;
   /** The CLI entry file, for core's `<home>/bin/tau` shim. */
   readonly cliEntry?: string;
-  /** Dials the hub when `<home>/hub.json` exists; absent in tests. */
+  /** Dials every peer of `<home>/peers.json`; absent in tests. */
   readonly startLinkClient?: StartLinkClient;
   /** Written to the lock file. */
   readonly version?: string;
@@ -66,7 +72,6 @@ export async function run(
     faux: options.faux,
     cliEntry: dependencies.cliEntry,
     tunnelTarget: tunnelTarget.get,
-    forgetHub: () => hubFile.delete(),
     currentVersion: dependencies.version ?? "",
     latestVersion: dependencies.latestVersion ?? latestVersionSource(),
   });
@@ -78,7 +83,14 @@ export async function run(
     await publishServerUrl(options.home, server.origin, dependencies.version);
     dependencies.log(`tau is running: ${server.url}`);
     if (options.open) await openBrowserSafely(server.url, dependencies);
-    const link = dependencies.startLinkClient?.({ port: server.port, token, hubFile, core });
+    const link = dependencies.startLinkClient?.({
+      port: server.port,
+      token,
+      hubFile,
+      core,
+      attachPeer: server.attachPeer,
+      peers: createFilePeersStore(peersFilePath(options.home)),
+    });
     return {
       url: server.url,
       close: async () => {

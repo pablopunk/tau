@@ -106,7 +106,7 @@ export function DevicesSection() {
   const { run, error } = useSubmit();
   const [revoking, setRevoking] = useState<Device | null>(null);
   const [signingOut, setSigningOut] = useState(false);
-  const hasPeople = devices.some((device) => device.kind !== "machine");
+  const hasPeople = devices.some((device) => device.kind !== "node");
   return (
     <SettingRow id="devices">
       <div className="flex flex-col gap-3">

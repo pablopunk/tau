@@ -4,11 +4,13 @@ import { join } from "node:path";
 import type { Change, Device } from "@tau/protocol";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createChangeEmitter } from "../change-emitter";
+import type { Peer } from "../peers/peers-store";
 import { createFakeRemoteAdapter } from "../remote/fake-adapter";
 import { createRemoteService } from "../remote/remote-service";
 import { createNodes } from "./create-nodes";
+import { peerIdOf } from "./peer-id";
 
-const HELLO = { name: "Homelab", os: "linux", tauVersion: "1", protocolVersion: "v1", threadCount: 1 };
+const HELLO = { name: "Homelab", os: "linux", tauVersion: "1", protocolVersion: "v1" };
 const SUMMARY = {
   savedAt: 1,
   projects: [{ id: "p", name: "api" }],
@@ -22,9 +24,7 @@ let seen: Change[];
 beforeEach(async () => {
   dir = await mkdtemp(join(tmpdir(), "tau-nodes-"));
   clock = 1000;
-  devices = [
-    { id: "m1", name: "Homelab", kind: "machine", createdAt: 1, lastSeenAt: 1, current: false } as Device,
-  ];
+  devices = [{ id: "m1", name: "Homelab", kind: "node", createdAt: 1, lastSeenAt: 1, current: false }];
   seen = [];
 });
 afterEach(() => rm(dir, { recursive: true, force: true }));
@@ -40,21 +40,46 @@ function setup() {
     revokeDevice: async (id: string) => {
       devices = devices.filter((d) => d.id !== id);
     },
+    bindNodeIdentity: async (id: string, identity: { nodeId: string; publicKey: string }) => {
+      devices = devices.map((d) => (d.id === id ? { ...d, nodeId: identity.nodeId } : d));
+      return { ok: true as const };
+    },
+    findNodeDevice: async (nodeId: string) => devices.find((d) => d.nodeId === nodeId),
+  };
+  let peers: Peer[] = [];
+  const peersStore = {
+    read: async () => peers,
+    write: async (next: readonly Peer[]) => {
+      peers = [...next];
+    },
+  };
+  let identity = {
+    nodeId: "self1",
+    publicKey: "key",
+    createdAt: 1,
+    sign: (payload: string) => `sig:${payload}`,
   };
   const nodes = createNodes({
-    directory: join(dir, "machines"),
+    directory: join(dir, "nodes"),
     now: () => clock,
     changes,
     access,
+    peers: peersStore,
+    identity: () => identity,
+    resetIdentity: async () => {
+      identity = { ...identity, nodeId: "self2" };
+    },
     protocolVersion: "v1",
+    linkProtocol: "l1",
+    tauVersion: "0.2.0",
   });
-  return { nodes, changes, access };
+  return { nodes, changes, access, peers: peersStore };
 }
 
 describe("node status", () => {
   it("walks online, reconnecting, offline and back with a heartbeat", async () => {
     const { nodes } = setup();
-    await nodes.register("m1", HELLO);
+    await nodes.register("m1", HELLO, "accepted");
     const status = async () => (await nodes.list())[0]?.status;
     expect(await status()).toBe("online");
     clock += 14_999;
@@ -69,7 +94,7 @@ describe("node status", () => {
 
   it("markOffline is immediate and keeps lastSeenAt", async () => {
     const { nodes } = setup();
-    await nodes.register("m1", HELLO);
+    await nodes.register("m1", HELLO, "accepted");
     clock += 2000;
     nodes.markOffline("m1");
     expect((await nodes.list())[0]).toMatchObject({ status: "offline", lastSeenAt: 3000 });
@@ -77,7 +102,7 @@ describe("node status", () => {
 
   it("a different protocol version is update-required until it goes silent", async () => {
     const { nodes } = setup();
-    await nodes.register("m1", { ...HELLO, protocolVersion: "v0" });
+    await nodes.register("m1", { ...HELLO, protocolVersion: "v0" }, "accepted");
     expect((await nodes.list())[0]?.status).toBe("update-required");
     await nodes.writeSummary("m1", SUMMARY);
     expect(await nodes.readSummary("m1")).toBeUndefined();
@@ -89,7 +114,7 @@ describe("node status", () => {
 describe("update-required after the hub closed the link", () => {
   it("stays update-required (not offline) so the hub can say why", async () => {
     const { nodes } = setup();
-    await nodes.register("m1", { ...HELLO, protocolVersion: "v0" });
+    await nodes.register("m1", { ...HELLO, protocolVersion: "v0" }, "accepted");
     nodes.markOffline("m1");
     expect((await nodes.list())[0]?.status).toBe("update-required");
   });
@@ -98,9 +123,9 @@ describe("update-required after the hub closed the link", () => {
 describe("summary cache", () => {
   it("is private, atomic, healthy-only and marked stale on disconnect of the link", async () => {
     const { nodes } = setup();
-    await nodes.register("m1", HELLO);
+    await nodes.register("m1", HELLO, "accepted");
     await nodes.writeSummary("m1", { ...SUMMARY, extra: "no" } as typeof SUMMARY);
-    const file = join(dir, "machines", "m1", "summary.json");
+    const file = join(dir, "nodes", "m1", "summary.json");
     expect((await stat(file)).mode & 0o777).toBe(0o600);
     expect(JSON.parse(await readFile(file, "utf8"))).toEqual(SUMMARY);
     nodes.markOffline("m1");
@@ -113,7 +138,7 @@ describe("summary cache", () => {
 
   it("is deleted on disconnect and announces", async () => {
     const { nodes } = setup();
-    await nodes.register("m1", HELLO);
+    await nodes.register("m1", HELLO, "accepted");
     await nodes.writeSummary("m1", SUMMARY);
     seen.length = 0;
     await nodes.disconnect("m1");
@@ -136,7 +161,7 @@ describe("summary cache", () => {
       changes,
       forgetNodes: () => nodes.reset(),
     });
-    await nodes.register("m1", HELLO);
+    await nodes.register("m1", HELLO, "accepted");
     await nodes.writeSummary("m1", SUMMARY);
     await service.api.enable();
     seen.length = 0;
@@ -148,5 +173,54 @@ describe("summary cache", () => {
     expect(await nodes.readSummary("m1")).toBeUndefined();
     expect(await nodes.list()).toEqual([]);
     expect(seen).toContainEqual({ resource: "nodes" });
+  });
+});
+
+describe("peers from both directions (Step 1 foundation; owner A deepens)", () => {
+  it("lists a dialled peer from peers.json next to an accepted node device", async () => {
+    const { nodes, peers } = setup();
+    await peers.write([{ url: "https://mac.example", name: "Mac", secret: "s" }]);
+    const list = await nodes.list();
+    expect(list.map((node) => [node.name, node.links[0]?.direction, node.identified])).toEqual([
+      ["Homelab", "accepted", false],
+      ["Mac", "dialled", false],
+    ]);
+  });
+
+  it("keeps a per-peer link report and announces it", async () => {
+    const { nodes, peers } = setup();
+    const peer = { url: "https://mac.example", name: "Mac", secret: "s" };
+    await peers.write([peer]);
+    seen.length = 0;
+    nodes.reportLink(peerIdOf(peer), { state: "unreachable", message: "Node unreachable", since: 5 });
+    const mac = (await nodes.list()).find((node) => node.name === "Mac");
+    expect(mac?.links).toEqual([
+      { direction: "dialled", state: "unreachable", message: "Node unreachable", since: 5 },
+    ]);
+    expect(mac?.status).toBe("offline");
+    nodes.reportLink(peerIdOf(peer), { state: "linked", message: null, since: 6 });
+    expect((await nodes.list()).find((node) => node.name === "Mac")?.status).toBe("online");
+    expect(seen).toContainEqual({ resource: "nodes" });
+  });
+
+  it("learns a dialled peer's nodeId at its first hello and refuses a different one afterwards", async () => {
+    const { nodes, peers } = setup();
+    const peer = { url: "https://mac.example", name: "Mac", secret: "s" };
+    await peers.write([peer]);
+    const info = { ...HELLO, name: "Mac", nodeId: "mac-id", publicKey: "k" };
+    const node = await nodes.register(peerIdOf(peer), info, "dialled");
+    expect(node).toMatchObject({ id: "mac-id", identified: true });
+    await expect(nodes.register("mac-id", { ...info, nodeId: "other-id" }, "dialled")).rejects.toMatchObject({
+      code: "invalid_request",
+    });
+  });
+
+  it("self reports the identity and resetIdentity makes a new one and drops every peer", async () => {
+    const { nodes } = setup();
+    expect((await nodes.self()).nodeId).toBe("self1");
+    expect(await nodes.sign("x")).toBe("sig:x");
+    await nodes.resetIdentity();
+    expect((await nodes.self()).nodeId).toBe("self2");
+    expect(await nodes.list()).toEqual([]);
   });
 });

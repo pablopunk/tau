@@ -4,12 +4,23 @@ import { API_PREFIX } from "./rest";
 import { WS_MAX_PAYLOAD_BYTES } from "./terminal-stream";
 
 /**
- * The node link: one WebSocket per node, `GET /api/nodes/link`, dialled by the node.
+ * The node link: one WebSocket between two nodes, `GET /api/nodes/link`, dialled by either of them.
  * TEXT frames are the control schemas below. BINARY frames carry bodies and stream data:
  * `[4-byte stream id, big endian][1 flag byte][payload of at most CHUNK_BYTES]`.
- * Stream ids are allocated by the hub only. An over-size text frame is refused, never split.
+ * The dialler allocates ODD stream ids, the acceptor EVEN ids. A peer-initiated `request` or `open`
+ * with the wrong parity, or with an id in use, closes the link (1008). An over-size text frame is refused, never split.
  */
 export const NODE_LINK_PATH = `${API_PREFIX}/nodes/link`;
+/** The 0.1.x path: accepted by the guard so an old dialler gets a clean 4001 ("Update tau"), never a 401. */
+export const NODE_LINK_LEGACY_PATH = `${API_PREFIX}/machines/link`;
+
+export type LinkRole = "dialler" | "acceptor";
+/** Stream ids a role allocates: odd for the dialler, even for the acceptor. */
+export const firstStreamId = (role: LinkRole): number => (role === "dialler" ? 1 : 2);
+export const STREAM_ID_STEP = 2;
+/** `true` when `id` is a legal id for a stream that the PEER of `receiver` initiates. */
+export const isPeerStreamId = (receiver: LinkRole, id: number): boolean =>
+  id >= 1 && id <= 0xffffffff && (id % 2 === 1) === (receiver === "acceptor");
 
 export const CHUNK_BYTES = 256 * 1024;
 export const DATA_HEADER_BYTES = 5;
@@ -21,8 +32,19 @@ export const LINK_PING_INTERVAL_MS = 15_000;
 export const LINK_OFFLINE_AFTER_MS = 45_000;
 export const LINK_NO_CREDIT_CLOSE_MS = 60_000;
 export const LINK_CLOSE_NO_CREDIT = 1013;
-/** The hub closes a link whose `hello.protocolVersion` differs from its own; the node shows "update required". */
+/** Intended close of a replaced link (a reconnect after sleep); the dialler retries. */
+export const LINK_CLOSE_GOING_AWAY = 1001;
+/** A bad frame, a failed handshake, a wrong stream id. */
+export const LINK_CLOSE_POLICY = 1008;
+/** The other node has another `linkProtocol` (or a 0.1.x dialler): "update required". Not retried. */
 export const LINK_CLOSE_UPDATE_REQUIRED = 4001;
+/** A link to oneself or a duplicate link to the same node. Not retried. */
+export const LINK_CLOSE_DUPLICATE = 4002;
+/** Removed from the group (Step 2 expulsion). Not retried. */
+export const LINK_CLOSE_REMOVED = 4003;
+/** The nonce is 16 random bytes, base64url without padding. */
+export const NONCE_BYTES = 16;
+export const PROOF_DOMAIN = "tau-proof-v1";
 
 export const FLAG_END = 0x01;
 /** The payload is one text WebSocket message (`/live`), not binary. */
@@ -34,14 +56,27 @@ export const HelloFrameSchema = Type.Object({
   type: Type.Literal("hello"),
   ...NodeHelloSchema.properties,
 });
+/** `payload` is signed verbatim: `tau-proof-v1|<peer nonce>|<own nodeId>|<peer nodeId>`. */
+export const ProofFrameSchema = Type.Object({
+  type: Type.Literal("proof"),
+  payload: Type.String({ maxLength: 512 }),
+  sig: Type.String({ maxLength: 128 }),
+});
+/** Acknowledges a stream the peer opened (`open`); a data frame no longer implies ready. */
+export const ReadyFrameSchema = Type.Object({ type: Type.Literal("ready"), id: StreamId });
+/** Sent before an intended close (disconnect, revoke, expel): the other side does not retry. */
+export const ByeFrameSchema = Type.Object({
+  type: Type.Literal("bye"),
+  reason: Type.String({ maxLength: 120 }),
+});
 export const RequestFrameSchema = Type.Object({
   type: Type.Literal("request"),
   id: StreamId,
   method: Type.String(),
   path: Type.String(),
   query: Type.String(),
-  /** A label of the hub device, set as header `x-tau-hub-device` for the node's log. */
-  hubDevice: Type.String({ maxLength: 120 }),
+  /** A label of whoever acted, set as header `x-tau-via` on the loopback call for the node's log. */
+  via: Type.String({ maxLength: 120 }),
   contentType: Type.Optional(Type.String()),
   /** Body bytes that follow as data frames; absent for no body. */
   bodyBytes: Type.Optional(Type.Integer({ minimum: 0 })),
@@ -57,7 +92,7 @@ export const OpenFrameSchema = Type.Object({
   id: StreamId,
   path: Type.String(),
   query: Type.String(),
-  hubDevice: Type.String({ maxLength: 120 }),
+  via: Type.String({ maxLength: 120 }),
 });
 export const CloseFrameSchema = Type.Object({
   type: Type.Literal("close"),
@@ -73,8 +108,24 @@ export const CreditFrameSchema = Type.Object({
 export const PingFrameSchema = Type.Object({ type: Type.Literal("ping") });
 export const PongFrameSchema = Type.Object({ type: Type.Literal("pong") });
 
+/** The frames whose schemas decide whether two nodes may link (`linkProtocol`), plus the binary header. */
+export const BASE_FRAME_SCHEMAS = {
+  hello: HelloFrameSchema,
+  proof: ProofFrameSchema,
+  ready: ReadyFrameSchema,
+  bye: ByeFrameSchema,
+  request: RequestFrameSchema,
+  response: ResponseFrameSchema,
+  open: OpenFrameSchema,
+  close: CloseFrameSchema,
+  credit: CreditFrameSchema,
+} as const;
+
 export const LinkFrameSchema = Type.Union([
   HelloFrameSchema,
+  ProofFrameSchema,
+  ReadyFrameSchema,
+  ByeFrameSchema,
   RequestFrameSchema,
   ResponseFrameSchema,
   OpenFrameSchema,
@@ -85,6 +136,8 @@ export const LinkFrameSchema = Type.Union([
 ]);
 export type LinkFrame = Type.Static<typeof LinkFrameSchema>;
 export type RequestFrame = Type.Static<typeof RequestFrameSchema>;
+export type HelloFrame = Type.Static<typeof HelloFrameSchema>;
+export type ProofFrame = Type.Static<typeof ProofFrameSchema>;
 
 export interface DataFrame {
   readonly id: number;

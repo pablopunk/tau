@@ -1,10 +1,10 @@
 import {
   decodeDataFrame,
+  type LegacyLinkFrame,
+  LegacyLinkFrameSchema,
+  type LegacyNodeHello,
   LINK_OFFLINE_AFTER_MS,
   LINK_PING_INTERVAL_MS,
-  type LinkFrame,
-  LinkFrameSchema,
-  type NodeHello,
 } from "@tau/protocol";
 import { Value } from "typebox/value";
 import type WebSocket from "ws";
@@ -16,7 +16,7 @@ import { startSocketStream } from "./link-socket";
 export interface SessionOptions {
   readonly port: number;
   readonly token: string;
-  readonly hello: NodeHello;
+  readonly hello: LegacyNodeHello;
   readonly pingMs?: number;
   readonly idleMs?: number;
   readonly log: (message: string) => void;
@@ -33,10 +33,10 @@ export interface LinkSession {
   close(): void;
 }
 
-function parseFrame(data: WebSocket.RawData): LinkFrame | undefined {
+function parseFrame(data: WebSocket.RawData): LegacyLinkFrame | undefined {
   try {
     const value: unknown = JSON.parse(data.toString());
-    return Value.Check(LinkFrameSchema, value) ? (value as LinkFrame) : undefined;
+    return Value.Check(LegacyLinkFrameSchema, value) ? (value as LegacyLinkFrame) : undefined;
   } catch {
     return undefined;
   }
@@ -46,7 +46,7 @@ function parseFrame(data: WebSocket.RawData): LinkFrame | undefined {
 export function runLinkSession(socket: WebSocket, options: SessionOptions): LinkSession {
   const streams = new Map<number, Stream>();
   const sender = createLinkSender(socket);
-  const send = (frame: LinkFrame) => {
+  const send = (frame: LegacyLinkFrame) => {
     if (socket.readyState === socket.OPEN) socket.send(JSON.stringify(frame));
   };
   const context: LinkContext = {
@@ -58,7 +58,7 @@ export function runLinkSession(socket: WebSocket, options: SessionOptions): Link
   };
   const forget = (id: number) => () => void streams.delete(id);
 
-  const serve = (frame: LinkFrame) => {
+  const serve = (frame: LegacyLinkFrame) => {
     if (frame.type === "request") streams.set(frame.id, startRequest(context, frame, forget(frame.id)));
     else if (frame.type === "open")
       streams.set(frame.id, startSocketStream(context, frame, forget(frame.id)));
@@ -66,10 +66,10 @@ export function runLinkSession(socket: WebSocket, options: SessionOptions): Link
     else if (frame.type === "close") streams.get(frame.id)?.onClose();
     else if (frame.type === "ping") send({ type: "pong" });
   };
-  const logged = (frame: LinkFrame) => {
+  const logged = (frame: LegacyLinkFrame) => {
     if (frame.type === "request" || frame.type === "open") {
       options.log(
-        `hub device ${JSON.stringify(frame.hubDevice)}: ${frame.type === "request" ? frame.method : "open"} ${frame.path}`,
+        `via ${JSON.stringify(frame.via)}: ${frame.type === "request" ? frame.method : "open"} ${frame.path}`,
       );
     }
   };

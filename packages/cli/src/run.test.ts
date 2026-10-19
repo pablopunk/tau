@@ -25,6 +25,7 @@ function fakeDependencies(overrides: Partial<RunDependencies> = {}) {
     app: {} as never,
     port,
     tunnelPort: 0,
+    attachPeer: vi.fn() as never,
     origin: `http://127.0.0.1:${port}`,
     url: `http://127.0.0.1:${port}/?token=${token}`,
     close: serverClose,
@@ -75,6 +76,8 @@ describe("run", () => {
         delete: expect.any(Function),
       }),
       core,
+      attachPeer: expect.any(Function),
+      peers: expect.objectContaining({ read: expect.any(Function), write: expect.any(Function) }),
     });
     await app?.close();
     expect(order).toEqual(["link", "server"]);
@@ -116,6 +119,7 @@ describe("run", () => {
         app: {} as never,
         port,
         tunnelPort: 0,
+        attachPeer: vi.fn() as never,
         origin: "",
         url: `http://127.0.0.1:${port}/?token=${token}`,
         close: async () => undefined,

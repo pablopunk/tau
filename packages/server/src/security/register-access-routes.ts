@@ -1,4 +1,4 @@
-import { AppError, acceptLinkRefusal, type Core, PAIR_PAGE_PATH, routes } from "@tau/protocol";
+import { type Core, PAIR_PAGE_PATH, routes } from "@tau/protocol";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { defineRoute } from "../rest/define-route";
 import type { DeviceSockets } from "./device-sockets";
@@ -36,7 +36,13 @@ function registerRedeem({ core, tunnel }: AccessRouteDeps, app: FastifyInstance)
         peer: tag?.peer ?? LOCAL_PEER,
         userAgent: request.headers["user-agent"],
       });
-      if (redeemed.kind === "machine") return { deviceId: redeemed.deviceId, secret: redeemed.secret };
+      if (redeemed.kind === "node") {
+        return {
+          deviceId: redeemed.deviceId,
+          secret: redeemed.secret,
+          ...(redeemed.nodeId ? { nodeId: redeemed.nodeId } : {}),
+        };
+      }
       setDeviceCookie(reply, redeemed.secret, tag !== undefined);
       return { deviceId: redeemed.deviceId };
     },
@@ -53,13 +59,10 @@ function registerDevices({ core, sockets }: AccessRouteDeps, app: FastifyInstanc
   defineRoute(app, routes.signOutAllDevices, async () => {
     const before = await core.access.listDevices();
     await core.access.signOutAll();
-    for (const device of before) if (device.kind !== "machine") sockets.closeDevice(device.id);
+    for (const device of before) if (device.kind !== "node") sockets.closeDevice(device.id);
   });
-  defineRoute(app, routes.mintPairing, async ({ query }) => {
-    const refusal = query.kind === "machine" ? acceptLinkRefusal(await core.nodes.hubState()) : undefined;
-    if (refusal) throw new AppError("invalid_request", refusal);
-    return core.access.mintPairing(query);
-  });
+  // Every node may accept links, whatever it dials itself: no chain or loop rule any more.
+  defineRoute(app, routes.mintPairing, ({ query }) => core.access.mintPairing(query));
 }
 
 export function registerAccessRoutes(app: FastifyInstance, deps: AccessRouteDeps): void {

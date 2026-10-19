@@ -21,11 +21,11 @@ const withoutComments = (text: string): string =>
 const STRING_LITERAL = /(["'`])(?:(?!\1)[^\\\n]|\\.)*\1/g;
 const JSX_TEXT = />[^<>{}\n]*[A-Za-z][^<>{}\n]*</g;
 
-/** What a user can read: string literals and JSX text. The device kind `"machine"` stays on disk until MVP13 Step 1. */
+/** What a user can read: string literals and JSX text. */
 const userFacing = (text: string): string[] =>
-  [...(text.match(STRING_LITERAL) ?? []), ...(text.match(JSX_TEXT) ?? [])]
-    .filter((piece) => piece !== '"machine"')
-    .map((piece) => piece.replace(/Git[Hh]ub/g, ""));
+  [...(text.match(STRING_LITERAL) ?? []), ...(text.match(JSX_TEXT) ?? [])].map((piece) =>
+    piece.replace(/Git[Hh]ub/g, ""),
+  );
 
 /** Hub-link copy that Step 1 replaces with peer links; remove each entry as Step 1 rewrites it. */
 const HUB_ALLOWED = new Set([

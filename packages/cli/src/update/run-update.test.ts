@@ -114,7 +114,7 @@ describe("tau update --check", () => {
 });
 
 describe("tau update --check linked nodes", () => {
-  const m = (name: string, tauVersion: string, linkedTo?: string) => ({ name, tauVersion, linkedTo });
+  const m = (name: string, tauVersion: string) => ({ name, tauVersion });
   it("lists nodes behind the hub latest, unknown ones too, exit code unchanged", async () => {
     const s = await setup({
       latest: "1.0.0",

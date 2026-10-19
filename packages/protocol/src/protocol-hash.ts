@@ -3,4 +3,10 @@
  * `protocol-version.test.ts` fails when the surface changes and this value does not; run
  * `mise exec -- pnpm --filter @tau/protocol bump-protocol` to rewrite it.
  */
-export const PROTOCOL_VERSION = "55ffc6a23f644e321de9729967d31279";
+export const PROTOCOL_VERSION = "297e47c5059b9b548190ec8875677831";
+/**
+ * The `linkProtocol` of this build: a hash of the BASE link frames only. It decides whether two nodes may link at all
+ * (a mismatch closes the link with 4001); `PROTOCOL_VERSION` only drives "Update tau" and whether the web opens a node's API.
+ * Bumped by the same `bump-protocol` command.
+ */
+export const LINK_PROTOCOL = "763cdc1b5518bd51f1889ff0879daaf0";

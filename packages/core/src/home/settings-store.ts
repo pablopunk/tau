@@ -35,6 +35,7 @@ type StoredSettings = {
   lastWorkspaceModes?: Record<string, WorkspaceMode>;
   mcpServers?: McpServerConfig[];
   remote?: RemoteSettings;
+  setupSkipped?: boolean;
 };
 
 const parseJson = (text: string | undefined): Record<string, unknown> => {
@@ -118,6 +119,7 @@ function parseStored(text: string | undefined): StoredSettings {
     stored.lastWorkspaceModes = validLastWorkspaceModes(raw.lastWorkspaceModes);
   if (Value.Check(RemoteSettingsSchema, raw.remote)) stored.remote = { enabled: raw.remote.enabled };
   if (raw.mcpServers !== undefined) stored.mcpServers = validMcpServers(raw.mcpServers);
+  if (raw.setupSkipped === true) stored.setupSkipped = true;
   return stored;
 }
 
@@ -132,6 +134,7 @@ const withDefaults = (stored: StoredSettings, defaultProjectsFolder: string): Se
   claudeCliNoticeAt: stored.claudeCliNoticeAt ?? null,
   claudeConnectors: stored.claudeConnectors ?? { enabled: [], alwaysAllow: [], askBeforeWrites: false },
   remote: stored.remote ?? { enabled: false },
+  setupSkipped: stored.setupSkipped ?? false,
 });
 
 export interface SettingsStore {
@@ -147,6 +150,7 @@ export interface SettingsStore {
   setMessageMode(mode: MessageMode): Promise<void>;
   setWorkspaceDefault(mode: WorkspaceDefault): Promise<void>;
   setClaudeCliNoticeAt(at: number): Promise<void>;
+  setSetupSkipped(skipped: boolean): Promise<void>;
   setClaudeConnectors(value: ClaudeConnectorSettings): Promise<void>;
   setRemoteEnabled(enabled: boolean): Promise<void>;
   lastWorkspaceMode(projectId: string): Promise<WorkspaceMode | undefined>;
@@ -194,6 +198,8 @@ export function createSettingsStore(settingsFile: string, defaultProjectsFolder:
     setMessageMode: (mode) => update((stored) => ({ ...stored, messageMode: mode })),
     setWorkspaceDefault: (mode) => update((stored) => ({ ...stored, workspaceDefault: mode })),
     setClaudeCliNoticeAt: (at) => update((stored) => ({ ...stored, claudeCliNoticeAt: at })),
+    setSetupSkipped: (skipped) =>
+      update(({ setupSkipped: _skipped, ...rest }) => (skipped ? { ...rest, setupSkipped: true } : rest)),
     setClaudeConnectors: (value) =>
       update((stored) => ({
         ...stored,

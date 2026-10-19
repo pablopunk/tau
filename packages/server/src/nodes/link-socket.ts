@@ -82,6 +82,6 @@ export function pipeSocket(session: LinkSession, request: GatewayStreamRequest, 
     id,
     path: request.path,
     query: request.query,
-    hubDevice: request.hubDevice.slice(0, 120),
+    via: request.hubDevice.slice(0, 120),
   });
 }

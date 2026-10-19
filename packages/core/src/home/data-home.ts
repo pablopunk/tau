@@ -10,6 +10,10 @@ export interface DataHome {
   readonly lockFile: string;
   readonly iconsDirectory: string;
   readonly devicesFile: string;
+  /** `<home>/node.json`: this node's Ed25519 identity (0600). */
+  readonly identityFile: string;
+  /** `<home>/peers.json`: the peers this node dials (0600). */
+  readonly peersFile: string;
   /** The custom OpenTunnel store, never XDG. */
   readonly remoteDirectory: string;
   readonly nodesDirectory: string;
@@ -28,9 +32,11 @@ export async function openDataHome(root: string): Promise<DataHome> {
     lockFile: join(root, "lock"),
     iconsDirectory: join(root, "icons"),
     devicesFile: join(root, "devices.json"),
+    identityFile: join(root, "node.json"),
+    peersFile: join(root, "peers.json"),
     remoteDirectory: join(root, "remote"),
-    // On disk this stays `machines` until MVP13 Step 1.
-    nodesDirectory: join(root, "machines"),
+    // `machines/` (0.1.x) is renamed to `nodes/` at start by `migrateSummaryDirectory`.
+    nodesDirectory: join(root, "nodes"),
     startsFile: join(root, "starts.json"),
     lastExitFile: join(root, "last-exit.json"),
   };

@@ -62,7 +62,7 @@ export async function realUpdateDeps(): Promise<UpdateDeps> {
     },
     ancestorPids: process.platform === "win32" ? undefined : () => ancestorPidsOf(spawnCommand),
     pollInstance: pollForVersion,
-    hasHubFile: (home) => existsSync(join(home, "hub.json")),
+    hasHubFile: (home) => existsSync(join(home, "peers.json")) || existsSync(join(home, "hub.json")),
     linkedNodes: fetchLinkedNodes,
   };
 }

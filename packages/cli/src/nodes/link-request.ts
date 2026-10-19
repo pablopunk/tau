@@ -13,7 +13,7 @@ function flatten(headers: IncomingHttpHeaders): Record<string, string> {
 
 function requestHeaders(context: LinkContext, frame: RequestFrame): Record<string, string> {
   return {
-    ...loopbackHeaders(context, frame.hubDevice),
+    ...loopbackHeaders(context, frame.via),
     ...(frame.contentType !== undefined && { "content-type": frame.contentType }),
     ...(frame.bodyBytes !== undefined &&
       frame.bodyBytes > 0 && { "content-length": String(frame.bodyBytes) }),

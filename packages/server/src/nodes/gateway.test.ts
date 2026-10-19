@@ -31,7 +31,7 @@ async function linkPeer(
   handlers: PeerHandlers,
   options: { hello?: { protocolVersion: string }; withholdCredit?: boolean } = {},
 ) {
-  const minted = await ctx.core.access.mintPairing({ kind: "machine" });
+  const minted = await ctx.core.access.mintPairing({ kind: "node" });
   const redeemed = await ctx.core.access.redeemPairing({
     code: minted.code,
     deviceName: "Loopback",
@@ -82,7 +82,7 @@ describe("node gateway over a loopback link", () => {
         reply.header("content-type", "application/json");
         return {
           projectId: (request.query as { projectId?: string }).projectId,
-          label: request.headers["x-tau-hub-device"],
+          label: request.headers["x-tau-via"],
         };
       }),
     );

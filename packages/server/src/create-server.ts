@@ -4,9 +4,11 @@ import { type Core, WS_MAX_PAYLOAD_BYTES } from "@tau/protocol";
 import Fastify, { type FastifyInstance } from "fastify";
 import { handleError } from "./error-handler";
 import { registerLive } from "./live/register-live";
+import { createAttachPeer } from "./nodes/attach-peer";
 import { createNodeGateway } from "./nodes/create-gateway";
 import { createDeviceLabels } from "./nodes/device-labels";
 import type { NodeGateway } from "./nodes/gateway";
+import type { AttachPeer } from "./nodes/peer-seam";
 import { registerNodeLink } from "./nodes/register-link";
 import { registerNodeRoutes } from "./nodes/register-node-routes";
 import { registerNodeProxy } from "./nodes/register-proxy";
@@ -18,6 +20,7 @@ import { closeSocketsOfGoneDevices, createDeviceSockets } from "./security/devic
 import "./security/fastify-augmentation";
 import { createGuard } from "./security/guard";
 import { registerAccessRoutes } from "./security/register-access-routes";
+import { registerLegacyLink } from "./security/register-legacy-link";
 import { createSession } from "./security/session";
 import { createTunnelListener, type TunnelListener } from "./security/tunnel-listener";
 import { createTunnelTags } from "./security/tunnel-tags";
@@ -47,6 +50,11 @@ export interface RunningServer {
   readonly port: number;
   /** The loopback port of the tunnel listener: the target of the tunnel route `@`. */
   readonly tunnelPort: number;
+  /**
+   * Runs a symmetric node link on a socket: the acceptor passes the upgraded link socket, the dialler (the CLI's
+   * link client) the socket it opened. FROZEN seam; owner B fills `nodes/attach-peer.ts`.
+   */
+  readonly attachPeer: AttachPeer;
   /** `http://127.0.0.1:<port>`, without the token. */
   readonly origin: string;
   /** `origin/?token=…`: the URL a person opens. */
@@ -107,6 +115,7 @@ export const createServer: CreateServer = async (options) => {
   const gateway = options.gateway ?? createNodeGateway(options.core);
   registerNodeRoutes(app, { core: options.core, sockets, gateway });
   registerNodeLink(app, { core: options.core, sockets, gateway });
+  registerLegacyLink(app);
   await registerNodeProxy(app, { sockets, gateway, hubDeviceLabel: labels.label });
   await registerStaticAssets(app, options.staticDir);
   const tunnel: TunnelListener = createTunnelListener({
@@ -130,11 +139,13 @@ export const createServer: CreateServer = async (options) => {
     await app.close();
     throw error;
   }
+  const attachPeer = createAttachPeer({ core: options.core, sockets });
   const { port: tunnelPort } = await tunnel.start();
   const origin = `http://${DEFAULT_HOST}:${boundPort}`;
   return {
     app,
     port: boundPort,
+    attachPeer,
     tunnelPort,
     origin,
     url: `${origin}/?token=${encodeURIComponent(options.token)}`,

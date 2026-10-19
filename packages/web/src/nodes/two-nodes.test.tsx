@@ -17,6 +17,8 @@ import { writeSummaryCache } from "./summary-cache";
 const HOUR = 3_600_000;
 const node = (overrides: Partial<Node>): Node => ({
   id: "m1",
+  identified: true,
+  links: [{ direction: "accepted", state: "linked", message: null, since: null }],
   name: "Homelab",
   os: "linux",
   tauVersion: "0.0.0",

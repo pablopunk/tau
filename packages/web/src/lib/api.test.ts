@@ -44,6 +44,7 @@ describe("http transport", () => {
       claudeCliNoticeAt: null,
       claudeConnectors: { enabled: [], alwaysAllow: [], askBeforeWrites: false },
       remote: { enabled: false },
+      setupSkipped: false,
     };
     stubFetch(respond(200, settings));
     expect(await api.settings.get()).toEqual(settings);

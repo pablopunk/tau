@@ -13,7 +13,6 @@ import type {
   GithubRepo,
   GithubStatus,
   Goal,
-  HubLink,
   LoginSession,
   LoopInput,
   McpServerConfig,
@@ -24,6 +23,7 @@ import type {
   ModelInfo,
   ModelRef,
   Node,
+  NodeSelf,
   NodeSummary,
   PathSuggestion,
   ProcessInfo,
@@ -50,6 +50,7 @@ import type {
   WorkspaceStatus,
 } from "@tau/protocol";
 import { fillPath, routes, terminalStreamPath } from "@tau/protocol";
+import { type HubLinkView, hubLinkViewOf, hubPeerIdOf } from "./hub-link";
 import { createHttpTransport } from "./transport/http";
 import { createLazyTransport } from "./transport/lazy";
 import type { LiveTransport, StreamHandlers, StreamSocket, Transport } from "./transport/types";
@@ -73,6 +74,8 @@ export interface Api {
     setMessageMode(mode: MessageMode): Promise<void>;
     setWorkspaceDefault(mode: WorkspaceDefault): Promise<void>;
     setClaudeConnectors(value: ClaudeConnectorSettings): Promise<void>;
+    /** "Use my other nodes": skip first-run setup on this node (server-side, so a fresh browser keeps it). */
+    setSetupSkipped(skipped: boolean): Promise<void>;
     suggestedCodeFolder(): Promise<SuggestedCodeFolder>;
   };
   github: {
@@ -195,10 +198,16 @@ export interface Api {
     list(): Promise<Node[]>;
     rename(id: string, name: string): Promise<void>;
     disconnect(id: string): Promise<void>;
-    /** This tau's own link to a hub ("Linked to <hub>"). */
     /** What the hub last saw of a node (titles and times); rejects `not_found` before the first one. */
     summary(id: string): Promise<NodeSummary>;
-    hubLink(): Promise<HubLink>;
+    /** Local only: revokes the node's device here and closes its links; no other node is told. */
+    forget(id: string): Promise<void>;
+    /** This tau itself: nodeId, name, os and versions. */
+    self(): Promise<NodeSelf>;
+    /** Deletes this node's key and links: a new nodeId. */
+    resetIdentity(): Promise<void>;
+    /** TRANSITIONAL: the one-hub view derived from the peers (`lib/hub-link.ts`); owner C replaces it with `Node.links`. */
+    hubLink(): Promise<HubLinkView>;
     disconnectHub(): Promise<void>;
   };
   terminals: {
@@ -232,6 +241,7 @@ export function createApi(transport: Transport): Api {
       setMessageMode: (mode) => request("setMessageMode", { body: { mode } }),
       setWorkspaceDefault: (mode) => request("setWorkspaceDefault", { body: { mode } }),
       setClaudeConnectors: (value) => request("setClaudeConnectors", { body: value }),
+      setSetupSkipped: (skipped) => request("setSetupSkipped", { body: { skipped } }),
     },
     github: {
       status: () => request("getGithubStatus", {}),
@@ -353,8 +363,17 @@ export function createApi(transport: Transport): Api {
       rename: (id, name) => request("renameNode", { params: { id }, body: { name } }),
       disconnect: (id) => request("disconnectNode", { params: { id } }),
       summary: (id) => request("getNodeSummary", { params: { id } }),
-      hubLink: () => request("getHubLink", {}),
-      disconnectHub: () => request("disconnectHub", {}),
+      forget: (id) => request("forgetNode", { params: { id } }),
+      self: () => request("getNodeSelf", {}),
+      resetIdentity: () => request("resetNodeIdentity", {}),
+      hubLink: async () => {
+        const [nodes, self] = await Promise.all([request("listNodes", {}), request("getNodeSelf", {})]);
+        return hubLinkViewOf(nodes, self);
+      },
+      disconnectHub: async () => {
+        const id = hubPeerIdOf(await request("listNodes", {}));
+        if (id) await request("disconnectNode", { params: { id } });
+      },
     },
     terminals: {
       available: async () => (await request("getTerminalsAvailable", {})).available,

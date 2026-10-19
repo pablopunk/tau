@@ -1,4 +1,3 @@
-import type { HubLink } from "@tau/protocol";
 import { useState } from "react";
 import { FormError } from "@/app/FormError";
 import { useSubmit } from "@/app/use-submit";
@@ -6,9 +5,10 @@ import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { SettingRow } from "@/components/ui/settings-layout";
+import type { HubLinkView } from "@/lib/hub-link";
 import { useDisconnectHub, useHubLink } from "@/lib/queries";
 
-const STATE_TEXT: Record<HubLink["state"], string> = {
+const STATE_TEXT: Record<HubLinkView["state"], string> = {
   none: "",
   connecting: "Connecting…",
   linked: "Linked",
@@ -16,11 +16,13 @@ const STATE_TEXT: Record<HubLink["state"], string> = {
   unreachable: "Hub unreachable",
   "update-required": "Update tau on the hub",
   refused: "The hub refused this node",
+  duplicate: "Duplicate identity",
+  standby: "Standing by",
 };
 
-const hubLabel = (link: HubLink) => link.hubName ?? link.hubUrl ?? "a hub";
+const hubLabel = (link: HubLinkView) => link.hubName ?? link.hubUrl ?? "a hub";
 
-function describe(link: HubLink): string {
+function describe(link: HubLinkView): string {
   if (link.state === "none") return "This node is not linked to a hub.";
   return link.message ?? STATE_TEXT[link.state];
 }

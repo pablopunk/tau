@@ -25,7 +25,16 @@ function ConnectStep({ connected, onContinue }: { connected: boolean; onContinue
   );
 }
 
-export function SetupScreen({ keyConfigured }: { keyConfigured: boolean }) {
+/**
+ * `onUseOtherNodes` is given by the gate in `app/App.tsx` only when a peer is known (online or not): it sets
+ * `Settings.setupSkipped`. Owner C renders the "Use my other nodes" action from it (Step 1 foundation hand-off).
+ */
+export interface SetupScreenProps {
+  readonly keyConfigured: boolean;
+  readonly onUseOtherNodes?: (() => void) | undefined;
+}
+
+export function SetupScreen({ keyConfigured }: SetupScreenProps) {
   const [continued, setContinued] = useState(false);
   const onModelStep = continued && keyConfigured;
   return (

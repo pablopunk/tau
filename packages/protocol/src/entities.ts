@@ -71,6 +71,8 @@ export const SettingsSchema = Type.Object({
   claudeCliNoticeAt: Type.Union([Type.Number(), Type.Null()]),
   claudeConnectors: ClaudeConnectorSettingsSchema,
   remote: RemoteSettingsSchema,
+  /** "Use my other nodes": the user skipped first-run setup here because a peer can run threads. Server-side so a fresh browser does not see setup again. */
+  setupSkipped: Type.Boolean(),
 });
 export type Settings = Type.Static<typeof SettingsSchema>;
 

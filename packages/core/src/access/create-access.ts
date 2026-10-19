@@ -9,7 +9,24 @@ import { safeEqual, sha256Hex } from "./secrets";
 export type AccessService = Core["access"] & {
   /** Removes every device and node (their cookies and links belong to the old host). */
   clearAll(): Promise<void>;
+  /**
+   * Stores the verified `nodeId` and public key on a node device at its first `hello`. A device that already
+   * has another identity, or a `nodeId` already held by another device with another key, is never overwritten.
+   * `duplicate-device`: another node device already carries that `nodeId` (glare or a second `tau connect`:
+   * the link arbiter decides, see `duplicate-links.ts`).
+   */
+  bindNodeIdentity(deviceId: string, identity: { nodeId: string; publicKey: string }): Promise<BindResult>;
+  /** The node device that carries `nodeId`, if any. */
+  findNodeDevice(nodeId: string): Promise<Device | undefined>;
 };
+
+export type BindResult =
+  | { readonly ok: true }
+  | {
+      readonly ok: false;
+      readonly reason: "not-found" | "identity-conflict" | "duplicate-device";
+      readonly otherDeviceId?: string;
+    };
 
 const TOUCH_THROTTLE_MS = 60_000;
 const WRONG_CODE = "That code did not work.";
@@ -35,13 +52,13 @@ export function createAccess(deps: AccessDeps): AccessService {
     const hash = sha256Hex(secret);
     let found: StoredDevice | undefined;
     for (const device of await load()) {
-      if (safeEqual(device.secretHash, hash) && (device.kind === "machine") === node) found = device;
+      if (safeEqual(device.secretHash, hash) && (device.kind === "node") === node) found = device;
     }
     return found ? { deviceId: found.id } : undefined;
   };
   const toDevice = (device: StoredDevice, currentId?: string): Device => {
-    const { secretHash: _hash, ...rest } = device;
-    return { ...rest, current: device.kind !== "machine" && device.id === currentId };
+    const { secretHash: _hash, publicKey: _key, ...rest } = device;
+    return { ...rest, current: device.kind !== "node" && device.id === currentId };
   };
 
   async function redeem(input: Parameters<Core["access"]["redeemPairing"]>[0]) {
@@ -53,7 +70,7 @@ export function createAccess(deps: AccessDeps): AccessService {
       throw wrongCode();
     }
     const secret = deps.randomBytes(32).toString("hex");
-    const kind: DeviceKind = pairing.kind === "machine" ? "machine" : deviceKindFromName(input.deviceName);
+    const kind: DeviceKind = pairing.kind === "node" ? "node" : deviceKindFromName(input.deviceName);
     const at = deps.now();
     const device: StoredDevice = {
       id: deps.randomBytes(8).toString("hex"),
@@ -65,7 +82,8 @@ export function createAccess(deps: AccessDeps): AccessService {
     };
     await save([...(await load()), device]);
     deps.announce();
-    return { deviceId: device.id, kind: pairing.kind, secret };
+    const nodeId = pairing.kind === "node" ? deps.nodeId?.() : undefined;
+    return { deviceId: device.id, kind: pairing.kind, secret, ...(nodeId ? { nodeId } : {}) };
   }
 
   return {
@@ -100,21 +118,48 @@ export function createAccess(deps: AccessDeps): AccessService {
       deps.announce();
     },
     async signOutAll() {
-      await save((await load()).filter((device) => device.kind === "machine"));
+      await save((await load()).filter((device) => device.kind === "node"));
       deps.announce();
     },
     async mintPairing({ kind = "device", name }) {
       const entry = codes.mint(kind);
       const url = deps.remoteUrl();
+      const ownNodeId = deps.nodeId?.();
       return {
         kind,
         code: entry.code,
         shortCode: entry.shortCode,
-        link: url === null ? null : pairingLink(url, entry.code, name),
+        link:
+          url === null ? null : pairingLink(url, entry.code, name, kind === "node" ? ownNodeId : undefined),
         expiresAt: entry.expiresAt,
+        ...(ownNodeId ? { nodeId: ownNodeId } : {}),
       };
     },
     redeemPairing: redeem,
+    async bindNodeIdentity(deviceId, { nodeId, publicKey }) {
+      const devices = await load();
+      const device = devices.find((entry) => entry.id === deviceId && entry.kind === "node");
+      if (!device) return { ok: false, reason: "not-found" };
+      if (device.nodeId !== undefined && (device.nodeId !== nodeId || device.publicKey !== publicKey)) {
+        return { ok: false, reason: "identity-conflict" };
+      }
+      const holder = devices.find(
+        (entry) => entry.id !== deviceId && entry.kind === "node" && entry.nodeId === nodeId,
+      );
+      if (holder) {
+        return holder.publicKey === publicKey
+          ? { ok: false, reason: "duplicate-device", otherDeviceId: holder.id }
+          : { ok: false, reason: "identity-conflict", otherDeviceId: holder.id };
+      }
+      if (device.nodeId === nodeId) return { ok: true };
+      await save(devices.map((entry) => (entry === device ? { ...device, nodeId, publicKey } : entry)));
+      deps.announce();
+      return { ok: true };
+    },
+    async findNodeDevice(nodeId) {
+      const found = (await load()).find((entry) => entry.kind === "node" && entry.nodeId === nodeId);
+      return found ? toDevice(found) : undefined;
+    },
     async clearAll() {
       codes.clear();
       await save([]);

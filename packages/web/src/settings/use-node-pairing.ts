@@ -34,7 +34,7 @@ export function useNodePairing(active: boolean) {
     setPairing(null);
     known.current = new Set(latest.current.map((node) => node.id));
     try {
-      setPairing(await mutateAsync({ kind: "machine" }));
+      setPairing(await mutateAsync({ kind: "node" }));
     } catch (caught) {
       setError(errorMessage(caught));
     }

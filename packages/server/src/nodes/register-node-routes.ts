@@ -25,6 +25,12 @@ export function registerNodeRoutes(app: FastifyInstance, { core, sockets, gatewa
     sockets.closeNode(params.id);
     gateway.closeNode(params.id);
   });
-  defineRoute(app, routes.getHubLink, () => core.nodes.hubState());
-  defineRoute(app, routes.disconnectHub, () => core.nodes.disconnectHub());
+  defineRoute(app, routes.getNodeSelf, () => core.nodes.self());
+  defineRoute(app, routes.forgetNode, async ({ params }) => {
+    await core.nodes.forget(params.id);
+    sockets.closeDevice(params.id);
+    sockets.closeNode(params.id);
+    gateway.closeNode(params.id);
+  });
+  defineRoute(app, routes.resetNodeIdentity, () => core.nodes.resetIdentity());
 }

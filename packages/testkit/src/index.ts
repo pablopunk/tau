@@ -7,6 +7,7 @@ export {
   type FakeGithubRepo,
   fakeGithubRepos,
 } from "./fake/fake-github";
+export { linkFakeCores } from "./fake/link-fake-cores";
 export {
   allFixtures,
   type Fixture,
