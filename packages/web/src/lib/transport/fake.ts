@@ -30,6 +30,16 @@ type Input = {
   body: Record<string, unknown>;
 };
 
+const FAKE_UPDATE_STEP_MS = 3_000;
+
+/** Moves a started fake update through installing → restarting → done, one step every few seconds. */
+function walkFakeUpdate(core: Core): void {
+  const control = (core as Partial<FakeCore>).updatesControl;
+  const timer = setInterval(() => {
+    if (!control?.advance()) clearInterval(timer);
+  }, FAKE_UPDATE_STEP_MS);
+}
+
 /** The fake browser is the first device linked: the Devices list marks it "This device". */
 export const FAKE_CURRENT_DEVICE_ID = "device-1";
 
@@ -178,7 +188,11 @@ const handlers: Handlers = {
   setSetupSkipped: (core, { body }) => core.settings.setSetupSkipped(body.skipped as boolean),
   getUpdateStatus: (core) => core.updates.status(),
   refreshUpdateStatus: (core) => core.updates.refresh(),
-  startUpdate: (core, { body }) => core.updates.start(body as UpdateStartBody),
+  startUpdate: async (core, { body }) => {
+    const status = await core.updates.start(body as UpdateStartBody);
+    walkFakeUpdate(core);
+    return status;
+  },
   linkNode: async () => {
     throw new AppError("not_found", "The node link is a socket, not an HTTP call.");
   },
@@ -276,6 +290,20 @@ async function cacheOfflineSummaries(hub: FakeCore): Promise<void> {
   }
 }
 
+/** `?fake=update` (behind, runs), `update-fail`, `update-manual` (npx): ready, 0.9.0 with 0.10.12 published. */
+function updateScenarioOf(name: string | null): Parameters<typeof createFakeCore>[0] | undefined {
+  const base = { currentVersion: "0.9.0", latestVersion: "0.10.12" };
+  const manual = {
+    mode: "manual",
+    command: "npm i -g @pablopunk/tau@latest && tau restart",
+    reason: "it runs from the npx cache",
+  } as const;
+  if (name === "update") return base;
+  if (name === "update-fail") return { ...base, updates: { failUpdate: true } };
+  if (name === "update-manual") return { ...base, updates: { install: manual } };
+  return undefined;
+}
+
 let hub: Promise<FakeCore> | undefined;
 
 /**
@@ -287,10 +315,11 @@ let hub: Promise<FakeCore> | undefined;
 function fakeHub(): Promise<FakeCore> {
   hub ??= (async () => {
     const params = new URLSearchParams(window.location.search);
-    const ready = params.get("fake") === "ready";
+    const scenario = updateScenarioOf(params.get("fake"));
+    const ready = params.get("fake") === "ready" || scenario !== undefined;
     const remote = ready && params.get("remote") !== "off";
     const nodes = params.has("nodes");
-    const core = createFakeCore({ configured: ready, remote, nodes });
+    const core = createFakeCore({ configured: ready, remote, nodes, ...scenario });
     if (ready) await seedReadyState(core);
     for (const [nodeId, node] of core.nodeCores) {
       await seedReadyState(node);

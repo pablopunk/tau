@@ -14,6 +14,7 @@ import type {
   RemoteStatus,
   UpdateStatus,
 } from "@tau/protocol";
+import { isJobActive } from "@/lib/updates";
 import { useApi } from "@/nodes/node-context";
 
 export const queryKeys = {
@@ -403,16 +404,37 @@ export const useResetNodeIdentity = () => {
 };
 
 const UPDATE_POLL_UNKNOWN_MS = 5_000;
-const UPDATE_POLL_KNOWN_MS = 10 * 60_000;
+const UPDATE_POLL_MS = 60_000;
+const UPDATE_POLL_JOB_MS = 2_000;
 
-/** Polls fast while the latest is still unknown (the first check runs in the background), slowly after. */
+/** Polls every 2 s (no retries) while a job runs, fast while the latest is unknown, every minute after. */
 export const useUpdateStatus = () => {
   const api = useApi();
+  const queryClient = useQueryClient();
+  const jobRuns = () => {
+    const data = queryClient.getQueryData<UpdateStatus>(queryKeys.updateStatus);
+    return data !== undefined && isJobActive(data.job);
+  };
   return useQuery({
     queryKey: queryKeys.updateStatus,
     queryFn: () => api.updates.status(),
+    retry: (failures) => !jobRuns() && failures < 3,
     refetchInterval: (query) =>
-      query.state.data?.latest == null ? UPDATE_POLL_UNKNOWN_MS : UPDATE_POLL_KNOWN_MS,
+      query.state.data && isJobActive(query.state.data.job)
+        ? UPDATE_POLL_JOB_MS
+        : query.state.data?.latest == null
+          ? UPDATE_POLL_UNKNOWN_MS
+          : UPDATE_POLL_MS,
+  });
+};
+
+export const useStartUpdate = () => {
+  const api = useApi();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { target: string; force: boolean }) => api.updates.start(body),
+    onSuccess: (status) => queryClient.setQueryData(queryKeys.updateStatus, status),
+    onError: () => queryClient.invalidateQueries({ queryKey: queryKeys.updateStatus }),
   });
 };
 

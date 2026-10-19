@@ -25,6 +25,7 @@ import { useHubName } from "@/nodes/use-node-avatar";
 import { NodeGroup } from "./NodeGroup";
 import { NodeSection } from "./NodeSection";
 import { OfflineNodeSection } from "./OfflineNodeSection";
+import { UpdateButton } from "./UpdateButton";
 import { useSidebarMode } from "./use-sidebar-preferences";
 
 const MODE_OPTIONS = [
@@ -121,10 +122,13 @@ export function AppSidebar() {
         <NodeSections mode={mode} />
       </SidebarContent>
       <SidebarFooter>
-        <Button variant="ghost" className="justify-start" onClick={openSettings}>
-          <SettingsIcon />
-          Settings
-        </Button>
+        <div className="flex items-center justify-between gap-2">
+          <Button variant="ghost" className="min-w-0 justify-start" onClick={openSettings}>
+            <SettingsIcon />
+            Settings
+          </Button>
+          <UpdateButton />
+        </div>
       </SidebarFooter>
       <SidebarRail />
     </Sidebar>
