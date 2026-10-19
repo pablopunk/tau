@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
 import { useOpenConversation } from "@/activity";
 import { useOpenSettings } from "@/app/settings-dialog";
+import { BrandText } from "@/components/ui/brand-text";
 import { Button } from "@/components/ui/button";
 import { NodeName } from "@/components/ui/node-name";
 import { SegmentedControl } from "@/components/ui/segmented-control";
@@ -97,10 +98,11 @@ export function AppSidebar() {
   const openSettings = useOpenSettings();
   return (
     <Sidebar aria-label="Projects and threads">
-      <SidebarHeader className="gap-2 px-4 py-3">
-        <div className="flex items-center justify-between gap-2">
-          <TauLogo />
-          <SidebarTrigger className="hidden shrink-0 md:inline-flex" />
+      <SidebarHeader className="gap-4 px-4 py-3">
+        <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+          <TauLogo className="size-5" />
+          <BrandText className="text-base font-semibold drop-shadow-sm">tau</BrandText>
+          <SidebarTrigger className="hidden size-8 shrink-0 justify-self-end md:inline-flex [&_svg:not([class*='size-'])]:size-5" />
         </div>
         <div className="flex items-center justify-between gap-2">
           <Button variant="outline" size="sm" className="min-w-0" onClick={() => navigate(newThreadPath())}>
