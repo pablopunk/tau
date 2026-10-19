@@ -15,7 +15,7 @@ interface Routes {
 
 function fakeFetch(routes: Routes) {
   const calls: string[] = [];
-  const impl = (async (input: RequestInfo | URL, init?: RequestInit) => {
+  const impl = (async (input: string | URL, init?: RequestInit) => {
     const url = String(input);
     calls.push(`${init?.method ?? "GET"} ${url}`);
     const route = routes[`${init?.method ?? "GET"} ${url}`];
