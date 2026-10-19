@@ -1,5 +1,6 @@
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { createInterface } from "node:readline/promises";
 
 export interface SocketLike {
   onopen: (() => void) | null;
@@ -29,6 +30,8 @@ export interface CommandEnv {
   /** A slow re-check in case a `changed` frame is missed. */
   readonly pollMs: number;
   readonly skillPaths: readonly string[];
+  /** Asks a yes/no question on a terminal; absent when there is none (then `--yes` is required). */
+  readonly confirm?: (question: string) => Promise<boolean>;
 }
 
 const defaultOpenSocket: OpenSocket = (url, headers) => {
@@ -37,6 +40,15 @@ const defaultOpenSocket: OpenSocket = (url, headers) => {
     init: { headers: Record<string, string> },
   ) => SocketLike;
   return new Socket(url, { headers });
+};
+
+const askOnTerminal = async (question: string): Promise<boolean> => {
+  const lines = createInterface({ input: process.stdin, output: process.stderr });
+  try {
+    return /^y(es)?$/i.test((await lines.question(question)).trim());
+  } finally {
+    lines.close();
+  }
 };
 
 export const homeOf = (env: Readonly<Record<string, string | undefined>>): string =>
@@ -59,5 +71,6 @@ export function processEnv(): CommandEnv {
     startupWaitMs: 5000,
     pollMs: 2000,
     skillPaths: [],
+    confirm: process.stdin.isTTY ? askOnTerminal : undefined,
   };
 }

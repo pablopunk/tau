@@ -63,6 +63,13 @@ function nounHelp(noun: string): string {
   return [`tau ${noun} <command>`, "", ...lines, ...extras].join("\n");
 }
 
+const destructiveNote = (command: string): string =>
+  command === "nodes remove"
+    ? "Destructive: needs --confirm <node name or id> (it replaces --yes)."
+    : command === "access rotate"
+      ? "Destructive: shows the devices it would revoke and asks; --yes skips the question."
+      : "Destructive: needs --yes.";
+
 function commandHelp(command: string): string {
   const def = commandOf(command);
   if (!def) throw usageError(`Unknown command: ${command}`);
@@ -70,7 +77,7 @@ function commandHelp(command: string): string {
     const value = flag.kind === "value" ? " <value>" : "";
     return `  ${pad(`--${flag.name}${value}`)}${flag.summary}`;
   });
-  const destructive = def.destructive ? ["", "Destructive: needs --yes."] : [];
+  const destructive = def.destructive ? ["", destructiveNote(def.command)] : [];
   return [`tau ${def.command} ${usageOf(def)}`, def.summary, "", "Flags:", ...flags, ...destructive].join(
     "\n",
   );

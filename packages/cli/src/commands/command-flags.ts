@@ -30,6 +30,13 @@ const COMMON_FLAGS: readonly CommandFlag[] = [
   },
 ];
 
+const KEEP_FLAG: CommandFlag = {
+  name: "keep",
+  kind: "value",
+  valueKind: "string",
+  summary: "Device ids to keep, comma separated (default: none; your own device is always kept)",
+};
+
 const WAIT_FLAGS: readonly CommandFlag[] = [
   {
     name: "wait",
@@ -73,7 +80,8 @@ export function commandFlags(def: CommandDef): readonly CommandFlag[] {
     .filter((field) => isFlagField(def, field))
     .map(flagOf);
   const waitFlags = WAIT_COMMANDS.includes(def.command) ? WAIT_FLAGS : [];
-  return [...fieldFlags, ...waitFlags, ...COMMON_FLAGS];
+  const extra = def.command === "access rotate" ? [KEEP_FLAG] : [];
+  return [...fieldFlags, ...extra, ...waitFlags, ...COMMON_FLAGS];
 }
 
 export const flagSpecOf = (flags: readonly CommandFlag[]): FlagSpec =>

@@ -3,6 +3,7 @@ import { CliExit, usageError } from "./cli-exit";
 import { callRoute, discoverServer, type Server } from "./client";
 import { type CommandEnv, processEnv } from "./command-env";
 import { helpText } from "./help";
+import { NODE_GROUP_COMMANDS, runNodeGroupCommand } from "./node-group-commands";
 import { assertNotOwnLineage, GUARDED_COMMANDS } from "./own-thread";
 import { findCommand, type ParsedCommand, parseCommand } from "./parse";
 import { EXTRA_THREAD_VERBS, runThreadExtra } from "./thread-extras";
@@ -47,7 +48,9 @@ export async function executeApiCommand(
   if (verb === undefined || wantsHelp(argv)) return env.stdout(helpText(noun, verb));
   if (noun === "threads" && EXTRA_THREAD_VERBS.includes(verb))
     return runThreadExtra(verb, argv.slice(1), env);
-  const parsed = parseCommand(findCommand(noun, verb), argv.slice(1));
+  const def = findCommand(noun, verb);
+  if (NODE_GROUP_COMMANDS.includes(def.command)) return runNodeGroupCommand(def.command, argv.slice(1), env);
+  const parsed = parseCommand(def, argv.slice(1));
   if (parsed.def.destructive && !parsed.yes) {
     throw usageError(`tau ${parsed.def.command} is destructive. Add --yes to confirm.`);
   }
