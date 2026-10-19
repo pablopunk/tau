@@ -260,10 +260,10 @@ describe("Settings → Nodes", () => {
     renderSection();
     await user.click(await screen.findByRole("button", { name: "Connect a node to this node" }));
     expect(
-      await screen.findByText("npx @pablopunk/tau connect https://node.example/pair#ABCD2345"),
+      await screen.findByText("npx -y @pablopunk/tau@latest connect 'https://node.example/pair#ABCD2345'"),
     ).toBeInTheDocument();
     expect(
-      screen.getByText("npx @pablopunk/tau connect ABCD2345 --node https://node.example"),
+      screen.getByText("npx -y @pablopunk/tau@latest connect ABCD2345 --node 'https://node.example'"),
     ).toBeInTheDocument();
     expect(calls).toContainEqual({ method: "POST", url: "/api/pair?kind=node" });
     expect(screen.getByRole("note")).toHaveTextContent(
@@ -278,7 +278,7 @@ describe("Settings → Nodes", () => {
       const user = userEvent.setup();
       renderSection();
       await user.click(await screen.findByRole("button", { name: "Connect a node to Nas" }));
-      await screen.findByText(/connect https:\/\/node.example/);
+      await screen.findByText(/connect 'https:\/\/node.example/);
       expect(calls).toContainEqual({ method: "POST", url: "/api/n/m7/api/pair?kind=node" });
       expect(screen.getByRole("note")).toHaveTextContent(/full power over every other node/);
     } finally {

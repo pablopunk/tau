@@ -43,13 +43,16 @@ function NodeCode({ state }: { state: PairingState }) {
       <div className="flex w-full min-w-0 flex-col gap-2 text-sm">
         <p className="text-muted-foreground">On the other node, run:</p>
         {link ? (
-          <CommandLine command={`npx @pablopunk/tau connect ${link}`} label="Copy command with link" />
+          <CommandLine
+            command={`npx -y @pablopunk/tau@latest connect '${link}'`}
+            label="Copy command with link"
+          />
         ) : null}
         {link ? (
           <>
             <p className="text-muted-foreground">Or with the code:</p>
             <CommandLine
-              command={`npx @pablopunk/tau connect ${pairing.shortCode} --node ${new URL(link).origin}`}
+              command={`npx -y @pablopunk/tau@latest connect ${pairing.shortCode} --node '${new URL(link).origin}'`}
               label="Copy command with code"
             />
           </>

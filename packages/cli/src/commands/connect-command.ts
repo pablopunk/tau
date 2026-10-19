@@ -1,5 +1,12 @@
 import { readFile, rm } from "node:fs/promises";
-import { createFilePeersStore, hubFilePath, type Peer, peerIdOf, peersFilePath } from "@tau/core";
+import {
+  createFilePeersStore,
+  hubFilePath,
+  type Peer,
+  peerIdOf,
+  peersFilePath,
+  readRunningInstance,
+} from "@tau/core";
 import { alreadyLinkedRefusal, RedeemPairingResponseSchema, selfLinkRefusal } from "@tau/protocol";
 import { Value } from "typebox/value";
 import { CONNECT_HELP, parseConnectArgs, wantsConnectHelp } from "../nodes/connect-args";
@@ -7,6 +14,8 @@ import { type AfterLink, type ConnectIo, terminalIo } from "../nodes/connect-io"
 import { parseConnectTarget } from "../nodes/connect-target";
 import { ownNodeId } from "../nodes/own-node-id";
 import { pickPeer } from "../nodes/peer-pick";
+import { olderServerRefusal } from "../nodes/server-version";
+import { cliVersion } from "../version";
 import { CliExit, failure, usageError } from "./cli-exit";
 import { callRoute, discoverServer, type Server } from "./client";
 import { type CommandEnv, processEnv } from "./command-env";
@@ -82,6 +91,7 @@ export async function executeConnect(
   argv: readonly string[],
   env: CommandEnv,
   io: ConnectIo = terminalIo,
+  version: string = cliVersion(),
 ): Promise<void> {
   if (wantsConnectHelp(argv)) return env.stdout(CONNECT_HELP);
   const args = parseConnectArgs(argv);
@@ -90,6 +100,8 @@ export async function executeConnect(
   const known = (await peers.read()).some((peer) => sameNode(peer, target.nodeUrl, target.nodeId));
   const refusal = alreadyLinkedRefusal(known);
   if (refusal) throw usageError(refusal);
+  const older = olderServerRefusal((await readRunningInstance(env.home))?.version, version);
+  if (older) throw failure(older);
   const server = await runningServer(env);
   const own = await ownNodeId(env, server);
   const self = selfLinkRefusal(own ?? "", target.nodeId);

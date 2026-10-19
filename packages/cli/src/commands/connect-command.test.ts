@@ -43,6 +43,24 @@ const peersOf = (home: string) => createFilePeersStore(peersFilePath(home));
 const peer = (extra = {}) => ({ url: "https://a.b", name: "A", secret: SECRET, nodeId: "n-a", ...extra });
 
 describe("tau connect", () => {
+  it("refuses, before asking or redeeming, when the running tau is older than this command", async () => {
+    const home = emptyHome();
+    writeFileSync(
+      join(home, "lock"),
+      JSON.stringify({ pid: process.pid, url: "http://127.0.0.1:1", version: "0.1.2" }),
+    );
+    const fetchImpl = hubAnswers({ deviceId: "d1", secret: SECRET, nodeId: "n-peer" });
+    const questions = io();
+    const { env } = envFor(home, fetchImpl);
+    const refused = executeConnect([LINK], env, questions, "0.2.2");
+    await expect(refused).rejects.toThrow(
+      /running here is 0\.1\.2.*\n.*\n.*npm i -g @pablopunk\/tau@latest && tau restart/s,
+    );
+    expect(questions.confirm).not.toHaveBeenCalled();
+    expect(fetchImpl).not.toHaveBeenCalled();
+    expect(await peersOf(home).read()).toEqual([]);
+  });
+
   it("prints its help, with --node and without the old --hub", async () => {
     const { env, out } = envFor(emptyHome(), hubAnswers({}));
     await executeConnect(["--help"], env, io());
