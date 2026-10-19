@@ -16,7 +16,7 @@ import { makeLocalRepo } from "./test-support/local-repo";
 const REAL_CORE_IMPLEMENTED = true;
 
 /** Owners A (`[access]`), B (`[remote]`) and F (`[machines]`) remove their tag when their folder passes the contract. */
-const PENDING_TAGS: string[] = ["[machines]"];
+const PENDING_TAGS: string[] = [];
 
 process.env.TAU_FAKE_CLAUDE_CLI = "1";
 

@@ -325,15 +325,6 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
       remoteUrl: () => tunnel.status().url,
       announce: () => changes.emit({ resource: "devices" }),
     });
-    const remote = createRemoteService({ adapter: tunnel, settings, access, changes });
-
-    void remote
-      .start({
-        enabled: (await settings.get()).remote.enabled,
-        holdReason: startRecord.crashLoop ? CRASH_LOOP_TEXT : undefined,
-      })
-      .catch((error: unknown) => console.error("tau: remote access did not start", error));
-
     const machines = createMachines({
       directory: home.machinesDirectory,
       now: deps.now,
@@ -342,6 +333,21 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
       forgetHub: options.forgetHub,
       protocolVersion: PROTOCOL_VERSION,
     });
+
+    const remote = createRemoteService({
+      adapter: tunnel,
+      settings,
+      access,
+      changes,
+      forgetMachines: () => machines.reset(),
+    });
+
+    void remote
+      .start({
+        enabled: (await settings.get()).remote.enabled,
+        holdReason: startRecord.crashLoop ? CRASH_LOOP_TEXT : undefined,
+      })
+      .catch((error: unknown) => console.error("tau: remote access did not start", error));
 
     let closing: Promise<void> | undefined;
     return {
