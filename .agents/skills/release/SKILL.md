@@ -5,7 +5,7 @@ description: Release a new version of @pablopunk/tau (the `packages/cli` package
 
 # Release @pablopunk/tau
 
-Publishing is outward-facing: confirm the version bump with the user before tagging or pushing. The binary is still `tau`. One-time GitHub and npm setup is in `RELEASING.md`; if the repo has no `origin` or the package was never published, stop and point the user there.
+Publishing is outward-facing: confirm the version bump with the user before tagging or pushing. The binary is still `tau`. If the repo has no `origin` or the package was never published, stop and tell the user: the first version (`0.1.0`) must be published by hand from a real terminal (`npm publish --access public` in `packages/cli`, with the authenticator code), without pushing a `v0.1.0` tag.
 
 ## Steps
 
@@ -23,7 +23,7 @@ Never move or re-push a tag that CI already ran on. If a release fails, fix forw
 
 ## Trusted publishing
 
-Needs npm 11.5+ (the workflow upgrades it; Node 22 ships 10) and the trusted publisher configured on the package's npmjs.com access page (repo `pablopunk/tau`, workflow `publish.yml`, no environment). The first version must exist on npm before that can be configured (see `RELEASING.md`). Provenance needs a public GitHub repo. Do not add an `NPM_TOKEN`.
+Needs npm 11.5+ (the workflow upgrades it; Node 22 ships 10) and the trusted publisher configured on the package's npmjs.com access page (repo `pablopunk/tau`, workflow `publish.yml`, no environment). The first version must exist on npm before that can be configured (publish it by hand once). Provenance needs a public GitHub repo. Do not add an `NPM_TOKEN`.
 
 Manual publish (only if CI is unavailable): the user runs `npm publish --access public` in `packages/cli` in a real terminal so npm can ask for the authenticator code, or passes `--otp=<code>`. The agent does not publish.
 
