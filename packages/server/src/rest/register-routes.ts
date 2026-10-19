@@ -1,6 +1,14 @@
-import { AppError, type Core, iconCandidateUrl, type ProviderId, routes } from "@tau/protocol";
+import {
+  AppError,
+  type Core,
+  iconCandidateUrl,
+  type ProviderId,
+  routes,
+  type UpdateStatus,
+} from "@tau/protocol";
 import type { FastifyInstance } from "fastify";
 import type { DeviceSockets } from "../security/device-sockets";
+import { OWNER_DEVICE_ID } from "../security/guard";
 import { requireCandidateName } from "./candidate-name";
 import { defineImageRoute } from "./define-image-route";
 import { defineRoute } from "./define-route";
@@ -12,11 +20,31 @@ function startLoginFor(core: Core, id: ProviderId) {
   return core.providers.startLogin(id);
 }
 
+/** Non-owners never learn the install command or the updater log (paths, registry URLs), and cannot update. */
+export function updateStatusFor(status: UpdateStatus, deviceId: string): UpdateStatus {
+  if (deviceId === OWNER_DEVICE_ID) return status;
+  return {
+    ...status,
+    canUpdate: false,
+    install: { ...status.install, command: null },
+    job: { ...status.job, logTail: null },
+  };
+}
+
 export function registerRoutes(app: FastifyInstance, core: Core, sockets: DeviceSockets): void {
   defineRoute(app, routes.suggestDirectories, ({ body }) => core.fs.suggestDirectories(body));
-  defineRoute(app, routes.getUpdateStatus, () => core.updates.status());
-  defineRoute(app, routes.refreshUpdateStatus, () => core.updates.refresh());
-  defineRoute(app, routes.startUpdate, ({ body }) => core.updates.start(body), { ownerOnly: true });
+  defineRoute(app, routes.getUpdateStatus, async (_input, request) =>
+    updateStatusFor(await core.updates.status(), request.deviceId),
+  );
+  defineRoute(app, routes.refreshUpdateStatus, async (_input, request) =>
+    updateStatusFor(await core.updates.refresh(), request.deviceId),
+  );
+  defineRoute(
+    app,
+    routes.startUpdate,
+    async ({ body }, request) => updateStatusFor(await core.updates.start(body), request.deviceId),
+    { ownerOnly: true },
+  );
   defineRoute(app, routes.getSettings, () => core.settings.get());
   defineRoute(app, routes.setDefaultModel, ({ body }) => core.settings.setDefaultModel(body));
   defineRoute(app, routes.setDefaultThinking, ({ body }) =>

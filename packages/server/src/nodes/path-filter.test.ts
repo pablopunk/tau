@@ -54,6 +54,7 @@ describe("path filter: denied", () => {
       "/api/health",
       "/api/update",
       "/api/update/refresh",
+      "/api/update/start",
       "/api/n/other/api/conversations",
     ]) {
       for (const method of ["GET", "POST", "PUT", "DELETE"]) {
