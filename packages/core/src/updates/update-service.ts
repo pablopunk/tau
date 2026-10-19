@@ -1,4 +1,12 @@
-import { isBehind, type UpdateStatus } from "@tau/protocol";
+import {
+  AppError,
+  IDLE_JOB,
+  isBehind,
+  NO_INSTALL,
+  type UpdaterPort,
+  type UpdateStartBody,
+  type UpdateStatus,
+} from "@tau/protocol";
 
 export const REFRESH_EVERY_MS = 6 * 60 * 60 * 1000;
 export const MIN_REFRESH_GAP_MS = 60_000;
@@ -8,11 +16,16 @@ export interface UpdateServiceDeps {
   readonly currentVersion: string;
   readonly latestVersion: () => Promise<string>;
   readonly now: () => number;
+  /** Default false: nothing contacts the registry until `status()`/`refresh()`. The CLI sets true. */
+  readonly autoStart?: boolean;
+  /** From the CLI. Absent (tests, faux): `install.mode` is `none` and `start` is `update_unsupported`. */
+  readonly updater?: UpdaterPort;
 }
 
 export interface UpdateService {
   status(): Promise<UpdateStatus>;
   refresh(): Promise<UpdateStatus>;
+  start(body: UpdateStartBody): Promise<UpdateStatus>;
   stop(): void;
 }
 
@@ -38,6 +51,10 @@ export function createUpdateService(deps: UpdateServiceDeps): UpdateService {
     latest,
     checkedAt,
     behind: latest === null ? false : (isBehind(deps.currentVersion, latest) ?? false),
+    // STUB (core owner): merge `deps.updater.plan(latest)` and `readJob()` (1 s cache); redaction is the server's.
+    canUpdate: true,
+    install: NO_INSTALL,
+    job: IDLE_JOB,
   });
 
   const check = (): Promise<void> => {
@@ -61,7 +78,16 @@ export function createUpdateService(deps: UpdateServiceDeps): UpdateService {
     timer.unref();
   };
 
+  if (deps.autoStart) {
+    void check();
+    startTimer();
+  }
+
   return {
+    async start(_body) {
+      // STUB (core owner): update_unsupported / update_busy rules, then `deps.updater.spawn`.
+      throw new AppError("update_unsupported", "Updating from the app is not available yet.");
+    },
     async status() {
       if (lastAttemptAt === null && !stopped) {
         void check();

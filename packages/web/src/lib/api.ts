@@ -46,6 +46,7 @@ import type {
   TerminalInfo,
   ThinkingLevel,
   Timer,
+  UpdateStartBody,
   UpdateStatus,
   UseGithubRepoInput,
   WorkspaceDefault,
@@ -194,6 +195,8 @@ export interface Api {
     status(): Promise<UpdateStatus>;
     /** Checks the registry now (the server limits it to one per minute). */
     refresh(): Promise<UpdateStatus>;
+    /** Owner only (`forbidden` otherwise). Starts the detached updater; `target` is the version the dialog showed. */
+    start(body: UpdateStartBody): Promise<UpdateStatus>;
   };
   nodes: {
     /** The nodes linked to THIS tau (a hub). */
@@ -363,6 +366,7 @@ export function createApi(transport: Transport): Api {
     updates: {
       status: () => request("getUpdateStatus", {}),
       refresh: () => request("refreshUpdateStatus", {}),
+      start: (body) => request("startUpdate", { body }),
     },
     nodes: {
       list: () => request("listNodes", {}),

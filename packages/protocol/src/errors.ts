@@ -32,6 +32,9 @@ export const ERROR_CODES = [
   "node_removed",
   "no_route",
   "clock_skew",
+  "forbidden",
+  "update_busy",
+  "update_unsupported",
   "internal",
 ] as const;
 
@@ -69,6 +72,9 @@ export const ErrorCodeSchema = Type.Union([
   Type.Literal("node_removed"),
   Type.Literal("no_route"),
   Type.Literal("clock_skew"),
+  Type.Literal("forbidden"),
+  Type.Literal("update_busy"),
+  Type.Literal("update_unsupported"),
   Type.Literal("internal"),
 ]);
 
@@ -109,6 +115,9 @@ export const ERROR_STATUS: Record<ErrorCode, number> = {
   node_removed: 403,
   no_route: 502,
   clock_skew: 409,
+  forbidden: 403,
+  update_busy: 409,
+  update_unsupported: 422,
   internal: 500,
 };
 

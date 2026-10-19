@@ -1,4 +1,4 @@
-import type { ConversationWatcher } from "@tau/protocol";
+import type { ConversationWatcher, UpdateStartBody } from "@tau/protocol";
 import {
   AppError,
   type Change,
@@ -178,6 +178,7 @@ const handlers: Handlers = {
   setSetupSkipped: (core, { body }) => core.settings.setSetupSkipped(body.skipped as boolean),
   getUpdateStatus: (core) => core.updates.status(),
   refreshUpdateStatus: (core) => core.updates.refresh(),
+  startUpdate: (core, { body }) => core.updates.start(body as UpdateStartBody),
   linkNode: async () => {
     throw new AppError("not_found", "The node link is a socket, not an HTTP call.");
   },

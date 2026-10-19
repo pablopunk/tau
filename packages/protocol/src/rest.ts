@@ -53,7 +53,7 @@ import { DirectoryNodeSchema, ExpulsionSchema, RemoveNodeBodySchema } from "./no
 import { NodeSchema, NodeSelfSchema, NodeSummarySchema, RenameNodeBodySchema } from "./nodes";
 import { HealthSchema, RemoteStatusSchema } from "./remote";
 import { OpenTerminalInputSchema, TerminalAvailabilitySchema, TerminalInfoSchema } from "./terminals";
-import { UpdateStatusSchema } from "./updates";
+import { UpdateStartBodySchema, UpdateStatusSchema } from "./updates";
 
 export const API_PREFIX = "/api";
 export const LIVE_PATH = `${API_PREFIX}/live`;
@@ -67,7 +67,7 @@ export type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 export interface RouteDef {
   readonly method: HttpMethod;
   readonly path: string;
-  readonly status: 200 | 201 | 204;
+  readonly status: 200 | 201 | 202 | 204;
   readonly params?: TSchema;
   readonly query?: TSchema;
   /** `image` routes answer raw bytes (cookie-authenticated GET, used as `<img src>`); the default is JSON. */
@@ -216,6 +216,14 @@ export const routes = {
     method: "POST",
     path: `${API_PREFIX}/update/refresh`,
     status: 200,
+    response: UpdateStatusSchema,
+  },
+  /** Owner only (403 `forbidden` otherwise). Returns the status with the job `installing`. */
+  startUpdate: {
+    method: "POST",
+    path: `${API_PREFIX}/update/start`,
+    status: 202,
+    body: UpdateStartBodySchema,
     response: UpdateStatusSchema,
   },
   getSettings: { method: "GET", path: `${API_PREFIX}/settings`, status: 200, response: SettingsSchema },

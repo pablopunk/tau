@@ -42,7 +42,7 @@ import { createFakeRemote, type FakeRemote } from "./fake-remote";
 import { suggestFakeDirectories } from "./fake-suggest";
 import { createFakeTerminals } from "./fake-terminals";
 import type { SpawnParams } from "./fake-thread-ops";
-import { createFakeUpdates, type FakeUpdates } from "./fake-updates";
+import { createFakeUpdates, type FakeUpdates, type FakeUpdatesOptions } from "./fake-updates";
 import { linkFakeCores } from "./link-fake-cores";
 
 export interface FakeCoreOptions {
@@ -72,6 +72,8 @@ export interface FakeCoreOptions {
   readonly currentVersion?: string;
   /** The latest version the registry answers, known from the start. Default none (unreachable). */
   readonly latestVersion?: string | null;
+  /** The update fake: install plan, caller (`canUpdate`), failing job, running work (`update_busy`). */
+  readonly updates?: Pick<FakeUpdatesOptions, "install" | "canUpdate" | "failUpdate" | "busy">;
 }
 
 export { FAKE_HOME_PATH };
@@ -98,7 +100,7 @@ export type FakeCore = Core & {
     reach(peer: FakeCore, via: FakeCore, hops: number): Promise<void>;
   };
   /** Plays the registry: what the next `updates.refresh()` finds (`null`: unreachable). */
-  readonly updatesControl: Pick<FakeUpdates, "setLatest">;
+  readonly updatesControl: Pick<FakeUpdates, "setLatest" | "advance">;
   /**
    * The data of each linked node: `core.nodeCores.get(id)` is the fake tau that `/api/n/<id>/...` reaches.
    * Empty unless `nodes: true`; a node added by `core.nodes.register` has none.
@@ -395,6 +397,7 @@ export function createFakeCore(options: FakeCoreOptions = {}): FakeCore {
     now,
     currentVersion: options.currentVersion,
     latest: options.latestVersion,
+    ...options.updates,
   });
   const nodeCores = new Map<string, FakeCore>();
 

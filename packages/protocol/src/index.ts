@@ -22,6 +22,7 @@ export * from "./remote";
 export * from "./rest";
 export * from "./retry";
 export * from "./routing";
+export * from "./running-work";
 export * from "./terminal-stream";
 export * from "./terminals";
 export * from "./updates";

@@ -51,7 +51,7 @@ import type { DirectoryNode, Expulsion, NodeGroup } from "./node-group";
 import type { Node, NodeLinkDirection, NodeLinkReport, NodePeerInfo, NodeSelf, NodeSummary } from "./nodes";
 import type { RemoteStatus } from "./remote";
 import type { OpenTerminalInput, TerminalInfo } from "./terminals";
-import type { UpdateStatus } from "./updates";
+import type { UpdaterPort, UpdateStartBody, UpdateStatus } from "./updates";
 import type { Op } from "./view";
 
 export type {
@@ -434,6 +434,8 @@ export interface Core {
     status(): Promise<UpdateStatus>;
     /** Checks the registry now; a call within 60 s of the last returns the cached status. */
     refresh(): Promise<UpdateStatus>;
+    /** Starts the detached updater. `update_unsupported`, `update_busy`; idempotent while a job runs. */
+    start(body: UpdateStartBody): Promise<UpdateStatus>;
   };
   /** Fires after a successful commit that changed the project list or one project's conversation index. */
   onChange(listener: (change: Change) => void): () => void;
@@ -451,6 +453,10 @@ export interface CreateCoreOptions {
   readonly currentVersion: string;
   /** The registry's latest published version; rejects when unknown. The CLI supplies it (core cannot run npm). */
   readonly latestVersion: () => Promise<string>;
+  /** Default false: the first registry check and the 15 min timer start at creation. `run.ts` sets true. */
+  readonly autoStartUpdates?: boolean;
+  /** The CLI's updater (plan, spawn, job file). Absent: updates are `none`. */
+  readonly updater?: UpdaterPort;
 }
 
 export type CreateCore = (options: CreateCoreOptions) => Promise<Core>;

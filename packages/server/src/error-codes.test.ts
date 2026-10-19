@@ -44,3 +44,25 @@ describe("MVP2 error codes", () => {
     expect(clone.json().error.code).toBe(code);
   });
 });
+
+const UPDATE_STATUSES: ReadonlyArray<[ErrorCode, number]> = [
+  ["forbidden", 403],
+  ["update_busy", 409],
+  ["update_unsupported", 422],
+];
+
+describe("update error codes", () => {
+  it.each(UPDATE_STATUSES)("maps %s to HTTP %i", async (code, status) => {
+    expect(ERROR_STATUS[code]).toBe(status);
+    const core = createFakeCore({ configured: true });
+    core.updates.start = failing(code);
+    ctx = await startTestServer({ core });
+    const start = await ctx.request({
+      method: "POST",
+      url: "/api/update/start",
+      payload: { target: "9.9.9", force: false },
+    });
+    expect(start.statusCode).toBe(status);
+    expect(start.json()).toEqual({ error: { code, message: `boom ${code}` } });
+  });
+});

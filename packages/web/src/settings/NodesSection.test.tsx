@@ -40,11 +40,17 @@ const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
 
 const calls: Array<{ method: string; url: string }> = [];
+const UPDATE_EXTRAS = {
+  canUpdate: true,
+  install: { mode: "run", command: null, reason: null },
+  job: { state: "idle", target: null, error: null, logTail: null },
+};
 let updateStatus: Record<string, unknown> = {
   current: "0.2.0",
   latest: null,
   checkedAt: null,
   behind: false,
+  ...UPDATE_EXTRAS,
 };
 const connected = await createFakeCore({ configured: true }).providers.list();
 let providers: unknown[] = connected;
@@ -52,7 +58,7 @@ beforeEach(() => {
   calls.length = 0;
   forgetNodeApis();
   providers = connected;
-  updateStatus = { current: "0.2.0", latest: null, checkedAt: null, behind: false };
+  updateStatus = { current: "0.2.0", latest: null, checkedAt: null, behind: false, ...UPDATE_EXTRAS };
   vi.stubGlobal(
     "fetch",
     vi.fn(async (url: string, init?: RequestInit) => {
@@ -176,7 +182,13 @@ describe("Settings → Nodes", () => {
 
   it("shows versions and chips: behind, up to date, unknown, never crashes on an empty version", async () => {
     nodes.push({ ...(nodes[1] as Node), id: "m3", name: "Fresh", tauVersion: "" });
-    updateStatus = { current: "0.2.0", latest: "0.2.0", checkedAt: Date.now(), behind: false };
+    updateStatus = {
+      current: "0.2.0",
+      latest: "0.2.0",
+      checkedAt: Date.now(),
+      behind: false,
+      ...UPDATE_EXTRAS,
+    };
     try {
       renderSection();
       const home = (await screen.findByText("Homelab")).closest("li") as HTMLElement;
@@ -193,7 +205,13 @@ describe("Settings → Nodes", () => {
   });
 
   it("counts this node when it is behind, and hides the banner at 0", async () => {
-    updateStatus = { current: "0.0.1", latest: "0.1.5", checkedAt: Date.now(), behind: true };
+    updateStatus = {
+      current: "0.0.1",
+      latest: "0.1.5",
+      checkedAt: Date.now(),
+      behind: true,
+      ...UPDATE_EXTRAS,
+    };
     renderSection();
     expect(await screen.findByText("2 nodes are behind")).toBeInTheDocument();
     const own = screen.getByText("Mac").closest("li") as HTMLElement;

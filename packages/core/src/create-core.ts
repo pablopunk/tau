@@ -360,6 +360,8 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
       currentVersion: options.currentVersion,
       latestVersion: options.latestVersion,
       now: deps.now,
+      autoStart: options.autoStartUpdates,
+      updater: options.updater,
     });
     // `TAU_NODE_NAME` names this node instead of the host name (tests and scratch nodes on one machine).
     const nodeName = deps.env.TAU_NODE_NAME || undefined;
@@ -494,7 +496,11 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
       timers: timersApi,
       goals: createGoalsApi(goals),
       mcp: createMcpApi({ settings, mcp, changes }),
-      updates: { status: () => updates.status(), refresh: () => updates.refresh() },
+      updates: {
+        status: () => updates.status(),
+        refresh: () => updates.refresh(),
+        start: (body) => updates.start(body),
+      },
       onChange: (listener) => changes.subscribe(listener),
       close() {
         closing ??= (async () => {

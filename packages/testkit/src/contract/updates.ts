@@ -23,5 +23,18 @@ export function updatesCases(make: MakeContractTarget, test: CaseRunner): void {
       expect(status.latest).toBeNull();
       expect(status.behind).toBe(false);
     });
+
+    test("[updates-job] status carries canUpdate, install and an idle job", async () => {
+      const status = await target.core.updates.status();
+      expect(typeof status.canUpdate).toBe("boolean");
+      expect(["run", "manual", "none"]).toContain(status.install.mode);
+      expect(status.job).toEqual({ state: "idle", target: null, error: null, logTail: null });
+    });
+
+    test("[updates-job] start for a version that is not the latest is update_unsupported", async () => {
+      await expect(target.core.updates.start({ target: "99.0.0", force: false })).rejects.toMatchObject({
+        code: "update_unsupported",
+      });
+    });
   });
 }

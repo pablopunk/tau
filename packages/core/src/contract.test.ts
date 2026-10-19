@@ -145,5 +145,6 @@ async function makeRealTarget(): Promise<ContractTarget> {
 }
 
 describe.skipIf(!REAL_CORE_IMPLEMENTED)("real core", () => {
-  runCoreContract("real core (faux mode)", makeRealTarget);
+  // `updates-job`: the update job lives in the core owner's stub until it lands (UPDATE-BUTTON.md, Foundation hand-off).
+  runCoreContract("real core (faux mode)", makeRealTarget, { pending: ["updates-job"] });
 });

@@ -1,19 +1,11 @@
-import type { ConversationSummary } from "@tau/protocol";
+import { type ConversationSummary, lineageOf } from "@tau/protocol";
 import { failure } from "./cli-exit";
 import { callRoute, type Server } from "./client";
 import type { CommandEnv } from "./command-env";
 
-export const GUARDED_COMMANDS: readonly string[] = ["threads delete", "threads archive"];
+export { lineageOf };
 
-export function lineageOf(all: readonly ConversationSummary[], ownId: string): Set<string> {
-  const lineage = new Set<string>();
-  let current: string | null | undefined = ownId;
-  while (current && !lineage.has(current)) {
-    lineage.add(current);
-    current = all.find((item) => item.id === current)?.parentId;
-  }
-  return lineage;
-}
+export const GUARDED_COMMANDS: readonly string[] = ["threads delete", "threads archive"];
 
 /** An agent must not delete or archive the thread it runs in, or a thread above it. */
 export async function assertNotOwnLineage(

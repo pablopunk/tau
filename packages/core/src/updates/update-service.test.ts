@@ -17,14 +17,14 @@ afterEach(() => vi.useRealTimers());
 describe("update service", () => {
   it("first status never blocks: latest null, then known after the background fetch", async () => {
     const { service } = setup("0.1.0", async () => "0.1.2");
-    expect(await service.status()).toEqual({
+    expect(await service.status()).toMatchObject({
       current: "0.1.0",
       latest: null,
       checkedAt: null,
       behind: false,
     });
     await vi.advanceTimersByTimeAsync(0);
-    expect(await service.status()).toEqual({
+    expect(await service.status()).toMatchObject({
       current: "0.1.0",
       latest: "0.1.2",
       checkedAt: 1_000,
@@ -68,7 +68,7 @@ describe("update service", () => {
     fail = true;
     clock += MIN_REFRESH_GAP_MS;
     const status = await service.refresh();
-    expect(status).toEqual({ current: "0.1.0", latest: "0.1.5", checkedAt: 1_000, behind: true });
+    expect(status).toMatchObject({ current: "0.1.0", latest: "0.1.5", checkedAt: 1_000, behind: true });
     service.stop();
   });
 

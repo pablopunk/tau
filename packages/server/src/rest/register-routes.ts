@@ -16,6 +16,7 @@ export function registerRoutes(app: FastifyInstance, core: Core, sockets: Device
   defineRoute(app, routes.suggestDirectories, ({ body }) => core.fs.suggestDirectories(body));
   defineRoute(app, routes.getUpdateStatus, () => core.updates.status());
   defineRoute(app, routes.refreshUpdateStatus, () => core.updates.refresh());
+  defineRoute(app, routes.startUpdate, ({ body }) => core.updates.start(body), { ownerOnly: true });
   defineRoute(app, routes.getSettings, () => core.settings.get());
   defineRoute(app, routes.setDefaultModel, ({ body }) => core.settings.setDefaultModel(body));
   defineRoute(app, routes.setDefaultThinking, ({ body }) =>

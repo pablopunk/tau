@@ -693,6 +693,7 @@ export const COMMAND_EXCLUSIONS = {
   acknowledgeClaudeCli: "The notice is read by a person in Settings.",
   getUpdateStatus: UPDATE_CHECK,
   refreshUpdateStatus: UPDATE_CHECK,
+  startUpdate: "Owner only, and `tau update` runs the update itself.",
   openTerminal: "A terminal needs a screen.",
   getTerminalsAvailable: "A state the web reads to show or hide the Terminal button.",
   suggestDirectories: TYPING_HELPER,

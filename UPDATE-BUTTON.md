@@ -1,6 +1,6 @@
 # Update button in the sidebar
 
-Status: plan (final revision), not implemented. Do not commit.
+Status: plan (final revision); foundation done, owners next.
 
 Fixed decisions: check every 15 min; npx-cache installs show a copy command and run nothing; owner only (403 for paired devices and linked nodes); after success the page reloads by itself, then a short toast with the new version; the detached updater must survive the service restart on systemd and launchd in v1.
 
@@ -146,3 +146,30 @@ None. macOS default is decided (detached spawn, `launchctl submit` only if verif
 - Round 1 added: `forbidden`/`update_busy`/`update_unsupported` codes, the protocol-hash/peer-mismatch analysis, transient systemd unit, job file with nonce, stale-job rules, shared availability check, `ownerOnly` route option.
 - Round 2 split `canUpdate` (owner) from install mode and job state, fixed the systemd env/log argv, defined the launchd default and fallback, added verification as an exit criterion.
 - Round 3 fixed the scoped-registry `undefined` case, systemd 236 compatibility, nonce handling, the 30 s pid grace, non-owner behaviour, and the manual commands.
+
+## Foundation hand-off
+
+**Frozen (do not change without the integrator; changing a route or schema needs `mise exec -- pnpm --filter @tau/protocol bump-protocol`):**
+- protocol: `UpdateStatus` = `current, latest, checkedAt, behind, canUpdate, install{mode,command,reason}, job{state,target,error,logTail}` (`from` is NOT in it); `UpdateStartBodySchema` (`additionalProperties: false`); route `startUpdate` POST `/api/update/start`, 202 (`RouteDef.status` now allows 202; excluded from the CLI command table); `Core.updates.start`; `UpdaterPort` (`plan` sync, `spawn`, `readJob`), `CreateCoreOptions.autoStartUpdates` / `.updater`; error codes `forbidden` 403, `update_busy` 409, `update_unsupported` 422 (`error-handler.ts` maps through `ERROR_STATUS`); `lineageOf`, `runningWorkOf`, `hasRunningWork`, `RunningWork` in `protocol/src/running-work.ts`; hash bumped once.
+- server: `defineRoute(app, route, handler, { ownerOnly })` (preHandler; rejects everything but `OWNER_DEVICE_ID`, including `""`); `startUpdate` registered with it; `rest/owner-only.test.ts`.
+- web: `api.updates.start`, fake transport handler `startUpdate`. testkit: `createFakeUpdates` (installing → restarting → done via `updatesControl.advance()`; options `install`, `canUpdate`, `failUpdate`, `busy` via `createFakeCore({ updates })`); contract cases tagged `[updates-job]`, pending on the real core (`core/src/contract.test.ts`); remove the tag when core lands.
+
+**Stubs**
+- core `update-service.ts`: `start` throws `update_unsupported`; `snapshot()` returns `canUpdate: true` (the owner's view), `install: NO_INSTALL`, `job: IDLE_JOB`; `autoStart` works (check at creation) but the timer is still the 6 h `setInterval`.
+- cli `update/updater.ts`: `createUpdater` throws; `BACKEND_VERIFIED` gate constants; `JobFile` type. `lifecycle/install-or-repair.ts`: `installOrRepairService` throws.
+- `running-work.ts` and `own-thread.ts` already re-export from protocol (done, not stubs).
+
+**Owners (no file has two owners)**
+- **core**: `core/src/updates/**`, `core/src/create-core.ts`, `core/src/nodes` peer-mismatch test, `core/src/contract.test.ts`. Fill: 15 min jittered `setTimeout`, `start` rules, job merge with 1 s cache, `canUpdate`/`install`/`job` from `updater`. Make pass: core unit tests of section 5, `[updates-job]` contract cases (drop the `pending` tag).
+- **cli**: `cli/src/update/**` (incl. `updater.ts`, `latest-version.ts`, `install-method.ts`, `update-flags.ts`, `restart-step.ts`), `cli/src/lifecycle/**`, `cli/src/service/runner.ts` (`logFile`, `run` env), `cli/src/run.ts` (build updater, `autoStartUpdates: true`). Fill: both stubs, availability check, spawn argv per backend, job file, staleness, restart guard, service gap. Tests: section 5 cli list. Systemd piece needs Linux, launchd piece a human on macOS.
+- **server**: `server/src/rest/register-routes.ts` (non-owner redaction of `install.command` and `job.logTail`, `canUpdate: false` in the GET/refresh handlers and the `startUpdate` response), `server/src/security/**`, `server/src/nodes/path-filter.test.ts`, new owner-only enumerating test (paired device 403, node link 403, owner 202). `define-route.ts` and `error-handler.ts` are frozen.
+- **web**: `web/src/sidebar/**` (`UpdateButton`, `UpdateDialog`, `update-copy.ts`, `AppSidebar.tsx`), `web/src/lib/queries.ts`, `web/src/lib/updates.ts`, `web/src/lib/transport/fake.ts` for `?fake=update-fail` only, web tests. Reload rule: `loadedVersion` lives in memory only, never `sessionStorage` (only the `tau.updated` toast key uses it).
+
+**Reviewer notes to honour**
+- `updater.ts`: keep a comment next to the per-backend gate constant saying it flips only in the commit that records the passing run (present in the stub).
+- Argv unit test asserts `TAU_UPDATE_JOB` is in the spawn env and absent from argv (systemd and detached paths).
+
+**Integrator notes**
+- Core returns the owner's view of `canUpdate`; only the server may downgrade it. Do not let the web trust `canUpdate` from a fake without `canUpdate: false` tests.
+- Real client validates responses against the schema, so any test fixture of `UpdateStatus` needs the three new fields (`NodesSection.test.tsx` was updated).
+- `server/src/nodes/link-requests.test.ts` "42 MB request body" failed once under full-suite load (empty body hashed), passes alone and in reruns; unrelated to this change.
