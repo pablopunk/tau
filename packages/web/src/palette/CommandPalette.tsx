@@ -11,9 +11,7 @@ import {
   CommandList,
   CommandShortcut,
 } from "@/components/ui/command";
-import { MachineAvatar } from "@/components/ui/machine-avatar";
 import { useSidebar } from "@/components/ui/sidebar";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useHotkey } from "@/lib/hotkeys";
 import { conversationPath, newThreadPath } from "@/lib/paths";
 import { type MachineData, useMachinesData } from "@/machines";
@@ -21,45 +19,12 @@ import { MachineScope } from "@/machines/MachineScope";
 import { SETTINGS_SECTIONS } from "@/settings/sections";
 import { AddProjectFlow, type AddProjectStep } from "./AddProjectFlow";
 import { useAdjacentThread } from "./adjacent-thread";
+import { MachineFilter, machineKeyOf } from "./MachineFilter";
 import { ModelPage } from "./ModelPage";
 import { SettingsItem } from "./SettingsItem";
 import { SettingsSearchGroup, useSettingResults } from "./SettingsSearchGroup";
 import { ThinkingPage } from "./ThinkingPage";
 import { ThreadActions } from "./ThreadActions";
-
-const ALL_MACHINES = "all";
-
-const machineKeyOf = (machineId: string | undefined) => machineId ?? "local";
-
-function MachineFilter({
-  machines,
-  value,
-  onChange,
-}: {
-  machines: readonly MachineData[];
-  value: string;
-  onChange: (value: string) => void;
-}) {
-  return (
-    <ToggleGroup
-      type="single"
-      variant="outline"
-      size="sm"
-      aria-label="Machine"
-      className="flex-wrap justify-start px-3 py-2"
-      value={value}
-      onValueChange={(next) => onChange(next || ALL_MACHINES)}
-    >
-      <ToggleGroupItem value={ALL_MACHINES}>All machines</ToggleGroupItem>
-      {machines.map((machine) => (
-        <ToggleGroupItem key={machineKeyOf(machine.machineId)} value={machineKeyOf(machine.machineId)}>
-          <MachineAvatar os={machine.os} status={machine.status} />
-          {machine.name}
-        </ToggleGroupItem>
-      ))}
-    </ToggleGroup>
-  );
-}
 
 interface SectionsProps {
   search: string;
@@ -181,12 +146,12 @@ export function CommandPalette() {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [page, setPage] = useState<"model" | "thinking" | null>(null);
-  const [machineFilter, setMachineFilter] = useState(ALL_MACHINES);
+  const [machineFilter, setMachineFilter] = useState<string[]>([]);
   const [addProject, setAddProject] = useState<AddProjectStep | null>(null);
   const { conversationId, machineId: openMachineId } = useOpenConversation();
   const everyMachine = useMachinesData();
   const machines = everyMachine.filter(
-    (machine) => machineFilter === ALL_MACHINES || machineKeyOf(machine.machineId) === machineFilter,
+    (machine) => machineFilter.length === 0 || machineFilter.includes(machineKeyOf(machine.machineId)),
   );
   useHotkey("mod+k", () => setOpen((current) => !current));
 
@@ -220,7 +185,7 @@ export function CommandPalette() {
         <Command onKeyDown={backFromEmptySearch}>
           <CommandInput value={search} onValueChange={setSearch} placeholder={PLACEHOLDERS[page ?? "main"]} />
           {page === null && everyMachine.length > 1 ? (
-            <MachineFilter machines={everyMachine} value={machineFilter} onChange={setMachineFilter} />
+            <MachineFilter machines={everyMachine} selected={machineFilter} onChange={setMachineFilter} />
           ) : null}
           <CommandList>
             {page !== null && conversationId ? (
