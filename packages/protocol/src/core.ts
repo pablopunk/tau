@@ -1,4 +1,11 @@
-import type { Device, MintedPairing, MintPairingInput, RedeemedPairing, RedeemPairingInput } from "./access";
+import type {
+  Device,
+  MintedPairing,
+  MintPairingInput,
+  RedeemedPairing,
+  RedeemPairingInput,
+  RotateAccessResult,
+} from "./access";
 import type { DeleteArchivedInput, DeleteArchivedResult } from "./archived";
 import type {
   Change,
@@ -40,6 +47,7 @@ import type {
 } from "./mvp5";
 import type { Goal, LoopInput, Timer } from "./mvp8";
 import type { Approval, ApprovalDecision } from "./mvp10";
+import type { DirectoryNode, Expulsion, NodeGroup } from "./node-group";
 import type { Node, NodeLinkDirection, NodeLinkReport, NodePeerInfo, NodeSelf, NodeSummary } from "./nodes";
 import type { RemoteStatus } from "./remote";
 import type { OpenTerminalInput, TerminalInfo } from "./terminals";
@@ -360,6 +368,11 @@ export interface Core {
     revokeDevice(id: string): Promise<void>;
     /** Drops browsers, phones and cli devices, not nodes. */
     signOutAll(): Promise<void>;
+    /** Revokes every device (node devices too) whose id is not in `keep`, except `callerDeviceId`; returns what it revoked. The server swaps the master token and closes the sockets. */
+    rotate(input: {
+      keep: readonly string[];
+      callerDeviceId?: string;
+    }): Promise<RotateAccessResult["revoked"]>;
     /** Single use, five minutes, at most five live; the oldest is dropped. A node pairing without remote has a `null` link. */
     mintPairing(input: MintPairingInput): Promise<MintedPairing>;
     /** Takes the link code or the short code. Rejects `unauthorized` (generic text) for a wrong or burnt code and for a locked peer. */
@@ -408,6 +421,12 @@ export interface Core {
     readSummary(nodeId: string): Promise<NodeSummary | undefined>;
     /** Written only while the link is healthy; deleted by `disconnect`. */
     writeSummary(nodeId: string, summary: NodeSummary): Promise<void>;
+    /** Step 2: neighbours and routed nodes, with hops, `via`, skew and ghosts. */
+    directory(): Promise<DirectoryNode[]>;
+    /** Step 2: verified expels with `by`, time and confirmations. */
+    expulsions(): Promise<Expulsion[]>;
+    /** Step 2: the link layer's side of the directory (announces, expels, routes). */
+    group: NodeGroup;
   };
   /** This tau against the latest published version; never an error, offline keeps the last good value. */
   updates: {

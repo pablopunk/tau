@@ -6,6 +6,8 @@ import {
   RedeemPairingBodySchema,
   RedeemPairingResponseSchema,
   RenameDeviceBodySchema,
+  RotateAccessBodySchema,
+  RotateAccessResultSchema,
 } from "./access";
 import { DeleteArchivedInputSchema, DeleteArchivedResultSchema } from "./archived";
 import {
@@ -47,6 +49,7 @@ import {
 } from "./mvp5";
 import { GoalInputSchema, GoalSchema, LoopInputSchema, TimerSchema } from "./mvp8";
 import { ApprovalDecisionSchema, ApprovalSchema } from "./mvp10";
+import { DirectoryNodeSchema, ExpulsionSchema, RemoveNodeBodySchema } from "./node-group";
 import { NodeSchema, NodeSelfSchema, NodeSummarySchema, RenameNodeBodySchema } from "./nodes";
 import { HealthSchema, RemoteStatusSchema } from "./remote";
 import { OpenTerminalInputSchema, TerminalAvailabilitySchema, TerminalInfoSchema } from "./terminals";
@@ -135,6 +138,14 @@ export const routes = {
   },
   revokeDevice: { method: "DELETE", path: `${API_PREFIX}/access/devices/:id`, status: 204, params: IdParams },
   signOutAllDevices: { method: "POST", path: `${API_PREFIX}/access/sign-out-all`, status: 204 },
+  /** Revokes every device not in `keep` and swaps the master token live (`session.rotate`). */
+  rotateAccess: {
+    method: "POST",
+    path: `${API_PREFIX}/access/rotate`,
+    status: 200,
+    body: RotateAccessBodySchema,
+    response: RotateAccessResultSchema,
+  },
   mintPairing: {
     method: "POST",
     path: `${API_PREFIX}/pair`,
@@ -176,6 +187,28 @@ export const routes = {
   forgetNode: { method: "POST", path: `${API_PREFIX}/nodes/:id/forget`, status: 204, params: IdParams },
   /** Deletes `node.json` and `peers.json`: a new key and `nodeId`, every link closed. */
   resetNodeIdentity: { method: "POST", path: `${API_PREFIX}/nodes/identity/reset`, status: 204 },
+  /** The group as this node sees it: neighbours and routed nodes, with hops, `via`, skew and ghosts. */
+  getNodeDirectory: {
+    method: "GET",
+    path: `${API_PREFIX}/nodes/directory`,
+    status: 200,
+    response: Type.Array(DirectoryNodeSchema),
+  },
+  /** Verified expels with `by`, time and who confirmed. */
+  listExpulsions: {
+    method: "GET",
+    path: `${API_PREFIX}/nodes/expulsions`,
+    status: 200,
+    response: Type.Array(ExpulsionSchema),
+  },
+  /** Group-wide expel, created on THIS node only (never proxied: `nodes` stays on the path denylist). Typed confirmation in the body. */
+  removeNode: {
+    method: "POST",
+    path: `${API_PREFIX}/nodes/:id/remove`,
+    status: 204,
+    params: IdParams,
+    body: RemoveNodeBodySchema,
+  },
   /** A WebSocket route: either node dials the other here with a node secret (`node-link.ts`). `/api/machines/link` is the 0.1.x alias. */
   linkNode: { method: "GET", path: `${API_PREFIX}/nodes/link`, status: 200 },
   getUpdateStatus: { method: "GET", path: `${API_PREFIX}/update`, status: 200, response: UpdateStatusSchema },

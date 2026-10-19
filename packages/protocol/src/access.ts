@@ -99,3 +99,21 @@ export interface RedeemedPairing {
 }
 
 export const RenameDeviceBodySchema = Type.Object({ name: Type.String({ minLength: 1, maxLength: 120 }) });
+
+/**
+ * `tau access rotate`: revokes every device (node devices too) NOT in `keep` and swaps the master token live.
+ * Hostile node devices survive `signOutAll`, which keeps nodes; this does not. The cookie value is the master
+ * token, so every local owner browser is signed out as well.
+ */
+export const RotateAccessBodySchema = Type.Object({
+  /** Device ids the user confirmed to keep (default: none). The caller's own device is never revoked. */
+  keep: Type.Optional(Type.Array(Type.String({ minLength: 1 }), { maxItems: 256 })),
+});
+export type RotateAccessBody = Type.Static<typeof RotateAccessBodySchema>;
+
+export const RotateAccessResultSchema = Type.Object({
+  revoked: Type.Array(Type.Object({ id: Type.String(), name: Type.String(), kind: DeviceKindSchema })),
+  /** The new master token, also written to `<home>/token`. Shown once. */
+  token: Type.String(),
+});
+export type RotateAccessResult = Type.Static<typeof RotateAccessResultSchema>;

@@ -40,6 +40,7 @@ export const COMMAND_NOUNS = [
   "devices",
   "pair",
   "nodes",
+  "access",
 ] as const;
 
 /** Commands with their own flow (`tau pair` has a table verb too); the CLI wires them by hand. */
@@ -644,6 +645,36 @@ export const commands: readonly CommandDef[] = [
     command: "nodes reset-identity",
     route: "resetNodeIdentity",
     summary: "Delete this node's key and links: a new nodeId, every peer disconnected",
+    positionals: [],
+    destructive: true,
+  },
+  {
+    command: "nodes directory",
+    route: "getNodeDirectory",
+    summary: "List every node of the group this node can route to, with hops and the next hop",
+    positionals: [],
+    destructive: false,
+  },
+  {
+    command: "nodes expulsions",
+    route: "listExpulsions",
+    summary: "List the nodes removed from the group, who removed them and who confirmed",
+    positionals: [],
+    destructive: false,
+  },
+  {
+    command: "nodes remove",
+    route: "removeNode",
+    summary:
+      "Remove a node from the WHOLE group (every node cuts it off; it must reset its identity to rejoin). `forget` only acts on this node. Needs --confirm <node name or id>; it does not undo what the node did, run `tau access rotate` after",
+    positionals: ["params.id"],
+    destructive: true,
+  },
+  {
+    command: "access rotate",
+    route: "rotateAccess",
+    summary:
+      "Revoke every device not listed with --keep and swap this node's master token live (browsers here are signed out); the new token is printed and written to <home>/token",
     positionals: [],
     destructive: true,
   },

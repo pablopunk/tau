@@ -77,6 +77,8 @@ export const NodeSelfSchema = Type.Object({
   protocolVersion: Type.String(),
   linkProtocol: Type.String(),
   capabilities: Type.Array(Type.String()),
+  /** Set after a verified expel against this node: "this node was removed, reset its identity". */
+  removed: Type.Optional(Type.Object({ by: Type.String(), at: Type.Number() })),
 });
 export type NodeSelf = Type.Static<typeof NodeSelfSchema>;
 
@@ -117,7 +119,11 @@ export interface NodePeerInfo {
   readonly publicKey?: string;
 }
 
-/** Peers a tau links to by default advertise nothing in Step 1. */
+/**
+ * What `hello.capabilities` lists today. TRANSITIONAL SHIM: empty until the Step 2 integrator switches it to
+ * `STEP2_CAPABILITIES` (`announce`, `relay`) once owners E and F are merged; advertising them earlier
+ * would make peers wait for an expel set nobody sends.
+ */
 export const NODE_CAPABILITIES: readonly string[] = [];
 
 /** Titles and times only, never transcripts: what the hub shows for an offline node. */

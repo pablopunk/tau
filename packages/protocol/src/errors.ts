@@ -26,6 +26,12 @@ export const ERROR_CODES = [
   "not_on_base",
   "worktree_dirty",
   "has_unmerged_work",
+  "cannot_remove_self",
+  "confirmation_mismatch",
+  "rate_limited",
+  "node_removed",
+  "no_route",
+  "clock_skew",
   "internal",
 ] as const;
 
@@ -57,6 +63,12 @@ export const ErrorCodeSchema = Type.Union([
   Type.Literal("not_on_base"),
   Type.Literal("worktree_dirty"),
   Type.Literal("has_unmerged_work"),
+  Type.Literal("cannot_remove_self"),
+  Type.Literal("confirmation_mismatch"),
+  Type.Literal("rate_limited"),
+  Type.Literal("node_removed"),
+  Type.Literal("no_route"),
+  Type.Literal("clock_skew"),
   Type.Literal("internal"),
 ]);
 
@@ -91,6 +103,12 @@ export const ERROR_STATUS: Record<ErrorCode, number> = {
   not_on_base: 409,
   worktree_dirty: 409,
   has_unmerged_work: 409,
+  cannot_remove_self: 409,
+  confirmation_mismatch: 422,
+  rate_limited: 429,
+  node_removed: 403,
+  no_route: 502,
+  clock_skew: 409,
   internal: 500,
 };
 
