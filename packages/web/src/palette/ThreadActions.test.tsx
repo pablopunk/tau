@@ -22,7 +22,13 @@ async function renderActions(options: { terminals: boolean }) {
         <MemoryRouter initialEntries={[`/p/home/c/${id}`]}>
           <Command>
             <CommandList>
-              <ThreadActions projectId="home" conversationId={id} archived={false} run={run} />
+              <ThreadActions
+                projectId="home"
+                conversationId={id}
+                archived={false}
+                onChangeModel={() => {}}
+                run={run}
+              />
             </CommandList>
           </Command>
           <Where />

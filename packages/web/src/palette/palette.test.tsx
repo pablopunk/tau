@@ -11,7 +11,11 @@ import { GlobalShortcuts } from "./GlobalShortcuts";
 const api = apiOfMachine();
 
 vi.mock("@/lib/api", () => ({
-  api: { projects: { list: vi.fn() }, conversations: { listAll: vi.fn() } },
+  api: {
+    projects: { list: vi.fn() },
+    conversations: { listAll: vi.fn(), configure: vi.fn() },
+    models: { list: vi.fn() },
+  },
 }));
 
 beforeEach(() => {
@@ -20,6 +24,18 @@ beforeEach(() => {
     project(),
     project({ id: "p2", name: "Repo", kind: "folder" }),
   ]);
+  vi.mocked(api.models.list).mockResolvedValue([
+    {
+      provider: "openai",
+      providerName: "OpenAI",
+      modelId: "gpt-9",
+      name: "GPT 9",
+      contextWindow: 1,
+      images: true,
+      thinkingLevels: ["off"],
+    } as never,
+  ]);
+  vi.mocked(api.conversations.configure).mockResolvedValue(undefined);
   vi.mocked(api.conversations.listAll).mockResolvedValue([
     conversation({ title: "Fix login bug" }),
     conversation({ id: "c2", projectId: "p2", title: "Add dark mode" }),
@@ -131,5 +147,44 @@ describe("add project and thread cycling", () => {
     await user.keyboard("{Control>}{Alt>}{ArrowDown}{/Alt}{/Control}");
 
     await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/p/p1/c/c1"));
+  });
+});
+
+describe("models", () => {
+  it("changes the model of the open thread from a second page", async () => {
+    const user = userEvent.setup();
+    renderPalette("/p/p1/c/c1");
+
+    await user.keyboard("{Control>}k{/Control}");
+    await user.click(await screen.findByRole("option", { name: "Change model…" }));
+    await user.click(await screen.findByRole("option", { name: "GPT 9" }));
+
+    expect(api.conversations.configure).toHaveBeenCalledWith("c1", {
+      model: { provider: "openai", modelId: "gpt-9" },
+    });
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("Backspace on an empty search goes back to the actions", async () => {
+    const user = userEvent.setup();
+    renderPalette("/p/p1/c/c1");
+
+    await user.keyboard("{Control>}k{/Control}");
+    await user.click(await screen.findByRole("option", { name: "Change model…" }));
+    await screen.findByRole("option", { name: "GPT 9" });
+    await user.keyboard("{Backspace}");
+
+    expect(await screen.findByRole("option", { name: "New thread" })).toBeInTheDocument();
+  });
+
+  it("does not list models as settings results", async () => {
+    const user = userEvent.setup();
+    renderPalette();
+
+    await user.keyboard("{Control>}k{/Control}");
+    await screen.findByRole("option", { name: /Fix login bug/ });
+    await user.type(screen.getByRole("combobox"), "gpt");
+
+    expect(screen.queryByRole("option", { name: /GPT 9/ })).not.toBeInTheDocument();
   });
 });

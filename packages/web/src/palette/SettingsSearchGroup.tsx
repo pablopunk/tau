@@ -10,7 +10,7 @@ const MAX_RESULTS = 8;
 
 /** Settings found by the same index and ranking as the Settings dialog search; none while not searching. */
 export function useSettingResults(search: string) {
-  const entries = useSettingEntries();
+  const entries = useSettingEntries({ withModels: false });
   return useMemo(
     () => (search.trim() === "" ? [] : searchSettings(search, entries).slice(0, MAX_RESULTS)),
     [search, entries],

@@ -14,7 +14,7 @@ export const claudeCliRowLabel = (model: ModelInfo) => `${bareName(model)}${ownA
 
 export const claudeCliHeaderLabel = (model: ModelInfo) => `${model.providerName} · ${bareName(model)}`;
 
-const labelOf = (model: ModelInfo): string =>
+export const modelRowLabel = (model: ModelInfo): string =>
   model.provider === CLAUDE_CLI ? claudeCliRowLabel(model) : model.name;
 
 const triggerLabelOf = (model: ModelInfo): string | undefined =>
@@ -22,14 +22,14 @@ const triggerLabelOf = (model: ModelInfo): string | undefined =>
 
 const toOption = (model: ModelInfo): ComboboxOption => ({
   value: keyOf(model),
-  label: labelOf(model),
+  label: modelRowLabel(model),
   triggerLabel: triggerLabelOf(model),
   description: keyOf(model),
   group: model.providerName,
   keywords: [model.modelId],
 });
 
-const claudeCliFirst = (models: ModelInfo[]): ModelInfo[] => [
+export const claudeCliFirst = (models: ModelInfo[]): ModelInfo[] => [
   ...models.filter((model) => model.provider === CLAUDE_CLI),
   ...models.filter((model) => model.provider !== CLAUDE_CLI),
 ];

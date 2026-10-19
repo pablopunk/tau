@@ -4,7 +4,7 @@ import { useMcpServers, useModels, useProjects, useProviders } from "@/lib/queri
 import { dynamicEntries, SETTINGS_INDEX, type SettingEntry } from "./settings-index";
 
 /** The fixed index plus one entry per provider, project, MCP server and model. */
-export function useSettingEntries(): SettingEntry[] {
+export function useSettingEntries({ withModels = true } = {}): SettingEntry[] {
   const { projectId } = useOpenConversation();
   const providers = useProviders().data;
   const projects = useProjects().data;
@@ -16,10 +16,10 @@ export function useSettingEntries(): SettingEntry[] {
       ...dynamicEntries({
         providers: providers ?? [],
         projects: projects ?? [],
-        models: models ?? [],
+        models: withModels ? (models ?? []) : [],
         mcpServers: mcpServers ?? [],
       }),
     ],
-    [providers, projects, models, mcpServers],
+    [providers, projects, models, mcpServers, withModels],
   );
 }

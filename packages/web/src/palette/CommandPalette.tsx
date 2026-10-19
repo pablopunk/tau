@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { type KeyboardEvent, useState } from "react";
 import { useNavigate } from "react-router";
 import { useOpenConversation } from "@/activity";
 import {
@@ -20,6 +20,7 @@ import { MachineScope } from "@/machines/MachineScope";
 import { SETTINGS_SECTIONS } from "@/settings/sections";
 import { AddProjectFlow, type AddProjectStep } from "./AddProjectFlow";
 import { useAdjacentThread } from "./adjacent-thread";
+import { ModelPage } from "./ModelPage";
 import { SettingsItem } from "./SettingsItem";
 import { SettingsSearchGroup, useSettingResults } from "./SettingsSearchGroup";
 import { ThreadActions } from "./ThreadActions";
@@ -57,126 +58,179 @@ function MachineFilter({
   );
 }
 
-export function CommandPalette() {
-  const [open, setOpen] = useState(false);
-  const [search, setSearch] = useState("");
-  const [machineFilter, setMachineFilter] = useState(ALL_MACHINES);
-  const [addProject, setAddProject] = useState<AddProjectStep | null>(null);
+interface SectionsProps {
+  search: string;
+  allMachines: readonly MachineData[];
+  machines: readonly MachineData[];
+  several: boolean;
+  run: (action: () => void) => () => void;
+  startAddProject: () => void;
+  openModelPage: () => void;
+}
+
+function MainSections({
+  search,
+  allMachines,
+  machines,
+  several,
+  run,
+  startAddProject,
+  openModelPage,
+}: SectionsProps) {
   const navigate = useNavigate();
   const adjacent = useAdjacentThread();
-  const { projectId, conversationId, machineId: openMachineId } = useOpenConversation();
-  const everyMachine = useMachinesData();
-  const several = everyMachine.length > 1;
-  const machines = everyMachine.filter(
-    (machine) => machineFilter === ALL_MACHINES || machineKeyOf(machine.machineId) === machineFilter,
-  );
   const { toggleSidebar } = useSidebar();
-  const openThread = everyMachine
+  const { projectId, conversationId, machineId: openMachineId } = useOpenConversation();
+  const openThread = allMachines
     .find((machine) => machine.machineId === openMachineId)
     ?.conversations.find((conversation) => conversation.id === conversationId);
   const settingResults = useSettingResults(search);
+  return (
+    <>
+      {settingResults.length === 0 && <CommandEmpty>No results.</CommandEmpty>}
+      {projectId && conversationId ? (
+        <MachineScope machineId={openMachineId}>
+          <ThreadActions
+            projectId={projectId}
+            conversationId={conversationId}
+            archived={openThread?.archivedAt != null}
+            onChangeModel={openModelPage}
+            run={run}
+          />
+        </MachineScope>
+      ) : null}
+      <CommandGroup heading="Actions">
+        <CommandItem onSelect={run(() => navigate(newThreadPath(projectId, openMachineId)))}>
+          New thread
+        </CommandItem>
+        <CommandItem onSelect={run(startAddProject)}>Add project</CommandItem>
+        {adjacent.available ? (
+          <>
+            <CommandItem onSelect={run(() => adjacent.go(1))}>
+              Next thread
+              <CommandShortcut>⌘⌥↓</CommandShortcut>
+            </CommandItem>
+            <CommandItem onSelect={run(() => adjacent.go(-1))}>
+              Previous thread
+              <CommandShortcut>⌘⌥↑</CommandShortcut>
+            </CommandItem>
+          </>
+        ) : null}
+        <CommandItem onSelect={run(toggleSidebar)}>
+          Toggle sidebar
+          <CommandShortcut>⌘B</CommandShortcut>
+        </CommandItem>
+        {SETTINGS_SECTIONS.map((section) => (
+          <SettingsItem key={section.id} section={section} run={run} />
+        ))}
+      </CommandGroup>
+      <SettingsSearchGroup search={search} results={settingResults} run={run} />
+      <CommandGroup heading="Projects">
+        {machines.flatMap((machine) =>
+          machine.projects.map((project) => (
+            <CommandItem
+              key={`${machineKeyOf(machine.machineId)}:${project.id}`}
+              value={`project ${project.name} ${project.id} ${machine.name}`}
+              onSelect={run(() => navigate(newThreadPath(project.id, machine.machineId)))}
+            >
+              {project.name}
+              {several ? <span className="ml-auto text-xs text-muted-foreground">{machine.name}</span> : null}
+            </CommandItem>
+          )),
+        )}
+      </CommandGroup>
+      <CommandGroup heading="Threads">
+        {machines.flatMap((machine) =>
+          machine.conversations.map((conversation) => {
+            const projectName =
+              machine.projects.find((project) => project.id === conversation.projectId)?.name ?? "";
+            return (
+              <CommandItem
+                key={`${machineKeyOf(machine.machineId)}:${conversation.id}`}
+                value={`thread ${conversation.title} ${projectName} ${conversation.id} ${machine.name}`}
+                onSelect={run(() =>
+                  navigate(conversationPath(conversation.projectId, conversation.id, machine.machineId)),
+                )}
+              >
+                {conversation.title.trim() || "New thread"}
+                <span className="ml-auto text-xs text-muted-foreground">
+                  {several ? `${machine.name} · ${projectName}` : projectName}
+                </span>
+              </CommandItem>
+            );
+          }),
+        )}
+      </CommandGroup>
+    </>
+  );
+}
+
+export function CommandPalette() {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const [page, setPage] = useState<"model" | null>(null);
+  const [machineFilter, setMachineFilter] = useState(ALL_MACHINES);
+  const [addProject, setAddProject] = useState<AddProjectStep | null>(null);
+  const { conversationId, machineId: openMachineId } = useOpenConversation();
+  const everyMachine = useMachinesData();
+  const machines = everyMachine.filter(
+    (machine) => machineFilter === ALL_MACHINES || machineKeyOf(machine.machineId) === machineFilter,
+  );
   useHotkey("mod+k", () => setOpen((current) => !current));
 
   const startAddProject = () =>
     setAddProject(everyMachine.length > 1 ? { step: "choose" } : { step: "add", machineId: undefined });
 
+  const changeOpen = (next: boolean) => {
+    setOpen(next);
+    if (!next) setPage(null);
+  };
+
   const run = (action: () => void) => () => {
-    setOpen(false);
+    changeOpen(false);
     setSearch("");
     action();
+  };
+
+  const openModelPage = () => {
+    setSearch("");
+    setPage("model");
+  };
+
+  const backFromEmptySearch = (event: KeyboardEvent<HTMLElement>) => {
+    if (page !== null && search === "" && event.key === "Backspace") setPage(null);
   };
 
   return (
     <>
       <AddProjectFlow state={addProject} machines={everyMachine} onChange={setAddProject} />
-      <CommandDialog open={open} onOpenChange={setOpen} title="Command palette">
-        <Command>
+      <CommandDialog open={open} onOpenChange={changeOpen} title="Command palette">
+        <Command onKeyDown={backFromEmptySearch}>
           <CommandInput
             value={search}
             onValueChange={setSearch}
-            placeholder="Search threads, projects, actions, settings"
+            placeholder={page === "model" ? "Search models" : "Search threads, projects, actions, settings"}
           />
-          {several ? (
+          {page === null && everyMachine.length > 1 ? (
             <MachineFilter machines={everyMachine} value={machineFilter} onChange={setMachineFilter} />
           ) : null}
           <CommandList>
-            {settingResults.length === 0 && <CommandEmpty>No results.</CommandEmpty>}
-            {projectId && conversationId ? (
+            {page === "model" && conversationId ? (
               <MachineScope machineId={openMachineId}>
-                <ThreadActions
-                  projectId={projectId}
-                  conversationId={conversationId}
-                  archived={openThread?.archivedAt != null}
-                  run={run}
-                />
+                <CommandEmpty>No models.</CommandEmpty>
+                <ModelPage conversationId={conversationId} run={run} />
               </MachineScope>
-            ) : null}
-            <CommandGroup heading="Actions">
-              <CommandItem onSelect={run(() => navigate(newThreadPath(projectId, openMachineId)))}>
-                New thread
-              </CommandItem>
-              <CommandItem onSelect={run(startAddProject)}>Add project</CommandItem>
-              {adjacent.available ? (
-                <>
-                  <CommandItem onSelect={run(() => adjacent.go(1))}>
-                    Next thread
-                    <CommandShortcut>⌘⌥↓</CommandShortcut>
-                  </CommandItem>
-                  <CommandItem onSelect={run(() => adjacent.go(-1))}>
-                    Previous thread
-                    <CommandShortcut>⌘⌥↑</CommandShortcut>
-                  </CommandItem>
-                </>
-              ) : null}
-              <CommandItem onSelect={run(toggleSidebar)}>
-                Toggle sidebar
-                <CommandShortcut>⌘B</CommandShortcut>
-              </CommandItem>
-              {SETTINGS_SECTIONS.map((section) => (
-                <SettingsItem key={section.id} section={section} run={run} />
-              ))}
-            </CommandGroup>
-            <SettingsSearchGroup search={search} results={settingResults} run={run} />
-            <CommandGroup heading="Projects">
-              {machines.flatMap((machine) =>
-                machine.projects.map((project) => (
-                  <CommandItem
-                    key={`${machineKeyOf(machine.machineId)}:${project.id}`}
-                    value={`project ${project.name} ${project.id} ${machine.name}`}
-                    onSelect={run(() => navigate(newThreadPath(project.id, machine.machineId)))}
-                  >
-                    {project.name}
-                    {several ? (
-                      <span className="ml-auto text-xs text-muted-foreground">{machine.name}</span>
-                    ) : null}
-                  </CommandItem>
-                )),
-              )}
-            </CommandGroup>
-            <CommandGroup heading="Threads">
-              {machines.flatMap((machine) =>
-                machine.conversations.map((conversation) => {
-                  const projectName =
-                    machine.projects.find((project) => project.id === conversation.projectId)?.name ?? "";
-                  return (
-                    <CommandItem
-                      key={`${machineKeyOf(machine.machineId)}:${conversation.id}`}
-                      value={`thread ${conversation.title} ${projectName} ${conversation.id} ${machine.name}`}
-                      onSelect={run(() =>
-                        navigate(
-                          conversationPath(conversation.projectId, conversation.id, machine.machineId),
-                        ),
-                      )}
-                    >
-                      {conversation.title.trim() || "New thread"}
-                      <span className="ml-auto text-xs text-muted-foreground">
-                        {several ? `${machine.name} · ${projectName}` : projectName}
-                      </span>
-                    </CommandItem>
-                  );
-                }),
-              )}
-            </CommandGroup>
+            ) : (
+              <MainSections
+                search={search}
+                allMachines={everyMachine}
+                machines={machines}
+                several={everyMachine.length > 1}
+                run={run}
+                startAddProject={startAddProject}
+                openModelPage={openModelPage}
+              />
+            )}
           </CommandList>
         </Command>
       </CommandDialog>
