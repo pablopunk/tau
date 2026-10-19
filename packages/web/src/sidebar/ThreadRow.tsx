@@ -24,7 +24,7 @@ import { SidebarThreadRow } from "@/components/ui/sidebar-thread-row";
 import { StatusDot } from "@/components/ui/status-dot";
 import { TreeBranch, TreeToggle } from "@/components/ui/tree-branch";
 import { PendingApprovalBadge } from "@/conversation/PendingApprovalBadge";
-import { conversationPath } from "@/lib/paths";
+import { conversationPath, machineAssetUrl } from "@/lib/paths";
 import { queryKeys } from "@/lib/queries";
 import { useApi, useMachineId } from "@/machines/machine-context";
 import { conversationDot } from "./conversation-dot";
@@ -101,7 +101,7 @@ export function ThreadRow({
       <ProjectIcon
         id={project.id}
         name={project.name}
-        iconUrl={project.iconUrl}
+        iconUrl={project.iconUrl ? machineAssetUrl(project.iconUrl, machineId) : null}
         home={project.kind === "home"}
         tile={tile}
       />

@@ -11,6 +11,7 @@ import { RefreshReposButton } from "@/github/RefreshReposButton";
 import { GITHUB_GROUP, githubOptions, parseGithubValue } from "@/github/repo-options";
 import { UseRepoDialog } from "@/github/UseRepoDialog";
 import { projectsHomeFirst } from "@/lib/new-thread-defaults";
+import { machineAssetUrl } from "@/lib/paths";
 import { queryKeys, useGithubRepos, useGithubStatus } from "@/lib/queries";
 import { type MachineData, MachineProvider, useHubQueryClient, useMachinesData } from "@/machines";
 import { useApi, useMachineId } from "@/machines/machine-context";
@@ -22,7 +23,12 @@ const PROJECTS_GROUP = "Projects";
 const OTHER_MACHINE = "machine:";
 const otherValue = (machineId: string, projectId: string) => `${OTHER_MACHINE}${machineId}:${projectId}`;
 
-const projectOption = (project: Project, group = PROJECTS_GROUP, value = project.id): ComboboxOption => ({
+const projectOption = (
+  project: Project,
+  group = PROJECTS_GROUP,
+  value = project.id,
+  machineId?: string,
+): ComboboxOption => ({
   value,
   label: project.name,
   group,
@@ -31,7 +37,7 @@ const projectOption = (project: Project, group = PROJECTS_GROUP, value = project
     <ProjectIcon
       id={project.id}
       name={project.name}
-      iconUrl={project.iconUrl}
+      iconUrl={project.iconUrl ? machineAssetUrl(project.iconUrl, machineId) : null}
       home={project.kind === "home"}
     />
   ),
@@ -104,11 +110,16 @@ export function ProjectPicker({
 
   const options = [
     ...projectsHomeFirst(projects).map((project) =>
-      projectOption(project, current ? groupOf(current) : PROJECTS_GROUP),
+      projectOption(project, current ? groupOf(current) : PROJECTS_GROUP, project.id, machineId),
     ),
     ...others.flatMap((machine) =>
       projectsHomeFirst([...machine.projects]).map((project) =>
-        projectOption(project, groupOf(machine), otherValue(machine.machineId ?? "", project.id)),
+        projectOption(
+          project,
+          groupOf(machine),
+          otherValue(machine.machineId ?? "", project.id),
+          machine.machineId,
+        ),
       ),
     ),
     ...githubOptions({ status: status.data, repos: repos.data, reposFailed: repos.isError }),

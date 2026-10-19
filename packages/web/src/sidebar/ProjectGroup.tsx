@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/sidebar";
 import { Spinner } from "@/components/ui/spinner";
 import { ChangeIconDialog } from "@/icons/ChangeIconDialog";
-import { newThreadPath } from "@/lib/paths";
+import { machineAssetUrl, newThreadPath } from "@/lib/paths";
 import { queryKeys } from "@/lib/queries";
 import { useApi, useMachineId } from "@/machines/machine-context";
 import { ArchivedConversations } from "./ArchivedConversations";
@@ -73,7 +73,12 @@ export function ProjectGroup({
         <SidebarGroupLabel asChild title={project.path} className="pr-14">
           <CollapsibleTrigger className="w-full gap-1.5">
             <ChevronRightIcon className={open ? "rotate-90 transition-transform" : "transition-transform"} />
-            <ProjectIcon id={project.id} name={project.name} iconUrl={project.iconUrl} home={isHome} />
+            <ProjectIcon
+              id={project.id}
+              name={project.name}
+              iconUrl={project.iconUrl ? machineAssetUrl(project.iconUrl, machineId) : null}
+              home={isHome}
+            />
             <span className="truncate">{project.name}</span>
             {project.status === "cloning" && <Spinner className="ml-1 size-3" aria-label="Cloning" />}
           </CollapsibleTrigger>

@@ -1,3 +1,5 @@
+import { machineApiPrefix } from "@tau/protocol";
+
 /** The hub's own machine has no prefix: its URLs are exactly today's. A linked machine's start with `/m/<machineId>`. */
 export const machinePrefix = (machineId?: string): string =>
   machineId === undefined ? "" : `/m/${encodeURIComponent(machineId)}`;
@@ -26,3 +28,7 @@ export const terminalPath = (
 /** The route patterns, for `useMatch` and the router: one place next to the builders. */
 export const CONVERSATION_ROUTE = "/p/:projectId/c/:conversationId/*";
 export const MACHINE_CONVERSATION_ROUTE = "/m/:machineId/p/:projectId/c/:conversationId/*";
+
+/** A machine's root-relative asset URL (such as `iconUrl`), reachable from the hub: linked machines go through `/api/m/<machineId>`. */
+export const machineAssetUrl = (url: string, machineId?: string): string =>
+  machineId === undefined || !url.startsWith("/") ? url : `${machineApiPrefix(machineId)}${url}`;
