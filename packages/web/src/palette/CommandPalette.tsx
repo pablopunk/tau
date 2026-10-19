@@ -16,9 +16,11 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useHotkey } from "@/lib/hotkeys";
 import { conversationPath, newThreadPath } from "@/lib/paths";
 import { type MachineData, useMachinesData } from "@/machines";
+import { MachineScope } from "@/machines/MachineScope";
 import { SETTINGS_SECTIONS } from "@/settings/sections";
 import { SettingsItem } from "./SettingsItem";
 import { SettingsSearchGroup, useSettingResults } from "./SettingsSearchGroup";
+import { ThreadActions } from "./ThreadActions";
 
 const ALL_MACHINES = "all";
 
@@ -58,13 +60,16 @@ export function CommandPalette() {
   const [search, setSearch] = useState("");
   const [machineFilter, setMachineFilter] = useState(ALL_MACHINES);
   const navigate = useNavigate();
-  const { projectId, machineId: openMachineId } = useOpenConversation();
+  const { projectId, conversationId, machineId: openMachineId } = useOpenConversation();
   const everyMachine = useMachinesData();
   const several = everyMachine.length > 1;
   const machines = everyMachine.filter(
     (machine) => machineFilter === ALL_MACHINES || machineKeyOf(machine.machineId) === machineFilter,
   );
   const { toggleSidebar } = useSidebar();
+  const openThread = everyMachine
+    .find((machine) => machine.machineId === openMachineId)
+    ?.conversations.find((conversation) => conversation.id === conversationId);
   const settingResults = useSettingResults(search);
   useHotkey("mod+k", () => setOpen((current) => !current));
 
@@ -87,6 +92,16 @@ export function CommandPalette() {
         ) : null}
         <CommandList>
           {settingResults.length === 0 && <CommandEmpty>No results.</CommandEmpty>}
+          {projectId && conversationId ? (
+            <MachineScope machineId={openMachineId}>
+              <ThreadActions
+                projectId={projectId}
+                conversationId={conversationId}
+                archived={openThread?.archivedAt != null}
+                run={run}
+              />
+            </MachineScope>
+          ) : null}
           <CommandGroup heading="Actions">
             <CommandItem onSelect={run(() => navigate(newThreadPath(projectId, openMachineId)))}>
               New thread

@@ -2,12 +2,12 @@ import { Route, Routes, useSearchParams } from "react-router";
 import { SidebarInset, SidebarProvider, SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
 import { preferences } from "@/lib/preferences";
 import { useMachines } from "@/machines";
+import { MachineScope } from "@/machines/MachineScope";
 import { isUsable } from "@/machines/machine-text";
 import { NotificationWatcher } from "@/notifications";
 import { CommandPalette, GlobalShortcuts } from "@/palette";
 import { AppSidebar } from "@/sidebar/AppSidebar";
 import { ConversationRoute } from "./ConversationRoute";
-import { MachineScope } from "./MachineScope";
 import { NewThreadPage } from "./NewThreadPage";
 
 function NewThreadRoute() {

@@ -2,10 +2,10 @@ import { useMatch, useParams } from "react-router";
 import { MarkSeenWhileOpen } from "@/activity";
 import { Conversation } from "@/conversation";
 import { useMachines } from "@/machines";
+import { MachineScope } from "@/machines/MachineScope";
 import { isUsable } from "@/machines/machine-text";
 import { ThreadPanes } from "@/panes";
 import { MachineOffline, MachineUnknown } from "./MachineOffline";
-import { MachineScope } from "./MachineScope";
 import { NewThreadPage } from "./NewThreadPage";
 import { useMachineTitle } from "./use-machine-title";
 
