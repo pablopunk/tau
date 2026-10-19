@@ -31,7 +31,7 @@ export interface ContractTarget {
   dialPeer?(name: string): Promise<string>;
   /**
    * A three-node group A-B-C (A-B and B-C linked, A and C only through B), for the `[nodes-group]` cases.
-   * Absent when the target cannot; the real core stays pending until owners E and F are merged.
+   * Absent when the target cannot.
    */
   group?(): Promise<ContractGroup>;
   /** Closes `core` and opens a new one on the same data. Absent when the target cannot persist. */
@@ -46,7 +46,7 @@ export interface ContractGroup {
   readonly ids: { readonly a: string; readonly b: string; readonly c: string };
   /** The node is unreachable for expels (offline, or behind a cut vertex) until `reconnect`. */
   cut(node: "a" | "b" | "c"): void;
-  reconnect(node: "a" | "b" | "c"): void;
+  reconnect(node: "a" | "b" | "c"): void | Promise<void>;
   dispose(): Promise<void>;
 }
 

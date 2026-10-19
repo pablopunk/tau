@@ -360,6 +360,8 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
       latestVersion: options.latestVersion,
       now: deps.now,
     });
+    // `TAU_NODE_NAME` names this node instead of the host name (tests and scratch nodes on one machine).
+    const nodeName = deps.env.TAU_NODE_NAME || undefined;
     const nodes = createNodes({
       directory: home.nodesDirectory,
       now: deps.now,
@@ -375,6 +377,7 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
       protocolVersion: process.env.TAU_FAKE_PROTOCOL_VERSION || PROTOCOL_VERSION,
       linkProtocol: LINK_PROTOCOL,
       tauVersion: options.currentVersion,
+      ...(nodeName && { name: nodeName }),
     });
 
     const directory = createDirectory({
@@ -385,7 +388,7 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
       nodes,
       home: home.root,
       self: () => ({
-        name: hostname().replace(/\.local$/i, ""),
+        name: nodeName ?? hostname().replace(/\.local$/i, ""),
         os: `${process.platform} ${process.arch}`,
         tauVersion: options.currentVersion,
         protocolVersion: process.env.TAU_FAKE_PROTOCOL_VERSION || PROTOCOL_VERSION,

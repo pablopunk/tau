@@ -11,7 +11,7 @@ const requireGroup = async (
   return { group, dispose: async () => (await group.dispose(), target.dispose()) };
 };
 
-/** `[nodes-group]` cases: routed nodes, "via", typed-confirmation expel, confirmations. Pending on the real core. */
+/** `[nodes-group]` cases: routed nodes, "via", typed-confirmation expel, confirmations. */
 export function nodesGroupCases(make: MakeContractTarget, test: CaseRunner): void {
   describe("nodes group", () => {
     let group: ContractGroup;
@@ -71,7 +71,7 @@ export function nodesGroupCases(make: MakeContractTarget, test: CaseRunner): voi
       await group.a.nodes.group.createExpel(group.ids.c, group.ids.c);
       const [expulsion] = await group.a.nodes.expulsions();
       expect(expulsion?.pending.map((entry) => entry.node)).toEqual([group.ids.b]);
-      group.reconnect("b");
+      await group.reconnect("b");
       expect((await group.a.nodes.expulsions())[0]?.pending).toEqual([]);
     });
 

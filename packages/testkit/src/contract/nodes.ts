@@ -110,13 +110,13 @@ export function nodesCases(make: MakeContractTarget, test: CaseRunner): void {
       expect(await core.nodes.readSummary(id)).toEqual(summary);
     });
 
-    test("[nodes] self has a stable id and a name, signs a payload and lists no capability yet", async () => {
+    test("[nodes] self has a stable id and a name, signs a payload and lists the Step 2 capabilities", async () => {
       const { core } = target;
       const self = await core.nodes.self();
       expect(self.nodeId.length).toBeGreaterThan(0);
       expect(self.name.length).toBeGreaterThan(0);
       expect(self.protocolVersion).toBe(PROTOCOL_VERSION);
-      expect(self.capabilities).toEqual([]);
+      expect(self.capabilities).toEqual(expect.arrayContaining(["announce", "relay"]));
       expect((await core.nodes.self()).nodeId).toBe(self.nodeId);
       expect((await core.nodes.sign("tau-proof-v1|a|b|c")).length).toBeGreaterThan(0);
     });

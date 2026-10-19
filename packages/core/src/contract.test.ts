@@ -14,12 +14,10 @@ import { createScriptedShellDaemon } from "./terminals/scripted-shell-daemon";
 import type { FakeGhConfig } from "./test-support/fake-gh";
 import { runGhFromConfig } from "./test-support/fake-run-gh";
 import { makeLocalRepo } from "./test-support/local-repo";
+import { createRealGroup } from "./test-support/real-group";
 import { NO_UPDATE_OPTIONS } from "./test-support/update-options";
 
 const REAL_CORE_IMPLEMENTED = true;
-
-/** `[nodes-group]`: owners E (directory) and F (relay) fill it; the integrator removes the tag. */
-const PENDING_TAGS: string[] = ["[nodes-group]"];
 
 process.env.TAU_FAKE_CLAUDE_CLI = "1";
 
@@ -132,6 +130,7 @@ async function makeRealTarget(): Promise<ContractTarget> {
       await mkdir(folder, { recursive: true });
       await writeFile(join(folder, "SKILL.md"), `---\nname: ${name}\ndescription: ${description}\n---\n`);
     },
+    group: createRealGroup,
     reopen: async () => {
       await core.close();
       core = await createCoreWith({ home, faux: true, ...NO_UPDATE_OPTIONS }, deps);
@@ -146,5 +145,5 @@ async function makeRealTarget(): Promise<ContractTarget> {
 }
 
 describe.skipIf(!REAL_CORE_IMPLEMENTED)("real core", () => {
-  runCoreContract("real core (faux mode)", makeRealTarget, { pending: PENDING_TAGS });
+  runCoreContract("real core (faux mode)", makeRealTarget);
 });

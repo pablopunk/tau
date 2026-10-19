@@ -25,4 +25,6 @@ export interface NodesDeps {
   /** The hash of the base link frames: two nodes with different ones may not link. */
   readonly linkProtocol: string;
   readonly tauVersion: string;
+  /** What this node calls itself; the machine's host name when absent. */
+  readonly name?: string;
 }

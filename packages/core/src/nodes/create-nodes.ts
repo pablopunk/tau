@@ -214,7 +214,7 @@ export function createNodes(deps: NodesDeps): NodesService {
       return {
         nodeId: identity.nodeId,
         publicKey: identity.publicKey,
-        name: hostname().replace(/\.local$/i, ""),
+        name: deps.name ?? hostname().replace(/\.local$/i, ""),
         os: `${process.platform} ${process.arch}`,
         tauVersion: deps.tauVersion,
         protocolVersion: deps.protocolVersion,

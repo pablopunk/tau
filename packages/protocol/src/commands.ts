@@ -600,8 +600,8 @@ export const commands: readonly CommandDef[] = [
   },
   {
     command: "nodes list",
-    route: "listNodes",
-    summary: "List the nodes linked to this node, in both directions",
+    route: "getNodeDirectory",
+    summary: "List every node of the group this node can route to, with hops and `via`",
     positionals: [],
     destructive: false,
   },
@@ -649,13 +649,6 @@ export const commands: readonly CommandDef[] = [
     destructive: true,
   },
   {
-    command: "nodes directory",
-    route: "getNodeDirectory",
-    summary: "List every node of the group this node can route to, with hops and the next hop",
-    positionals: [],
-    destructive: false,
-  },
-  {
     command: "nodes expulsions",
     route: "listExpulsions",
     summary: "List the nodes removed from the group, who removed them and who confirmed",
@@ -687,6 +680,7 @@ const TYPING_HELPER = "A typing helper for the UI; agents have `ls`.";
 const UPDATE_CHECK = "`tau update --check` covers it.";
 
 export const COMMAND_EXCLUSIONS = {
+  listNodes: "`tau nodes list` shows the directory (`getNodeDirectory`), a superset.",
   getProjectIcon: IMAGES,
   getIconCandidate: IMAGES,
   listIconCandidates: IMAGES,
