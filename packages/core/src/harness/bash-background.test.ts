@@ -60,7 +60,6 @@ describe("bash", () => {
     });
     await rig.idle(thread.id);
     const outputs = await rig.toolOutputs(thread.id);
-    expect(outputs).toContain("before");
     expect(outputs).toContain("moved this command to the background");
     expect(outputs).not.toContain("after\\n");
     const [info] = await rig.processes.list(thread.id);
@@ -68,6 +67,9 @@ describe("bash", () => {
     await rig.until(async () => (await rig.processes.list(thread.id))[0]?.state === "exited");
     const [finished] = await rig.processes.list(thread.id);
     expect(finished).toMatchObject({ state: "exited", exitCode: 0 });
-    expect(await rig.processes.logs(finished?.id ?? "", 5)).toContain("after");
+    // The call can be backgrounded before "before" prints, so the full output is checked in the log.
+    const logs = await rig.processes.logs(finished?.id ?? "", 5);
+    expect(logs).toContain("before");
+    expect(logs).toContain("after");
   });
 });
