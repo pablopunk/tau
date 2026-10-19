@@ -5,6 +5,9 @@ const sdk = vi.hoisted(() => {
     identity: undefined as { hostname: string } | undefined,
     connect: (): Promise<unknown> => new Promise(() => undefined),
     removeFails: false,
+    pending: undefined as { hostname: string } | undefined,
+    resumed: 0,
+    created: 0,
     removed: [] as string[],
     saved: new Map<string, unknown>(),
   };
@@ -22,8 +25,16 @@ vi.mock("@opentunnel/client", () => {
     create: () => ({
       tunnel: {
         get: async (o: { profile: string }) => sdk.saved.get(o.profile) ?? sdk.identity,
-        resume: async () => undefined,
+        resume: async (o: { profile: string; onProgress?: (stage: string) => void }) => {
+          if (!sdk.pending) return undefined;
+          sdk.resumed += 1;
+          o.onProgress?.("waiting-certificate");
+          sdk.identity = sdk.pending;
+          sdk.saved.set(o.profile, sdk.identity);
+          return sdk.identity;
+        },
         create: async (o: { profile: string }) => {
+          sdk.created += 1;
           sdk.identity = { hostname: "newhost.test" };
           sdk.saved.set(o.profile, sdk.identity);
           return sdk.identity;
@@ -66,6 +77,9 @@ describe("opentunnel adapter over a fake SDK", () => {
     sdk.connect = () => new Promise(() => undefined);
     sdk.removeFails = false;
     sdk.removed = [];
+    sdk.pending = undefined;
+    sdk.resumed = 0;
+    sdk.created = 0;
     sdk.saved = new Map([["x", 1]]);
     sdk.saved.clear();
   });
@@ -97,22 +111,25 @@ describe("opentunnel adapter over a fake SDK", () => {
     expect(adapter.status()).toMatchObject({ state: "reconnecting", url: "https://abc.test" });
   });
 
-  it("disable that cannot remove keeps the identity as pending removal and retries later", async () => {
-    sdk.saved.set("seed", 0);
-    const { adapter, timers } = setup();
-    sdk.saved.clear();
+  it("disable only closes: the identity is kept and enable reuses the URL", async () => {
+    const { adapter } = setup();
     await adapter.enable();
     await settle();
-    sdk.saved.set(`tau-${"0".repeat(8)}`, sdk.identity);
-    sdk.removeFails = true;
     const off = await adapter.disable();
+    expect(off).toMatchObject({ state: "off", url: "https://abc.test" });
+    expect(sdk.removed).toEqual([]);
+    expect((await adapter.enable()).state).toBe("starting");
+  });
+
+  it("a restart mid-creation resumes the pending tunnel and reports its stage", async () => {
+    sdk.identity = undefined;
+    sdk.pending = { hostname: "pending.test" };
+    const { adapter } = setup();
+    await adapter.resume({ enabled: true });
     await settle();
-    expect(off.state).toBe("off");
-    expect(adapter.status().pendingRemoval).toBe(true);
-    sdk.removeFails = false;
-    for (const t of timers.filter((t) => t.live && t.ms === 300_000)) t.run();
-    await settle();
-    expect(adapter.status().pendingRemoval).toBe(false);
-    expect(sdk.removed.some((p) => p.includes("-old-1"))).toBe(true);
+    expect(sdk.resumed).toBe(1);
+    expect(sdk.created).toBe(0);
+    expect(adapter.status()).toMatchObject({ state: "starting", url: "https://pending.test" });
+    expect(adapter.status().message).toContain("certificate");
   });
 });

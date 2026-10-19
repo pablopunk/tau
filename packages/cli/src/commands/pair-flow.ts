@@ -8,7 +8,7 @@ import type { CommandEnv } from "./command-env";
 export const REMOTE_WAIT_MS = 12 * 60 * 1000;
 export const LINK_POLL_MS = 2000;
 const REMOTE_POLL_MS = 3000;
-const PROGRESS_EVERY_MS = 15_000;
+const PROGRESS_EVERY_MS = 10_000;
 
 export const FULL_POWER_WARNING =
   "A linked device gets full power over this computer: agents, terminals and your files. Share this only with yourself.";
@@ -28,6 +28,12 @@ export const groupShortCode = (code: string): string => code.match(/.{1,4}/g)?.j
 
 const remoteOf = (server: Server, env: CommandEnv) =>
   callRoute(server, "getRemoteStatus", {}, env) as Promise<RemoteStatus>;
+
+function elapsedLine(status: RemoteStatus, now: number): string {
+  const seconds = status.since === null ? 0 : Math.max(0, Math.floor((now - status.since) / 1000));
+  const elapsed = seconds < 60 ? `${seconds} s` : `${Math.floor(seconds / 60)} min`;
+  return `Setting up remote access, ${elapsed} so far (usually 3-6 minutes)`;
+}
 
 async function waitUntilOnline(server: Server, env: CommandEnv, first: RemoteStatus): Promise<RemoteStatus> {
   const deadline = env.now() + REMOTE_WAIT_MS;
@@ -49,7 +55,7 @@ async function waitUntilOnline(server: Server, env: CommandEnv, first: RemoteSta
       env.stdout(status.message);
     } else if (env.now() - lastProgress >= PROGRESS_EVERY_MS) {
       lastProgress = env.now();
-      env.stdout(`Still ${status.state}… (this takes a few minutes)`);
+      env.stdout(elapsedLine(status, env.now()));
     }
     await env.sleep(REMOTE_POLL_MS);
     status = await remoteOf(server, env);
@@ -62,7 +68,7 @@ export async function ensureRemoteOnline(server: Server, env: CommandEnv): Promi
   let status = await remoteOf(server, env);
   if (status.state === "online") return;
   if (status.state === "off") {
-    env.stdout("Remote access is off. Turning it on: the first time takes a few minutes, please wait.");
+    env.stdout("Remote access is off. Turning it on: a new URL takes 3-6 minutes, please wait.");
     status = (await callRoute(server, "enableRemote", {}, env)) as RemoteStatus;
   } else {
     env.stdout("Remote access is starting: this takes a few minutes.");

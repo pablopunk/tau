@@ -2,7 +2,7 @@ import type { RemoteStatus } from "@tau/protocol";
 
 /**
  * The tunnel as a port: only `opentunnel-adapter.ts` knows OpenTunnel. `enable` opens (or resumes) the tunnel and
- * forwards `@` to the tunnel listener; `disable` closes and removes it; `recreate` removes the old identity
+ * forwards `@` to the tunnel listener; `disable` only closes it and keeps the identity (same URL on enable); `recreate` removes the old identity
  * (kept under a numbered profile until removed) and makes a new one.
  */
 export interface RemoteAdapter {

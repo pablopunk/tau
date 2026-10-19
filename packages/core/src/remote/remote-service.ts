@@ -33,8 +33,6 @@ export function createRemoteService({
     async disable() {
       const status = await adapter.disable();
       await settings.setRemoteEnabled(false);
-      await access.clearAll();
-      await forgetMachines?.();
       changes.emit({ resource: "remote" });
       return status;
     },

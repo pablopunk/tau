@@ -90,7 +90,7 @@ describe("tau pair", () => {
     });
     await executePair([], env);
     const out = tau.stdout.join("\n");
-    expect(out).toContain("takes a few minutes");
+    expect(out).toContain("3-6 minutes");
     expect(out).toContain("Getting a certificate");
     expect(tau.calls.some((call) => call.method === "POST" && call.path.endsWith("/enable"))).toBe(true);
     expect(tau.stdout.at(-1)).toBe("Linked: Tab");

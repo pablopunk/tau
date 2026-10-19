@@ -25,7 +25,7 @@ export function createFakeRemoteAdapter(now: () => number = Date.now): FakeRemot
   return {
     status: () => current,
     enable: async () => set(current.url ? { ...current, state: "online", since: now() } : online()),
-    disable: async () => set(REMOTE_OFF),
+    disable: async () => set({ ...REMOTE_OFF, url: current.url }),
     recreate: async () => set(online()),
     onStatus(listener) {
       listeners.add(listener);

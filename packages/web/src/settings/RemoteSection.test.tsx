@@ -69,8 +69,8 @@ describe("remote status", () => {
     await screen.findByText("Online");
     core.remoteControl.push({ state: "starting" });
     await refresh();
-    expect(await screen.findByText("Starting")).toBeInTheDocument();
-    expect(screen.getByText(/takes a few minutes/)).toBeInTheDocument();
+    expect(await screen.findByText("Setting up")).toBeInTheDocument();
+    expect(screen.getByText(/usually 3-6 minutes/)).toBeInTheDocument();
   });
 
   it("reconnecting offers a new URL only when canRecreate", async () => {
@@ -84,7 +84,7 @@ describe("remote status", () => {
     await refresh();
     await userEvent.click(await screen.findByRole("button", { name: "Make a new URL" }));
     const dialog = await screen.findByRole("alertdialog");
-    expect(within(dialog).getByText(/every device must pair again/)).toBeInTheDocument();
+    expect(within(dialog).getByText(/device must pair again/)).toBeInTheDocument();
     await userEvent.click(within(dialog).getByRole("button", { name: "Make a new URL" }));
     expect(await screen.findByText(/fake-2\.tunnel\.test/)).toBeInTheDocument();
   });
@@ -102,8 +102,8 @@ describe("remote status", () => {
     setup(true);
     await userEvent.click(await screen.findByRole("switch"));
     const dialog = await screen.findByRole("alertdialog");
-    expect(within(dialog).getByText(/URL dies/)).toBeInTheDocument();
-    expect(within(dialog).getByText(/linked device stops working/)).toBeInTheDocument();
+    expect(within(dialog).getByText(/URL is kept/)).toBeInTheDocument();
+    expect(within(dialog).getByText(/linked devices cannot connect/)).toBeInTheDocument();
     await userEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
     expect(screen.getByRole("switch")).toBeChecked();
     await userEvent.click(screen.getByRole("switch"));

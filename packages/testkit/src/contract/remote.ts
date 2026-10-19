@@ -22,7 +22,7 @@ export function remoteCases(make: MakeContractTarget, test: CaseRunner): void {
       expect(changes).toContainEqual({ resource: "remote" });
     });
 
-    test("[remote] turning it off clears the URL and every linked device", async () => {
+    test("[remote] turning it off keeps the URL and every linked device", async () => {
       const { core } = target;
       await core.remote.enable();
       const minted = await core.access.mintPairing({ kind: "device" });
@@ -31,10 +31,12 @@ export function remoteCases(make: MakeContractTarget, test: CaseRunner): void {
         deviceName: "Phone",
         peer: "203.0.113.7",
       });
+      const url = (await core.remote.status()).url;
       const off = await core.remote.disable();
-      expect(off).toMatchObject({ state: "off", url: null });
-      expect(await core.access.verifyDevice(device.secret)).toBeUndefined();
+      expect(off).toMatchObject({ state: "off", url });
+      expect(await core.access.verifyDevice(device.secret)).toBeDefined();
       expect((await core.settings.get()).remote).toEqual({ enabled: false });
+      expect((await core.remote.enable()).url).toBe(url);
     });
 
     test("[remote] a new URL is refused unless the tunnel has been offline for ten minutes", async () => {

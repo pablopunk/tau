@@ -122,7 +122,7 @@ describe("summary cache", () => {
     expect(seen).toContainEqual({ resource: "machines" });
   });
 
-  it("is deleted when remote is disabled or recreated", async () => {
+  it("is kept when remote is disabled and deleted when recreated", async () => {
     const { machines, changes } = setup();
     const adapter = createFakeRemoteAdapter(() => clock);
     const service = createRemoteService({
@@ -141,6 +141,10 @@ describe("summary cache", () => {
     await service.api.enable();
     seen.length = 0;
     await service.api.disable();
+    expect(await machines.readSummary("m1")).toBeDefined();
+    await service.api.enable();
+    adapter.push({ state: "reconnecting", canRecreate: true });
+    await service.api.recreate();
     expect(await machines.readSummary("m1")).toBeUndefined();
     expect(await machines.list()).toEqual([]);
     expect(seen).toContainEqual({ resource: "machines" });

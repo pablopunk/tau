@@ -4,7 +4,7 @@ import {
   type OpenTunnelPromiseClient,
   OpenTunnelStorage,
 } from "@opentunnel/client";
-import { neutralFailure, OFFLINE_TEXT } from "./neutral-text";
+import { CREATE_DEADLINE_MS, neutralFailure, OFFLINE_TEXT, stageText } from "./neutral-text";
 import type { RemoteAdapter, RemoteAdapterDeps } from "./ports";
 import { createStatusMachine, timeoutSchedule } from "./status-machine";
 import { createTunnelProfiles, profileNameFor } from "./tunnel-profiles";
@@ -64,10 +64,19 @@ export function createOpenTunnelAdapter(deps: RemoteAdapterDeps): RemoteAdapter 
   }
 
   async function connect(run: number): Promise<void> {
+    const onProgress = (stage: string) => {
+      if (run === generation && machine.status().state === "starting")
+        machine.set("starting", { message: stageText(stage) });
+    };
+    const cancelCreate = schedule(() => {
+      if (run === generation && machine.status().state === "starting")
+        machine.set("error", { message: OFFLINE_TEXT });
+    }, CREATE_DEADLINE_MS);
     const identity =
       (await client.tunnel.get({ profile })) ??
-      (await client.tunnel.resume({ profile })) ??
-      (await client.tunnel.create({ profile }));
+      (await client.tunnel.resume({ profile, onProgress })) ??
+      (await client.tunnel.create({ profile, onProgress }));
+    cancelCreate();
     if (run !== generation) return;
     const url = urlOf(identity.hostname);
     machine.set("starting", { url });
@@ -105,6 +114,11 @@ export function createOpenTunnelAdapter(deps: RemoteAdapterDeps): RemoteAdapter 
     await live?.close().catch(() => undefined);
   }
 
+  async function showKeptUrl(): Promise<void> {
+    const kept = await client.tunnel.get({ profile }).catch(() => undefined);
+    if (kept && machine.status().state === "off") machine.set("off", { url: urlOf(kept.hostname) });
+  }
+
   const active = () => ["starting", "online", "reconnecting"].includes(machine.status().state);
 
   return {
@@ -118,13 +132,7 @@ export function createOpenTunnelAdapter(deps: RemoteAdapterDeps): RemoteAdapter 
     },
     async disable() {
       await stopConnection();
-      try {
-        await client.tunnel.remove({ profile });
-      } catch {
-        await profiles.retireMain().catch(() => undefined);
-        void retryRemovals();
-      }
-      machine.set("off");
+      machine.set("off", { message: null });
       return machine.status();
     },
     async recreate() {
@@ -140,6 +148,7 @@ export function createOpenTunnelAdapter(deps: RemoteAdapterDeps): RemoteAdapter 
       void retryRemovals();
       if (holdReason) machine.set("off", { message: holdReason });
       else if (enabled) await this.enable();
+      else await showKeptUrl();
     },
     async close() {
       await stopConnection();

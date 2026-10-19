@@ -6,13 +6,13 @@ export const SLEEP_NOTE =
 export const FULL_POWER_NOTE =
   "A linked device has full power: it can use every terminal and agent on this computer. Link only devices you own.";
 export const OFF_CONFIRM =
-  "The URL dies and every linked device stops working. Turning remote access on again takes a few minutes and gives a new URL.";
+  "The URL is kept, but linked devices cannot connect while remote access is off. Turning it on again is fast and uses the same URL.";
 export const RECREATE_CONFIRM =
-  "The current URL dies and every device must pair again. The new URL takes a few minutes to be ready.";
+  "This deletes the current URL. Every device must pair again, and the new URL takes a few minutes to be ready.";
 
 const CHIPS: Record<RemoteState, { label: string; tone: StatusChipTone }> = {
   off: { label: "Off", tone: "neutral" },
-  starting: { label: "Starting", tone: "busy" },
+  starting: { label: "Setting up", tone: "busy" },
   online: { label: "Online", tone: "success" },
   reconnecting: { label: "Reconnecting", tone: "busy" },
   error: { label: "Error", tone: "error" },
@@ -21,10 +21,16 @@ const CHIPS: Record<RemoteState, { label: string; tone: StatusChipTone }> = {
 export const chipFor = (state: RemoteState) => CHIPS[state];
 
 export function stateNote(status: RemoteStatus): string | null {
-  if (status.state === "starting") return "This takes a few minutes. You can close this window.";
+  if (status.state === "starting") return startingText(status, Date.now());
   if (status.state === "reconnecting") return status.message ?? "Connection lost. Trying again.";
   if (status.state === "error") return status.message ?? "Remote access could not start.";
   return null;
+}
+
+export function startingText(status: RemoteStatus, now: number): string {
+  const minutes = status.since === null ? 0 : Math.max(0, Math.floor((now - status.since) / 60_000));
+  const sofar = minutes < 1 ? "just started" : `${minutes} min so far`;
+  return `Setting up remote access, ${sofar} (usually 3-6 minutes). You can close this window.`;
 }
 
 export function uptimeText(status: RemoteStatus, now: number): string | null {

@@ -49,8 +49,8 @@ export function createStatusMachine(now: () => number, schedule: Schedule = time
       if (offlineStates.includes(state) && !keepsOfflineClock) armRecreateTimer();
       if (!offlineStates.includes(state)) cancelTimer?.();
       const canRecreate = keepsOfflineClock && current.canRecreate;
-      const message = patch.message ?? (state === "starting" ? STARTING_TEXT : null);
-      const url = patch.url === undefined ? (state === "off" ? null : current.url) : patch.url;
+      const message = patch.message ?? (state === "starting" ? keptStartingMessage(current) : null);
+      const url = patch.url === undefined ? current.url : patch.url;
       const since = state === current.state && current.since !== null ? current.since : now();
       publish({
         ...current,
@@ -66,3 +66,6 @@ export function createStatusMachine(now: () => number, schedule: Schedule = time
     },
   };
 }
+
+const keptStartingMessage = (current: RemoteStatus): string =>
+  current.state === "starting" && current.message ? current.message : STARTING_TEXT;

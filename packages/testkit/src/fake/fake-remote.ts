@@ -16,7 +16,7 @@ export interface FakeRemoteOptions {
   readonly enabled?: boolean;
 }
 
-/** A tunnel that never leaves the process. Hostnames are `fake-<n>.tunnel.test` and stay until off or recreate. */
+/** A tunnel that never leaves the process. Hostnames are `fake-<n>.tunnel.test` and stay until recreate (off only pauses). */
 export function createFakeRemote({ now, emit, access, enabled = false }: FakeRemoteOptions): FakeRemote {
   let counter = 0;
   const online = (): RemoteStatus => ({
@@ -36,11 +36,11 @@ export function createFakeRemote({ now, emit, access, enabled = false }: FakeRem
     push: (patch) => void set({ ...current, ...patch }),
     api: {
       status: async () => current,
-      enable: async () => (current.state === "off" ? set(online()) : current),
-      async disable() {
-        await access.clearAll();
-        return set(REMOTE_OFF);
-      },
+      enable: async () =>
+        current.state === "off"
+          ? set(current.url ? { ...online(), url: current.url, since: now() } : online())
+          : current,
+      disable: async () => set({ ...REMOTE_OFF, url: current.url }),
       async recreate() {
         if (!current.canRecreate) {
           throw new AppError("invalid_request", "The URL can only be replaced after 10 minutes offline.");

@@ -23,15 +23,16 @@ describe("remote service over the fake adapter", () => {
     expect(seen).toContainEqual({ resource: "remote" });
   });
 
-  it("clears devices when turned off and when a new URL is made", async () => {
+  it("keeps devices and the URL when turned off, clears devices when a new URL is made", async () => {
     const { api, access, adapter } = setup();
     const first = await api.enable();
-    await api.disable();
-    expect(access.clearAll).toHaveBeenCalledTimes(1);
-    await api.enable();
+    const off = await api.disable();
+    expect(off).toMatchObject({ state: "off", url: first.url });
+    expect(access.clearAll).not.toHaveBeenCalled();
+    expect((await api.enable()).url).toBe(first.url);
     adapter.push({ state: "reconnecting", canRecreate: true });
     const next = await api.recreate();
-    expect(access.clearAll).toHaveBeenCalledTimes(2);
+    expect(access.clearAll).toHaveBeenCalledTimes(1);
     expect(next.url).not.toBe(first.url);
   });
 

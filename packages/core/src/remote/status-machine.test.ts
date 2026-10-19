@@ -32,7 +32,7 @@ describe("remote status machine", () => {
     const { machine, advance } = setup();
     machine.set("starting");
     expect(machine.status()).toMatchObject({ state: "starting", since: 1000 });
-    expect(machine.status().message).toMatch(/few minutes/);
+    expect(machine.status().message).toMatch(/3-6 minutes/);
     advance(50);
     machine.set("starting", { url: "https://x.test" });
     expect(machine.status().since).toBe(1000);

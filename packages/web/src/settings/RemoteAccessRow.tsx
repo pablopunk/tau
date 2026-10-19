@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { FormError } from "@/app/FormError";
 import { useSubmit } from "@/app/use-submit";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,15 @@ import { StatusChip } from "@/components/ui/status-chip";
 import { Switch } from "@/components/ui/switch";
 import { useDisableRemote, useEnableRemote, useRecreateRemote, useRemoteStatus } from "@/lib/queries";
 import { chipFor, OFF_CONFIRM, RECREATE_CONFIRM, SLEEP_NOTE, stateNote, uptimeText } from "./RemoteText";
+
+function useTick(active: boolean) {
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    if (!active) return;
+    const timer = setInterval(() => setTick((tick) => tick + 1), 1000);
+    return () => clearInterval(timer);
+  }, [active]);
+}
 
 type Confirm = "off" | "recreate" | null;
 
@@ -24,6 +33,7 @@ function RemoteUrl({ url }: { url: string }) {
 
 export function RemoteAccessRow() {
   const status = useRemoteStatus().data;
+  useTick(status?.state === "starting");
   const enable = useEnableRemote();
   const disable = useDisableRemote();
   const recreate = useRecreateRemote();
