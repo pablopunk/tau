@@ -1,22 +1,23 @@
-import { Route, Routes, useMatch, useParams } from "react-router";
-import { MarkSeenWhileOpen } from "@/activity";
+import { Route, Routes, useSearchParams } from "react-router";
 import { SidebarInset, SidebarProvider, SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
-import { Conversation } from "@/conversation";
 import { preferences } from "@/lib/preferences";
+import { useMachines } from "@/machines";
+import { isUsable } from "@/machines/machine-text";
 import { NotificationWatcher } from "@/notifications";
 import { CommandPalette, GlobalShortcuts } from "@/palette";
-import { ThreadPanes } from "@/panes";
 import { AppSidebar } from "@/sidebar/AppSidebar";
+import { ConversationRoute } from "./ConversationRoute";
+import { MachineScope } from "./MachineScope";
 import { NewThreadPage } from "./NewThreadPage";
 
-function ConversationRoute() {
-  const { projectId, conversationId } = useParams();
-  const terminalId = useMatch("/p/:projectId/c/:conversationId/terminal/:terminalId")?.params.terminalId;
-  if (!projectId || !conversationId) return <NewThreadPage />;
+function NewThreadRoute() {
+  const machineId = useSearchParams()[0].get("machine") ?? undefined;
+  const { machines } = useMachines();
+  const usable = machines.some((machine) => machine.id === machineId && isUsable(machine));
   return (
-    <ThreadPanes projectId={projectId} conversationId={conversationId} terminalId={terminalId}>
-      <Conversation key={conversationId} id={conversationId} />
-    </ThreadPanes>
+    <MachineScope machineId={usable ? machineId : undefined}>
+      <NewThreadPage />
+    </MachineScope>
   );
 }
 
@@ -43,14 +44,14 @@ export function MainLayout() {
       <CommandPalette />
       <GlobalShortcuts />
       <NotificationWatcher />
-      <MarkSeenWhileOpen />
       <SidebarInset className="h-dvh min-w-0">
         <MainHeader />
         <div className="flex min-h-0 flex-1 flex-col overflow-auto">
           <Routes>
             <Route path="/p/:projectId/c/:conversationId/*" element={<ConversationRoute />} />
-            <Route path="/new" element={<NewThreadPage />} />
-            <Route path="*" element={<NewThreadPage />} />
+            <Route path="/m/:machineId/p/:projectId/c/:conversationId/*" element={<ConversationRoute />} />
+            <Route path="/new" element={<NewThreadRoute />} />
+            <Route path="*" element={<NewThreadRoute />} />
           </Routes>
         </div>
       </SidebarInset>

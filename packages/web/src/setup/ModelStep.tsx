@@ -5,12 +5,13 @@ import { FormError } from "@/app/FormError";
 import { useSubmit } from "@/app/use-submit";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { api } from "@/lib/api";
 import { errorMessage } from "@/lib/error-message";
 import { queryKeys, useModels } from "@/lib/queries";
+import { useApi } from "@/machines/machine-context";
 import { ModelCombobox } from "./ModelCombobox";
 
 export function ModelStep() {
+  const api = useApi();
   const defaultId = useId();
   const fastId = useId();
   const queryClient = useQueryClient();

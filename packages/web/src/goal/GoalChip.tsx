@@ -11,9 +11,9 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { useNow } from "@/conversation/use-now";
-import { api } from "@/lib/api";
 import { errorMessage } from "@/lib/error-message";
 import { useGoal } from "@/lib/queries";
+import { useApi } from "@/machines/machine-context";
 import { goalStatusFields, stateLabel } from "./goal-status";
 
 const ICONS: Record<GoalState, typeof TargetIcon> = {
@@ -50,6 +50,7 @@ function GoalDetails({ goal, onClear }: { goal: Goal; onClear: () => void }) {
 
 /** The "Goal" chip of a thread, in the header and in the composer; it shows nothing without a goal. */
 export function GoalChip({ conversationId }: { conversationId: string }) {
+  const api = useApi();
   const goal = useGoal(conversationId).data;
   const queryClient = useQueryClient();
   if (!goal) return null;

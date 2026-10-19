@@ -2,12 +2,13 @@ import { useQueryClient } from "@tanstack/react-query";
 import { FormError } from "@/app/FormError";
 import { useSubmit } from "@/app/use-submit";
 import { Skeleton } from "@/components/ui/skeleton";
-import { api } from "@/lib/api";
 import { errorMessage } from "@/lib/error-message";
 import { queryKeys, useModels, useSettings } from "@/lib/queries";
+import { useApi } from "@/machines/machine-context";
 import { ModelSetting } from "./ModelSetting";
 
 export function SettingsModels() {
+  const api = useApi();
   const queryClient = useQueryClient();
   const models = useModels();
   const settings = useSettings();

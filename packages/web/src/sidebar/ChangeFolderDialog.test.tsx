@@ -1,9 +1,11 @@
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { api } from "@/lib/api";
+import { apiOfMachine } from "@/machines/machine-apis";
 import { ChangeFolderDialog } from "./ChangeFolderDialog";
 import { project, renderAt } from "./test-support";
+
+const api = apiOfMachine();
 
 vi.mock("@/lib/api", () => ({
   api: { projects: { setFolder: vi.fn() }, fs: { suggestDirectories: vi.fn() } },

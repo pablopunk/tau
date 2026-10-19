@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import type { Machine } from "@tau/protocol";
 import { type Api, api as hubApi } from "@/lib/api";
 import { queryKeys } from "@/lib/queries";
+import { useHubQueryClient } from "./hub-client";
 import { apiOfMachine } from "./machine-apis";
 
 export interface MachineRegistry {
@@ -12,13 +13,14 @@ export interface MachineRegistry {
 
 /**
  * For components outside one machine's provider (the new-thread project picker, notifications, the Machines page,
- * the command palette). Reads the hub's own list; it must sit under the hub's `QueryClientProvider`.
+ * the command palette). Always reads the hub's list from the hub's cache, also inside a linked machine's provider.
  */
 export function useMachines(): MachineRegistry {
-  const { data = [], isLoading } = useQuery({
-    queryKey: queryKeys.machines,
-    queryFn: () => hubApi.machines.list(),
-  });
+  const client = useHubQueryClient();
+  const { data = [], isLoading } = useQuery(
+    { queryKey: queryKeys.machines, queryFn: () => hubApi.machines.list() },
+    client,
+  );
   return { machines: data, isLoading };
 }
 

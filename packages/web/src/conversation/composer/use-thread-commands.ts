@@ -5,9 +5,9 @@ import { useNavigate } from "react-router";
 import { toast } from "sonner";
 import type { PickersHandle } from "@/components/ModelThinkingPickers";
 import { runGoalCommand } from "@/goal/goal-command";
-import { api } from "@/lib/api";
 import { errorMessage } from "@/lib/error-message";
 import { newThreadPath } from "@/lib/paths";
+import { useApi, useMachineId } from "@/machines/machine-context";
 import { LOOP_USAGE, parseLoopArgs } from "@/timers/loop-args";
 import type { CommandHandlers } from "./slash-commands";
 
@@ -24,6 +24,8 @@ export function compactFailureMessage(error: unknown): string {
 }
 
 export function useThreadCommands({ conversationId, projectId, pickers }: ThreadCommandsInput) {
+  const api = useApi();
+  const machineId = useMachineId();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [renaming, setRenaming] = useState(false);
@@ -35,11 +37,11 @@ export function useThreadCommands({ conversationId, projectId, pickers }: Thread
         api.conversations
           .compact(conversationId, instructions ? { instructions } : {})
           .catch((error: unknown) => void toast.error(compactFailureMessage(error))),
-      new: () => void navigate(newThreadPath(projectId)),
+      new: () => void navigate(newThreadPath(projectId, machineId)),
       model: () => pickers.current?.openModel(),
       thinking: () => pickers.current?.openThinking(),
       rename: () => setRenaming(true),
-      goal: (args) => runGoalCommand(conversationId, args, queryClient),
+      goal: (args) => runGoalCommand(api, conversationId, args, queryClient),
       loop: async (args) => {
         const command = parseLoopArgs(args);
         if (command.action === "usage") throw new Error(LOOP_USAGE);
@@ -53,7 +55,7 @@ export function useThreadCommands({ conversationId, projectId, pickers }: Thread
         navigate("/");
       },
     };
-  }, [conversationId, projectId, pickers, navigate, queryClient]);
+  }, [api, machineId, conversationId, projectId, pickers, navigate, queryClient]);
 
   const rename = async (title: string) => {
     await api.conversations.rename(conversationId, title);

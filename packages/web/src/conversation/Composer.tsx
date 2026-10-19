@@ -15,6 +15,8 @@ import { DropZone } from "@/components/ui/drop-zone";
 import { Input } from "@/components/ui/input";
 import { type MentionItem, MentionMenu } from "@/components/ui/mention-menu";
 import { Textarea } from "@/components/ui/textarea";
+import { scopeTarget } from "@/lib/machine-keys";
+import { useMachineId } from "@/machines/machine-context";
 import { AttachmentRow } from "./composer/AttachmentRow";
 import { loadDraft, saveDraft } from "./composer/drafts";
 import { applyMention } from "./composer/mentions";
@@ -74,7 +76,7 @@ function pastedFiles(event: ClipboardEvent): File[] {
 }
 
 function ComposerForm({
-  target,
+  target: threadTarget,
   imagesAllowed,
   busy = false,
   disabled = false,
@@ -90,6 +92,7 @@ function ComposerForm({
   onStop,
   onSent,
 }: ComposerProps) {
+  const target = scopeTarget(threadTarget, useMachineId());
   const [text, setTextState] = useState(() => loadDraft(target));
   const [error, setError] = useState<string>();
   const [stopping, setStopping] = useState(false);

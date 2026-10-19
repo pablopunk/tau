@@ -6,6 +6,7 @@ import { MemoryRouter } from "react-router";
 import { describe, expect, it, vi } from "vitest";
 import { createApi } from "@/lib/api";
 import { createFakeTransport } from "@/lib/transport/fake";
+import { MachineApiProvider } from "@/machines/machine-context";
 import { ToolsSection } from "./ToolsSection";
 
 const mocks = vi.hoisted(() => ({ api: null as unknown }));
@@ -23,9 +24,11 @@ function renderSection() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={client}>
-      <MemoryRouter>
-        <ToolsSection />
-      </MemoryRouter>
+      <MachineApiProvider>
+        <MemoryRouter>
+          <ToolsSection />
+        </MemoryRouter>
+      </MachineApiProvider>
     </QueryClientProvider>,
   );
 }

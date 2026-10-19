@@ -1,8 +1,10 @@
 import { renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { api } from "@/lib/api";
+import { apiOfMachine } from "@/machines/machine-apis";
 import { ComposerTestWrapper } from "./test-wrapper";
 import { useThreadCommands } from "./use-thread-commands";
+
+const api = apiOfMachine();
 
 vi.mock("@/lib/api", () => ({ api: { timers: { loop: vi.fn(), stopLoop: vi.fn() } } }));
 

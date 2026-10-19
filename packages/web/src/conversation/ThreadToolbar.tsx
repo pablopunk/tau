@@ -4,16 +4,13 @@ import { toast } from "sonner";
 import { ModelThinkingPickers, type PickersHandle } from "@/components/ModelThinkingPickers";
 import { ContextMeter } from "@/components/ui/context-meter";
 import { GoalChip } from "@/goal/GoalChip";
-import { api } from "@/lib/api";
 import { errorMessage } from "@/lib/error-message";
 import { useModels } from "@/lib/queries";
+import { useApi } from "@/machines/machine-context";
 import { ProcessesChip } from "@/processes/ProcessesChip";
 import { TimersChip } from "@/timers/TimersChip";
 import { contextUsage } from "./composer/context-usage";
 import { findModel, readAgent } from "./model/agent";
-
-const configure = (id: string, input: ConfigureConversationInput) =>
-  api.conversations.configure(id, input).catch((error) => void toast.error(errorMessage(error)));
 
 export function ThreadToolbar({
   id,
@@ -24,7 +21,12 @@ export function ThreadToolbar({
   view: ConversationView;
   pickers?: Ref<PickersHandle>;
 }) {
+  const api = useApi();
   const models = useModels().data;
+  const configure = (conversationId: string, input: ConfigureConversationInput) =>
+    api.conversations
+      .configure(conversationId, input)
+      .catch((error) => void toast.error(errorMessage(error)));
   const agent = readAgent(view);
   if (!models) return null;
   const current = findModel(agent, models);

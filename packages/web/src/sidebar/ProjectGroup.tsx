@@ -21,9 +21,9 @@ import {
 } from "@/components/ui/sidebar";
 import { Spinner } from "@/components/ui/spinner";
 import { ChangeIconDialog } from "@/icons/ChangeIconDialog";
-import { api } from "@/lib/api";
 import { newThreadPath } from "@/lib/paths";
 import { queryKeys } from "@/lib/queries";
+import { useApi, useMachineId } from "@/machines/machine-context";
 import { ArchivedConversations } from "./ArchivedConversations";
 import { ChangeFolderDialog } from "./ChangeFolderDialog";
 import { CloneFailed } from "./CloneFailed";
@@ -52,6 +52,8 @@ export function ProjectGroup({
   onOpenChange,
   onRemoved,
 }: ProjectGroupProps) {
+  const api = useApi();
+  const machineId = useMachineId();
   const { project, active, archived } = section;
   const [dialog, setDialog] = useState<Dialog>(null);
   const queryClient = useQueryClient();
@@ -84,7 +86,7 @@ export function ProjectGroup({
           </DropdownMenuTrigger>
           <DropdownMenuContent side="right" align="start">
             {project.status === "ready" && (
-              <DropdownMenuItem onSelect={() => navigate(newThreadPath(project.id))}>
+              <DropdownMenuItem onSelect={() => navigate(newThreadPath(project.id, machineId))}>
                 New thread
               </DropdownMenuItem>
             )}
@@ -106,7 +108,7 @@ export function ProjectGroup({
           <SidebarGroupAction
             aria-label={`New thread in ${project.name}`}
             title="New thread"
-            onClick={() => navigate(newThreadPath(project.id))}
+            onClick={() => navigate(newThreadPath(project.id, machineId))}
           >
             <PlusIcon />
           </SidebarGroupAction>

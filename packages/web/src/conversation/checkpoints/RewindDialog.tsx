@@ -10,14 +10,15 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Spinner } from "@/components/ui/spinner";
-import { api } from "@/lib/api";
 import { errorMessage } from "@/lib/error-message";
+import { useApi } from "@/machines/machine-context";
 import type { MessageEntry } from "../messages/message-actions";
 import { useOpenThread } from "./use-open-thread";
 
 const ACTION_LABELS = { write: "Restore", delete: "Delete" } as const;
 
 function PreviewList({ entry }: { entry: MessageEntry }) {
+  const api = useApi();
   const preview = useQuery({
     queryKey: ["rewind-preview", entry.conversationId, entry.entryId],
     queryFn: () => api.conversations.rewindPreview(entry.conversationId, entry.entryId),
@@ -55,6 +56,7 @@ export function RewindDialog({
   open: boolean;
   onOpenChange(open: boolean): void;
 }) {
+  const api = useApi();
   const openThread = useOpenThread();
   const rewind = useMutation({
     mutationFn: () => api.conversations.rewind(entry.conversationId, entry.entryId),

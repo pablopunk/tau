@@ -1,11 +1,13 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { api } from "@/lib/api";
+import { apiOfMachine } from "@/machines/machine-apis";
 import { Composer } from "./Composer";
 import { restoreToComposer } from "./composer/restore";
 import { ComposerTestWrapper } from "./composer/test-wrapper";
 import { endOf, renderView, viewWhere } from "./test-utils";
+
+const api = apiOfMachine();
 
 vi.mock("@/lib/api", () => ({ api: { conversations: { send: vi.fn(), abort: vi.fn() } } }));
 

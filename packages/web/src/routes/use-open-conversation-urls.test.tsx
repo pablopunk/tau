@@ -47,3 +47,15 @@ describe("URL shapes", () => {
     expect(newThreadPath("p1", "m1")).toBe("/new?project=p1&machine=m1");
   });
 });
+
+describe("sidebar open-project lookup per machine", () => {
+  it("only matches the URL of its own machine", async () => {
+    const { projectIdFromPath } = await import("@/sidebar/sidebar-model");
+    expect(projectIdFromPath(conversationPath("p1", "c1"))).toBe("p1");
+    expect(projectIdFromPath(conversationPath("p1", "c1"), "m 1")).toBeUndefined();
+    expect(projectIdFromPath(conversationPath("p1", "c1", "m 1"), "m 1")).toBe("p1");
+    expect(projectIdFromPath(terminalPath("p1", "c1", "t1", "m 1"), "m 1")).toBe("p1");
+    expect(projectIdFromPath(conversationPath("p1", "c1", "m 1"))).toBeUndefined();
+    expect(projectIdFromPath(conversationPath("p1", "c1", "m 1"), "m2")).toBeUndefined();
+  });
+});

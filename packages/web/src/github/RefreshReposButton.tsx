@@ -2,10 +2,11 @@ import { useQueryClient } from "@tanstack/react-query";
 import { RefreshCwIcon } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { api } from "@/lib/api";
 import { queryKeys } from "@/lib/queries";
+import { useApi } from "@/machines/machine-context";
 
 export function RefreshReposButton() {
+  const api = useApi();
   const queryClient = useQueryClient();
   const [pending, setPending] = useState(false);
 

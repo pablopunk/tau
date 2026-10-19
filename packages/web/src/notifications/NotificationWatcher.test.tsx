@@ -1,11 +1,13 @@
 import type { QueryClient } from "@tanstack/react-query";
 import { act, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { api } from "@/lib/api";
 import { preferences } from "@/lib/preferences";
 import { queryKeys } from "@/lib/queries";
+import { apiOfMachine } from "@/machines/machine-apis";
 import { conversation, renderAt } from "@/sidebar/test-support";
 import { NotificationWatcher } from "./NotificationWatcher";
+
+const api = apiOfMachine();
 
 vi.mock("@/lib/api", () => ({ api: { conversations: { listAll: vi.fn() } } }));
 

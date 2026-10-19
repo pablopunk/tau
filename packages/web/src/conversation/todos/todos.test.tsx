@@ -6,6 +6,7 @@ import type { ReactNode } from "react";
 import { MemoryRouter } from "react-router";
 import { describe, expect, it, vi } from "vitest";
 import { queryKeys } from "@/lib/queries";
+import { MachineApiProvider } from "@/machines/machine-context";
 import { conversation } from "@/sidebar/test-support";
 import type { ToolCallState } from "../model/tool-state";
 import { TaskTool } from "../tools/TaskTool";
@@ -49,7 +50,9 @@ function renderWithClient(ui: ReactNode, children = [conversation({ id: "9", pro
   client.setQueryData(queryKeys.allConversations, children);
   return render(
     <MemoryRouter>
-      <QueryClientProvider client={client}>{ui}</QueryClientProvider>
+      <QueryClientProvider client={client}>
+        <MachineApiProvider>{ui}</MachineApiProvider>
+      </QueryClientProvider>
     </MemoryRouter>,
   );
 }

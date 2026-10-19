@@ -1,6 +1,6 @@
 import type { ImageInput, WhenBusy } from "@tau/protocol";
 import { useCallback } from "react";
-import { api } from "@/lib/api";
+import { useApi } from "@/machines/machine-context";
 
 export function newRequestId(): string {
   return globalThis.crypto?.randomUUID?.() ?? `req-${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -13,6 +13,7 @@ export interface ConversationActions {
 }
 
 export function useConversationActions(conversationId: string): ConversationActions {
+  const api = useApi();
   const send = useCallback(
     ({ text, images, whenBusy }: { text: string; images: ImageInput[]; whenBusy?: WhenBusy }) =>
       api.conversations.send(conversationId, {
@@ -21,12 +22,12 @@ export function useConversationActions(conversationId: string): ConversationActi
         ...(whenBusy && { whenBusy }),
         requestId: newRequestId(),
       }),
-    [conversationId],
+    [api, conversationId],
   );
-  const stop = useCallback(() => api.conversations.abort(conversationId), [conversationId]);
+  const stop = useCallback(() => api.conversations.abort(conversationId), [api, conversationId]);
   const retry = useCallback(
     (requestId: string) => api.conversations.retry(conversationId, { requestId }),
-    [conversationId],
+    [api, conversationId],
   );
   return { send, stop, retry };
 }

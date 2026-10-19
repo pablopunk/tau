@@ -12,13 +12,14 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Spinner } from "@/components/ui/spinner";
-import { api } from "@/lib/api";
 import { errorMessage } from "@/lib/error-message";
 import { queryKeys, useAllConversations, useTimers } from "@/lib/queries";
+import { useApi } from "@/machines/machine-context";
 import { TimerRow } from "./TimerRow";
 import { useNow } from "./use-now";
 
 function TimersList({ conversationId, open }: { conversationId: string; open: boolean }) {
+  const api = useApi();
   const queryClient = useQueryClient();
   const timers = useTimers(conversationId, open);
   const now = useNow(open);

@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { createApi } from "@/lib/api";
 import { createFakeTransport } from "@/lib/transport/fake";
+import { MachineApiProvider } from "@/machines/machine-context";
 import { RemoteSection } from "./RemoteSection";
 import { SETTINGS_INDEX } from "./settings-index";
 
@@ -29,9 +30,11 @@ function setup(remote: boolean) {
   client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
     <QueryClientProvider client={client}>
-      <TooltipProvider>
-        <RemoteSection />
-      </TooltipProvider>
+      <MachineApiProvider>
+        <TooltipProvider>
+          <RemoteSection />
+        </TooltipProvider>
+      </MachineApiProvider>
     </QueryClientProvider>,
   );
 }

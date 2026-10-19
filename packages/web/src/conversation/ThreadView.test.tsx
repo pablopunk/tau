@@ -3,8 +3,10 @@ import { isRetryable } from "@tau/protocol";
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { api } from "@/lib/api";
+import { apiOfMachine } from "@/machines/machine-apis";
 import { endOf, renderView, viewWhere } from "./test-utils";
+
+const api = apiOfMachine();
 
 vi.mock("@/lib/api", () => ({
   api: {

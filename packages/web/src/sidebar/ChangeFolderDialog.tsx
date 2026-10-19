@@ -14,11 +14,14 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { PathInput } from "@/components/ui/path-input";
-import { api } from "@/lib/api";
 import { queryKeys } from "@/lib/queries";
+import { useApi } from "@/machines/machine-context";
+import { useOnMachine } from "@/machines/use-on-machine";
 
 /** Mount it only while open so its field resets each time. */
 export function ChangeFolderDialog({ project, onClose }: { project: Project; onClose: () => void }) {
+  const api = useApi();
+  const onMachine = useOnMachine();
   const pathId = useId();
   const [path, setPath] = useState("");
   const queryClient = useQueryClient();
@@ -51,7 +54,7 @@ export function ChangeFolderDialog({ project, onClose }: { project: Project; onC
           </p>
           <div className="flex flex-col gap-2">
             <label htmlFor={pathId} className="text-sm font-medium">
-              New folder
+              New folder{onMachine}
             </label>
             <PathInput
               id={pathId}

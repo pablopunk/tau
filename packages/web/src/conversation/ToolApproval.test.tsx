@@ -5,6 +5,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { createApi } from "@/lib/api";
 import { createFakeTransport } from "@/lib/transport/fake";
+import { MachineApiProvider } from "@/machines/machine-context";
 import { ToolApproval } from "./ToolApproval";
 
 const mocks = vi.hoisted(() => ({ api: null as unknown }));
@@ -30,7 +31,9 @@ async function renderApproval() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
     <QueryClientProvider client={client}>
-      <ToolApproval conversationId={conversation.id} />
+      <MachineApiProvider>
+        <ToolApproval conversationId={conversation.id} />
+      </MachineApiProvider>
     </QueryClientProvider>,
   );
   return { core, conversation };

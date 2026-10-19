@@ -4,6 +4,7 @@ import { useNavigate } from "react-router";
 import { PaneSplitter } from "@/components/ui/pane-splitter";
 import { PaneStrip, type PaneTab } from "@/components/ui/pane-strip";
 import { conversationPath, terminalPath } from "@/lib/paths";
+import { useMachineId } from "@/machines/machine-context";
 import { readSplit, SPLIT_DEFAULT, SPLIT_MAX, SPLIT_MIN, writeSplit } from "./split-width";
 import { TerminalPane } from "./terminal/TerminalPane";
 import { useNarrow } from "./use-narrow";
@@ -41,6 +42,7 @@ function focusComposer(root: HTMLElement | null) {
 
 /** The transcript next to the pane strip (side by side, or tabs below 760 px). The transcript is always the first, keyed child, so it never remounts. */
 export function ThreadPanes({ projectId, conversationId, terminalId, children }: ThreadPanesProps) {
+  const machineId = useMachineId();
   useTerminalChanges();
   const navigate = useNavigate();
   const narrow = useNarrow();
@@ -63,15 +65,17 @@ export function ThreadPanes({ projectId, conversationId, terminalId, children }:
   const focus = (tab: PaneTab) =>
     navigate(
       tab.kind === "chat"
-        ? conversationPath(projectId, conversationId)
-        : terminalPath(projectId, conversationId, tab.id),
+        ? conversationPath(projectId, conversationId, machineId)
+        : terminalPath(projectId, conversationId, tab.id, machineId),
     );
   const closeTab = (tab: PaneTab) => {
     close.mutate(tab.id);
     if (tab.id !== focusedTerminal) return;
     const next = list.find((terminal) => terminal.id !== tab.id);
     navigate(
-      next ? terminalPath(projectId, conversationId, next.id) : conversationPath(projectId, conversationId),
+      next
+        ? terminalPath(projectId, conversationId, next.id, machineId)
+        : conversationPath(projectId, conversationId, machineId),
     );
   };
 
@@ -81,10 +85,12 @@ export function ThreadPanes({ projectId, conversationId, terminalId, children }:
   useEffect(() => {
     if (!gone) return;
     navigate(
-      nextId ? terminalPath(projectId, conversationId, nextId) : conversationPath(projectId, conversationId),
+      nextId
+        ? terminalPath(projectId, conversationId, nextId, machineId)
+        : conversationPath(projectId, conversationId, machineId),
       { replace: true },
     );
-  }, [gone, nextId, navigate, projectId, conversationId]);
+  }, [gone, nextId, navigate, projectId, conversationId, machineId]);
 
   const body =
     focusedTerminal && !gone ? (

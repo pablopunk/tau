@@ -5,10 +5,13 @@ import { useSubmit } from "@/app/use-submit";
 import { Button } from "@/components/ui/button";
 import { PathInput } from "@/components/ui/path-input";
 import { SettingRow } from "@/components/ui/settings-layout";
-import { api } from "@/lib/api";
 import { queryKeys, useSettings } from "@/lib/queries";
+import { useApi } from "@/machines/machine-context";
+import { useOnMachine } from "@/machines/use-on-machine";
 
 export function ProjectsFolderField() {
+  const api = useApi();
+  const onMachine = useOnMachine();
   const id = useId();
   const queryClient = useQueryClient();
   const settings = useSettings();
@@ -33,7 +36,7 @@ export function ProjectsFolderField() {
         }}
       >
         <label htmlFor={id} className="text-sm font-medium">
-          Projects folder
+          Projects folder{onMachine}
         </label>
         <div className="flex gap-2">
           <PathInput id={id} value={value} onValueChange={setValue} placeholder="~/projects" />

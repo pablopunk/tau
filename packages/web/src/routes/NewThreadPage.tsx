@@ -6,26 +6,28 @@ import { ModelThinkingPickers, type PickersHandle } from "@/components/ModelThin
 import { Skeleton } from "@/components/ui/skeleton";
 import { Composer } from "@/conversation";
 import type { CommandHandlers } from "@/conversation/composer/slash-commands";
-import { api } from "@/lib/api";
 import { findModel, pickModel, pickProjectId, pickThinkingLevel } from "@/lib/new-thread-defaults";
 import { clearNewThreadDraft, loadNewThreadDraft, saveNewThreadDraft } from "@/lib/new-thread-draft";
-import { conversationPath } from "@/lib/paths";
+import { conversationPath, newThreadPath } from "@/lib/paths";
 import { preferences } from "@/lib/preferences";
 import { queryKeys, useModels, useProjects, useSettings } from "@/lib/queries";
 import { clearDraftRequestId, draftRequestId } from "@/lib/start-request";
+import { useApi, useMachineId } from "@/machines/machine-context";
 import { WorktreeToggle } from "@/workspaces/WorktreeToggle";
 import { ProjectPicker } from "./ProjectPicker";
 
 const toRef = ({ provider, modelId }: ModelRef): ModelRef => ({ provider, modelId });
 
 export function NewThreadPage() {
+  const api = useApi();
+  const machineId = useMachineId();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [params] = useSearchParams();
   const projects = useProjects();
   const models = useModels();
   const settings = useSettings();
-  const [initialDraft] = useState(loadNewThreadDraft);
+  const [initialDraft] = useState(() => loadNewThreadDraft(machineId));
   const [chosenProject, setProject] = useState<string | null>(initialDraft.projectId);
   const [chosenModel, setModel] = useState<ModelRef | null>(initialDraft.model);
   const [chosenLevel, setLevel] = useState<ThinkingLevel | null>(initialDraft.thinkingLevel);
@@ -34,13 +36,16 @@ export function NewThreadPage() {
   const paramProject = params.get("project");
 
   useEffect(() => {
-    saveNewThreadDraft({
-      projectId: paramProject ?? chosenProject,
-      model: chosenModel,
-      thinkingLevel: chosenLevel,
-      workspace,
-    });
-  }, [paramProject, chosenProject, chosenModel, chosenLevel, workspace]);
+    saveNewThreadDraft(
+      {
+        projectId: paramProject ?? chosenProject,
+        model: chosenModel,
+        thinkingLevel: chosenLevel,
+        workspace,
+      },
+      machineId,
+    );
+  }, [paramProject, chosenProject, chosenModel, chosenLevel, workspace, machineId]);
   const pickers = useRef<PickersHandle>(null);
   const commands = useMemo<CommandHandlers>(
     () => ({
@@ -52,13 +57,13 @@ export function NewThreadPage() {
 
   if (!projects.data || !models.data || !settings.data) return <NewThreadSkeleton />;
 
-  const wantedProject = paramProject ?? chosenProject ?? preferences.getLastProjectId();
+  const wantedProject = paramProject ?? chosenProject ?? preferences.getLastProjectId(machineId);
   const projectId = pickProjectId(projects.data, wantedProject);
-  const lastModel = chosenModel ?? preferences.getLastModel();
+  const lastModel = chosenModel ?? preferences.getLastModel(machineId);
   const model = pickModel(models.data, lastModel, settings.data.defaultModel);
   const level = pickThinkingLevel(
     model,
-    chosenLevel ?? settings.data.defaultThinkingLevel ?? preferences.getLastThinkingLevel(),
+    chosenLevel ?? settings.data.defaultThinkingLevel ?? preferences.getLastThinkingLevel(machineId),
   );
   const levels = findModel(models.data, model ?? null)?.thinkingLevels ?? ["off"];
 
@@ -77,12 +82,12 @@ export function NewThreadPage() {
         ...(images.length > 0 && { images }),
       });
       clearDraftRequestId();
-      clearNewThreadDraft();
+      clearNewThreadDraft(machineId);
       void queryClient.invalidateQueries({ queryKey: queryKeys.projects });
-      preferences.setLastProjectId(created.projectId);
-      if (model) preferences.setLastModel(toRef(model));
-      preferences.setLastThinkingLevel(level);
-      navigate(conversationPath(created.projectId, created.id));
+      preferences.setLastProjectId(created.projectId, machineId);
+      if (model) preferences.setLastModel(toRef(model), machineId);
+      preferences.setLastThinkingLevel(level, machineId);
+      navigate(conversationPath(created.projectId, created.id, machineId));
     } finally {
       setBusy(false);
     }
@@ -90,7 +95,13 @@ export function NewThreadPage() {
 
   const toolbar = (
     <>
-      <ProjectPicker projects={projects.data} projectId={projectId} onProject={setProject} disabled={busy} />
+      <ProjectPicker
+        projects={projects.data}
+        projectId={projectId}
+        onProject={setProject}
+        onMachineProject={(machine, project) => navigate(newThreadPath(project, machine), { replace: true })}
+        disabled={busy}
+      />
       <WorktreeToggle projectId={projectId} value={workspace} onChange={setWorkspace} disabled={busy} />
       {cloning ? <span className="text-xs text-muted-foreground">Cloning…</span> : null}
       <ModelThinkingPickers

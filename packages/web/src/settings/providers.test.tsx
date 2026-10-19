@@ -9,6 +9,7 @@ import { createApi } from "@/lib/api";
 import { preferences } from "@/lib/preferences";
 import { applyTheme } from "@/lib/theme";
 import { createFakeTransport } from "@/lib/transport/fake";
+import { MachineApiProvider } from "@/machines/machine-context";
 import { AppearanceSettings } from "./AppearanceSettings";
 import { ProviderRow } from "./ProviderRow";
 import { ProvidersSection } from "./ProvidersSection";
@@ -32,7 +33,11 @@ function installFakeBackend() {
 
 function wrap(ui: ReactNode) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return render(<QueryClientProvider client={client}>{ui}</QueryClientProvider>);
+  return render(
+    <QueryClientProvider client={client}>
+      <MachineApiProvider>{ui}</MachineApiProvider>
+    </QueryClientProvider>,
+  );
 }
 
 const rowOf = (name: string) => screen.findByRole("listitem", { name });

@@ -12,7 +12,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { PathInput } from "@/components/ui/path-input";
-import { api } from "@/lib/api";
+import { useApi } from "@/machines/machine-context";
+import { useOnMachine } from "@/machines/use-on-machine";
 
 type Mode = "clone" | "folder";
 
@@ -31,6 +32,8 @@ export function UseRepoDialog({ repo, onClose, onUsed }: UseRepoDialogProps) {
 }
 
 function UseRepoForm({ repo, onUsed }: { repo: GithubRepo; onUsed(project: Project): void }) {
+  const api = useApi();
+  const onMachine = useOnMachine();
   const [mode, setMode] = useState<Mode>("clone");
   const [path, setPath] = useState("");
   const [claimed, setClaimed] = useState<Project | null>(null);
@@ -93,7 +96,7 @@ function UseRepoForm({ repo, onUsed }: { repo: GithubRepo; onUsed(project: Proje
       </div>
       {mode === "folder" ? (
         <PathInput
-          aria-label="Folder path"
+          aria-label={`Folder path${onMachine}`}
           placeholder="~/path/to/repo"
           value={path}
           onValueChange={setPath}

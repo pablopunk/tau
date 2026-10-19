@@ -3,9 +3,9 @@ import type { Checkpoint } from "@tau/protocol";
 import { ChevronRight } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Spinner } from "@/components/ui/spinner";
-import { api } from "@/lib/api";
 import { errorMessage } from "@/lib/error-message";
 import { useCheckpoints } from "@/lib/queries";
+import { useApi } from "@/machines/machine-context";
 import { DiffView } from "../tools/DiffView";
 
 type ChangedFile = Checkpoint["files"][number];
@@ -21,6 +21,7 @@ function FileDiff({
   checkpointId: string;
   path: string;
 }) {
+  const api = useApi();
   const diff = useQuery({
     queryKey: ["checkpoint-diff", conversationId, checkpointId, path],
     queryFn: () => api.conversations.checkpointDiff(conversationId, checkpointId, path),

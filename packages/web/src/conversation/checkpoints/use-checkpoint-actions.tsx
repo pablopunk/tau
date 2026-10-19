@@ -1,12 +1,13 @@
 import { useState } from "react";
 import { toast } from "sonner";
-import { api } from "@/lib/api";
 import { errorMessage } from "@/lib/error-message";
+import { useApi } from "@/machines/machine-context";
 import type { MessageAction, MessageActions, MessageEntry } from "../messages/message-actions";
 import { RewindDialog } from "./RewindDialog";
 import { useOpenThread } from "./use-open-thread";
 
 export function useCheckpointActions(entry: MessageEntry): MessageActions {
+  const api = useApi();
   const [rewindOpen, setRewindOpen] = useState(false);
   const openThread = useOpenThread();
   const isUserMessage = entry.role === "user";

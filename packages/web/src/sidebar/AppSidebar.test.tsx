@@ -2,10 +2,12 @@ import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { SidebarProvider } from "@/components/ui/sidebar";
-import { api } from "@/lib/api";
 import { preferences } from "@/lib/preferences";
+import { apiOfMachine } from "@/machines/machine-apis";
 import { AppSidebar } from "./AppSidebar";
 import { conversation, project, renderAt } from "./test-support";
+
+const api = apiOfMachine();
 
 vi.mock("@/lib/api", () => ({
   api: {

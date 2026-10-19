@@ -12,6 +12,7 @@ import {
   RETIRED_OPS,
 } from "@tau/protocol";
 import { createFakeCore, type FakeCore } from "@tau/testkit";
+import { readSummaryCache, writeSummaryCache } from "@/machines/summary-cache";
 import { openFakeStream } from "./fake-terminal-stream";
 import type { LiveHandlers, LiveSocket, RouteRequest, RouteResponse, Transport } from "./types";
 
@@ -221,6 +222,32 @@ async function seedReadyState(core: Core): Promise<void> {
   await core.projects.add({ path: READY_PROJECT });
 }
 
+/** A fake machine gets a thread of its own, so its sidebar group and its offline cache have something to show. */
+async function seedMachineThread(core: Core, title: string): Promise<void> {
+  const [project] = await core.projects.list();
+  if (!project) return;
+  const thread = await core.conversations.start({
+    projectId: project.id,
+    text: title,
+    requestId: `seed-${title}`,
+  });
+  await core.conversations.rename(thread.id, title);
+}
+
+/** What a browser would have seen of an offline fake machine while it was online: written once, like the hub's `summary.json`. */
+async function cacheOfflineSummaries(hub: FakeCore): Promise<void> {
+  for (const machine of await hub.machines.list()) {
+    const core = hub.machineCores.get(machine.id);
+    if (machine.status !== "offline" || !core || readSummaryCache(machine.id)) continue;
+    const [projects, threads] = await Promise.all([core.projects.list(), core.conversations.listAll()]);
+    writeSummaryCache(machine.id, {
+      savedAt: machine.lastSeenAt,
+      projects: projects.map(({ id, name }) => ({ id, name })),
+      threads: threads.map(({ id, projectId, title, updatedAt }) => ({ id, projectId, title, updatedAt })),
+    });
+  }
+}
+
 let hub: Promise<FakeCore> | undefined;
 
 /**
@@ -236,7 +263,12 @@ function fakeHub(): Promise<FakeCore> {
     const machines = ready && params.has("machines");
     const core = createFakeCore({ configured: ready, remote, machines });
     if (ready) await seedReadyState(core);
-    for (const machine of core.machineCores.values()) await seedReadyState(machine);
+    for (const [machineId, machine] of core.machineCores) {
+      await seedReadyState(machine);
+      const name = (await core.machines.list()).find((listed) => listed.id === machineId)?.name ?? "Machine";
+      await seedMachineThread(machine, `${name} thread`);
+    }
+    await cacheOfflineSummaries(core);
     return core;
   })();
   return hub;

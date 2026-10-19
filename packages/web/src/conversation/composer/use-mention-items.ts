@@ -1,7 +1,7 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import type { MentionItem } from "@/components/ui/mention-menu";
-import { api } from "@/lib/api";
 import { useSkills } from "@/lib/queries";
+import { useApi } from "@/machines/machine-context";
 import { matchesQuery } from "./mentions";
 import { useDebouncedAfterFirst } from "./use-debounced";
 
@@ -19,6 +19,7 @@ export const skillItemId = (name: string) => `skill:${name}`;
 export const insertionOf = (id: string) => id.slice(id.indexOf(":") + 1);
 
 export function useMentionItems(projectId: string | null | undefined, query: string | null): MentionItem[] {
+  const api = useApi();
   const debounced = useDebouncedAfterFirst(query, FILE_DEBOUNCE_MS);
   const skills = useSkills(projectId ?? null).data ?? [];
   const files = useQuery({

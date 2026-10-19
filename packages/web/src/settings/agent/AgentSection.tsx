@@ -6,8 +6,8 @@ import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { SegmentedControl, type SegmentedOption } from "@/components/ui/segmented-control";
 import { SettingRow } from "@/components/ui/settings-layout";
 import { Skeleton } from "@/components/ui/skeleton";
-import { api } from "@/lib/api";
 import { queryKeys, useSettings } from "@/lib/queries";
+import { useApi } from "@/machines/machine-context";
 
 const textOption = <T extends string>(value: T, label: string): SegmentedOption<T> => ({
   value,
@@ -27,6 +27,7 @@ const MESSAGE_MODE_LABEL = "While the agent works, new messages";
 const WORKSPACE_LABEL = "New threads use";
 
 export function AgentSection() {
+  const api = useApi();
   const queryClient = useQueryClient();
   const settings = useSettings();
   const { run, error } = useSubmit();

@@ -10,17 +10,22 @@ import { ProjectIcon } from "@/components/ui/project-icon";
 import { RefreshReposButton } from "@/github/RefreshReposButton";
 import { GITHUB_GROUP, githubOptions, parseGithubValue } from "@/github/repo-options";
 import { UseRepoDialog } from "@/github/UseRepoDialog";
-import { api } from "@/lib/api";
 import { projectsHomeFirst } from "@/lib/new-thread-defaults";
 import { queryKeys, useGithubRepos, useGithubStatus } from "@/lib/queries";
+import { type MachineData, MachineProvider, useHubQueryClient, useMachinesData } from "@/machines";
+import { useApi, useMachineId } from "@/machines/machine-context";
 import { AddProjectDialog } from "@/sidebar/AddProjectDialog";
+import { ChooseMachineDialog } from "./ChooseMachineDialog";
 
 const PROJECTS_GROUP = "Projects";
 
-const projectOption = (project: Project): ComboboxOption => ({
-  value: project.id,
+const OTHER_MACHINE = "machine:";
+const otherValue = (machineId: string, projectId: string) => `${OTHER_MACHINE}${machineId}:${projectId}`;
+
+const projectOption = (project: Project, group = PROJECTS_GROUP, value = project.id): ComboboxOption => ({
+  value,
   label: project.name,
-  group: PROJECTS_GROUP,
+  group,
   disabled: project.status === "failed",
   icon: (
     <ProjectIcon
@@ -38,9 +43,31 @@ interface ProjectPickerProps {
   projectId: string;
   onProject(id: string): void;
   disabled: boolean;
+  /** Another machine's project was picked (or added): the page re-scopes to that machine. */
+  onMachineProject?: (machineId: string | undefined, projectId: string) => void;
 }
 
-export function ProjectPicker({ projects, projectId, onProject, disabled }: ProjectPickerProps) {
+function usePickerMachines(): { all: MachineData[]; groupOf: (machine: MachineData) => string } {
+  const all = useMachinesData();
+  const groupOf = (machine: MachineData) => (all.length > 1 ? machine.name : PROJECTS_GROUP);
+  return { all, groupOf };
+}
+
+export function ProjectPicker({
+  projects,
+  projectId,
+  onProject,
+  disabled,
+  onMachineProject,
+}: ProjectPickerProps) {
+  const api = useApi();
+  const machineId = useMachineId();
+  const { all, groupOf } = usePickerMachines();
+  const hub = useHubQueryClient();
+  const current = all.find((machine) => machine.machineId === machineId);
+  const others = all.filter((machine) => machine.machineId !== machineId);
+  const [choosing, setChoosing] = useState(false);
+  const [addingOn, setAddingOn] = useState<{ machineId: string | undefined } | null>(null);
   const queryClient = useQueryClient();
   const status = useGithubStatus();
   const repos = useGithubRepos(status.data?.state === "connected");
@@ -66,13 +93,24 @@ export function ProjectPicker({ projects, projectId, onProject, disabled }: Proj
   };
 
   const onChange = (value: string) => {
+    if (value.startsWith(OTHER_MACHINE)) {
+      const [, otherMachine = "", ...rest] = value.split(":");
+      return void onMachineProject?.(otherMachine, rest.join(":"));
+    }
     const repoName = parseGithubValue(value);
     if (repoName) pickRepo(repoName);
     else onProject(value);
   };
 
   const options = [
-    ...projectsHomeFirst(projects).map(projectOption),
+    ...projectsHomeFirst(projects).map((project) =>
+      projectOption(project, current ? groupOf(current) : PROJECTS_GROUP),
+    ),
+    ...others.flatMap((machine) =>
+      projectsHomeFirst([...machine.projects]).map((project) =>
+        projectOption(project, groupOf(machine), otherValue(machine.machineId ?? "", project.id)),
+      ),
+    ),
     ...githubOptions({ status: status.data, repos: repos.data, reposFailed: repos.isError }),
   ];
 
@@ -98,7 +136,8 @@ export function ProjectPicker({ projects, projectId, onProject, disabled }: Proj
             className="w-full justify-start font-normal"
             onClick={() => {
               close();
-              setAdding(true);
+              if (all.length > 1) setChoosing(true);
+              else setAdding(true);
             }}
           >
             <PlusIcon />
@@ -110,6 +149,29 @@ export function ProjectPicker({ projects, projectId, onProject, disabled }: Proj
         }
       />
       <FormError message={error} className="w-full" />
+      {choosing && (
+        <ChooseMachineDialog
+          machines={all}
+          onClose={() => setChoosing(false)}
+          onChoose={(chosen) => {
+            setChoosing(false);
+            if (chosen === machineId) setAdding(true);
+            else setAddingOn({ machineId: chosen });
+          }}
+        />
+      )}
+      {addingOn && (
+        <MachineProvider key={addingOn.machineId ?? "local"} machineId={addingOn.machineId}>
+          <AddProjectDialog
+            onClose={() => setAddingOn(null)}
+            onAdded={(project) => {
+              void hub.invalidateQueries({ queryKey: queryKeys.projects });
+              void hub.invalidateQueries({ queryKey: ["machine-data"] });
+              onMachineProject?.(addingOn.machineId, project.id);
+            }}
+          />
+        </MachineProvider>
+      )}
       {adding && (
         <AddProjectDialog
           onClose={() => setAdding(false)}

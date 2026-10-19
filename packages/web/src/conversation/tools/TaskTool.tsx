@@ -4,6 +4,7 @@ import { Link } from "react-router";
 import { Button } from "@/components/ui/button";
 import { conversationPath } from "@/lib/paths";
 import { useAllConversations } from "@/lib/queries";
+import { useMachineId } from "@/machines/machine-context";
 import { argText, resultDetails, resultText } from "../model/tool-state";
 import { OutputBlock } from "./OutputBlock";
 import { ToolCard } from "./ToolCard";
@@ -25,9 +26,10 @@ export function cardTitle(continued: boolean, childTitle: string | undefined): s
 }
 
 function OpenChildLink({ child }: { child: ConversationSummary }) {
+  const machineId = useMachineId();
   return (
     <Button asChild variant="outline" size="sm">
-      <Link to={conversationPath(child.projectId, child.id)}>Open</Link>
+      <Link to={conversationPath(child.projectId, child.id, machineId)}>Open</Link>
     </Button>
   );
 }

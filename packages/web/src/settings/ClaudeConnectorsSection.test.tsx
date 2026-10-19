@@ -5,6 +5,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { createApi } from "@/lib/api";
 import { createFakeTransport } from "@/lib/transport/fake";
+import { MachineApiProvider } from "@/machines/machine-context";
 import { ClaudeConnectorsSection } from "./ClaudeConnectorsSection";
 
 const mocks = vi.hoisted(() => ({ api: null as unknown }));
@@ -24,7 +25,9 @@ async function renderSection(ready: boolean) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
     <QueryClientProvider client={client}>
-      <ClaudeConnectorsSection />
+      <MachineApiProvider>
+        <ClaudeConnectorsSection />
+      </MachineApiProvider>
     </QueryClientProvider>,
   );
   return core;

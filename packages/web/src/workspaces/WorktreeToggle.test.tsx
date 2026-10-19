@@ -1,9 +1,11 @@
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { api } from "@/lib/api";
+import { apiOfMachine } from "@/machines/machine-apis";
 import { project, renderAt } from "@/sidebar/test-support";
 import { WorktreeToggle } from "./WorktreeToggle";
+
+const api = apiOfMachine();
 
 vi.mock("@/lib/api", () => ({
   api: { projects: { list: vi.fn() }, settings: { get: vi.fn() } },

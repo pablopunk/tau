@@ -2,9 +2,11 @@ import type { Timer } from "@tau/protocol";
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { api } from "@/lib/api";
+import { apiOfMachine } from "@/machines/machine-apis";
 import { conversation, renderAt } from "@/sidebar/test-support";
 import { TimersChip } from "./TimersChip";
+
+const api = apiOfMachine();
 
 const NOW = Date.now();
 

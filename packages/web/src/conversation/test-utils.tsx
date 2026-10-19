@@ -5,6 +5,7 @@ import { render } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 import { vi } from "vitest";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { MachineApiProvider } from "@/machines/machine-context";
 import { Conversation } from "./Conversation";
 import type { LiveClient } from "./live-client";
 import { LiveClientProvider } from "./live-client-context";
@@ -41,11 +42,13 @@ export function renderConversation(client: LiveClient, id = "2") {
   return render(
     <MemoryRouter>
       <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-        <TooltipProvider>
-          <LiveClientProvider client={client}>
-            <Conversation id={id} />
-          </LiveClientProvider>
-        </TooltipProvider>
+        <MachineApiProvider>
+          <TooltipProvider>
+            <LiveClientProvider client={client}>
+              <Conversation id={id} />
+            </LiveClientProvider>
+          </TooltipProvider>
+        </MachineApiProvider>
       </QueryClientProvider>
     </MemoryRouter>,
   );

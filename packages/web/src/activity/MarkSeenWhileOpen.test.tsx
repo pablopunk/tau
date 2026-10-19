@@ -1,9 +1,11 @@
 import { waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { api } from "@/lib/api";
 import { preferences } from "@/lib/preferences";
+import { apiOfMachine } from "@/machines/machine-apis";
 import { conversation, renderAt } from "@/sidebar/test-support";
 import { MarkSeenWhileOpen } from "./MarkSeenWhileOpen";
+
+const api = apiOfMachine();
 
 vi.mock("@/lib/api", () => ({ api: { conversations: { listAll: vi.fn() } } }));
 

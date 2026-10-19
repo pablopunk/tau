@@ -3,10 +3,12 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { SettingsDialogContext } from "@/app/settings-dialog";
 import { SidebarProvider } from "@/components/ui/sidebar";
-import { api } from "@/lib/api";
+import { apiOfMachine } from "@/machines/machine-apis";
 import { conversation, project, renderAt } from "@/sidebar/test-support";
 import { CommandPalette } from "./CommandPalette";
 import { GlobalShortcuts } from "./GlobalShortcuts";
+
+const api = apiOfMachine();
 
 vi.mock("@/lib/api", () => ({
   api: { projects: { list: vi.fn() }, conversations: { listAll: vi.fn() } },

@@ -1,5 +1,7 @@
 import type { ModelRef, ThinkingLevel, WorkspaceMode } from "@tau/protocol";
 
+import { machineKey } from "./machine-keys";
+
 export interface NewThreadDraft {
   projectId: string | null;
   model: ModelRef | null;
@@ -8,6 +10,7 @@ export interface NewThreadDraft {
 }
 
 const KEY = "tau:new-thread-draft";
+const keyOf = (machineId?: string) => machineKey(KEY, machineId);
 
 const EMPTY: NewThreadDraft = { projectId: null, model: null, thinkingLevel: null, workspace: null };
 
@@ -42,9 +45,9 @@ function asDraft(value: unknown): NewThreadDraft {
   };
 }
 
-export function loadNewThreadDraft(): NewThreadDraft {
+export function loadNewThreadDraft(machineId?: string): NewThreadDraft {
   try {
-    const raw = window.localStorage.getItem(KEY);
+    const raw = window.localStorage.getItem(keyOf(machineId));
     if (!raw) return EMPTY;
     return asDraft(JSON.parse(raw) as unknown);
   } catch {
@@ -52,17 +55,17 @@ export function loadNewThreadDraft(): NewThreadDraft {
   }
 }
 
-export function saveNewThreadDraft(draft: NewThreadDraft): void {
+export function saveNewThreadDraft(draft: NewThreadDraft, machineId?: string): void {
   try {
-    window.localStorage.setItem(KEY, JSON.stringify(draft));
+    window.localStorage.setItem(keyOf(machineId), JSON.stringify(draft));
   } catch {
     // Storage unavailable or full: the draft just does not persist.
   }
 }
 
-export function clearNewThreadDraft(): void {
+export function clearNewThreadDraft(machineId?: string): void {
   try {
-    window.localStorage.removeItem(KEY);
+    window.localStorage.removeItem(keyOf(machineId));
   } catch {
     // Nothing to clear.
   }

@@ -2,8 +2,11 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { AssistantMessage as AssistantMessageData } from "@tau/protocol";
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { api } from "@/lib/api";
+import { apiOfMachine } from "@/machines/machine-apis";
+import { MachineApiProvider } from "@/machines/machine-context";
 import { AssistantMessage } from "./AssistantMessage";
+
+const api = apiOfMachine();
 
 vi.mock("@/lib/api", () => ({ api: { models: { list: vi.fn() } } }));
 
@@ -29,10 +32,12 @@ const info = (modelId: string, name: string) => ({
 function renderAnswers(...messages: AssistantMessageData[]) {
   render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-      {messages.map((message, i) => (
-        // biome-ignore lint/suspicious/noArrayIndexKey: static test list
-        <AssistantMessage key={i} message={message} resolveTool={() => ({}) as never} />
-      ))}
+      <MachineApiProvider>
+        {messages.map((message, i) => (
+          // biome-ignore lint/suspicious/noArrayIndexKey: static test list
+          <AssistantMessage key={i} message={message} resolveTool={() => ({}) as never} />
+        ))}
+      </MachineApiProvider>
     </QueryClientProvider>,
   );
 }

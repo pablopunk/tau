@@ -13,7 +13,7 @@ import type {
   ProviderId,
   RemoteStatus,
 } from "@tau/protocol";
-import { api } from "./api";
+import { useApi } from "@/machines/machine-context";
 
 export const queryKeys = {
   providers: ["providers"] as const,
@@ -43,19 +43,34 @@ export const queryKeys = {
   /** `["machines"]` is the hub's list; `["machines", "hub"]` is this tau's own link to a hub. */
   machines: ["machines"] as const,
   hubLink: ["machines", "hub"] as const,
+  /** Another machine's data, cached in the hub's client by components outside that machine's provider. */
+  machineData: (machineId: string) => ["machine-data", machineId] as const,
 };
 
-export const useProviders = () =>
-  useQuery({ queryKey: queryKeys.providers, queryFn: () => api.providers.list() });
-export const useSettings = () =>
-  useQuery({ queryKey: queryKeys.settings, queryFn: () => api.settings.get() });
-export const useProjects = () =>
-  useQuery({ queryKey: queryKeys.projects, queryFn: () => api.projects.list() });
+export const useProviders = () => {
+  const api = useApi();
+  return useQuery({ queryKey: queryKeys.providers, queryFn: () => api.providers.list() });
+};
 
-export const useModels = () => useQuery({ queryKey: queryKeys.models, queryFn: () => api.models.list() });
+export const useSettings = () => {
+  const api = useApi();
+  return useQuery({ queryKey: queryKeys.settings, queryFn: () => api.settings.get() });
+};
 
-export const useSkills = (projectId: string | null) =>
-  useQuery({ queryKey: queryKeys.skills(projectId), queryFn: () => api.skills.list(projectId) });
+export const useProjects = () => {
+  const api = useApi();
+  return useQuery({ queryKey: queryKeys.projects, queryFn: () => api.projects.list() });
+};
+
+export const useModels = () => {
+  const api = useApi();
+  return useQuery({ queryKey: queryKeys.models, queryFn: () => api.models.list() });
+};
+
+export const useSkills = (projectId: string | null) => {
+  const api = useApi();
+  return useQuery({ queryKey: queryKeys.skills(projectId), queryFn: () => api.skills.list(projectId) });
+};
 
 export const invalidateProviders = async (queryClient: QueryClient) => {
   await Promise.all([
@@ -65,6 +80,7 @@ export const invalidateProviders = async (queryClient: QueryClient) => {
 };
 
 export function useSetProviderKey() {
+  const api = useApi();
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ id, key }: { id: ProviderId; key: string }) => api.providers.setKey(id, key),
@@ -73,6 +89,7 @@ export function useSetProviderKey() {
 }
 
 export function useDisconnectProvider() {
+  const api = useApi();
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (id: ProviderId) => api.providers.disconnect(id),
@@ -81,6 +98,7 @@ export function useDisconnectProvider() {
 }
 
 export function useAcknowledgeClaudeCli() {
+  const api = useApi();
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: () => api.providers.acknowledgeClaudeCli(),
@@ -89,6 +107,7 @@ export function useAcknowledgeClaudeCli() {
 }
 
 export function useRefreshClaudeCli() {
+  const api = useApi();
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: () => api.providers.refreshClaudeCli(),
@@ -97,6 +116,7 @@ export function useRefreshClaudeCli() {
 }
 
 export function useInstallClaudeCliSdk() {
+  const api = useApi();
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: () => api.providers.installClaudeCliSdk(),
@@ -107,85 +127,113 @@ export function useInstallClaudeCliSdk() {
 export const byActivity = (a: ConversationSummary, b: ConversationSummary): number =>
   b.lastActivityAt - a.lastActivityAt || (a.id < b.id ? 1 : a.id > b.id ? -1 : 0);
 
-export const useConversations = (projectId: string) =>
-  useQuery({
+export const useConversations = (projectId: string) => {
+  const api = useApi();
+  return useQuery({
     queryKey: queryKeys.conversations(projectId),
     queryFn: async () => {
       const list = await api.conversations.list(projectId);
       return [...list].sort(byActivity);
     },
   });
+};
 
-export const useAllConversations = () =>
-  useQuery({
+export const useAllConversations = () => {
+  const api = useApi();
+  return useQuery({
     queryKey: queryKeys.allConversations,
     queryFn: async () => {
       const list = await api.conversations.listAll();
       return [...list].sort(byActivity);
     },
   });
+};
 
-export const useGithubStatus = () =>
-  useQuery({ queryKey: queryKeys.githubStatus, queryFn: () => api.github.status() });
+export const useGithubStatus = () => {
+  const api = useApi();
+  return useQuery({ queryKey: queryKeys.githubStatus, queryFn: () => api.github.status() });
+};
 
-export const useGithubRepos = (enabled: boolean) =>
-  useQuery({ queryKey: queryKeys.githubRepos, queryFn: () => api.github.repos(), enabled });
+export const useGithubRepos = (enabled: boolean) => {
+  const api = useApi();
+  return useQuery({ queryKey: queryKeys.githubRepos, queryFn: () => api.github.repos(), enabled });
+};
 
-export const useSuggestedCodeFolder = () =>
-  useQuery({ queryKey: queryKeys.suggestedCodeFolder, queryFn: () => api.settings.suggestedCodeFolder() });
+export const useSuggestedCodeFolder = () => {
+  const api = useApi();
+  return useQuery({
+    queryKey: queryKeys.suggestedCodeFolder,
+    queryFn: () => api.settings.suggestedCodeFolder(),
+  });
+};
 
-export const usePathSuggestions = (prefix: string, enabled = true) =>
-  useQuery({
+export const usePathSuggestions = (prefix: string, enabled = true) => {
+  const api = useApi();
+  return useQuery({
     queryKey: queryKeys.pathSuggestions(prefix),
     queryFn: () => api.fs.suggestDirectories({ prefix }),
     enabled,
     placeholderData: keepPreviousData,
     staleTime: 5_000,
   });
+};
 
-export const useIconCandidates = (projectId: string, enabled = true) =>
-  useQuery({
+export const useIconCandidates = (projectId: string, enabled = true) => {
+  const api = useApi();
+  return useQuery({
     queryKey: queryKeys.iconCandidates(projectId),
     queryFn: () => api.projects.iconCandidates(projectId),
     enabled,
   });
+};
 
-export const useWorkspaceStatus = (conversationId: string, enabled = true) =>
-  useQuery({
+export const useWorkspaceStatus = (conversationId: string, enabled = true) => {
+  const api = useApi();
+  return useQuery({
     queryKey: queryKeys.workspace(conversationId),
     queryFn: () => api.workspaces.status(conversationId),
     enabled,
   });
+};
 
-export const useCheckpoints = (conversationId: string, enabled = true) =>
-  useQuery({
+export const useCheckpoints = (conversationId: string, enabled = true) => {
+  const api = useApi();
+  return useQuery({
     queryKey: queryKeys.checkpoints(conversationId),
     queryFn: () => api.conversations.checkpoints(conversationId),
     enabled,
   });
+};
 
-export const useProcesses = (conversationId: string, enabled = true) =>
-  useQuery({
+export const useProcesses = (conversationId: string, enabled = true) => {
+  const api = useApi();
+  return useQuery({
     queryKey: queryKeys.processes(conversationId),
     queryFn: () => api.processes.list(conversationId),
     enabled,
   });
+};
 
-export const useTimers = (conversationId: string, enabled = true) =>
-  useQuery({
+export const useTimers = (conversationId: string, enabled = true) => {
+  const api = useApi();
+  return useQuery({
     queryKey: queryKeys.timers(conversationId),
     queryFn: () => api.timers.list(conversationId),
     enabled,
   });
+};
 
-export const useApprovals = (conversationId: string, enabled = true) =>
-  useQuery({
+export const useApprovals = (conversationId: string, enabled = true) => {
+  const api = useApi();
+  return useQuery({
     queryKey: queryKeys.approvals(conversationId),
     queryFn: () => api.approvals.list(conversationId),
     enabled,
   });
+};
 
 export function useDecideApproval(conversationId: string) {
+  const api = useApi();
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (input: { toolUseId: string; decision: ApprovalDecision }) =>
@@ -195,6 +243,7 @@ export function useDecideApproval(conversationId: string) {
 }
 
 export function useSetClaudeConnectors() {
+  const api = useApi();
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (value: ClaudeConnectorSettings) => api.settings.setClaudeConnectors(value),
@@ -202,28 +251,38 @@ export function useSetClaudeConnectors() {
   });
 }
 
-export const useGoal = (conversationId: string, enabled = true) =>
-  useQuery({
+export const useGoal = (conversationId: string, enabled = true) => {
+  const api = useApi();
+  return useQuery({
     queryKey: queryKeys.goal(conversationId),
     queryFn: () => api.goals.get(conversationId),
     enabled,
   });
+};
 
-export const useProcessLogs = (processId: string, tail?: number, enabled = true) =>
-  useQuery({
+export const useProcessLogs = (processId: string, tail?: number, enabled = true) => {
+  const api = useApi();
+  return useQuery({
     queryKey: queryKeys.processLogs(processId, tail),
     queryFn: () => api.processes.logs(processId, tail),
     enabled,
   });
+};
 
-export const useMcpServers = (projectId: string | null) =>
-  useQuery({ queryKey: queryKeys.mcpServers(projectId), queryFn: () => api.mcp.servers(projectId) });
+export const useMcpServers = (projectId: string | null) => {
+  const api = useApi();
+  return useQuery({ queryKey: queryKeys.mcpServers(projectId), queryFn: () => api.mcp.servers(projectId) });
+};
 
-export const useRemoteStatus = () =>
-  useQuery({ queryKey: queryKeys.remoteStatus, queryFn: () => api.remote.status() });
+export const useRemoteStatus = () => {
+  const api = useApi();
+  return useQuery({ queryKey: queryKeys.remoteStatus, queryFn: () => api.remote.status() });
+};
 
-export const useDevices = () =>
-  useQuery({ queryKey: queryKeys.devices, queryFn: () => api.access.devices() });
+export const useDevices = () => {
+  const api = useApi();
+  return useQuery({ queryKey: queryKeys.devices, queryFn: () => api.access.devices() });
+};
 
 function useRemoteMutation(run: () => Promise<RemoteStatus>) {
   const queryClient = useQueryClient();
@@ -237,12 +296,25 @@ function useRemoteMutation(run: () => Promise<RemoteStatus>) {
   });
 }
 
-export const useEnableRemote = () => useRemoteMutation(() => api.remote.enable());
-export const useDisableRemote = () => useRemoteMutation(() => api.remote.disable());
-export const useRecreateRemote = () => useRemoteMutation(() => api.remote.recreate());
+export const useEnableRemote = () => {
+  const api = useApi();
+  return useRemoteMutation(() => api.remote.enable());
+};
 
-export const useMintPairing = () =>
-  useMutation({ mutationFn: (input: MintPairingInput) => api.access.mintPairing(input) });
+export const useDisableRemote = () => {
+  const api = useApi();
+  return useRemoteMutation(() => api.remote.disable());
+};
+
+export const useRecreateRemote = () => {
+  const api = useApi();
+  return useRemoteMutation(() => api.remote.recreate());
+};
+
+export const useMintPairing = () => {
+  const api = useApi();
+  return useMutation({ mutationFn: (input: MintPairingInput) => api.access.mintPairing(input) });
+};
 
 function useDeviceMutation<V>(run: (value: V) => Promise<void>) {
   const queryClient = useQueryClient();
@@ -252,7 +324,45 @@ function useDeviceMutation<V>(run: (value: V) => Promise<void>) {
   });
 }
 
-export const useRenameDevice = () =>
-  useDeviceMutation(({ id, name }: { id: string; name: string }) => api.access.renameDevice(id, name));
-export const useRevokeDevice = () => useDeviceMutation((id: string) => api.access.revokeDevice(id));
-export const useSignOutAllDevices = () => useDeviceMutation(() => api.access.signOutAll());
+export const useRenameDevice = () => {
+  const api = useApi();
+  return useDeviceMutation(({ id, name }: { id: string; name: string }) => api.access.renameDevice(id, name));
+};
+
+export const useRevokeDevice = () => {
+  const api = useApi();
+  return useDeviceMutation((id: string) => api.access.revokeDevice(id));
+};
+
+export const useSignOutAllDevices = () => {
+  const api = useApi();
+  return useDeviceMutation(() => api.access.signOutAll());
+};
+
+export const useHubLink = () => {
+  const api = useApi();
+  return useQuery({ queryKey: queryKeys.hubLink, queryFn: () => api.machines.hubLink() });
+};
+
+function useMachineMutation<V>(run: (value: V) => Promise<void>) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: run,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.machines }),
+  });
+}
+
+export const useRenameMachine = () => {
+  const api = useApi();
+  return useMachineMutation(({ id, name }: { id: string; name: string }) => api.machines.rename(id, name));
+};
+
+export const useDisconnectMachine = () => {
+  const api = useApi();
+  return useMachineMutation((id: string) => api.machines.disconnect(id));
+};
+
+export const useDisconnectHub = () => {
+  const api = useApi();
+  return useMachineMutation(() => api.machines.disconnectHub());
+};

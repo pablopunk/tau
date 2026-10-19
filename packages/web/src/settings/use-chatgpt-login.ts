@@ -1,12 +1,13 @@
 import type { LoginSession } from "@tau/protocol";
 import { useEffect, useState } from "react";
-import { api } from "@/lib/api";
 import { errorMessage } from "@/lib/error-message";
+import { useApi } from "@/machines/machine-context";
 
 const POLL_MS = 1000;
 const isActive = (session: LoginSession) => session.state === "starting" || session.state === "waiting";
 
 function useStartedSession(attempt: number, onFailure: (message: string) => void) {
+  const api = useApi();
   const [session, setSession] = useState<LoginSession | null>(null);
   // biome-ignore lint/correctness/useExhaustiveDependencies: a new login only starts on a new attempt.
   useEffect(() => {
@@ -29,6 +30,7 @@ function useStartedSession(attempt: number, onFailure: (message: string) => void
 }
 
 function usePolling(session: LoginSession | null, update: (session: LoginSession) => void) {
+  const api = useApi();
   const id = session && isActive(session) ? session.id : null;
   useEffect(() => {
     if (!id) return;
@@ -39,7 +41,7 @@ function usePolling(session: LoginSession | null, update: (session: LoginSession
         .catch(() => {});
     }, POLL_MS);
     return () => clearInterval(timer);
-  }, [id, update]);
+  }, [api, id, update]);
 }
 
 export function useChatGptLogin() {

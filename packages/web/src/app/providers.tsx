@@ -1,28 +1,16 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { type ReactNode, useState } from "react";
+import type { ReactNode } from "react";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { createLiveClient, LiveClientProvider } from "@/conversation";
-import { api } from "@/lib/api";
-import { useChangedInvalidation } from "@/lib/use-changed-invalidation";
+import { MachineProvider } from "@/machines";
 
-function ChangedInvalidation() {
-  useChangedInvalidation();
-  return null;
-}
-
+/** The hub's own machine is the root provider: no URL prefix, today's behaviour. Linked machines nest their own. */
 export function Providers({ children }: { children: ReactNode }) {
-  const [queryClient] = useState(() => new QueryClient({ defaultOptions: { queries: { retry: false } } }));
-  const [liveClient] = useState(() => createLiveClient(api.live));
   return (
-    <QueryClientProvider client={queryClient}>
-      <LiveClientProvider client={liveClient}>
-        <TooltipProvider>
-          <ChangedInvalidation />
-          {children}
-          <Toaster />
-        </TooltipProvider>
-      </LiveClientProvider>
-    </QueryClientProvider>
+    <MachineProvider>
+      <TooltipProvider>
+        {children}
+        <Toaster />
+      </TooltipProvider>
+    </MachineProvider>
   );
 }

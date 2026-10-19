@@ -2,9 +2,9 @@ import { useQueryClient } from "@tanstack/react-query";
 import { isAppError } from "@tau/protocol";
 import { useState } from "react";
 import { newRequestId } from "@/conversation/use-conversation-actions";
-import { api } from "@/lib/api";
 import { errorMessage } from "@/lib/error-message";
 import { queryKeys } from "@/lib/queries";
+import { useApi } from "@/machines/machine-context";
 
 export interface WorkspaceFailure {
   code: string | null;
@@ -12,6 +12,7 @@ export interface WorkspaceFailure {
 }
 
 export function useWorkspaceActions(conversationId: string) {
+  const api = useApi();
   const queryClient = useQueryClient();
   const [failure, setFailure] = useState<WorkspaceFailure | null>(null);
   const [pending, setPending] = useState(false);

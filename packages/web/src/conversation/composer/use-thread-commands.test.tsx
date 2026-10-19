@@ -2,9 +2,11 @@ import { AppError } from "@tau/protocol";
 import { renderHook } from "@testing-library/react";
 import { toast } from "sonner";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { api } from "@/lib/api";
+import { apiOfMachine } from "@/machines/machine-apis";
 import { ComposerTestWrapper } from "./test-wrapper";
 import { useThreadCommands } from "./use-thread-commands";
+
+const api = apiOfMachine();
 
 vi.mock("sonner", () => ({ toast: { error: vi.fn() } }));
 vi.mock("@/lib/api", () => ({ api: { conversations: { compact: vi.fn() } } }));

@@ -4,7 +4,7 @@ import { FormError } from "@/app/FormError";
 import { useSubmit } from "@/app/use-submit";
 import { FieldDescription } from "@/components/ui/field";
 import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from "@/components/ui/input-group";
-import { api } from "@/lib/api";
+import { useApi } from "@/machines/machine-context";
 
 export const CALLBACK_PREFIX = "http://127.0.0.1:1455/auth/callback";
 const HELP =
@@ -20,6 +20,7 @@ interface CallbackUrlFieldProps {
 }
 
 export function CallbackUrlField({ sessionId, serverError, onSession }: CallbackUrlFieldProps) {
+  const api = useApi();
   const [value, setValue] = useState("");
   const [clientError, setClientError] = useState<string | null>(null);
   const { run, error, pending } = useSubmit();

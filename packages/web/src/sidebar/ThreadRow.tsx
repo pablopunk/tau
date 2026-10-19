@@ -24,9 +24,9 @@ import { SidebarThreadRow } from "@/components/ui/sidebar-thread-row";
 import { StatusDot } from "@/components/ui/status-dot";
 import { TreeBranch, TreeToggle } from "@/components/ui/tree-branch";
 import { PendingApprovalBadge } from "@/conversation/PendingApprovalBadge";
-import { api } from "@/lib/api";
 import { conversationPath } from "@/lib/paths";
 import { queryKeys } from "@/lib/queries";
+import { useApi, useMachineId } from "@/machines/machine-context";
 import { conversationDot } from "./conversation-dot";
 import { DeleteConversationDialog } from "./DeleteConversationDialog";
 import { ForkBadge, isFork } from "./ForkBadge";
@@ -64,11 +64,13 @@ export function ThreadRow({
   last = false,
   branches,
 }: ThreadRowProps) {
+  const machineId = useMachineId();
+  const api = useApi();
   const [dialog, setDialog] = useState<"rename" | "delete" | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const title = conversation.title.trim() || "New thread";
   const archived = conversation.archivedAt !== null;
-  const dot = conversationDot(conversation, active);
+  const dot = conversationDot(conversation, active, machineId);
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const { isMobile, setOpenMobile } = useSidebar();
@@ -131,7 +133,7 @@ export function ThreadRow({
             tooltip={tooltipOf(title, project, conversation)}
             link={
               <Link
-                to={conversationPath(conversation.projectId, conversation.id)}
+                to={conversationPath(conversation.projectId, conversation.id, machineId)}
                 aria-current={active ? "page" : undefined}
                 onClick={() => isMobile && setOpenMobile(false)}
               />

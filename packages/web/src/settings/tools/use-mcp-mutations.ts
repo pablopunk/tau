@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import type { McpServerConfig } from "@tau/protocol";
-import { api } from "@/lib/api";
 import { queryKeys } from "@/lib/queries";
+import { useApi } from "@/machines/machine-context";
 
 function useInvalidateMcp() {
   const queryClient = useQueryClient();
@@ -9,6 +9,7 @@ function useInvalidateMcp() {
 }
 
 export function useSaveMcpServer() {
+  const api = useApi();
   const invalidate = useInvalidateMcp();
   return useMutation({
     mutationFn: (config: McpServerConfig) => api.mcp.save(config),
@@ -17,6 +18,7 @@ export function useSaveMcpServer() {
 }
 
 export function useRemoveMcpServer() {
+  const api = useApi();
   const invalidate = useInvalidateMcp();
   return useMutation({ mutationFn: (name: string) => api.mcp.remove(name), onSuccess: invalidate });
 }

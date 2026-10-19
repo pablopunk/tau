@@ -3,6 +3,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { toast } from "sonner";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { MachineApiProvider } from "@/machines/machine-context";
 import { loadDraft } from "../composer/drafts";
 import { BusyModeHint } from "./BusyModeHint";
 import { QueuedItemActions } from "./QueuedItemActions";
@@ -27,7 +28,11 @@ beforeEach(() => {
 describe("<QueuedItemActions>", () => {
   it("shows the mode and cancels the queued item", async () => {
     mocks.cancelQueued.mockResolvedValue({ cancelled: true });
-    render(<QueuedItemActions conversationId="c1" item={item} />);
+    render(
+      <MachineApiProvider>
+        <QueuedItemActions conversationId="c1" item={item} />
+      </MachineApiProvider>,
+    );
     expect(screen.getByText("Queued")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
     expect(mocks.cancelQueued).toHaveBeenCalledWith("c1", "7");
@@ -37,7 +42,11 @@ describe("<QueuedItemActions>", () => {
 
   it("labels a steer item and toasts when the item was already delivered", async () => {
     mocks.cancelQueued.mockResolvedValue({ cancelled: false });
-    render(<QueuedItemActions conversationId="c1" item={{ ...item, mode: "steer" }} />);
+    render(
+      <MachineApiProvider>
+        <QueuedItemActions conversationId="c1" item={{ ...item, mode: "steer" }} />
+      </MachineApiProvider>,
+    );
     expect(screen.getByText("Steering")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
     expect(toast.info).toHaveBeenCalled();
@@ -49,7 +58,9 @@ describe("<BusyModeHint>", () => {
   const renderHint = (busy: boolean) =>
     render(
       <QueryClientProvider client={new QueryClient()}>
-        <BusyModeHint busy={busy} />
+        <MachineApiProvider>
+          <BusyModeHint busy={busy} />
+        </MachineApiProvider>
       </QueryClientProvider>,
     );
 

@@ -1,9 +1,10 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
-import { api } from "@/lib/api";
 import { queryKeys } from "@/lib/queries";
+import { useApi } from "@/machines/machine-context";
 
 export function StopAgentButton({ childId }: { childId: string }) {
+  const api = useApi();
   const queryClient = useQueryClient();
   const stop = async () => {
     await api.conversations.stopAgent(childId);

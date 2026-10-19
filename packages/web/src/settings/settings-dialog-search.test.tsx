@@ -9,6 +9,7 @@ import { SidebarProvider } from "@/components/ui/sidebar";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { createApi } from "@/lib/api";
 import { createFakeTransport } from "@/lib/transport/fake";
+import { MachineApiProvider } from "@/machines/machine-context";
 import { CommandPalette } from "@/palette/CommandPalette";
 import { SECTION_BODIES } from "./section-bodies";
 import { SETTINGS_SECTIONS } from "./sections";
@@ -33,14 +34,16 @@ function renderApp(initial: string, extra?: React.ReactNode) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={client}>
-      <MemoryRouter initialEntries={[initial]}>
-        <TooltipProvider>
-          <SettingsDialogProvider>
-            <Probe />
-            {extra}
-          </SettingsDialogProvider>
-        </TooltipProvider>
-      </MemoryRouter>
+      <MachineApiProvider>
+        <MemoryRouter initialEntries={[initial]}>
+          <TooltipProvider>
+            <SettingsDialogProvider>
+              <Probe />
+              {extra}
+            </SettingsDialogProvider>
+          </TooltipProvider>
+        </MemoryRouter>
+      </MachineApiProvider>
     </QueryClientProvider>,
   );
 }
@@ -69,7 +72,9 @@ describe("settings index coverage", () => {
       const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
       const body = render(
         <QueryClientProvider client={client}>
-          <MemoryRouter>{Body()}</MemoryRouter>
+          <MachineApiProvider>
+            <MemoryRouter>{Body()}</MemoryRouter>
+          </MachineApiProvider>
         </QueryClientProvider>,
       );
       await waitFor(() => {

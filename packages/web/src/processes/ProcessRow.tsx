@@ -3,13 +3,14 @@ import type { ProcessInfo } from "@tau/protocol";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { api } from "@/lib/api";
 import { errorMessage } from "@/lib/error-message";
 import { queryKeys } from "@/lib/queries";
+import { useApi } from "@/machines/machine-context";
 import { ProcessLogs } from "./ProcessLogs";
 import { stateLabel } from "./process-state";
 
 function useStopProcess(process: ProcessInfo) {
+  const api = useApi();
   const queryClient = useQueryClient();
   return () =>
     api.processes

@@ -2,8 +2,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import type { ConversationSummary, DeleteArchivedResult } from "@tau/protocol";
 import { useCallback, useSyncExternalStore } from "react";
 import { toast } from "sonner";
-import { api } from "@/lib/api";
 import { errorMessage } from "@/lib/error-message";
+import { useApi } from "@/machines/machine-context";
 
 const MAX_LINES = 3;
 const INTERRUPTED =
@@ -39,6 +39,7 @@ export function notifyResult(result: DeleteArchivedResult, titles: ReadonlyMap<s
 }
 
 export function useDeleteArchived() {
+  const api = useApi();
   const queryClient = useQueryClient();
   const inFlight = useSyncExternalStore(subscribe, getInFlight);
   const startDeleteArchived = useCallback(
@@ -62,7 +63,7 @@ export function useDeleteArchived() {
       setPending(run);
       return true;
     },
-    [queryClient],
+    [api, queryClient],
   );
   return { inFlight, startDeleteArchived };
 }

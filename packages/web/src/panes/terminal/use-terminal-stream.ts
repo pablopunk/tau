@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { TerminalHandle } from "@/components/ui/terminal-view";
-import { api } from "@/lib/api";
+import { useApi } from "@/machines/machine-context";
 import {
   createTerminalConnection,
   type TerminalConnection,
@@ -38,6 +38,7 @@ function createSink(): { sink: TerminalSink; bind: (handle: TerminalHandle | nul
 }
 
 export function useTerminalStream(terminalId: string): TerminalStream {
+  const api = useApi();
   const [state, setState] = useState<TerminalStreamState>({ status: "connecting", exitCode: null });
   const sinkRef = useRef(createSink());
   const connection = useRef<TerminalConnection | undefined>(undefined);
@@ -56,7 +57,7 @@ export function useTerminalStream(terminalId: string): TerminalStream {
       next.close();
       connection.current = undefined;
     };
-  }, [terminalId]);
+  }, [api, terminalId]);
 
   const sendInput = useCallback((data: Uint8Array) => connection.current?.sendInput(data), []);
   const sendResize = useCallback((cols: number, rows: number) => {

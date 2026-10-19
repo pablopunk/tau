@@ -1,8 +1,8 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { api } from "@/lib/api";
 import { queryKeys } from "@/lib/queries";
+import { useApi } from "@/machines/machine-context";
 
 interface CloneFailedProps {
   projectId: string;
@@ -11,6 +11,7 @@ interface CloneFailedProps {
 }
 
 export function CloneFailed({ projectId, error, onRemove }: CloneFailedProps) {
+  const api = useApi();
   const queryClient = useQueryClient();
   const retry = async () => {
     await api.projects.retryClone(projectId);

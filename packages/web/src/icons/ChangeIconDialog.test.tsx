@@ -2,9 +2,12 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { api } from "@/lib/api";
+import { apiOfMachine } from "@/machines/machine-apis";
+import { MachineApiProvider } from "@/machines/machine-context";
 import { ChangeIconDialog } from "./ChangeIconDialog";
 import { letterbox, renderIconPng } from "./render-icon-png";
+
+const api = apiOfMachine();
 
 vi.mock("@/lib/api", () => ({
   api: { projects: { iconCandidates: vi.fn(), setIcon: vi.fn(), resetIcon: vi.fn() } },
@@ -29,7 +32,9 @@ const project = {
 const renderDialog = (onClose = vi.fn()) => {
   render(
     <QueryClientProvider client={new QueryClient()}>
-      <ChangeIconDialog project={project} onClose={onClose} />
+      <MachineApiProvider>
+        <ChangeIconDialog project={project} onClose={onClose} />
+      </MachineApiProvider>
     </QueryClientProvider>,
   );
   return onClose;

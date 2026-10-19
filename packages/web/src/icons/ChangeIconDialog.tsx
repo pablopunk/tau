@@ -16,8 +16,8 @@ import { DropZone } from "@/components/ui/drop-zone";
 import { ImageThumbnail } from "@/components/ui/image-thumbnail";
 import { Input } from "@/components/ui/input";
 import { ProjectIcon } from "@/components/ui/project-icon";
-import { api } from "@/lib/api";
 import { queryKeys, useIconCandidates } from "@/lib/queries";
+import { useApi } from "@/machines/machine-context";
 import { renderIconPng } from "./render-icon-png";
 
 const MAX_CANDIDATES = 12;
@@ -30,6 +30,7 @@ const fetchBlob = async (url: string) => {
 
 /** Mount it only while open so its state resets each time. */
 export function ChangeIconDialog({ project, onClose }: { project: Project; onClose: () => void }) {
+  const api = useApi();
   const inputId = useId();
   const queryClient = useQueryClient();
   const { run, error, pending } = useSubmit();

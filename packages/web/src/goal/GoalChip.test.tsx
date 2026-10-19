@@ -2,9 +2,11 @@ import type { Goal } from "@tau/protocol";
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { api } from "@/lib/api";
+import { apiOfMachine } from "@/machines/machine-apis";
 import { renderAt } from "@/sidebar/test-support";
 import { GoalChip } from "./GoalChip";
+
+const api = apiOfMachine();
 
 const goal = (overrides: Partial<Goal> = {}): Goal => ({
   id: "g1",
