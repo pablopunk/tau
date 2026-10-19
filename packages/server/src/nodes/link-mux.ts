@@ -176,6 +176,7 @@ export class LinkMux {
     stream.credit -= frame.payload.byteLength;
     stream.progressAt = Date.now();
     this.socket.send(encodeDataFrame(frame), { binary: true });
+    stream.onSent?.(frame.payload.byteLength);
     if (stream.pendingBytes < CREDIT_WINDOW_BYTES) stream.onDrained?.();
     if (frame.end) stream.onSentEnd?.();
     return true;

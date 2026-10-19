@@ -28,6 +28,8 @@ export interface LinkStream {
   onClose(code: number, reason: string): void;
   /** The pending queue went below the window again. */
   onDrained?(): void;
+  /** A queued frame went out: `bytes` of payload (the relay returns credit upstream here). */
+  onSent?(bytes: number): void;
   /** The last queued frame with `end` went out. */
   onSentEnd?(): void;
   /** The stream stalled for 60 s: close it (1013). */

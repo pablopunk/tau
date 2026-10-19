@@ -1,4 +1,4 @@
-import type { DataFrame } from "@tau/protocol";
+import type { DataFrame, RoutedFields } from "@tau/protocol";
 import {
   CHUNK_BYTES,
   CREDIT_WINDOW_BYTES,
@@ -15,7 +15,12 @@ const GOING_AWAY = 1001;
 const TOO_BIG = 1009;
 
 /** Pipes a browser socket to a stream on the remote node. Browser frames queue until the node sends `ready`. */
-export function pipeSocketOverLink(mux: LinkMux, request: GatewayStreamRequest, socket: WebSocket): void {
+export function pipeSocketOverLink(
+  mux: LinkMux,
+  request: GatewayStreamRequest,
+  socket: WebSocket,
+  routed?: RoutedFields,
+): void {
   const id = mux.allocateId();
   let remoteClosed = false;
   const closeBrowser = (code: number, reason: string) => {
@@ -83,7 +88,14 @@ export function pipeSocketOverLink(mux: LinkMux, request: GatewayStreamRequest, 
     mux.sendControl({ type: "close", id, code: wireCloseCode(code), reason: clipReason(reason.toString()) });
   });
   socket.on("error", () => undefined);
-  mux.sendControl({ type: "open", id, path: request.path, query: request.query, via: request.via });
+  mux.sendControl({
+    type: "open",
+    id,
+    path: request.path,
+    query: request.query,
+    via: request.via,
+    ...routed,
+  });
 }
 
 interface MessageJoiner {

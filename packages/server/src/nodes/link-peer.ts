@@ -8,6 +8,7 @@ import {
   LINK_PING_INTERVAL_MS,
   type LinkFrame,
   type LinkRole,
+  type RoutedFields,
 } from "@tau/protocol";
 import type { RawData, WebSocket } from "ws";
 import { sanitiseVia } from "./device-labels";
@@ -28,6 +29,7 @@ const HEARTBEAT_EVERY_MS = 1000;
 const HANDSHAKE_MS = 10_000;
 const FORCE_CLOSE_MS = 5000;
 const GOING_AWAY = 1001;
+const LINK_CLOSE_REMOVED = 4003;
 const INTERNAL = 1011;
 const NODE_OFFLINE = "This node is offline.";
 const REMOVAL_REASONS: ReadonlySet<string> = new Set(["disconnect", "forget", "revoked"]);
@@ -68,7 +70,7 @@ export function createLinkPeer(options: CreateLinkPeerOptions): LinkPeer {
 
 class Peer implements LinkPeer {
   readonly closed: Promise<PeerClosed>;
-  private readonly mux: LinkMux;
+  readonly mux: LinkMux;
   private readonly socket: WebSocket;
   private readonly startedAt = Date.now();
   private ownHello: HelloFrame | undefined;
@@ -132,14 +134,23 @@ class Peer implements LinkPeer {
     };
   }
 
-  request(request: GatewayRequest): Promise<GatewayResponse> {
-    if (!this.established || this.ended) return Promise.reject(new AppError("not_found", NODE_OFFLINE));
-    return requestOverLink(this.mux, { ...request, via: sanitiseVia(request.via) });
+  get capabilities(): readonly string[] {
+    return this.peerHello?.capabilities ?? [];
   }
 
-  openStream(request: GatewayStreamRequest, socket: WebSocket): void {
+  sendFrame(frame: LinkFrame): Promise<void> {
+    if (this.socket.readyState !== this.socket.OPEN) return Promise.resolve();
+    return new Promise((resolve) => this.socket.send(JSON.stringify(frame), () => resolve()));
+  }
+
+  request(request: GatewayRequest, routed?: RoutedFields): Promise<GatewayResponse> {
+    if (!this.established || this.ended) return Promise.reject(new AppError("not_found", NODE_OFFLINE));
+    return requestOverLink(this.mux, { ...request, via: sanitiseVia(request.via) }, routed);
+  }
+
+  openStream(request: GatewayStreamRequest, socket: WebSocket, routed?: RoutedFields): void {
     if (!this.established || this.ended) return void socket.close(1013, "node offline");
-    pipeSocketOverLink(this.mux, { ...request, via: sanitiseVia(request.via) }, socket);
+    pipeSocketOverLink(this.mux, { ...request, via: sanitiseVia(request.via) }, socket, routed);
   }
 
   /** Sends `bye` first when told to, then closes the socket; every proxied stream ends with the link. */
@@ -225,6 +236,12 @@ class Peer implements LinkPeer {
         return void this.onHello(frame);
       case "proof":
         return void this.onProof(frame);
+      case "announce":
+      case "expel":
+      case "expel-ack":
+      case "expel-sync":
+        if (!this.established) return void this.close(LINK_CLOSE_POLICY, "frame before the handshake");
+        return void this.options.server.registry.hub?.control(this, frame);
       default:
         if (!this.established) return void this.close(LINK_CLOSE_POLICY, "frame before the handshake");
         this.mux.receiveControl(frame);
@@ -247,6 +264,8 @@ class Peer implements LinkPeer {
     const own = { nodeId: this.ownNodeId, linkProtocol: this.ownLinkProtocol };
     const check = checkHello(hello, own, this.options.peer.pinnedNodeId);
     if (!check.ok) return void this.close(check.code, check.reason);
+    if (this.options.server.core.nodes.group.isTombstoned(hello.nodeId))
+      return void this.close(LINK_CLOSE_REMOVED, "node removed", true);
     this.peerHello = hello;
     this.holding = true;
     void this.answer(hello);
@@ -291,6 +310,7 @@ class Peer implements LinkPeer {
       return this.close(INTERNAL, "register failed");
     }
     this.established = true;
+    registry.hub?.established(this);
     this.release();
   }
 
@@ -301,6 +321,19 @@ class Peer implements LinkPeer {
   }
 
   private serve(frame: IncomingOpen): void {
+    if (frame.dest === undefined) return this.serveHere(frame);
+    const { hub } = this.options.server.registry;
+    const refusal =
+      frame.dest === this.ownNodeId
+        ? hub?.verifyLocal(this, this.ownNodeId, frame)
+        : (hub?.forward(this, this.ownNodeId, frame) ?? { code: 1008, reason: "no_route" });
+    if (refusal) return void this.mux.sendControl({ type: "close", id: frame.id, ...refusal });
+    if (frame.dest !== this.ownNodeId) return;
+    hub?.trackLocal(this, frame);
+    this.serveHere(frame);
+  }
+
+  private serveHere(frame: IncomingOpen): void {
     const context = { mux: this.mux, port: this.options.server.port, token: this.options.server.token };
     if (frame.type === "request") serveRequest(context, frame);
     else serveStream(context, frame);
@@ -329,7 +362,9 @@ class Peer implements LinkPeer {
     if (this.gotProof && this.peerHello && !this.admitted && this.standby)
       void this.bindStandby(this.peerHello);
     const { core, registry } = this.options.server;
-    if (this.admitted && registry.release(this) && this.registered && !this.removed) {
+    const wasRegistered = this.admitted && registry.release(this);
+    if (wasRegistered) registry.hub?.closed(this);
+    if (wasRegistered && this.registered && !this.removed) {
       core.nodes.markOffline(this.nodeId);
       if (this.role === "dialler")
         core.nodes.reportLink(this.nodeId, { state: "reconnecting", message: null, since: Date.now() });

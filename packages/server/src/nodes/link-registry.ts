@@ -1,4 +1,4 @@
-import { AppError, type Core, type LinkRole } from "@tau/protocol";
+import { AppError, type Core, type LinkFrame, type LinkRole, type RoutedFields } from "@tau/protocol";
 import type { WebSocket } from "ws";
 import { arbitrateDuplicateLink, type LinkFacts } from "./duplicate-links";
 import type {
@@ -8,6 +8,8 @@ import type {
   GatewayStreamRequest,
   NodeGateway,
 } from "./gateway";
+import type { LinkMux } from "./link-mux";
+import type { LinkHub } from "./relay/hub";
 
 const OFFLINE = "This node is offline.";
 const FLAP_WINDOW_MS = 60_000;
@@ -23,10 +25,17 @@ export interface RegisteredLink {
   readonly peerId: string;
   /** The peer's verified `nodeId`. */
   readonly nodeId: string;
+  /** The peer's `hello.capabilities`. */
+  readonly capabilities: readonly string[];
+  /** The stream table the relay joins streams on. */
+  readonly mux: LinkMux;
   facts(): LinkFacts;
   close(code?: number, reason?: string, bye?: boolean): void;
-  request(request: GatewayRequest): Promise<GatewayResponse>;
-  openStream(request: GatewayStreamRequest, socket: WebSocket): void;
+  /** Sends one control frame; resolves once it is flushed (or at once when the socket is not open). */
+  sendFrame(frame: LinkFrame): Promise<void>;
+  /** `routed` makes it a routed frame (a signed header for a node more than one hop away). */
+  request(request: GatewayRequest, routed?: RoutedFields): Promise<GatewayResponse>;
+  openStream(request: GatewayStreamRequest, socket: WebSocket, routed?: RoutedFields): void;
 }
 
 export type Admission =
@@ -45,6 +54,11 @@ export interface LinkRegistry {
   admit(link: RegisteredLink): Admission;
   /** `true` when `link` was the registered one (and now is not). */
   release(link: RegisteredLink): boolean;
+  /** Every registered link. */
+  links(): RegisteredLink[];
+  linkOf(nodeId: string): RegisteredLink | undefined;
+  /** The relay of this server; set once by `createRelay`. */
+  hub: LinkHub | undefined;
 }
 
 /** One link per `nodeId`; the gateway the proxy plugin and the summary writer talk to. */
@@ -79,15 +93,18 @@ export function createLinkRegistry(core: Core, now: () => number = Date.now): Li
   const online = (nodeId: string) => links.get(nodeId);
 
   const gateway: NodeGateway = {
-    isOnline: (nodeId) => online(nodeId) !== undefined,
+    isOnline: (nodeId) => online(nodeId) !== undefined || registry.hub?.reachable(nodeId) === true,
     request(nodeId, request) {
       const link = online(nodeId);
-      return link ? link.request(request) : Promise.reject(new AppError("not_found", OFFLINE));
+      if (link) return link.request(request);
+      const hub = registry.hub;
+      return hub ? hub.request(nodeId, request) : Promise.reject(new AppError("not_found", OFFLINE));
     },
     openStream(nodeId, request, socket) {
       const link = online(nodeId);
-      if (!link) return void socket.close(1013, "node offline");
-      link.openStream(request, socket);
+      if (link) return void link.openStream(request, socket);
+      if (registry.hub) return void registry.hub.openStream(nodeId, request, socket);
+      socket.close(1013, "node offline");
     },
     closeNode(nodeId, reason: CloseReason = "revoked") {
       const link = online(nodeId) ?? byPeer(nodeId);
@@ -95,8 +112,11 @@ export function createLinkRegistry(core: Core, now: () => number = Date.now): Li
     },
   };
 
-  return {
+  const registry: LinkRegistry = {
     gateway,
+    hub: undefined,
+    links: () => [...links.values()],
+    linkOf: online,
     admit(incoming) {
       const existing = links.get(incoming.nodeId);
       if (!existing) {
@@ -120,4 +140,5 @@ export function createLinkRegistry(core: Core, now: () => number = Date.now): Li
       return true;
     },
   };
+  return registry;
 }

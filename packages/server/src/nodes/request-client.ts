@@ -1,7 +1,8 @@
-import { AppError, chunkBody } from "@tau/protocol";
+import { AppError, chunkBody, type RoutedFields } from "@tau/protocol";
 import type { GatewayRequest, GatewayResponse } from "./gateway";
 import type { LinkMux } from "./link-mux";
 import { enqueue, newStream } from "./link-stream";
+import { routedRefusal } from "./relay/refusals";
 
 const MAX_RESPONSE_BYTES = 256 * 1024 * 1024;
 const OFFLINE = "This node is offline.";
@@ -11,7 +12,11 @@ const NO_CREDIT = 1013;
 const TOO_LARGE = 1009;
 
 /** One proxied HTTP call over a link: body out under the peer's credit, response in under ours. */
-export function requestOverLink(mux: LinkMux, request: GatewayRequest): Promise<GatewayResponse> {
+export function requestOverLink(
+  mux: LinkMux,
+  request: GatewayRequest,
+  routed?: RoutedFields,
+): Promise<GatewayResponse> {
   return new Promise((resolve, reject) => {
     const id = mux.allocateId();
     const chunks: Buffer[] = [];
@@ -42,7 +47,9 @@ export function requestOverLink(mux: LinkMux, request: GatewayRequest): Promise<
           else reject(new AppError("internal", "The node answered without a response."));
         },
         onClose: (_code, reason) =>
-          finish(new AppError(reason === WENT_AWAY ? "not_found" : "internal", OFFLINE)),
+          finish(
+            routedRefusal(reason) ?? new AppError(reason === WENT_AWAY ? "not_found" : "internal", OFFLINE),
+          ),
         onStalled() {
           mux.sendControl({ type: "close", id, code: NO_CREDIT, reason: "no credit" });
           mux.removeStream(id);
@@ -63,6 +70,7 @@ export function requestOverLink(mux: LinkMux, request: GatewayRequest): Promise<
       path: request.path,
       query: request.query,
       via: request.via,
+      ...routed,
       ...(request.contentType ? { contentType: request.contentType } : {}),
       ...(body ? { bodyBytes: body.length } : {}),
     });
