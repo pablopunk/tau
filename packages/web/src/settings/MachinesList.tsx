@@ -6,16 +6,28 @@ import { useSubmit } from "@/app/use-submit";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { CopyButton } from "@/components/ui/copy-button";
 import { FieldDescription, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { MachineAvatar } from "@/components/ui/machine-avatar";
-import { MachineList, MachineRow, MachineRowActions, MachineRowBody } from "@/components/ui/machine-row";
+import {
+  MachineList,
+  MachineRow,
+  MachineRowActions,
+  MachineRowBody,
+  MachineRowVersion,
+} from "@/components/ui/machine-row";
 import { SettingRow } from "@/components/ui/settings-layout";
-import { useAllConversations, useDisconnectMachine, useHubLink, useRenameMachine } from "@/lib/queries";
+import {
+  useAllConversations,
+  useDisconnectMachine,
+  useHubLink,
+  useRenameMachine,
+  useUpdateStatus,
+} from "@/lib/queries";
 import { useMachines } from "@/machines";
-import { osLabel, stateLine, updateCommand } from "@/machines/machine-text";
+import { osLabel, stateLine } from "@/machines/machine-text";
 import { MachineSettingsDialog } from "./MachineSettingsDialog";
+import { MachinesUpdateBar, UpdateCommand, versionState } from "./MachinesVersion";
 
 function RenameForm({ machine, onDone }: { machine: Machine; onDone: () => void }) {
   const rename = useRenameMachine();
@@ -64,12 +76,13 @@ function UpdateNote({ machine }: { machine: Machine }) {
         {short(machine.protocolVersion)}
         ), this one speaks protocol {short(PROTOCOL_VERSION)}.
       </p>
-      <div className="flex items-center gap-1">
-        <code className="rounded-md bg-muted px-2 py-1">{updateCommand}</code>
-        <CopyButton text={updateCommand} label="Copy update command" />
-      </div>
+      <UpdateCommand />
     </div>
   );
+}
+
+function useLatest() {
+  return useUpdateStatus().data?.latest ?? null;
 }
 
 function MachineItem({
@@ -84,6 +97,7 @@ function MachineItem({
   onSettings: (machine: Machine) => void;
 }) {
   const [renaming, setRenaming] = useState(false);
+  const latest = useLatest();
   return (
     <MachineRow data-machine-id={machine.id}>
       {renaming ? (
@@ -98,11 +112,16 @@ function MachineItem({
               <span className="truncate">{machine.name}</span>
             </span>
             <span className="text-xs text-muted-foreground">
-              {osLabel(machine.os)} · tau {machine.tauVersion} · {machine.threadCount}{" "}
-              {machine.threadCount === 1 ? "thread" : "threads"} · {stateLine(machine, now)}
+              {osLabel(machine.os)} · {machine.threadCount} {machine.threadCount === 1 ? "thread" : "threads"}{" "}
+              · {stateLine(machine, now)}
             </span>
             {machine.status === "update-required" ? <UpdateNote machine={machine} /> : null}
           </MachineRowBody>
+          <MachineRowVersion
+            version={machine.tauVersion}
+            state={versionState(machine.tauVersion, latest)}
+            latest={latest}
+          />
           <MachineRowActions>
             <Button
               variant="ghost"
@@ -139,6 +158,7 @@ function MachineItem({
 function ThisMachineRow() {
   const threads = useAllConversations().data?.length ?? 0;
   const link = useHubLink().data;
+  const status = useUpdateStatus().data;
   const hubName = link && link.state !== "none" ? (link.hubName ?? link.hubUrl ?? "a hub") : null;
   return (
     <MachineRow data-machine-id="local">
@@ -153,6 +173,13 @@ function ThisMachineRow() {
           {hubName ? `, linked to ${hubName}` : ""}
         </span>
       </MachineRowBody>
+      {status ? (
+        <MachineRowVersion
+          version={status.current}
+          state={versionState(status.current, status.latest)}
+          latest={status.latest}
+        />
+      ) : null}
     </MachineRow>
   );
 }
@@ -168,6 +195,7 @@ export function MachinesList() {
     <SettingRow id="machines">
       <div className="flex flex-col gap-3">
         <FieldLabel>Machines</FieldLabel>
+        <MachinesUpdateBar machines={machines} />
         <MachineList aria-label="Machines">
           <ThisMachineRow />
           {machines.map((machine) => (

@@ -34,6 +34,12 @@ const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
 
 const calls: Array<{ method: string; url: string }> = [];
+let updateStatus: Record<string, unknown> = {
+  current: "0.2.0",
+  latest: null,
+  checkedAt: null,
+  behind: false,
+};
 let hubLink: Record<string, unknown> = {
   state: "none",
   hubName: null,
@@ -46,12 +52,18 @@ beforeEach(() => {
   calls.length = 0;
   forgetMachineApis();
   hubLink = { state: "none", hubName: null, hubUrl: null, since: null, message: null };
+  updateStatus = { current: "0.2.0", latest: null, checkedAt: null, behind: false };
   vi.stubGlobal(
     "fetch",
     vi.fn(async (url: string, init?: RequestInit) => {
       calls.push({ method: init?.method ?? "GET", url });
       if (url === "/api/machines") return json(machines);
       if (url === "/api/machines/hub") return json(hubLink);
+      if (url === "/api/update") return json(updateStatus);
+      if (url === "/api/update/refresh") {
+        updateStatus = { ...updateStatus, latest: "0.3.0", checkedAt: Date.now(), behind: true };
+        return json(updateStatus);
+      }
       if (url.startsWith("/api/pair")) {
         return json({
           kind: "machine",
@@ -85,9 +97,7 @@ describe("Settings → Machines", () => {
     await waitFor(() => expect(screen.getAllByRole("listitem")).toHaveLength(3));
     expect(within(rows[0] as HTMLElement).getByText("This machine")).toBeInTheDocument();
     const work = screen.getByText("Work laptop").closest("li") as HTMLElement;
-    expect(
-      within(work).getByText(/macOS · tau 0.2.0 · 1 thread · Offline, last seen 3 h ago/),
-    ).toBeInTheDocument();
+    expect(within(work).getByText(/macOS · 1 thread · Offline, last seen 3 h ago/)).toBeInTheDocument();
     expect(within(work).getByRole("button", { name: /Open settings of Work laptop/ })).toBeDisabled();
   });
 
@@ -97,6 +107,49 @@ describe("Settings → Machines", () => {
     expect(within(home).getByText(/Update tau on Homelab/, { selector: "p" })).toBeInTheDocument();
     expect(within(home).getByText("npm i -g @pablopunk/tau@latest")).toBeInTheDocument();
     expect(within(home).getByRole("button", { name: "Copy update command" })).toBeInTheDocument();
+  });
+
+  it("shows versions and chips: behind, up to date, unknown, never crashes on an empty version", async () => {
+    machines.push({ ...(machines[1] as Machine), id: "m3", name: "Fresh", tauVersion: "" });
+    updateStatus = { current: "0.2.0", latest: "0.2.0", checkedAt: Date.now(), behind: false };
+    try {
+      renderSection();
+      const home = (await screen.findByText("Homelab")).closest("li") as HTMLElement;
+      await within(home).findByText("Behind, latest 0.2.0");
+      expect(within(home).getByText("0.1.0")).toBeInTheDocument();
+      const work = screen.getByText("Work laptop").closest("li") as HTMLElement;
+      expect(within(work).getByText("Up to date")).toBeInTheDocument();
+      const fresh = screen.getByText("Fresh").closest("li") as HTMLElement;
+      expect(within(fresh).getByText("Version unknown")).toBeInTheDocument();
+      expect(screen.getByText("1 machine is behind")).toBeInTheDocument();
+    } finally {
+      machines.pop();
+    }
+  });
+
+  it("counts the hub when it is behind, and hides the banner at 0", async () => {
+    updateStatus = { current: "0.0.1", latest: "0.1.5", checkedAt: Date.now(), behind: true };
+    renderSection();
+    expect(await screen.findByText("2 machines are behind")).toBeInTheDocument();
+    const hub = screen.getByText("This machine").closest("li") as HTMLElement;
+    expect(within(hub).getByText("Behind, latest 0.1.5")).toBeInTheDocument();
+  });
+
+  it("no banner when latest is unknown or everything is current", async () => {
+    renderSection();
+    await screen.findByText("Homelab");
+    expect(await screen.findByText(/Latest unknown/)).toBeInTheDocument();
+    expect(screen.queryByText(/behind/)).toBeNull();
+    expect(screen.getAllByText("Version unknown").length).toBeGreaterThan(0);
+  });
+
+  it("Check again posts a refresh and shows the new latest", async () => {
+    const user = userEvent.setup();
+    renderSection();
+    await user.click(await screen.findByRole("button", { name: "Check again" }));
+    expect(await screen.findByText(/Latest known: 0.3.0, checked just now/)).toBeInTheDocument();
+    expect(calls).toContainEqual({ method: "POST", url: "/api/update/refresh" });
+    expect(await screen.findByText("3 machines are behind")).toBeInTheDocument();
   });
 
   it("disconnects only after a confirmation", async () => {

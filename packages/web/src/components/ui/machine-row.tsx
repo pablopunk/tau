@@ -1,5 +1,6 @@
 import { cva } from "class-variance-authority"
 import type * as React from "react"
+import { StatusChip } from "@/components/ui/status-chip"
 import { cn } from "@/lib/utils"
 
 type MachineDotStatus = "online" | "reconnecting" | "offline" | "update-required"
@@ -69,5 +70,37 @@ function MachineRowActions({ className, ...props }: React.ComponentProps<"div">)
   return <div className={cn("flex shrink-0 flex-wrap items-center justify-end gap-1 max-sm:w-full max-sm:justify-start", className)} {...props} />
 }
 
-export { MachineDot, MachineList, MachineRow, MachineRowActions, MachineRowBody }
-export type { MachineDotStatus }
+type MachineVersionState = "behind" | "current" | "unknown"
+
+/** The optional version slot of a row: the version and a chip, behind (with the latest), up to date, or unknown. */
+function MachineRowVersion({
+  version,
+  state,
+  latest,
+  className,
+  ...props
+}: Omit<React.ComponentProps<"span">, "children"> & {
+  version: string
+  state: MachineVersionState
+  latest?: string | null
+}) {
+  return (
+    <span
+      data-slot="machine-row-version"
+      className={cn("flex shrink-0 items-center gap-2 text-xs text-muted-foreground", className)}
+      {...props}
+    >
+      {version ? <span className="font-mono">{version}</span> : null}
+      {state === "behind" ? (
+        <StatusChip tone="busy">Behind, latest {latest}</StatusChip>
+      ) : state === "current" ? (
+        <StatusChip tone="success">Up to date</StatusChip>
+      ) : (
+        <StatusChip tone="neutral">Version unknown</StatusChip>
+      )}
+    </span>
+  )
+}
+
+export { MachineDot, MachineList, MachineRow, MachineRowActions, MachineRowBody, MachineRowVersion }
+export type { MachineDotStatus, MachineVersionState }

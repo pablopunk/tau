@@ -5,6 +5,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { MachineAvatar } from "@/components/ui/machine-avatar";
 import type { MachineDotStatus } from "@/components/ui/machine-row";
 import { SidebarGroup, SidebarGroupLabel } from "@/components/ui/sidebar";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useHubOs } from "@/machines/use-machine-avatar";
 import { useCollapsedMachines } from "./use-sidebar-preferences";
 
@@ -30,7 +31,16 @@ export function MachineGroup({ machine, name, children }: MachineGroupProps) {
         <SidebarGroupLabel asChild>
           <CollapsibleTrigger className="w-full gap-1.5">
             <ChevronRightIcon className={open ? "rotate-90 transition-transform" : "transition-transform"} />
-            <MachineAvatar os={os} status={status} />
+            {status === "update-required" ? (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <MachineAvatar os={os} status={status} />
+                </TooltipTrigger>
+                <TooltipContent side="right">Update tau on {name}</TooltipContent>
+              </Tooltip>
+            ) : (
+              <MachineAvatar os={os} status={status} />
+            )}
             <span className="truncate">{name}</span>
           </CollapsibleTrigger>
         </SidebarGroupLabel>
