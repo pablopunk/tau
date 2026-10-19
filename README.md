@@ -27,6 +27,14 @@
 npx @pablopunk/tau
 ```
 
+This installs tau globally and runs it as a service (launchd on macOS, systemd on Linux). It starts at login and restarts if it crashes. It prints an `Open:` sign-in link and opens your browser. Run it again any time: it is safe, and it repairs a stale service.
+
+To use tau from your phone or another device, run `tau pair`. It shows the QR code.
+
+`tau serve` runs the server in the foreground. Use it for debugging only.
+
+If there is no service manager (a container, or Linux without a user session), tau says so and runs in the background. It will not survive a reboot or logout.
+
 Update an installed tau with `tau update` (`tau update --check` only looks).
 
 ## Nodes
