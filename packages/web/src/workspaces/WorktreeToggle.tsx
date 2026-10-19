@@ -15,7 +15,11 @@ function ModeItem({ value, label, icon: Icon }: { value: WorkspaceMode; label: s
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <ToggleGroupItem value={value} aria-label={label}>
+        <ToggleGroupItem
+          value={value}
+          aria-label={label}
+          className="aria-checked:bg-primary aria-checked:text-primary-foreground"
+        >
           <Icon />
         </ToggleGroupItem>
       </TooltipTrigger>
