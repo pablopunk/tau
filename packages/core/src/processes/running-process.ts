@@ -35,6 +35,7 @@ export interface SpawnRequest {
 export type OutputStream = "stdout" | "stderr";
 
 export const EXIT_TAIL_LINES = 20;
+const PIPE_DRAIN_MS = 250;
 
 export interface ExitDetails {
   readonly exitCode: number | null;
@@ -79,11 +80,23 @@ export function spawnRunning(request: SpawnRequest): RunningProcess {
       details = finish(null);
       resolve();
     });
-    child.once("exit", (code, signal) => {
-      details ??= finish(code, signal);
+    // `exit` can come before the last output is read from the pipes: finish on `close`, which comes after them.
+    // A background child of the command can keep the pipes open, so finish at most PIPE_DRAIN_MS after `exit`.
+    let exit: { code: number | null; signal: NodeJS.Signals | null } | undefined;
+    const done = () => {
+      if (exit === undefined) return;
+      details ??= finish(exit.code, exit.signal);
       resolve();
+    };
+    child.once("exit", (code, signal) => {
+      exit = { code, signal };
+      setTimeout(done, PIPE_DRAIN_MS).unref();
     });
-    child.once("close", () => void log.close());
+    child.once("close", (code, signal) => {
+      exit ??= { code, signal };
+      done();
+      void log.close();
+    });
   });
   return Object.assign(running, {
     exited: exited.then(() => request.onExit(running.info, details as ExitDetails)),
