@@ -1,4 +1,5 @@
 import { join } from "node:path";
+import { createModels } from "@earendil-works/pi-ai/models";
 import type { Harness } from "@earendil-works/pi-durable";
 import type { Change, Project } from "@tau/protocol";
 import { type ChangeEmitter, createChangeEmitter } from "../change-emitter";
@@ -11,7 +12,12 @@ import { createStatusTracker, type StatusTracker } from "../status/status-tracke
 import { createFauxSetup } from "../testing/faux-provider";
 import { processToolServices } from "./process-tool-services";
 
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
 export const FAUX_MODEL = { provider: "faux", modelId: "faux-1" };
+
+/** Models that load after the Harness opens, like Claude CLI: `before` loads them ahead of `resume()`, as `createCore` does. */
+export type LateModels = { readonly before: boolean; readonly afterMs: number };
 
 export interface ConversationHarness {
   readonly harness: Harness;
@@ -28,10 +34,12 @@ export interface ConversationHarness {
 
 export async function openConversationHarness(
   directory: string,
-  options: { tokensPerSecond?: number; now?: () => number } = {},
+  options: { tokensPerSecond?: number; now?: () => number; modelsLoad?: LateModels } = {},
 ): Promise<ConversationHarness> {
   const now = options.now ?? Date.now;
-  const { models } = createFauxSetup({ tokensPerSecond: options.tokensPerSecond });
+  const setup = createFauxSetup({ tokensPerSecond: options.tokensPerSecond });
+  const late = options.modelsLoad;
+  const models = late ? createModels() : setup.models;
   const changes = createChangeEmitter();
   const seen: Change[] = [];
   changes.subscribe((change) => seen.push(change));
@@ -40,8 +48,12 @@ export async function openConversationHarness(
     storage: await openSqliteStorage(join(directory, "agent.sqlite")),
     models,
     registry: createAgentRegistry(processToolServices(directory)),
-    beforeResume: (opened) => status.attach(opened),
+    beforeResume: async (opened) => {
+      status.attach(opened);
+      if (late?.before) await sleep(late.afterMs).then(() => models.setProvider(setup.faux.provider));
+    },
   });
+  if (late && !late.before) void sleep(late.afterMs).then(() => models.setProvider(setup.faux.provider));
   const store = createConversationStore(harness, async () => directory);
   const recovery = createConversationRecovery({ harness, conversations: store, changes });
   const project: Project = {
@@ -77,8 +89,6 @@ export const startRequest = (world: ConversationHarness, text: string, requestId
   workspace: legacyWorkspace(world.project.path),
   now: Date.now(),
 });
-
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 export async function waitUntilTrue(condition: () => Promise<boolean>, what: string, timeoutMs = 20_000) {
   const deadline = Date.now() + timeoutMs;

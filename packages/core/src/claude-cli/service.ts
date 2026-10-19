@@ -29,6 +29,8 @@ export interface ClaudeCliService {
   acknowledge(): Promise<ClaudeCliStatus>;
   /** Checks again and reloads the model list. */
   refresh(): Promise<ClaudeCliStatus>;
+  /** Checks again and loads the model list, without the connector probe. Never rejects. */
+  loadModels(): Promise<void>;
   /** Installs the pinned Agent SDK, then refreshes. */
   installSdk(): Promise<ClaudeCliStatus>;
   /** Archive and delete: closes the SDK query of a Pi session. */
@@ -66,6 +68,7 @@ const DISABLED: ClaudeCliService = {
   refresh: async () => {
     throw new Error("Claude CLI is disabled.");
   },
+  loadModels: async () => undefined,
   installSdk: async () => {
     throw new Error("Claude CLI is disabled.");
   },
@@ -190,6 +193,10 @@ export function createClaudeCliService(deps: ClaudeCliServiceDeps): ClaudeCliSer
       return detector.refresh();
     },
     refresh,
+    async loadModels() {
+      await detector.refresh().catch(() => undefined);
+      await models.refresh().catch(() => undefined);
+    },
     installSdk,
     closeThread: (piSessionId) => streamer.closeThread(piSessionId),
     interruptConversation: (piSessionId) => streamer.interruptConversation(piSessionId),

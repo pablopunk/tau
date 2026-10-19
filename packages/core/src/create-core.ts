@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import type { Harness } from "@earendil-works/pi-durable";
 import {
   type Core,
   type CreateCore,
@@ -104,6 +105,15 @@ const exitAfterLogging = (error: unknown) => {
   process.exit(1);
 };
 
+/** Interrupted runs resume at open; with no models yet they would fail `no_model` and stay aborted. */
+const MODELS_READY_TIMEOUT_MS = 15_000;
+
+/** Any live task or unsettled submission may start a model run on resume; a normal start has none and must not wait. */
+async function hasInterruptedWork(harness: Harness): Promise<boolean> {
+  const { tasks, submissions } = await harness.inspect(BACKGROUND);
+  return tasks.length > 0 || submissions.length > 0;
+}
+
 export const defaultCoreDependencies = (): CoreDependencies => {
   const ghPath = resolveGhPath(process.env);
   return {
@@ -148,7 +158,10 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
       storage: await openSqliteStorage(home.agentDatabase),
       models: provider.models,
       onReport: (error) => console.error("tau: agent report", error),
-      beforeResume: (opened) => status.attach(opened),
+      beforeResume: async (opened) => {
+        status.attach(opened);
+        if (await hasInterruptedWork(opened)) await provider.ready(MODELS_READY_TIMEOUT_MS);
+      },
     });
     harness.closed.then((end) => {
       if (end.reason === "failed") deps.onFatal(end.error);
