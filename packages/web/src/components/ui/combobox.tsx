@@ -59,6 +59,8 @@ interface ComboboxProps {
   /** `ghost` with `sm` fits inside a composer toolbar. */
   variant?: "outline" | "ghost"
   size?: "default" | "sm"
+  /** Shown before the selected label in the trigger. */
+  triggerIcon?: React.ReactNode
   "aria-label"?: string
 }
 
@@ -88,6 +90,7 @@ function Combobox({
   footer,
   variant = "outline",
   size = "default",
+  triggerIcon,
   "aria-label": ariaLabel,
 }: ComboboxProps) {
   const [ownOpen, setOwnOpen] = React.useState(false)
@@ -117,6 +120,7 @@ function Combobox({
           disabled={disabled}
           className={cn("w-full justify-between font-normal", className)}
         >
+          {triggerIcon}
           <span className={cn("truncate", !selected && "text-muted-foreground")}>
             {selected?.triggerLabel ?? selected?.label ?? placeholder}
           </span>

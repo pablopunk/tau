@@ -1,4 +1,5 @@
 import type { ModelInfo, ModelRef, ThinkingLevel } from "@tau/protocol";
+import { BrainIcon } from "lucide-react";
 import { type Ref, useImperativeHandle, useState } from "react";
 import { Combobox } from "@/components/ui/combobox";
 import { ModelCombobox } from "@/setup/ModelCombobox";
@@ -44,6 +45,7 @@ export function ModelThinkingPickers(props: ModelThinkingPickersProps) {
       {showThinking && (
         <Combobox
           aria-label="Thinking level"
+          triggerIcon={<BrainIcon className="opacity-60" />}
           variant="ghost"
           size="sm"
           className="w-auto"

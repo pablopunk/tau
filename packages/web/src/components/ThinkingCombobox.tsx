@@ -1,4 +1,5 @@
 import type { ThinkingLevel } from "@tau/protocol";
+import { BrainIcon } from "lucide-react";
 import { Combobox } from "@/components/ui/combobox";
 
 const MODEL_DEFAULT = "__model_default__";
@@ -27,6 +28,7 @@ export function ThinkingCombobox({
     <Combobox
       id={id}
       aria-label="Thinking level"
+      triggerIcon={<BrainIcon className="opacity-60" />}
       className={className}
       searchable={false}
       disabled={disabled}
