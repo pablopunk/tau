@@ -49,7 +49,11 @@ export function machinesCases(make: MakeContractTarget, test: CaseRunner): void 
       const { core } = target;
       const id = await linkMachine(target);
       const machine = await core.machines.register(id, { ...HELLO, protocolVersion: "other" });
-      expect(machine).toMatchObject({ status: "update-required", protocolVersion: "other" });
+      expect(machine).toMatchObject({
+        status: "update-required",
+        protocolVersion: "other",
+        tauVersion: HELLO.tauVersion,
+      });
     });
 
     test("[machines] markOffline keeps the machine and its last seen time; a heartbeat refreshes the count", async () => {

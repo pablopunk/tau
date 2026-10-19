@@ -631,6 +631,8 @@ const IMAGES = "Images are not text; agents have no use for them here.";
 const BROWSER_LOGIN = "Browser sign-in needs a person at the browser.";
 const TYPING_HELPER = "A typing helper for the UI; agents have `ls`.";
 
+const UPDATE_CHECK = "`tau update --check` covers it.";
+
 export const COMMAND_EXCLUSIONS = {
   getProjectIcon: IMAGES,
   getIconCandidate: IMAGES,
@@ -642,6 +644,8 @@ export const COMMAND_EXCLUSIONS = {
   submitLoginUrl: BROWSER_LOGIN,
   cancelLogin: BROWSER_LOGIN,
   acknowledgeClaudeCli: "The notice is read by a person in Settings.",
+  getUpdateStatus: UPDATE_CHECK,
+  refreshUpdateStatus: UPDATE_CHECK,
   openTerminal: "A terminal needs a screen.",
   getTerminalsAvailable: "A state the web reads to show or hide the Terminal button.",
   suggestDirectories: TYPING_HELPER,

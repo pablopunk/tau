@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { applyImmutable } from "@earendil-works/chord/delta";
 import type { ConversationView, Core, LiveState, Op, Project } from "@tau/protocol";
 import { createCoreWith, defaultCoreDependencies } from "../create-core";
+import { NO_UPDATE_OPTIONS } from "./update-options";
 
 export interface FauxWorld {
   readonly root: string;
@@ -18,7 +19,7 @@ export async function openFauxWorld(
   now: () => number = Date.now,
   env: NodeJS.ProcessEnv = process.env,
   makeCore: (home: string) => Promise<Core> = (home) =>
-    createCoreWith({ home, faux: true }, { ...defaultCoreDependencies(), now, env }),
+    createCoreWith({ home, faux: true, ...NO_UPDATE_OPTIONS }, { ...defaultCoreDependencies(), now, env }),
 ): Promise<FauxWorld> {
   const home = join(root, "home");
   const open = () => makeCore(home);

@@ -44,6 +44,7 @@ import type {
   TerminalInfo,
   ThinkingLevel,
   Timer,
+  UpdateStatus,
   UseGithubRepoInput,
   WorkspaceDefault,
   WorkspaceStatus,
@@ -182,6 +183,12 @@ export interface Api {
     mintPairing(input: MintPairingInput): Promise<MintedPairing>;
     /** What the pair page does with `fetch`; here for the fake backend and tests (a real device redeems before it has a session). */
     redeemPairing(input: RedeemPairingBody): Promise<RedeemPairingResponse>;
+  };
+  updates: {
+    /** This tau against the latest published version. `latest` is null until a check succeeds. */
+    status(): Promise<UpdateStatus>;
+    /** Checks the registry now (the server limits it to one per minute). */
+    refresh(): Promise<UpdateStatus>;
   };
   machines: {
     /** The machines linked to THIS tau (a hub). */
@@ -336,6 +343,10 @@ export function createApi(transport: Transport): Api {
       signOutAll: () => request("signOutAllDevices", {}),
       mintPairing: (input) => request("mintPairing", { query: input }),
       redeemPairing: (input) => request("redeemPairing", { body: input }),
+    },
+    updates: {
+      status: () => request("getUpdateStatus", {}),
+      refresh: () => request("refreshUpdateStatus", {}),
     },
     machines: {
       list: () => request("listMachines", {}),

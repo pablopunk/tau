@@ -18,6 +18,7 @@ import {
 import { GH_REPOS_ARGV, GH_STATUS_ARGV } from "./test-support/gh-argv";
 import { makeLocalRepo } from "./test-support/local-repo";
 import { homeIn, useTempDir } from "./test-support/temp-dir";
+import { NO_UPDATE_OPTIONS } from "./test-support/update-options";
 
 process.env.TAU_ALLOW_FILE_CLONES = "1";
 
@@ -61,7 +62,7 @@ const CONNECTED_JSON = JSON.stringify({
 async function openWithRunGh(runGh: RunGh): Promise<Core> {
   const root = await tempDir();
   const core = await createCoreWith(
-    { home: homeIn(root), faux: true },
+    { home: homeIn(root), faux: true, ...NO_UPDATE_OPTIONS },
     { ...defaultCoreDependencies(), runGh },
   );
   open.push(core);
@@ -75,7 +76,7 @@ async function openWorld(config: FakeGhConfig): Promise<World> {
   const clock = { now: 1_000_000 };
   const gh = runGhFromConfig(() => config);
   const deps = { ...defaultCoreDependencies(), runGh: gh.run, ghPath: "/usr/bin/gh", now: () => clock.now };
-  const core = await createCoreWith({ home: homeIn(root), faux: true }, deps);
+  const core = await createCoreWith({ home: homeIn(root), faux: true, ...NO_UPDATE_OPTIONS }, deps);
   open.push(core);
   await core.settings.setProjectsFolder(code);
   return { core, code, gh, config, clock };
@@ -306,7 +307,7 @@ describe("local clone urls from gh", () => {
       repos: [repo("me/local", "2026-01-01T00:00:00Z", { clone_url: bare })],
     }));
     const deps = { ...defaultCoreDependencies(), runGh: gh.run, ghPath: "/usr/bin/gh" };
-    const core = await createCoreWith({ home: homeIn(root), faux: false }, deps);
+    const core = await createCoreWith({ home: homeIn(root), faux: false, ...NO_UPDATE_OPTIONS }, deps);
     open.push(core);
     expect(await core.github.repos()).toEqual([]);
   });

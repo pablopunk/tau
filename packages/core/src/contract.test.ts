@@ -12,6 +12,7 @@ import { createScriptedShellDaemon } from "./terminals/scripted-shell-daemon";
 import type { FakeGhConfig } from "./test-support/fake-gh";
 import { runGhFromConfig } from "./test-support/fake-run-gh";
 import { makeLocalRepo } from "./test-support/local-repo";
+import { NO_UPDATE_OPTIONS } from "./test-support/update-options";
 
 const REAL_CORE_IMPLEMENTED = true;
 
@@ -82,7 +83,7 @@ async function makeRealTarget(): Promise<ContractTarget> {
   const root = await realpath(await mkdtemp(join(tmpdir(), "tau-contract-")));
   const home = join(root, "home");
   const { deps, codeFolder } = await setUpGithub(root);
-  let core: Core = await createCoreWith({ home, faux: true }, deps);
+  let core: Core = await createCoreWith({ home, faux: true, ...NO_UPDATE_OPTIONS }, deps);
   await core.settings.setProjectsFolder(codeFolder);
   const target: ContractTarget = {
     get core() {
@@ -125,7 +126,7 @@ async function makeRealTarget(): Promise<ContractTarget> {
     },
     reopen: async () => {
       await core.close();
-      core = await createCoreWith({ home, faux: true }, deps);
+      core = await createCoreWith({ home, faux: true, ...NO_UPDATE_OPTIONS }, deps);
       return core;
     },
     dispose: async () => {

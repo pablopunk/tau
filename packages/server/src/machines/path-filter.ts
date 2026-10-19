@@ -12,6 +12,7 @@ const DENIED_FIRST_SEGMENTS: ReadonlySet<string> = new Set([
   "access",
   "remote",
   "machines",
+  "update",
   "pair",
   "health",
   "m",

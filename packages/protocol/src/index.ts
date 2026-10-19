@@ -21,5 +21,7 @@ export * from "./rest";
 export * from "./retry";
 export * from "./terminal-stream";
 export * from "./terminals";
+export * from "./updates";
+export * from "./versions";
 export * from "./view";
 export * from "./view-text";

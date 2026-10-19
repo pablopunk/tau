@@ -155,6 +155,8 @@ const handlers: Handlers = {
   },
   disconnectMachine: (core, { params }) => core.machines.disconnect(params.id),
   getHubLink: (core) => core.machines.hubState(),
+  getUpdateStatus: (core) => core.updates.status(),
+  refreshUpdateStatus: (core) => core.updates.refresh(),
   disconnectHub: (core) => core.machines.disconnectHub(),
   linkMachine: async () => {
     throw new AppError("not_found", "The machine link is a socket, not an HTTP call.");

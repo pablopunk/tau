@@ -12,6 +12,7 @@ import type {
   MintPairingInput,
   ProviderId,
   RemoteStatus,
+  UpdateStatus,
 } from "@tau/protocol";
 import { useApi } from "@/machines/machine-context";
 
@@ -43,6 +44,8 @@ export const queryKeys = {
   /** `["machines"]` is the hub's list; `["machines", "hub"]` is this tau's own link to a hub. */
   machines: ["machines"] as const,
   hubLink: ["machines", "hub"] as const,
+  /** This tau's version against the latest published one (the hub's own, never a machine's). */
+  updateStatus: ["update"] as const,
   /** Another machine's data, cached in the hub's client by components outside that machine's provider. */
   machineData: (machineId: string) => ["machine-data", machineId] as const,
 };
@@ -374,4 +377,27 @@ export const useDisconnectMachine = () => {
 export const useDisconnectHub = () => {
   const api = useApi();
   return useMachineMutation(() => api.machines.disconnectHub());
+};
+
+const UPDATE_POLL_UNKNOWN_MS = 5_000;
+const UPDATE_POLL_KNOWN_MS = 10 * 60_000;
+
+/** Polls fast while the latest is still unknown (the first check runs in the background), slowly after. */
+export const useUpdateStatus = () => {
+  const api = useApi();
+  return useQuery({
+    queryKey: queryKeys.updateStatus,
+    queryFn: () => api.updates.status(),
+    refetchInterval: (query) =>
+      query.state.data?.latest == null ? UPDATE_POLL_UNKNOWN_MS : UPDATE_POLL_KNOWN_MS,
+  });
+};
+
+export const useRefreshUpdate = () => {
+  const api = useApi();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.updates.refresh(),
+    onSuccess: (status) => queryClient.setQueryData(queryKeys.updateStatus, status),
+  });
 };

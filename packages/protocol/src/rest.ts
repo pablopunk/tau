@@ -50,6 +50,7 @@ import { GoalInputSchema, GoalSchema, LoopInputSchema, TimerSchema } from "./mvp
 import { ApprovalDecisionSchema, ApprovalSchema } from "./mvp10";
 import { HealthSchema, RemoteStatusSchema } from "./remote";
 import { OpenTerminalInputSchema, TerminalAvailabilitySchema, TerminalInfoSchema } from "./terminals";
+import { UpdateStatusSchema } from "./updates";
 
 export const API_PREFIX = "/api";
 export const LIVE_PATH = `${API_PREFIX}/live`;
@@ -169,6 +170,13 @@ export const routes = {
   disconnectHub: { method: "POST", path: `${API_PREFIX}/machines/hub/disconnect`, status: 204 },
   /** A WebSocket route: the machine dials the hub here with its machine secret (`machine-link.ts`). */
   linkMachine: { method: "GET", path: `${API_PREFIX}/machines/link`, status: 200 },
+  getUpdateStatus: { method: "GET", path: `${API_PREFIX}/update`, status: 200, response: UpdateStatusSchema },
+  refreshUpdateStatus: {
+    method: "POST",
+    path: `${API_PREFIX}/update/refresh`,
+    status: 200,
+    response: UpdateStatusSchema,
+  },
   getSettings: { method: "GET", path: `${API_PREFIX}/settings`, status: 200, response: SettingsSchema },
   setDefaultModel: {
     method: "PUT",

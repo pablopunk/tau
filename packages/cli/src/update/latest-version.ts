@@ -1,6 +1,6 @@
 import { dirname, join } from "node:path";
+import { isPlainVersion } from "@tau/protocol";
 import type { RunCommand } from "./command-runner";
-import { isPlainVersion } from "./compare-versions";
 
 export const PACKAGE_NAME = "@pablopunk/tau";
 const VIEW_TIMEOUT_MS = 15_000;

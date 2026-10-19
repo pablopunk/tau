@@ -6,6 +6,7 @@ import { HomeLockedError } from "./home/lock";
 import { publishServerUrl, readRunningInstance } from "./running-instance";
 import { openRouterCatalogIds, stubOpenRouter } from "./test-support/stub-openrouter";
 import { homeIn, useTempDir } from "./test-support/temp-dir";
+import { NO_UPDATE_OPTIONS } from "./test-support/update-options";
 
 const tempDir = useTempDir();
 afterEach(() => vi.unstubAllGlobals());
@@ -15,24 +16,26 @@ const modeOf = async (path: string) => (await stat(path)).mode & 0o777;
 describe("createCore lifecycle", () => {
   it("creates the data home privately and refuses a second core on it", async () => {
     const home = homeIn(await tempDir());
-    const core = await createCore({ home, faux: true });
+    const core = await createCore({ home, faux: true, ...NO_UPDATE_OPTIONS });
     expect(await modeOf(home)).toBe(0o700);
-    await expect(createCore({ home, faux: true })).rejects.toBeInstanceOf(HomeLockedError);
+    await expect(createCore({ home, faux: true, ...NO_UPDATE_OPTIONS })).rejects.toBeInstanceOf(
+      HomeLockedError,
+    );
     await core.close();
   });
 
   it("releases the lock on close, and close can be called twice", async () => {
     const home = homeIn(await tempDir());
-    const first = await createCore({ home, faux: true });
+    const first = await createCore({ home, faux: true, ...NO_UPDATE_OPTIONS });
     await Promise.all([first.close(), first.close()]);
     await first.close();
     expect(await readRunningInstance(home)).toBeUndefined();
-    await (await createCore({ home, faux: true })).close();
+    await (await createCore({ home, faux: true, ...NO_UPDATE_OPTIONS })).close();
   });
 
   it("lets a second launch find the URL the first one published", async () => {
     const home = homeIn(await tempDir());
-    const core = await createCore({ home, faux: true });
+    const core = await createCore({ home, faux: true, ...NO_UPDATE_OPTIONS });
     await publishServerUrl(home, "http://127.0.0.1:4317/?token=t");
     expect(await readRunningInstance(home)).toEqual({
       pid: process.pid,
@@ -44,13 +47,13 @@ describe("createCore lifecycle", () => {
   it("does not keep the lock when startup fails", async () => {
     const home = homeIn(await tempDir());
     await mkdir(join(home, "agent.sqlite"), { recursive: true });
-    await expect(createCore({ home, faux: true })).rejects.toThrow();
+    await expect(createCore({ home, faux: true, ...NO_UPDATE_OPTIONS })).rejects.toThrow();
     expect(await readRunningInstance(home)).toBeUndefined();
   });
 
   it("keeps settings and credentials private files in the home", async () => {
     const home = homeIn(await tempDir());
-    const core = await createCore({ home, faux: true });
+    const core = await createCore({ home, faux: true, ...NO_UPDATE_OPTIONS });
     await core.providers.setApiKey("openrouter", "sk-test");
     await core.settings.setDefaultModel({ provider: "faux", modelId: "faux-1" });
     expect(await modeOf(join(home, "credentials.json"))).toBe(0o600);
@@ -61,7 +64,7 @@ describe("createCore lifecycle", () => {
 
 describe("createCore with OpenRouter", () => {
   const options = (home: string, env: Record<string, string>) => ({
-    options: { home },
+    options: { home, ...NO_UPDATE_OPTIONS },
     deps: { ...defaultCoreDependencies(), env },
   });
 

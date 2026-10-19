@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { createCoreWith, defaultCoreDependencies } from "../create-core";
 import { type FauxWorld, openFauxWorld, setUpConversation } from "../test-support/faux-core";
 import { useTempDir } from "../test-support/temp-dir";
+import { NO_UPDATE_OPTIONS } from "../test-support/update-options";
 import { createFakeTerminalDaemon } from "./fake-terminal-daemon";
 import type { TerminalService } from "./terminal-service";
 
@@ -51,7 +52,7 @@ async function openWorld() {
     terminalService: () => recordingService(log, isArchived),
   };
   const opened = await openFauxWorld(root, Date.now, process.env, async (home) =>
-    createCoreWith({ home, faux: true }, dependencies),
+    createCoreWith({ home, faux: true, ...NO_UPDATE_OPTIONS }, dependencies),
   );
   world = opened;
   worlds.push(world);

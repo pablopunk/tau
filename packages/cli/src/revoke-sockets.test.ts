@@ -13,7 +13,13 @@ const closed = (socket: WebSocket) =>
 it("revoking a device closes its open /live socket (real core, real server)", async () => {
   vi.stubEnv("TAU_FAKE_REMOTE", "1");
   const home = join(mkdtempSync(join(tmpdir(), "tau-revoke-")), "home");
-  const core = await createCore({ home, faux: true, tunnelTarget: async () => "127.0.0.1:1" });
+  const core = await createCore({
+    home,
+    faux: true,
+    currentVersion: "0.0.0",
+    latestVersion: async () => "0.0.0",
+    tunnelTarget: async () => "127.0.0.1:1",
+  });
   const server = await createServer({ core, port: 0, token: "t".repeat(32) });
   const owner = { authorization: `Bearer ${"t".repeat(32)}` };
   try {

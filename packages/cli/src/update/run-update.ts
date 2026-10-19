@@ -1,6 +1,6 @@
+import { compareVersions } from "@tau/protocol";
 import { lifecycleFlagsOf } from "../lifecycle/flags";
 import { gatherStatus } from "../lifecycle/status";
-import { compareVersions } from "./compare-versions";
 import { entryOfPackage, type InstallMethod, installMethodOf } from "./install-method";
 import { restartInNewBinary } from "./restart-step";
 import { hasRunningWork, runningWorkOf } from "./running-work";

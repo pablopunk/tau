@@ -42,6 +42,7 @@ import { createFakeRemote, type FakeRemote } from "./fake-remote";
 import { suggestFakeDirectories } from "./fake-suggest";
 import { createFakeTerminals } from "./fake-terminals";
 import type { SpawnParams } from "./fake-thread-ops";
+import { createFakeUpdates, type FakeUpdates } from "./fake-updates";
 
 export interface FakeCoreOptions {
   /** Replay speed multiplier: 1 is the recorded timing, larger is faster. Default 1. */
@@ -63,6 +64,10 @@ export interface FakeCoreOptions {
   readonly remote?: boolean;
   /** Start as a hub with two linked machines (`Homelab` online, `Work laptop` offline). Default false. */
   readonly machines?: boolean;
+  /** This tau's version for `updates.status()`. Default `0.0.0`. */
+  readonly currentVersion?: string;
+  /** The latest version the registry answers, known from the start. Default none (unreachable). */
+  readonly latestVersion?: string | null;
 }
 
 export { FAKE_HOME_PATH };
@@ -81,6 +86,8 @@ export type FakeCore = Core & {
   readonly remoteControl: Pick<FakeRemote, "push">;
   /** Plays link behaviour over the fake machines registry. */
   readonly machinesControl: Pick<FakeMachines, "setStatus">;
+  /** Plays the registry: what the next `updates.refresh()` finds (`null`: unreachable). */
+  readonly updatesControl: Pick<FakeUpdates, "setLatest">;
   /**
    * The data of each linked machine: `core.machineCores.get(id)` is the fake tau that `/api/m/<id>/...` reaches.
    * Empty unless `machines: true`; a machine added by `core.machines.register` has none.
@@ -362,6 +369,11 @@ export function createFakeCore(options: FakeCoreOptions = {}): FakeCore {
   const remote = createFakeRemote({ now, emit, access, enabled: options.remote });
 
   const machines = createFakeMachines({ now, emit, access });
+  const updates = createFakeUpdates({
+    now,
+    currentVersion: options.currentVersion,
+    latest: options.latestVersion,
+  });
   const machineCores = new Map<string, FakeCore>();
   if (options.machines) seedMachines();
 
@@ -379,6 +391,8 @@ export function createFakeCore(options: FakeCoreOptions = {}): FakeCore {
     access,
     machines: machines.api,
     machinesControl: machines,
+    updates: updates.api,
+    updatesControl: updates,
     machineCores,
     remote: remote.api,
     remoteControl: remote,

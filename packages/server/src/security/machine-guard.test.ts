@@ -178,6 +178,23 @@ describe("machine branch: a machine secret works nowhere else", () => {
     expect(localRest.statusCode).toBe(401);
   });
 
+  it("answers 401 to a machine Bearer on POST /api/update/refresh, tagged and loopback", async () => {
+    await start();
+    const { secret } = await ctx.linkMachine();
+    const tunneled = await ctx.tunnel({
+      method: "POST",
+      path: "/api/update/refresh",
+      headers: { origin: ORIGIN, ...bearer(secret) },
+    });
+    expect(tunneled.status).toBe(401);
+    const local = await ctx.server.app.inject({
+      method: "POST",
+      url: "/api/update/refresh",
+      headers: { host: `127.0.0.1:${ctx.server.port}`, origin: ctx.server.origin, ...bearer(secret) },
+    });
+    expect(local.statusCode).toBe(401);
+  });
+
   it("answers 401 to a machine secret presented as a device cookie", async () => {
     await start();
     const { secret } = await ctx.linkMachine();

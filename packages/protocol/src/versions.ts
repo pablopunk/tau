@@ -19,3 +19,12 @@ export function compareVersions(a: string, b: string): number {
   }
   return Number(right.prerelease) - Number(left.prerelease);
 }
+
+/** Total: `undefined` when either side is empty or not a version. Equal or ahead is not behind. */
+export function isBehind(current: string, latest: string): boolean | undefined {
+  try {
+    return compareVersions(current, latest) < 0;
+  } catch {
+    return undefined;
+  }
+}

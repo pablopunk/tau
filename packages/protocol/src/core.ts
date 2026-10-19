@@ -43,6 +43,7 @@ import type { Goal, LoopInput, Timer } from "./mvp8";
 import type { Approval, ApprovalDecision } from "./mvp10";
 import type { RemoteStatus } from "./remote";
 import type { OpenTerminalInput, TerminalInfo } from "./terminals";
+import type { UpdateStatus } from "./updates";
 import type { Op } from "./view";
 
 export type {
@@ -395,6 +396,13 @@ export interface Core {
     /** Written only while the link is healthy; deleted by `disconnect`. */
     writeSummary(machineId: string, summary: MachineSummary): Promise<void>;
   };
+  /** This tau against the latest published version; never an error, offline keeps the last good value. */
+  updates: {
+    /** Never blocks: `latest` is null until the first background check succeeds. */
+    status(): Promise<UpdateStatus>;
+    /** Checks the registry now; a call within 60 s of the last returns the cached status. */
+    refresh(): Promise<UpdateStatus>;
+  };
   /** Fires after a successful commit that changed the project list or one project's conversation index. */
   onChange(listener: (change: Change) => void): () => void;
   close(): Promise<void>;
@@ -407,6 +415,10 @@ export interface CreateCoreOptions {
   readonly cliEntry?: string;
   /** `127.0.0.1:<port>` of the server's tunnel listener; resolves once the server is up. Absent: remote cannot start. */
   readonly tunnelTarget?: () => Promise<string>;
+  /** This tau's own version (`updates.status().current`). */
+  readonly currentVersion: string;
+  /** The registry's latest published version; rejects when unknown. The CLI supplies it (core cannot run npm). */
+  readonly latestVersion: () => Promise<string>;
   /** Forgets this tau's hub (deletes `hub.json`); the CLI supplies it, core never reads `hub.json`. */
   readonly forgetHub?: () => Promise<void>;
 }

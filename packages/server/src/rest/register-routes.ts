@@ -14,6 +14,8 @@ function startLoginFor(core: Core, id: ProviderId) {
 
 export function registerRoutes(app: FastifyInstance, core: Core, sockets: DeviceSockets): void {
   defineRoute(app, routes.suggestDirectories, ({ body }) => core.fs.suggestDirectories(body));
+  defineRoute(app, routes.getUpdateStatus, () => core.updates.status());
+  defineRoute(app, routes.refreshUpdateStatus, () => core.updates.refresh());
   defineRoute(app, routes.getSettings, () => core.settings.get());
   defineRoute(app, routes.setDefaultModel, ({ body }) => core.settings.setDefaultModel(body));
   defineRoute(app, routes.setDefaultThinking, ({ body }) =>

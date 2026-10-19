@@ -68,6 +68,7 @@ import { createTimerScheduler } from "./timers/timer-scheduler";
 import { createTimerToolServices } from "./timers/timer-tool-services";
 import { createTimersApi } from "./timers-api";
 import { createTitleService } from "./titles/title-service";
+import { createUpdateService } from "./updates/update-service";
 import { CRASH_LOOP_TEXT, recordStart, startRecordFiles } from "./watchdog/start-record";
 import { createWorkspaceService } from "./workspaces/workspace-service";
 
@@ -325,6 +326,11 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
       remoteUrl: () => tunnel.status().url,
       announce: () => changes.emit({ resource: "devices" }),
     });
+    const updates = createUpdateService({
+      currentVersion: options.currentVersion,
+      latestVersion: options.latestVersion,
+      now: deps.now,
+    });
     const machines = createMachines({
       directory: home.machinesDirectory,
       now: deps.now,
@@ -402,10 +408,12 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
       timers: timersApi,
       goals: createGoalsApi(goals),
       mcp: createMcpApi({ settings, mcp, changes }),
+      updates: { status: () => updates.status(), refresh: () => updates.refresh() },
       onChange: (listener) => changes.subscribe(listener),
       close() {
         closing ??= (async () => {
           changes.clear();
+          updates.stop();
           await remote.close();
           await archivedCleanup.stop();
           clones.stopAll();

@@ -19,7 +19,7 @@ describe("path filter: allowed", () => {
   });
 
   it("accepts every routes entry outside the denylist, with its own body limit", () => {
-    const denied = /^\/api\/(access|remote|machines|pair|health)(\/|$)/;
+    const denied = /^\/api\/(access|remote|machines|pair|health|update)(\/|$)/;
     for (const [name, route] of Object.entries(routes)) {
       if (denied.test(route.path)) continue;
       const path = route.path.replace(/:\w+/g, "x1");
@@ -52,6 +52,8 @@ describe("path filter: denied", () => {
       "/api/pair",
       "/api/pair/redeem",
       "/api/health",
+      "/api/update",
+      "/api/update/refresh",
       "/api/m/other/api/conversations",
     ]) {
       for (const method of ["GET", "POST", "PUT", "DELETE"]) {

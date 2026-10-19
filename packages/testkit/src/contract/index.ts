@@ -35,6 +35,7 @@ import { terminalCases } from "./terminals";
 import { timerCases } from "./timers";
 import { titleAndStatusCases } from "./titles-status";
 import type { MakeContractTarget } from "./types";
+import { updatesCases } from "./updates";
 import { workspaceCases } from "./workspaces";
 
 export type { ContractOptions } from "./case-runner";
@@ -87,5 +88,6 @@ export function runCoreContract(
     accessCases(makeTarget, test);
     remoteCases(makeTarget, test);
     machinesCases(makeTarget, test);
+    updatesCases(makeTarget, test);
   });
 }

@@ -6,6 +6,7 @@ import { type CoreDependencies, createCoreWith, defaultCoreDependencies } from "
 import { installFakeGit, isAlive } from "./test-support/fake-git";
 import { makeLocalRepo } from "./test-support/local-repo";
 import { useTempDir } from "./test-support/temp-dir";
+import { NO_UPDATE_OPTIONS } from "./test-support/update-options";
 
 const tempDir = useTempDir();
 const ALLOW_FILES = { ...process.env, TAU_ALLOW_FILE_CLONES: "1" };
@@ -15,7 +16,7 @@ let cores: Core[];
 
 const open = async (env: CoreDependencies["env"] = ALLOW_FILES, faux = true) => {
   const core = await createCoreWith(
-    { home: join(root, "home"), faux },
+    { home: join(root, "home"), faux, ...NO_UPDATE_OPTIONS },
     { ...defaultCoreDependencies(), env },
   );
   cores.push(core);

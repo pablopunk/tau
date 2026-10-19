@@ -7,6 +7,7 @@ import type { StartLinkClient } from "./machines/link-client";
 import type { CliOptions } from "./options";
 import { ensurePrivateDirectory } from "./private-files";
 import { readOrCreateToken } from "./token";
+import { latestVersionSource } from "./update/latest-source";
 
 export interface RunDependencies {
   readonly createCore: CreateCore;
@@ -20,6 +21,8 @@ export interface RunDependencies {
   readonly startLinkClient?: StartLinkClient;
   /** Written to the lock file. */
   readonly version?: string;
+  /** The registry's latest version for core's update status. Default: npm, or `TAU_FAKE_LATEST`. */
+  readonly latestVersion?: () => Promise<string>;
 }
 
 export interface RunningApp {
@@ -64,6 +67,8 @@ export async function run(
     cliEntry: dependencies.cliEntry,
     tunnelTarget: tunnelTarget.get,
     forgetHub: () => hubFile.delete(),
+    currentVersion: dependencies.version ?? "",
+    latestVersion: dependencies.latestVersion ?? latestVersionSource(),
   });
   try {
     const server = await listenOnFreePort(options.port, (port) =>

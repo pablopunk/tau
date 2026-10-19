@@ -166,3 +166,18 @@ describe("run", () => {
     expect(await run(optionsFor(home), next.dependencies)).toBeDefined();
   });
 });
+
+describe("run update wiring", () => {
+  it("passes the cli version and the latest-version source to core", async () => {
+    const { dependencies, createCore } = fakeDependencies();
+    const latestVersion = async () => "9.9.9";
+    await run(optionsFor(newHome(), "--faux", "--port", "5001"), {
+      ...dependencies,
+      version: "1.2.3",
+      latestVersion,
+    });
+    expect(createCore).toHaveBeenCalledWith(
+      expect.objectContaining({ currentVersion: "1.2.3", latestVersion }),
+    );
+  });
+});

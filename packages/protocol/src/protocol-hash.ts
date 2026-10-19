@@ -3,4 +3,4 @@
  * `protocol-version.test.ts` fails when the surface changes and this value does not; run
  * `mise exec -- pnpm --filter @tau/protocol bump-protocol` to rewrite it.
  */
-export const PROTOCOL_VERSION = "37f1a9deb97bc229d8664d17e5bc041a";
+export const PROTOCOL_VERSION = "52f4e01e45d4338519dfea5564becdf1";
