@@ -3,7 +3,7 @@ import { FormError } from "@/app/FormError";
 import { useSubmit } from "@/app/use-submit";
 import { Button } from "@/components/ui/button";
 import { queryKeys, useSettings, useSuggestedCodeFolder } from "@/lib/queries";
-import { useApi } from "@/machines/machine-context";
+import { useApi } from "@/nodes/node-context";
 import { homeRelative } from "@/sidebar/sidebar-model";
 
 export function CodeFolderSuggestion() {

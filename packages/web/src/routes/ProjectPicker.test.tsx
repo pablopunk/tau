@@ -3,7 +3,7 @@ import type { Project } from "@tau/protocol";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { MachineApiProvider } from "@/machines/machine-context";
+import { NodeApiProvider } from "@/nodes/node-context";
 import { ProjectPicker } from "./ProjectPicker";
 
 const mocks = vi.hoisted(() => ({ add: vi.fn(), clone: vi.fn() }));
@@ -32,14 +32,14 @@ async function openAddProject(onProject = vi.fn()) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
     <QueryClientProvider client={client}>
-      <MachineApiProvider>
+      <NodeApiProvider>
         <ProjectPicker
           projects={[project("home", { kind: "home" })]}
           projectId="home"
           onProject={onProject}
           disabled={false}
         />
-      </MachineApiProvider>
+      </NodeApiProvider>
     </QueryClientProvider>,
   );
   await user.click(screen.getByRole("combobox", { name: "Project" }));

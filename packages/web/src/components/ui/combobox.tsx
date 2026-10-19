@@ -56,7 +56,7 @@ interface ComboboxProps {
   footer?: (close: () => void) => React.ReactNode
   /** A control shown on the right of a group's heading, by group name, e.g. a refresh button. */
   groupActions?: Record<string, React.ReactNode>
-  /** An icon shown before a group's heading, by group name, e.g. a machine's OS. */
+  /** An icon shown before a group's heading, by group name, e.g. a node's OS. */
   groupIcons?: Record<string, React.ReactNode>
   /** `ghost` with `sm` fits inside a composer toolbar. */
   variant?: "outline" | "ghost"

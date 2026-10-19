@@ -1,6 +1,6 @@
 import { connect, type Socket } from "node:net";
 import { createFakeCore, type FakeCore } from "@tau/testkit";
-import type { MachineGateway } from "../machines/gateway";
+import type { NodeGateway } from "../nodes/gateway";
 import { buildProxyV2 } from "../security/proxy-v2";
 import { startTestServer, type TestServer } from "./harness";
 
@@ -34,8 +34,8 @@ export interface TunneledServer extends TestServer {
   tunnelSocket(options?: { sni?: string; peer?: string }): Socket;
   /** Links a device through the core and returns its cookie header. */
   linkDevice(name?: string): Promise<{ cookie: string; deviceId: string }>;
-  /** Links a machine through the core and returns its secret (a Bearer, never a cookie). */
-  linkMachine(name?: string): Promise<{ secret: string; deviceId: string }>;
+  /** Links a node through the core and returns its secret (a Bearer, never a cookie). */
+  linkNode(name?: string): Promise<{ secret: string; deviceId: string }>;
 }
 
 function parseResponse(raw: string): TunnelResponse {
@@ -94,7 +94,7 @@ async function waitUntilTunnelHostKnown(server: TestServer, port: number): Promi
 
 /** A server whose fake core has remote on (hostname `TUNNEL_HOSTNAME`), plus helpers to speak through its tunnel listener. */
 export async function startTunneledServer(
-  options: { staticDir?: string; gateway?: MachineGateway } = {},
+  options: { staticDir?: string; gateway?: NodeGateway } = {},
 ): Promise<TunneledServer> {
   const core = createFakeCore({ configured: true, speed: 1000, remote: true });
   const base = await startTestServer({ core, staticDir: options.staticDir, gateway: options.gateway });
@@ -109,7 +109,7 @@ export async function startTunneledServer(
       return parseResponse(await exchange(socket, rawHttp(request)));
     },
     tunnelSocket: (socketOptions) => openTunnelSocket(tunnelPort, socketOptions),
-    async linkMachine(name = "Homelab") {
+    async linkNode(name = "Homelab") {
       const minted = await core.access.mintPairing({ kind: "machine" });
       const redeemed = await core.access.redeemPairing({
         code: minted.code,

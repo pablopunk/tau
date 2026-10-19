@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/queries";
-import { useApi } from "@/machines/machine-context";
+import { useApi } from "@/nodes/node-context";
 
 export const LOG_POLL_MS = 1500;
 export const LOG_TAIL_LINES = 200;

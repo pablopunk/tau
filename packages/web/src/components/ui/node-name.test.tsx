@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { localNodeName } from "@/machines/local-node-name";
+import { localNodeName } from "@/nodes/local-node-name";
 import { NodeName } from "./node-name";
 
 describe("NodeName", () => {
@@ -15,6 +15,6 @@ describe("NodeName", () => {
   it("falls back to Local when the node has no name", () => {
     expect(localNodeName(undefined)).toBe("Local");
     expect(localNodeName("  ")).toBe("Local");
-    expect(localNodeName("vibemachine")).toBe("vibemachine");
+    expect(localNodeName("vibenode")).toBe("vibenode");
   });
 });

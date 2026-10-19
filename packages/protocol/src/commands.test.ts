@@ -71,8 +71,8 @@ describe("command table", () => {
     expect(destructive.sort()).toEqual(
       [
         "devices revoke",
-        "machines disconnect",
-        "machines unlink",
+        "nodes disconnect",
+        "nodes unlink",
         "projects remove",
         "remote off",
         "threads delete",

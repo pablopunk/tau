@@ -3,7 +3,7 @@ import { RefreshCwIcon } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { queryKeys } from "@/lib/queries";
-import { useApi } from "@/machines/machine-context";
+import { useApi } from "@/nodes/node-context";
 
 export function RefreshReposButton() {
   const api = useApi();

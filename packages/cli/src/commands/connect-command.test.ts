@@ -2,8 +2,8 @@ import { mkdirSync, mkdtempSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
-import type { ConnectIo } from "../machines/connect-io";
-import { createHubFileStore } from "../machines/hub-file";
+import type { ConnectIo } from "../nodes/connect-io";
+import { createHubFileStore } from "../nodes/hub-file";
 import { CliExit } from "./cli-exit";
 import type { CommandEnv } from "./command-env";
 import { executeConnect, executeDisconnect } from "./connect-command";
@@ -45,7 +45,7 @@ describe("tau connect", () => {
     const questions = io();
     const { env, out } = envFor(home, fetchImpl);
     await executeConnect([LINK, "--name", "Laptop"], env, questions);
-    expect(questions.confirm).toHaveBeenCalledWith(expect.stringContaining("Link this machine to Home hub"));
+    expect(questions.confirm).toHaveBeenCalledWith(expect.stringContaining("Link this node to Home hub"));
     const [url, init] = vi.mocked(fetchImpl).mock.calls[0] as [string, RequestInit];
     expect(url).toBe("https://hub.example.com/api/pair/redeem");
     expect(init.headers).toMatchObject({
@@ -55,9 +55,9 @@ describe("tau connect", () => {
     expect(JSON.parse(init.body as string)).toEqual({ code: "ABCD2345", deviceName: "Laptop" });
     expect(await createHubFileStore(home).read()).toEqual({
       hubUrl: "https://hub.example.com",
-      machineSecret: SECRET,
+      nodeSecret: SECRET,
       name: "Home hub",
-      machineName: "Laptop",
+      nodeName: "Laptop",
     });
     expect(statSync(join(home, "hub.json")).mode & 0o777).toBe(0o600);
     expect(out.join("\n")).not.toContain(SECRET);
@@ -83,12 +83,12 @@ describe("tau connect", () => {
 
   it("refuses when already linked", async () => {
     const home = emptyHome();
-    await createHubFileStore(home).write({ hubUrl: "https://a.b", machineSecret: SECRET, name: "A" });
+    await createHubFileStore(home).write({ hubUrl: "https://a.b", nodeSecret: SECRET, name: "A" });
     const { env } = envFor(home, hubAnswers({}));
     await expect(executeConnect([LINK, "--yes"], env, io())).rejects.toThrow("already linked");
   });
 
-  it("refuses when machines are linked to this tau", async () => {
+  it("refuses when nodes are linked to this tau", async () => {
     const home = emptyHome();
     mkdirSync(join(home, "machines", "m1"), { recursive: true });
     const { env } = envFor(home, hubAnswers({}));
@@ -99,9 +99,7 @@ describe("tau connect", () => {
     const { env } = envFor(emptyHome(), hubAnswers({ error: {} }, 400));
     await expect(executeConnect([LINK, "--yes"], env, io())).rejects.toThrow("did not accept");
     const second = envFor(emptyHome(), hubAnswers({ deviceId: "d" }));
-    await expect(executeConnect([LINK, "--yes"], second.env, io())).rejects.toThrow(
-      "without a machine secret",
-    );
+    await expect(executeConnect([LINK, "--yes"], second.env, io())).rejects.toThrow("without a node secret");
   });
 });
 
@@ -109,7 +107,7 @@ describe("tau disconnect", () => {
   it("removes hub.json when no server runs", async () => {
     const home = emptyHome();
     const store = createHubFileStore(home);
-    await store.write({ hubUrl: "https://a.b", machineSecret: SECRET, name: "A" });
+    await store.write({ hubUrl: "https://a.b", nodeSecret: SECRET, name: "A" });
     const { env, out } = envFor(home, hubAnswers({}));
     await executeDisconnect([], env);
     expect(await store.read()).toBeUndefined();
@@ -119,7 +117,7 @@ describe("tau disconnect", () => {
   it("tells the running server first", async () => {
     const home = makeHome();
     const store = createHubFileStore(home);
-    await store.write({ hubUrl: "https://a.b", machineSecret: SECRET, name: "A" });
+    await store.write({ hubUrl: "https://a.b", nodeSecret: SECRET, name: "A" });
     const calls: string[] = [];
     const fetchImpl = vi.fn(async (url: string, init?: RequestInit) => {
       calls.push(`${init?.method} ${new URL(url).pathname}`);
@@ -131,7 +129,7 @@ describe("tau disconnect", () => {
     }) as unknown as typeof fetch;
     const { env } = envFor(home, fetchImpl);
     await executeDisconnect([], env);
-    expect(calls).toEqual(["GET /api/machines/hub", "POST /api/machines/hub/disconnect"]);
+    expect(calls).toEqual(["GET /api/nodes/hub", "POST /api/nodes/hub/disconnect"]);
     expect(await store.read()).toBeUndefined();
   });
 

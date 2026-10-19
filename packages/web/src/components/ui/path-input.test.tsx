@@ -1,5 +1,5 @@
 import type { PathSuggestion } from "@tau/protocol";
-import { MachineApiProvider } from "@/machines/machine-context";
+import { NodeApiProvider } from "@/nodes/node-context";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -34,9 +34,9 @@ function Harness({ onSubmit = vi.fn() }: { onSubmit?: () => void }) {
 function mount(onSubmit?: () => void) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
-    <QueryClientProvider client={client}><MachineApiProvider>
+    <QueryClientProvider client={client}><NodeApiProvider>
       <Harness onSubmit={onSubmit} />
-    </MachineApiProvider></QueryClientProvider>,
+    </NodeApiProvider></QueryClientProvider>,
   );
   return userEvent.setup();
 }

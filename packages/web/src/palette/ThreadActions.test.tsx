@@ -9,7 +9,7 @@ import { LiveClientProvider } from "@/conversation/live-client-context";
 import { createStubLiveClient } from "@/conversation/test-utils";
 import { createApi } from "@/lib/api";
 import { createFakeTransport } from "@/lib/transport/fake";
-import { MachineApiProvider } from "@/machines/machine-context";
+import { NodeApiProvider } from "@/nodes/node-context";
 import { ThreadActions } from "./ThreadActions";
 
 async function renderActions(options: { terminals: boolean }) {
@@ -20,7 +20,7 @@ async function renderActions(options: { terminals: boolean }) {
   const run = vi.fn((action: () => void) => action);
   render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-      <MachineApiProvider api={api}>
+      <NodeApiProvider api={api}>
         <LiveClientProvider client={createStubLiveClient(null)}>
           <MemoryRouter initialEntries={[`/p/home/c/${id}`]}>
             <Command>
@@ -38,7 +38,7 @@ async function renderActions(options: { terminals: boolean }) {
             <Where />
           </MemoryRouter>
         </LiveClientProvider>
-      </MachineApiProvider>
+      </NodeApiProvider>
     </QueryClientProvider>,
   );
   return { id };
@@ -59,7 +59,7 @@ describe("thread actions", () => {
     );
   });
 
-  it("offers no terminal when this machine cannot run them", async () => {
+  it("offers no terminal when this node cannot run them", async () => {
     await renderActions({ terminals: false });
 
     await screen.findByRole("option", { name: "Stop agent" });

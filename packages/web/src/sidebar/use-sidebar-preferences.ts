@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { preferences, type SidebarMode } from "@/lib/preferences";
-import { useMachineId } from "@/machines/machine-context";
+import { useNodeId } from "@/nodes/node-context";
 
 export function useSidebarMode() {
   const [mode, setMode] = useState<SidebarMode>(() => preferences.getSidebarMode());
@@ -12,38 +12,38 @@ export function useSidebarMode() {
 }
 
 export function useProjectOpenOverrides() {
-  const machineId = useMachineId();
+  const nodeId = useNodeId();
   const [overrides, setOverrides] = useState<Record<string, boolean>>(() =>
-    preferences.getProjectOpenOverrides(machineId),
+    preferences.getProjectOpenOverrides(nodeId),
   );
   const setOpen = (projectId: string, open: boolean) => {
     const next = { ...overrides, [projectId]: open };
-    preferences.setProjectOpenOverrides(next, machineId);
+    preferences.setProjectOpenOverrides(next, nodeId);
     setOverrides(next);
   };
   return { overrides, setOpen };
 }
 
 export function useCollapsedThreads() {
-  const machineId = useMachineId();
-  const [collapsed, setCollapsed] = useState<string[]>(() => preferences.getCollapsedThreads(machineId));
+  const nodeId = useNodeId();
+  const [collapsed, setCollapsed] = useState<string[]>(() => preferences.getCollapsedThreads(nodeId));
   const toggle = (threadId: string) => {
     const next = collapsed.includes(threadId)
       ? collapsed.filter((id) => id !== threadId)
       : [...collapsed, threadId];
-    preferences.setCollapsedThreads(next, machineId);
+    preferences.setCollapsedThreads(next, nodeId);
     setCollapsed(next);
   };
   return { isExpanded: (threadId: string) => !collapsed.includes(threadId), toggle };
 }
 
-/** Which machine groups are collapsed in the sidebar (global: the ids are the machines'). */
-export function useCollapsedMachines() {
-  const [collapsed, setCollapsed] = useState<string[]>(() => preferences.getCollapsedMachines());
-  const setOpen = (machineKey: string, open: boolean) => {
-    const next = open ? collapsed.filter((id) => id !== machineKey) : [...collapsed, machineKey];
-    preferences.setCollapsedMachines(next);
+/** Which node groups are collapsed in the sidebar (global: the ids are the nodes'). */
+export function useCollapsedNodes() {
+  const [collapsed, setCollapsed] = useState<string[]>(() => preferences.getCollapsedNodes());
+  const setOpen = (nodeKey: string, open: boolean) => {
+    const next = open ? collapsed.filter((id) => id !== nodeKey) : [...collapsed, nodeKey];
+    preferences.setCollapsedNodes(next);
     setCollapsed(next);
   };
-  return { isOpen: (machineKey: string) => !collapsed.includes(machineKey), setOpen };
+  return { isOpen: (nodeKey: string) => !collapsed.includes(nodeKey), setOpen };
 }

@@ -9,7 +9,7 @@ import { createApi } from "@/lib/api";
 import { preferences } from "@/lib/preferences";
 import { applyTheme } from "@/lib/theme";
 import { createFakeTransport } from "@/lib/transport/fake";
-import { MachineApiProvider } from "@/machines/machine-context";
+import { NodeApiProvider } from "@/nodes/node-context";
 import { AppearanceSettings } from "./AppearanceSettings";
 import { ProviderRow } from "./ProviderRow";
 import { ProvidersSection } from "./ProvidersSection";
@@ -35,7 +35,7 @@ function wrap(ui: ReactNode) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={client}>
-      <MachineApiProvider>{ui}</MachineApiProvider>
+      <NodeApiProvider>{ui}</NodeApiProvider>
     </QueryClientProvider>,
   );
 }

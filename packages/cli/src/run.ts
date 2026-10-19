@@ -2,8 +2,8 @@ import { createTunnelTargetRef, publishServerUrl, readRunningInstance } from "@t
 import type { Core, CreateCore } from "@tau/protocol";
 import type { CreateServer } from "@tau/server";
 import { listenOnFreePort } from "./listen-on-free-port";
-import { createHubFileStore, type HubFileStore } from "./machines/hub-file";
-import type { StartLinkClient } from "./machines/link-client";
+import { createHubFileStore, type HubFileStore } from "./nodes/hub-file";
+import type { StartLinkClient } from "./nodes/link-client";
 import type { CliOptions } from "./options";
 import { ensurePrivateDirectory } from "./private-files";
 import { readOrCreateToken } from "./token";

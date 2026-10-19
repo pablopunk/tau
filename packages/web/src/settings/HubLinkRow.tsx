@@ -15,13 +15,13 @@ const STATE_TEXT: Record<HubLink["state"], string> = {
   reconnecting: "Reconnecting…",
   unreachable: "Hub unreachable",
   "update-required": "Update tau on the hub",
-  refused: "The hub refused this machine",
+  refused: "The hub refused this node",
 };
 
 const hubLabel = (link: HubLink) => link.hubName ?? link.hubUrl ?? "a hub";
 
 function describe(link: HubLink): string {
-  if (link.state === "none") return "This machine is not linked to a hub.";
+  if (link.state === "none") return "This node is not linked to a hub.";
   return link.message ?? STATE_TEXT[link.state];
 }
 
@@ -49,7 +49,7 @@ export function HubLinkRow() {
         open={confirming}
         onOpenChange={setConfirming}
         title={`Disconnect from ${link ? hubLabel(link) : "the hub"}?`}
-        description="The hub can no longer see or use this machine. Connect again with a new code to come back."
+        description="The hub can no longer see or use this node. Connect again with a new code to come back."
         confirmLabel="Disconnect"
         onConfirm={() => {
           setConfirming(false);

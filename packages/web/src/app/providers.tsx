@@ -1,16 +1,16 @@
 import type { ReactNode } from "react";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { MachineProvider } from "@/machines";
+import { NodeProvider } from "@/nodes";
 
-/** The hub's own machine is the root provider: no URL prefix, today's behaviour. Linked machines nest their own. */
+/** The hub's own node is the root provider: no URL prefix, today's behaviour. Linked nodes nest their own. */
 export function Providers({ children }: { children: ReactNode }) {
   return (
-    <MachineProvider>
+    <NodeProvider>
       <TooltipProvider>
         {children}
         <Toaster />
       </TooltipProvider>
-    </MachineProvider>
+    </NodeProvider>
   );
 }

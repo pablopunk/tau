@@ -37,7 +37,6 @@ import {
   WorkspaceDefaultSchema,
 } from "./entities";
 import { ICON_BODY_LIMIT } from "./icons";
-import { HubLinkSchema, MachineSchema, MachineSummarySchema, RenameMachineBodySchema } from "./machines";
 import {
   CheckpointSchema,
   McpServerConfigSchema,
@@ -48,6 +47,7 @@ import {
 } from "./mvp5";
 import { GoalInputSchema, GoalSchema, LoopInputSchema, TimerSchema } from "./mvp8";
 import { ApprovalDecisionSchema, ApprovalSchema } from "./mvp10";
+import { HubLinkSchema, NodeSchema, NodeSummarySchema, RenameNodeBodySchema } from "./nodes";
 import { HealthSchema, RemoteStatusSchema } from "./remote";
 import { OpenTerminalInputSchema, TerminalAvailabilitySchema, TerminalInfoSchema } from "./terminals";
 import { UpdateStatusSchema } from "./updates";
@@ -145,31 +145,31 @@ export const routes = {
     body: RedeemPairingBodySchema,
     response: RedeemPairingResponseSchema,
   },
-  listMachines: {
+  listNodes: {
     method: "GET",
-    path: `${API_PREFIX}/machines`,
+    path: `${API_PREFIX}/nodes`,
     status: 200,
-    response: Type.Array(MachineSchema),
+    response: Type.Array(NodeSchema),
   },
-  renameMachine: {
+  renameNode: {
     method: "PUT",
-    path: `${API_PREFIX}/machines/:id`,
+    path: `${API_PREFIX}/nodes/:id`,
     status: 204,
     params: IdParams,
-    body: RenameMachineBodySchema,
+    body: RenameNodeBodySchema,
   },
-  getMachineSummary: {
+  getNodeSummary: {
     method: "GET",
-    path: `${API_PREFIX}/machines/:id/summary`,
+    path: `${API_PREFIX}/nodes/:id/summary`,
     status: 200,
     params: IdParams,
-    response: MachineSummarySchema,
+    response: NodeSummarySchema,
   },
-  disconnectMachine: { method: "DELETE", path: `${API_PREFIX}/machines/:id`, status: 204, params: IdParams },
-  getHubLink: { method: "GET", path: `${API_PREFIX}/machines/hub`, status: 200, response: HubLinkSchema },
-  disconnectHub: { method: "POST", path: `${API_PREFIX}/machines/hub/disconnect`, status: 204 },
-  /** A WebSocket route: the machine dials the hub here with its machine secret (`machine-link.ts`). */
-  linkMachine: { method: "GET", path: `${API_PREFIX}/machines/link`, status: 200 },
+  disconnectNode: { method: "DELETE", path: `${API_PREFIX}/nodes/:id`, status: 204, params: IdParams },
+  getHubLink: { method: "GET", path: `${API_PREFIX}/nodes/hub`, status: 200, response: HubLinkSchema },
+  disconnectHub: { method: "POST", path: `${API_PREFIX}/nodes/hub/disconnect`, status: 204 },
+  /** A WebSocket route: the node dials the hub here with its node secret (`node-link.ts`). */
+  linkNode: { method: "GET", path: `${API_PREFIX}/nodes/link`, status: 200 },
   getUpdateStatus: { method: "GET", path: `${API_PREFIX}/update`, status: 200, response: UpdateStatusSchema },
   refreshUpdateStatus: {
     method: "POST",

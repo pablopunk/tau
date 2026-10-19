@@ -42,8 +42,8 @@ function invalidateChange(queryClient: QueryClient, change: Change) {
     void queryClient.invalidateQueries({ queryKey: queryKeys.devices });
     return;
   }
-  if (change.resource === "machines") {
-    void queryClient.invalidateQueries({ queryKey: queryKeys.machines });
+  if (change.resource === "nodes") {
+    void queryClient.invalidateQueries({ queryKey: queryKeys.nodes });
     return;
   }
   if (change.resource === "mcp") {

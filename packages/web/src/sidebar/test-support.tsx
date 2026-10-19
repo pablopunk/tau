@@ -4,7 +4,7 @@ import { render } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { MemoryRouter, useLocation } from "react-router";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { MachineApiProvider } from "@/machines/machine-context";
+import { NodeApiProvider } from "@/nodes/node-context";
 
 export const project = (overrides: Partial<Project> = {}): Project => ({
   id: "p1",
@@ -60,12 +60,12 @@ export function renderAt(path: string, ui: ReactNode) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const view = render(
     <QueryClientProvider client={client}>
-      <MachineApiProvider>
+      <NodeApiProvider>
         <MemoryRouter initialEntries={[path]}>
           <TooltipProvider>{ui}</TooltipProvider>
           <LocationProbe />
         </MemoryRouter>
-      </MachineApiProvider>
+      </NodeApiProvider>
     </QueryClientProvider>,
   );
   return { ...view, client };

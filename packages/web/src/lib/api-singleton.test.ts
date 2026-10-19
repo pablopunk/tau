@@ -32,7 +32,7 @@ function filesImportingSingletonApi(): string[] {
 describe("grep gate: the singleton api (MVP12 Stage 2)", () => {
   const current = filesImportingSingletonApi();
 
-  it("lets no new file import `api` from lib/api (use useApi() or useMachineApi(id))", () => {
+  it("lets no new file import `api` from lib/api (use useApi() or useNodeApi(id))", () => {
     const fresh = current.filter((file) => !API_SINGLETON_BASELINE.includes(file));
     expect(fresh, "new importers of the singleton api").toEqual([]);
   });

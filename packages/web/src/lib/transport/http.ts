@@ -70,7 +70,7 @@ async function send(route: RouteDef, input: RequestInput, prefix: string): Promi
 }
 
 export interface HttpTransportOptions {
-  /** Added in front of every request, live and stream URL: `/api/m/<machineId>` on the hub. Default: none (this machine). */
+  /** Added in front of every request, live and stream URL: `/api/n/<nodeId>` on the hub. Default: none (this node). */
   readonly prefix?: string;
 }
 

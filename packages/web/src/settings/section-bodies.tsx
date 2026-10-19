@@ -3,7 +3,7 @@ import { CodeFolderSuggestion } from "@/github/CodeFolderSuggestion";
 import { GithubSettingsRow } from "@/github/GithubSettingsRow";
 import { AgentSection } from "./agent/AgentSection";
 import { GeneralSection } from "./GeneralSection";
-import { MachinesSection } from "./MachinesSection";
+import { NodesSection } from "./NodesSection";
 import { ProjectsFolderField } from "./ProjectsFolderField";
 import { ProvidersSection } from "./ProvidersSection";
 import { RemoteSection } from "./RemoteSection";
@@ -25,5 +25,5 @@ export const SECTION_BODIES: Record<SettingsSectionId, () => ReactNode> = {
   agent: () => <AgentSection />,
   tools: () => <ToolsSection />,
   remote: () => <RemoteSection />,
-  machines: () => <MachinesSection />,
+  nodes: () => <NodesSection />,
 };

@@ -5,12 +5,12 @@ import { SettingsDialogContext } from "@/app/settings-dialog";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { LiveClientProvider } from "@/conversation/live-client-context";
 import { createStubLiveClient } from "@/conversation/test-utils";
-import { apiOfMachine } from "@/machines/machine-apis";
+import { apiOfNode } from "@/nodes/node-apis";
 import { conversation, project, renderAt } from "@/sidebar/test-support";
 import { CommandPalette } from "./CommandPalette";
 import { GlobalShortcuts } from "./GlobalShortcuts";
 
-const api = apiOfMachine();
+const api = apiOfNode();
 
 vi.mock("@/lib/api", () => ({
   api: {

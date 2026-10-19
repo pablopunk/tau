@@ -10,7 +10,7 @@ const OS_LABELS: Record<OsKind, string> = {
   unknown: "Unknown OS",
 }
 
-/** Maps a machine `os` string ("darwin arm64", "linux x64", "win32 x64") to an icon kind. */
+/** Maps a node `os` string ("darwin arm64", "linux x64", "win32 x64") to an icon kind. */
 function osKindOf(os: string | undefined): OsKind {
   const platform = (os ?? "").trim().toLowerCase().split(/\s+/)[0] ?? ""
   if (platform === "darwin" || platform === "macos") return "mac"

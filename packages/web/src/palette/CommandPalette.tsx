@@ -15,37 +15,37 @@ import { NodeName } from "@/components/ui/node-name";
 import { useSidebar } from "@/components/ui/sidebar";
 import { useHotkey } from "@/lib/hotkeys";
 import { conversationPath, newThreadPath } from "@/lib/paths";
-import { type MachineData, useMachinesData } from "@/machines";
-import { MachineScope } from "@/machines/MachineScope";
+import { type NodeData, useNodesData } from "@/nodes";
+import { NodeScope } from "@/nodes/NodeScope";
 import { SETTINGS_SECTIONS } from "@/settings/sections";
 import { AddProjectFlow, type AddProjectStep } from "./AddProjectFlow";
 import { useAdjacentThread } from "./adjacent-thread";
-import { MachinePage, type MachinePick } from "./MachinePage";
 import { ModelPage } from "./ModelPage";
+import { NodePage, type NodePick } from "./NodePage";
 import { SettingsItem } from "./SettingsItem";
 import { SettingsSearchGroup, useSettingResults } from "./SettingsSearchGroup";
 import { ThinkingPage } from "./ThinkingPage";
 import { ThreadActions } from "./ThreadActions";
 
-const machineKeyOf = (machineId: string | undefined) => machineId ?? "local";
+const nodeKeyOf = (nodeId: string | undefined) => nodeId ?? "local";
 
 interface SectionsProps {
   search: string;
-  allMachines: readonly MachineData[];
+  allNodes: readonly NodeData[];
   several: boolean;
   run: (action: () => void) => () => void;
-  chooseMachine: (pick: MachinePick) => void;
-  startAddProject: (machineId: string | undefined) => void;
+  chooseNode: (pick: NodePick) => void;
+  startAddProject: (nodeId: string | undefined) => void;
   openModelPage: () => void;
   openThinkingPage: () => void;
 }
 
 function MainSections({
   search,
-  allMachines,
+  allNodes,
   several,
   run,
-  chooseMachine,
+  chooseNode,
   startAddProject,
   openModelPage,
   openThinkingPage,
@@ -53,27 +53,26 @@ function MainSections({
   const navigate = useNavigate();
   const adjacent = useAdjacentThread();
   const { toggleSidebar } = useSidebar();
-  const { projectId, conversationId, machineId: openMachineId } = useOpenConversation();
-  const openThread = allMachines
-    .find((machine) => machine.machineId === openMachineId)
+  const { projectId, conversationId, nodeId: openNodeId } = useOpenConversation();
+  const openThread = allNodes
+    .find((node) => node.nodeId === openNodeId)
     ?.conversations.find((conversation) => conversation.id === conversationId);
   const settingResults = useSettingResults(search);
   const newThread = several
     ? () =>
-        chooseMachine({
+        chooseNode({
           heading: "New thread on",
-          onPick: (machineId) =>
-            navigate(newThreadPath(machineId === openMachineId ? projectId : undefined, machineId)),
+          onPick: (nodeId) => navigate(newThreadPath(nodeId === openNodeId ? projectId : undefined, nodeId)),
         })
-    : run(() => navigate(newThreadPath(projectId, openMachineId)));
+    : run(() => navigate(newThreadPath(projectId, openNodeId)));
   const addProject = several
-    ? () => chooseMachine({ heading: "Add project on", onPick: startAddProject })
+    ? () => chooseNode({ heading: "Add project on", onPick: startAddProject })
     : run(() => startAddProject(undefined));
   return (
     <>
       {settingResults.length === 0 && <CommandEmpty>No results.</CommandEmpty>}
       {projectId && conversationId ? (
-        <MachineScope machineId={openMachineId}>
+        <NodeScope nodeId={openNodeId}>
           <ThreadActions
             projectId={projectId}
             conversationId={conversationId}
@@ -82,7 +81,7 @@ function MainSections({
             onChangeThinking={openThinkingPage}
             run={run}
           />
-        </MachineScope>
+        </NodeScope>
       ) : null}
       <CommandGroup heading="Actions">
         <CommandItem onSelect={newThread}>New thread</CommandItem>
@@ -109,17 +108,17 @@ function MainSections({
       </CommandGroup>
       <SettingsSearchGroup search={search} results={settingResults} run={run} />
       <CommandGroup heading="Projects">
-        {allMachines.flatMap((machine) =>
-          machine.projects.map((project) => (
+        {allNodes.flatMap((node) =>
+          node.projects.map((project) => (
             <CommandItem
-              key={`${machineKeyOf(machine.machineId)}:${project.id}`}
-              value={`project ${project.name} ${project.id} ${machine.name}`}
-              onSelect={run(() => navigate(newThreadPath(project.id, machine.machineId)))}
+              key={`${nodeKeyOf(node.nodeId)}:${project.id}`}
+              value={`project ${project.name} ${project.id} ${node.name}`}
+              onSelect={run(() => navigate(newThreadPath(project.id, node.nodeId)))}
             >
               {project.name}
               {several ? (
                 <span className="ml-auto text-xs text-muted-foreground">
-                  <NodeName name={machine.name} local={machine.local} />
+                  <NodeName name={node.name} local={node.local} />
                 </span>
               ) : null}
             </CommandItem>
@@ -127,21 +126,21 @@ function MainSections({
         )}
       </CommandGroup>
       <CommandGroup heading="Threads">
-        {allMachines.flatMap((machine) =>
-          machine.conversations.map((conversation) => {
+        {allNodes.flatMap((node) =>
+          node.conversations.map((conversation) => {
             const projectName =
-              machine.projects.find((project) => project.id === conversation.projectId)?.name ?? "";
+              node.projects.find((project) => project.id === conversation.projectId)?.name ?? "";
             return (
               <CommandItem
-                key={`${machineKeyOf(machine.machineId)}:${conversation.id}`}
-                value={`thread ${conversation.title} ${projectName} ${conversation.id} ${machine.name}`}
+                key={`${nodeKeyOf(node.nodeId)}:${conversation.id}`}
+                value={`thread ${conversation.title} ${projectName} ${conversation.id} ${node.name}`}
                 onSelect={run(() =>
-                  navigate(conversationPath(conversation.projectId, conversation.id, machine.machineId)),
+                  navigate(conversationPath(conversation.projectId, conversation.id, node.nodeId)),
                 )}
               >
                 {conversation.title.trim() || "New thread"}
                 <span className="ml-auto text-xs text-muted-foreground">
-                  {several ? `${machine.name} · ${projectName}` : projectName}
+                  {several ? `${node.name} · ${projectName}` : projectName}
                 </span>
               </CommandItem>
             );
@@ -156,25 +155,25 @@ const PLACEHOLDERS = {
   main: "Search threads, projects, actions, settings",
   model: "Search models",
   thinking: "Search thinking levels",
-  machine: "Search machines",
+  node: "Search nodes",
 };
 
 export function CommandPalette() {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
-  const [page, setPage] = useState<"model" | "thinking" | "machine" | null>(null);
-  const [machinePick, setMachinePick] = useState<MachinePick | null>(null);
+  const [page, setPage] = useState<"model" | "thinking" | "node" | null>(null);
+  const [nodePick, setNodePick] = useState<NodePick | null>(null);
   const [addProject, setAddProject] = useState<AddProjectStep | null>(null);
-  const { conversationId, machineId: openMachineId } = useOpenConversation();
-  const everyMachine = useMachinesData();
+  const { conversationId, nodeId: openNodeId } = useOpenConversation();
+  const everyNode = useNodesData();
   useHotkey("mod+k", () => setOpen((current) => !current));
 
-  const startAddProject = (machineId: string | undefined) => setAddProject({ machineId });
+  const startAddProject = (nodeId: string | undefined) => setAddProject({ nodeId });
 
-  const chooseMachine = (pick: MachinePick) => {
+  const chooseNode = (pick: NodePick) => {
     setSearch("");
-    setMachinePick(pick);
-    setPage("machine");
+    setNodePick(pick);
+    setPage("node");
   };
 
   const changeOpen = (next: boolean) => {
@@ -209,32 +208,27 @@ export function CommandPalette() {
             placeholder={PLACEHOLDERS[page ?? "main"]}
           />
           <CommandList>
-            {page === "machine" && machinePick ? (
+            {page === "node" && nodePick ? (
               <>
                 <CommandEmpty>No results.</CommandEmpty>
-                <MachinePage
-                  machines={everyMachine}
-                  openMachineId={openMachineId}
-                  pick={machinePick}
-                  run={run}
-                />
+                <NodePage nodes={everyNode} openNodeId={openNodeId} pick={nodePick} run={run} />
               </>
-            ) : page !== null && page !== "machine" && conversationId ? (
-              <MachineScope machineId={openMachineId}>
+            ) : page !== null && page !== "node" && conversationId ? (
+              <NodeScope nodeId={openNodeId}>
                 <CommandEmpty>No results.</CommandEmpty>
                 {page === "model" ? (
                   <ModelPage conversationId={conversationId} run={run} />
                 ) : (
                   <ThinkingPage conversationId={conversationId} run={run} />
                 )}
-              </MachineScope>
+              </NodeScope>
             ) : (
               <MainSections
                 search={search}
-                allMachines={everyMachine}
-                several={everyMachine.length > 1}
+                allNodes={everyNode}
+                several={everyNode.length > 1}
                 run={run}
-                chooseMachine={chooseMachine}
+                chooseNode={chooseNode}
                 startAddProject={startAddProject}
                 openModelPage={openPage("model")}
                 openThinkingPage={openPage("thinking")}

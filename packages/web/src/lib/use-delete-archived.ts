@@ -3,7 +3,7 @@ import type { ConversationSummary, DeleteArchivedResult } from "@tau/protocol";
 import { useCallback, useSyncExternalStore } from "react";
 import { toast } from "sonner";
 import { errorMessage } from "@/lib/error-message";
-import { useApi } from "@/machines/machine-context";
+import { useApi } from "@/nodes/node-context";
 
 const MAX_LINES = 3;
 const INTERRUPTED =

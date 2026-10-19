@@ -5,7 +5,7 @@ import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { UseRepoDialog } from "@/github/UseRepoDialog";
-import { MachineApiProvider } from "@/machines/machine-context";
+import { NodeApiProvider } from "@/nodes/node-context";
 import { AddProjectDialog } from "@/sidebar/AddProjectDialog";
 import { ProjectsFolderField } from "./ProjectsFolderField";
 
@@ -48,7 +48,7 @@ function wrap(ui: ReactNode) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
     <QueryClientProvider client={client}>
-      <MachineApiProvider>{ui}</MachineApiProvider>
+      <NodeApiProvider>{ui}</NodeApiProvider>
     </QueryClientProvider>,
   );
   return userEvent.setup();

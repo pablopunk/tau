@@ -2,10 +2,10 @@ import { describe, expect, it } from "vitest";
 import { conversation } from "@/sidebar/test-support";
 import { adjacentThread, threadOrder } from "./adjacent-thread";
 
-const machine = (machineId: string | undefined, ...threads: Parameters<typeof conversation>[0][]) => ({
-  machineId,
-  name: machineId ?? "local",
-  local: machineId === undefined,
+const node = (nodeId: string | undefined, ...threads: Parameters<typeof conversation>[0][]) => ({
+  nodeId,
+  name: nodeId ?? "local",
+  local: nodeId === undefined,
   os: "linux x64",
   status: "online" as const,
   projects: [],
@@ -13,17 +13,17 @@ const machine = (machineId: string | undefined, ...threads: Parameters<typeof co
 });
 
 describe("threadOrder", () => {
-  it("merges machines by recent activity and skips archived threads", () => {
+  it("merges nodes by recent activity and skips archived threads", () => {
     const order = threadOrder([
-      machine(undefined, { id: "a", lastActivityAt: 1 }, { id: "gone", archivedAt: 5, lastActivityAt: 9 }),
-      machine("m", { id: "b", lastActivityAt: 3 }),
+      node(undefined, { id: "a", lastActivityAt: 1 }, { id: "gone", archivedAt: 5, lastActivityAt: 9 }),
+      node("m", { id: "b", lastActivityAt: 3 }),
     ]);
     expect(order.map((thread) => thread.id)).toEqual(["b", "a"]);
   });
 });
 
 describe("adjacentThread", () => {
-  const order = ["a", "b", "c"].map((id) => ({ machineId: undefined, projectId: "p1", id }));
+  const order = ["a", "b", "c"].map((id) => ({ nodeId: undefined, projectId: "p1", id }));
 
   it("steps and wraps around", () => {
     expect(adjacentThread(order, order[2], 1)?.id).toBe("a");

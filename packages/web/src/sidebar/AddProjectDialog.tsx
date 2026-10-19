@@ -16,8 +16,8 @@ import { Input } from "@/components/ui/input";
 import { PathInput } from "@/components/ui/path-input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { queryKeys, useSettings } from "@/lib/queries";
-import { useApi } from "@/machines/machine-context";
-import { useOnMachine } from "@/machines/use-on-machine";
+import { useApi } from "@/nodes/node-context";
+import { useOnNode } from "@/nodes/use-on-node";
 
 type Mode = "folder" | "git";
 
@@ -30,7 +30,7 @@ export function AddProjectDialog({
   onAdded?: (project: Project) => void;
 }) {
   const api = useApi();
-  const onMachine = useOnMachine();
+  const onNode = useOnNode();
   const pathId = useId();
   const urlId = useId();
   const nameId = useId();
@@ -72,7 +72,7 @@ export function AddProjectDialog({
           <DialogHeader>
             <DialogTitle>Add project</DialogTitle>
             <DialogDescription>
-              Use a folder on {onMachine ? onMachine.slice(4) : "this computer"} or clone a Git repository.
+              Use a folder on {onNode ? onNode.slice(4) : "this computer"} or clone a Git repository.
             </DialogDescription>
           </DialogHeader>
           <Tabs value={mode} onValueChange={changeMode}>
@@ -82,7 +82,7 @@ export function AddProjectDialog({
             </TabsList>
             <TabsContent value="folder" className="flex flex-col gap-2">
               <label htmlFor={pathId} className="text-sm font-medium">
-                Folder path{onMachine}
+                Folder path{onNode}
               </label>
               <PathInput
                 id={pathId}

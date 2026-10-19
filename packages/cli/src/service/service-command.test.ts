@@ -2,14 +2,14 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { lastLinesOf } from "../lifecycle/logs";
 import { runServiceCommandWith } from "./service-command";
-import { createTestMachine } from "./test-context";
+import { createTestNode } from "./test-context";
 
 describe("tau service", () => {
   it("lists services of every home, and uninstall --home removes only that one", async () => {
-    const machine = createTestMachine();
+    const node = createTestNode();
     const output: string[] = [];
-    const deps = { context: machine.context, out: (message: string) => output.push(message) };
-    const dev = join(machine.osHome, "dev-home");
+    const deps = { context: node.context, out: (message: string) => output.push(message) };
+    const dev = join(node.osHome, "dev-home");
     await runServiceCommandWith(deps, ["list"]);
     expect(output.at(-1)).toBe("No tau services.");
     await runServiceCommandWith(deps, ["install", "--home", dev]);
@@ -21,9 +21,9 @@ describe("tau service", () => {
   });
 
   it("rejects an unknown action with usage", async () => {
-    const machine = createTestMachine();
+    const node = createTestNode();
     await expect(
-      runServiceCommandWith({ context: machine.context, out: () => undefined }, ["bogus"]),
+      runServiceCommandWith({ context: node.context, out: () => undefined }, ["bogus"]),
     ).rejects.toThrow("Usage: tau service");
   });
 });

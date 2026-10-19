@@ -12,7 +12,7 @@ export interface DataHome {
   readonly devicesFile: string;
   /** The custom OpenTunnel store, never XDG. */
   readonly remoteDirectory: string;
-  readonly machinesDirectory: string;
+  readonly nodesDirectory: string;
   readonly startsFile: string;
   readonly lastExitFile: string;
 }
@@ -29,7 +29,8 @@ export async function openDataHome(root: string): Promise<DataHome> {
     iconsDirectory: join(root, "icons"),
     devicesFile: join(root, "devices.json"),
     remoteDirectory: join(root, "remote"),
-    machinesDirectory: join(root, "machines"),
+    // On disk this stays `machines` until MVP13 Step 1.
+    nodesDirectory: join(root, "machines"),
     startsFile: join(root, "starts.json"),
     lastExitFile: join(root, "last-exit.json"),
   };

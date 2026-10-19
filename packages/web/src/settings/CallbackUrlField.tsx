@@ -4,7 +4,7 @@ import { FormError } from "@/app/FormError";
 import { useSubmit } from "@/app/use-submit";
 import { FieldDescription } from "@/components/ui/field";
 import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from "@/components/ui/input-group";
-import { useApi } from "@/machines/machine-context";
+import { useApi } from "@/nodes/node-context";
 
 export const CALLBACK_PREFIX = "http://127.0.0.1:1455/auth/callback";
 const HELP =

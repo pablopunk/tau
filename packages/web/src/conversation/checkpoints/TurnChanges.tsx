@@ -5,7 +5,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Spinner } from "@/components/ui/spinner";
 import { errorMessage } from "@/lib/error-message";
 import { useCheckpoints } from "@/lib/queries";
-import { useApi } from "@/machines/machine-context";
+import { useApi } from "@/nodes/node-context";
 import { DiffView } from "../tools/DiffView";
 
 type ChangedFile = Checkpoint["files"][number];

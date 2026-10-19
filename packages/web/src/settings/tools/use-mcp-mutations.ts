@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import type { McpServerConfig } from "@tau/protocol";
 import { queryKeys } from "@/lib/queries";
-import { useApi } from "@/machines/machine-context";
+import { useApi } from "@/nodes/node-context";
 
 function useInvalidateMcp() {
   const queryClient = useQueryClient();

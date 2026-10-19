@@ -6,12 +6,12 @@ import { Button } from "@/components/ui/button";
 import { PathInput } from "@/components/ui/path-input";
 import { SettingRow } from "@/components/ui/settings-layout";
 import { queryKeys, useSettings } from "@/lib/queries";
-import { useApi } from "@/machines/machine-context";
-import { useOnMachine } from "@/machines/use-on-machine";
+import { useApi } from "@/nodes/node-context";
+import { useOnNode } from "@/nodes/use-on-node";
 
 export function ProjectsFolderField() {
   const api = useApi();
-  const onMachine = useOnMachine();
+  const onNode = useOnNode();
   const id = useId();
   const queryClient = useQueryClient();
   const settings = useSettings();
@@ -36,7 +36,7 @@ export function ProjectsFolderField() {
         }}
       >
         <label htmlFor={id} className="text-sm font-medium">
-          Projects folder{onMachine}
+          Projects folder{onNode}
         </label>
         <div className="flex gap-2">
           <PathInput id={id} value={value} onValueChange={setValue} placeholder="~/projects" />

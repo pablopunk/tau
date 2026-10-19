@@ -4,8 +4,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { Api } from "@/lib/api";
 import { errorMessage } from "@/lib/error-message";
-import { scopeTarget } from "@/lib/machine-keys";
-import { useApi, useMachineId } from "@/machines/machine-context";
+import { scopeTarget } from "@/lib/node-keys";
+import { useApi, useNodeId } from "@/nodes/node-context";
 import { restoreToComposer } from "../composer/restore";
 import { queuedModeLabel } from "./queued-mode";
 
@@ -15,11 +15,11 @@ function toImageInput({ mimeType, data }: QueuedMessage["images"][number]): Imag
   return { mimeType: mimeType as ImageInput["mimeType"], data };
 }
 
-async function cancel(api: Api, machineId: string | undefined, conversationId: string, item: QueuedMessage) {
+async function cancel(api: Api, nodeId: string | undefined, conversationId: string, item: QueuedMessage) {
   try {
     const { cancelled } = await api.conversations.cancelQueued(conversationId, String(item.id));
     if (!cancelled) return void toast.info(DELIVERED_NOTICE);
-    restoreToComposer(scopeTarget(conversationId, machineId), {
+    restoreToComposer(scopeTarget(conversationId, nodeId), {
       text: item.text,
       images: item.images.map(toImageInput),
     });
@@ -30,7 +30,7 @@ async function cancel(api: Api, machineId: string | undefined, conversationId: s
 
 export function QueuedItemActions({ conversationId, item }: { conversationId: string; item: QueuedMessage }) {
   const api = useApi();
-  const machineId = useMachineId();
+  const nodeId = useNodeId();
   return (
     <>
       <Badge variant="secondary">{queuedModeLabel(item.mode)}</Badge>
@@ -38,7 +38,7 @@ export function QueuedItemActions({ conversationId, item }: { conversationId: st
         type="button"
         variant="ghost"
         size="sm"
-        onClick={() => void cancel(api, machineId, conversationId, item)}
+        onClick={() => void cancel(api, nodeId, conversationId, item)}
       >
         Cancel
       </Button>

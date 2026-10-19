@@ -9,18 +9,12 @@ export interface RemoteServiceDeps {
   readonly settings: Pick<SettingsStore, "setRemoteEnabled">;
   readonly access: Pick<AccessService, "clearAll">;
   readonly changes: ChangeEmitter;
-  /** Clears the machine registry and its summaries (the devices are cleared with `access`). */
-  readonly forgetMachines?: () => Promise<void>;
+  /** Clears the node registry and its summaries (the devices are cleared with `access`). */
+  readonly forgetNodes?: () => Promise<void>;
 }
 
 /** `Core.remote` over the adapter. Owner B adds start-up (enabled → connect), the crash-loop rule and retries. */
-export function createRemoteService({
-  adapter,
-  settings,
-  access,
-  changes,
-  forgetMachines,
-}: RemoteServiceDeps) {
+export function createRemoteService({ adapter, settings, access, changes, forgetNodes }: RemoteServiceDeps) {
   adapter.onStatus(() => changes.emit({ resource: "remote" }));
   const api: Core["remote"] = {
     status: async () => adapter.status(),
@@ -42,7 +36,7 @@ export function createRemoteService({
       }
       const status = await adapter.recreate();
       await access.clearAll();
-      await forgetMachines?.();
+      await forgetNodes?.();
       changes.emit({ resource: "remote" });
       return status;
     },

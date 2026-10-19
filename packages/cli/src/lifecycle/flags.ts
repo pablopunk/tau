@@ -9,7 +9,7 @@ export interface LifecycleFlags {
   readonly follow: boolean;
 }
 
-/** What the flags fall back on: the machine's default home and its `TAU_HOME`. */
+/** What the flags fall back on: the node's default home and its `TAU_HOME`. */
 export interface HomeDefaults {
   readonly defaultHome: string;
   readonly env: NodeJS.ProcessEnv;

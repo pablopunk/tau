@@ -1,7 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { queryKeys } from "@/lib/queries";
-import { useApi } from "@/machines/machine-context";
+import { useApi } from "@/nodes/node-context";
 
 export function StopAgentButton({ childId }: { childId: string }) {
   const api = useApi();

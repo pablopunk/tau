@@ -7,7 +7,7 @@ import { safeEqual, sha256Hex } from "./secrets";
 
 /** What `Core.access` is, plus what the remote service needs when a URL dies. */
 export type AccessService = Core["access"] & {
-  /** Removes every device and machine (their cookies and links belong to the old host). */
+  /** Removes every device and node (their cookies and links belong to the old host). */
   clearAll(): Promise<void>;
 };
 
@@ -31,11 +31,11 @@ export function createAccess(deps: AccessDeps): AccessService {
     writing = run.catch(() => undefined);
     await run;
   };
-  const find = async (secret: string, machine: boolean) => {
+  const find = async (secret: string, node: boolean) => {
     const hash = sha256Hex(secret);
     let found: StoredDevice | undefined;
     for (const device of await load()) {
-      if (safeEqual(device.secretHash, hash) && (device.kind === "machine") === machine) found = device;
+      if (safeEqual(device.secretHash, hash) && (device.kind === "machine") === node) found = device;
     }
     return found ? { deviceId: found.id } : undefined;
   };
@@ -70,7 +70,7 @@ export function createAccess(deps: AccessDeps): AccessService {
 
   return {
     verifyDevice: (secret) => find(secret, false),
-    verifyMachine: (secret) => find(secret, true),
+    verifyNode: (secret) => find(secret, true),
     touch(deviceId) {
       void (async () => {
         const devices = await load();

@@ -30,7 +30,6 @@ import type {
   UseGithubRepoInput,
   WorkspaceDefault,
 } from "./entities";
-import type { HubLink, Machine, MachineHello, MachineSummary } from "./machines";
 import type {
   Checkpoint,
   McpServerConfig,
@@ -41,6 +40,7 @@ import type {
 } from "./mvp5";
 import type { Goal, LoopInput, Timer } from "./mvp8";
 import type { Approval, ApprovalDecision } from "./mvp10";
+import type { HubLink, Node, NodeHello, NodeSummary } from "./nodes";
 import type { RemoteStatus } from "./remote";
 import type { OpenTerminalInput, TerminalInfo } from "./terminals";
 import type { UpdateStatus } from "./updates";
@@ -291,7 +291,7 @@ export interface Core {
     stop(id: string): Promise<void>;
   };
   terminals: {
-    /** False when this machine cannot run terminals (unsupported platform, missing daemon, `TAU_DISABLE_TERMINALS=1`). Never rejects. */
+    /** False when this node cannot run terminals (unsupported platform, missing daemon, `TAU_DISABLE_TERMINALS=1`). Never rejects. */
     available(): Promise<boolean>;
     /** Rejects `not_found` for an unknown thread (or when unavailable). */
     list(conversationId: string): Promise<TerminalInfo[]>;
@@ -339,21 +339,21 @@ export interface Core {
    * The server's guard calls `verify*`; `Core.access` never sees cookies or sockets.
    */
   access: {
-    /** A device secret (browser, phone, cli). `undefined` for a wrong secret or a machine secret. */
+    /** A device secret (browser, phone, cli). `undefined` for a wrong secret or a node secret. */
     verifyDevice(secret: string): Promise<{ deviceId: string } | undefined>;
-    /** A machine secret, accepted only by `GET /api/machines/link`. `undefined` for any device secret. */
-    verifyMachine(secret: string): Promise<{ deviceId: string } | undefined>;
+    /** A node secret, accepted only by `GET /api/nodes/link`. `undefined` for any device secret. */
+    verifyNode(secret: string): Promise<{ deviceId: string } | undefined>;
     /** Records activity; throttled to once a minute per device. Never rejects. */
     touch(deviceId: string): void;
-    /** Newest first. `current` is true for `currentDeviceId`, never for machines. */
+    /** Newest first. `current` is true for `currentDeviceId`, never for nodes. */
     listDevices(currentDeviceId?: string): Promise<Device[]>;
     /** Rejects `not_found`. */
     renameDevice(id: string, name: string): Promise<void>;
     /** Idempotent for an unknown id. The server closes the device's open sockets. */
     revokeDevice(id: string): Promise<void>;
-    /** Drops browsers, phones and cli devices, not machines. */
+    /** Drops browsers, phones and cli devices, not nodes. */
     signOutAll(): Promise<void>;
-    /** Single use, five minutes, at most five live; the oldest is dropped. A machine pairing without remote has a `null` link (machines are Stage 2). */
+    /** Single use, five minutes, at most five live; the oldest is dropped. A node pairing without remote has a `null` link (nodes are Stage 2). */
     mintPairing(input: MintPairingInput): Promise<MintedPairing>;
     /** Takes the link code or the short code. Rejects `unauthorized` (generic text) for a wrong or burnt code and for a locked peer. */
     redeemPairing(input: RedeemPairingInput): Promise<RedeemedPairing>;
@@ -363,38 +363,38 @@ export interface Core {
     status(): Promise<RemoteStatus>;
     /** Opens the tunnel and stores `Settings.remote.enabled`. Resolves with `starting` or `online`. */
     enable(): Promise<RemoteStatus>;
-    /** Closes and removes the tunnel; clears devices and machines. */
+    /** Closes and removes the tunnel; clears devices and nodes. */
     disable(): Promise<RemoteStatus>;
-    /** "Make a new URL": a new tunnel, every device and machine cleared. Rejects `invalid_request` unless `canRecreate`. */
+    /** "Make a new URL": a new tunnel, every device and node cleared. Rejects `invalid_request` unless `canRecreate`. */
     recreate(): Promise<RemoteStatus>;
   };
   /**
-   * Machines (Stage 2). The hub side is a registry fed by the link route (`register`, `heartbeat`, `markOffline`);
-   * the machine side reports its own link to a hub (`reportLink`). Machine ids are the machines' device ids.
+   * Nodes (Stage 2). The hub side is a registry fed by the link route (`register`, `heartbeat`, `markOffline`);
+   * the node side reports its own link to a hub (`reportLink`). Node ids are the nodes' device ids.
    */
-  machines: {
-    /** Linked machines with a status computed from heartbeats (online, reconnecting after 15 s, offline after 45 s). */
-    list(): Promise<Machine[]>;
-    /** Rejects `not_found`. Announces `machines`. */
+  nodes: {
+    /** Linked nodes with a status computed from heartbeats (online, reconnecting after 15 s, offline after 45 s). */
+    list(): Promise<Node[]>;
+    /** Rejects `not_found`. Announces `nodes`. */
     rename(id: string, name: string): Promise<void>;
-    /** Idempotent. Revokes the machine's device, deletes its summary cache, announces `machines`. The server closes its link. */
+    /** Idempotent. Revokes the node's device, deletes its summary cache, announces `nodes`. The server closes its link. */
     disconnect(id: string): Promise<void>;
     /** This tau's link to its own hub. `none` when it has no `hub.json`. */
     hubState(): Promise<HubLink>;
-    /** "Disconnect" on the machine: forgets the hub (`hub.json`) and closes the link. Idempotent. */
+    /** "Disconnect" on the node: forgets the hub (`hub.json`) and closes the link. Idempotent. */
     disconnectHub(): Promise<void>;
-    /** The link client reports its state; core keeps it for `hubState` and announces `machines`. */
+    /** The link client reports its state; core keeps it for `hubState` and announces `nodes`. */
     reportLink(state: HubLink): void;
-    /** The link opened (`hello`). `update-required` when `hello.protocolVersion` differs from ours. Announces `machines`. */
-    register(machineId: string, hello: MachineHello): Promise<Machine>;
+    /** The link opened (`hello`). `update-required` when `hello.protocolVersion` differs from ours. Announces `nodes`. */
+    register(nodeId: string, hello: NodeHello): Promise<Node>;
     /** A ping or any frame arrived; `threadCount` refreshes the count. */
-    heartbeat(machineId: string, threadCount?: number): void;
-    /** The link closed. Announces `machines`. */
-    markOffline(machineId: string): void;
+    heartbeat(nodeId: string, threadCount?: number): void;
+    /** The link closed. Announces `nodes`. */
+    markOffline(nodeId: string): void;
     /** `undefined` when none was written. */
-    readSummary(machineId: string): Promise<MachineSummary | undefined>;
+    readSummary(nodeId: string): Promise<NodeSummary | undefined>;
     /** Written only while the link is healthy; deleted by `disconnect`. */
-    writeSummary(machineId: string, summary: MachineSummary): Promise<void>;
+    writeSummary(nodeId: string, summary: NodeSummary): Promise<void>;
   };
   /** This tau against the latest published version; never an error, offline keeps the last good value. */
   updates: {

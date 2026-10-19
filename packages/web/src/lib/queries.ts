@@ -14,7 +14,7 @@ import type {
   RemoteStatus,
   UpdateStatus,
 } from "@tau/protocol";
-import { useApi } from "@/machines/machine-context";
+import { useApi } from "@/nodes/node-context";
 
 export const queryKeys = {
   providers: ["providers"] as const,
@@ -41,13 +41,13 @@ export const queryKeys = {
   allMcpServers: ["mcp"] as const,
   remoteStatus: ["remote"] as const,
   devices: ["devices"] as const,
-  /** `["machines"]` is the hub's list; `["machines", "hub"]` is this tau's own link to a hub. */
-  machines: ["machines"] as const,
-  hubLink: ["machines", "hub"] as const,
-  /** This tau's version against the latest published one (the hub's own, never a machine's). */
+  /** `["nodes"]` is the hub's list; `["nodes", "hub"]` is this tau's own link to a hub. */
+  nodes: ["nodes"] as const,
+  hubLink: ["nodes", "hub"] as const,
+  /** This tau's version against the latest published one (the hub's own, never a node's). */
   updateStatus: ["update"] as const,
-  /** Another machine's data, cached in the hub's client by components outside that machine's provider. */
-  machineData: (machineId: string) => ["machine-data", machineId] as const,
+  /** Another node's data, cached in the hub's client by components outside that node's provider. */
+  nodeData: (nodeId: string) => ["node-data", nodeId] as const,
 };
 
 export const useProviders = () => {
@@ -342,41 +342,41 @@ export const useSignOutAllDevices = () => {
   return useDeviceMutation(() => api.access.signOutAll());
 };
 
-export const useMachineSummary = (machineId: string) => {
+export const useNodeSummary = (nodeId: string) => {
   const api = useApi();
   return useQuery({
-    queryKey: ["machines", "summary", machineId] as const,
-    queryFn: () => api.machines.summary(machineId),
+    queryKey: ["nodes", "summary", nodeId] as const,
+    queryFn: () => api.nodes.summary(nodeId),
     retry: false,
   });
 };
 
 export const useHubLink = () => {
   const api = useApi();
-  return useQuery({ queryKey: queryKeys.hubLink, queryFn: () => api.machines.hubLink() });
+  return useQuery({ queryKey: queryKeys.hubLink, queryFn: () => api.nodes.hubLink() });
 };
 
-function useMachineMutation<V>(run: (value: V) => Promise<void>) {
+function useNodeMutation<V>(run: (value: V) => Promise<void>) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: run,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.machines }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.nodes }),
   });
 }
 
-export const useRenameMachine = () => {
+export const useRenameNode = () => {
   const api = useApi();
-  return useMachineMutation(({ id, name }: { id: string; name: string }) => api.machines.rename(id, name));
+  return useNodeMutation(({ id, name }: { id: string; name: string }) => api.nodes.rename(id, name));
 };
 
-export const useDisconnectMachine = () => {
+export const useDisconnectNode = () => {
   const api = useApi();
-  return useMachineMutation((id: string) => api.machines.disconnect(id));
+  return useNodeMutation((id: string) => api.nodes.disconnect(id));
 };
 
 export const useDisconnectHub = () => {
   const api = useApi();
-  return useMachineMutation(() => api.machines.disconnectHub());
+  return useNodeMutation(() => api.nodes.disconnectHub());
 };
 
 const UPDATE_POLL_UNKNOWN_MS = 5_000;

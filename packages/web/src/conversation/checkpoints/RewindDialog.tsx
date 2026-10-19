@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import { Spinner } from "@/components/ui/spinner";
 import { errorMessage } from "@/lib/error-message";
-import { useApi } from "@/machines/machine-context";
+import { useApi } from "@/nodes/node-context";
 import type { MessageEntry } from "../messages/message-actions";
 import { useOpenThread } from "./use-open-thread";
 

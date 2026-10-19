@@ -4,7 +4,7 @@ import { useSubmit } from "@/app/use-submit";
 import { Skeleton } from "@/components/ui/skeleton";
 import { errorMessage } from "@/lib/error-message";
 import { queryKeys, useModels, useSettings } from "@/lib/queries";
-import { useApi } from "@/machines/machine-context";
+import { useApi } from "@/nodes/node-context";
 import { ModelSetting } from "./ModelSetting";
 
 export function SettingsModels() {

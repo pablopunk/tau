@@ -15,8 +15,8 @@ import { DropZone } from "@/components/ui/drop-zone";
 import { Input } from "@/components/ui/input";
 import { type MentionItem, MentionMenu } from "@/components/ui/mention-menu";
 import { Textarea } from "@/components/ui/textarea";
-import { scopeTarget } from "@/lib/machine-keys";
-import { useMachineId } from "@/machines/machine-context";
+import { scopeTarget } from "@/lib/node-keys";
+import { useNodeId } from "@/nodes/node-context";
 import { AttachmentRow } from "./composer/AttachmentRow";
 import { loadDraft, saveDraft } from "./composer/drafts";
 import { applyMention } from "./composer/mentions";
@@ -92,7 +92,7 @@ function ComposerForm({
   onStop,
   onSent,
 }: ComposerProps) {
-  const target = scopeTarget(threadTarget, useMachineId());
+  const target = scopeTarget(threadTarget, useNodeId());
   const [text, setTextState] = useState(() => loadDraft(target));
   const [error, setError] = useState<string>();
   const [stopping, setStopping] = useState(false);

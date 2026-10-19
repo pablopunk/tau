@@ -145,7 +145,7 @@ export function DevicesSection() {
         open={signingOut}
         onOpenChange={setSigningOut}
         title="Sign out all devices?"
-        description="Every linked device, including this one if it came through the URL, must pair again. Linked machines stay connected."
+        description="Every linked device, including this one if it came through the URL, must pair again. Linked nodes stay connected."
         confirmLabel="Sign out all"
         onConfirm={() => {
           setSigningOut(false);

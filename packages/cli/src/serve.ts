@@ -6,7 +6,7 @@ import { lifecycleFlagsOf } from "./lifecycle/flags";
 import { resolvePort, writeStoredPort } from "./lifecycle/port-store";
 import { waitForFreeHome } from "./lifecycle/wait-for-lock";
 import { mirrorConsoleToLogFile } from "./logging/file-logging";
-import { startLinkClient } from "./machines/link-client";
+import { startLinkClient } from "./nodes/link-client";
 import { defaultHome, parseCliOptions } from "./options";
 import { run } from "./run";
 import { findStaticDir } from "./static-dir";

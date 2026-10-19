@@ -10,7 +10,7 @@ Publishing is outward-facing: confirm the version bump with the user before tagg
 ## Steps
 
 1. Start from a clean `main` that is up to date with `origin/main`: `git status --short` is empty, `git fetch && git status -sb`.
-2. Verify locally, unpiped (`pnpm check | grep …` returns grep's exit code and lets a type error through): `mise exec -- pnpm check`, `mise exec -- pnpm test`, `mise exec -- pnpm build`, `mise exec -- pnpm smoke:install`. Then run the e2e specs `terminal`, `mvp12-remote` and `mvp12-machines` from `e2e/` (the full suite has known failures: mvp5, mvp6, mvp9-claude-cli, mvp9-connectors).
+2. Verify locally, unpiped (`pnpm check | grep …` returns grep's exit code and lets a type error through): `mise exec -- pnpm check`, `mise exec -- pnpm test`, `mise exec -- pnpm build`, `mise exec -- pnpm smoke:install`. Then run the e2e specs `terminal`, `mvp12-remote` and `mvp12-nodes` from `e2e/` (the full suite has known failures: mvp5, mvp6, mvp9-claude-cli, mvp9-connectors).
 3. Pick the bump (0.x: `minor` for anything breaking or a new feature, `patch` for fixes). Ask the user if unclear.
 4. In `packages/cli`: `npm version <patch|minor> --no-git-tag-version` bumps `package.json` only (in a workspace subfolder `npm version` does not commit or tag). Then from the repo root: `git add packages/cli/package.json && git commit -m "Release <version>" && git tag -a v<version> -m "Release <version>"` (annotated, or `--follow-tags` will not push it). If a hook refuses the commit, leave it and tell the user.
 5. `git push origin main --follow-tags`.
@@ -31,5 +31,5 @@ Manual publish (only if CI is unavailable): the user runs `npm publish --access 
 
 ## After a release
 
-- Machines linked to a hub must run the same tau version: a different `PROTOCOL_VERSION` shows as "Update tau on <machine>". Remind the user to update every machine: `npm i -g @pablopunk/tau@latest`, then `tau restart`.
+- Nodes linked to a hub must run the same tau version: a different `PROTOCOL_VERSION` shows as "Update tau on <node>". Remind the user to update every node: `npm i -g @pablopunk/tau@latest`, then `tau restart`.
 - The web app is served by the installed server, so it changes only after that update and restart.

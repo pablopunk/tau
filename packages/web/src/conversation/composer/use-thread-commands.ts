@@ -7,7 +7,7 @@ import type { PickersHandle } from "@/components/ModelThinkingPickers";
 import { runGoalCommand } from "@/goal/goal-command";
 import { errorMessage } from "@/lib/error-message";
 import { newThreadPath } from "@/lib/paths";
-import { useApi, useMachineId } from "@/machines/machine-context";
+import { useApi, useNodeId } from "@/nodes/node-context";
 import { LOOP_USAGE, parseLoopArgs } from "@/timers/loop-args";
 import type { CommandHandlers } from "./slash-commands";
 
@@ -25,7 +25,7 @@ export function compactFailureMessage(error: unknown): string {
 
 export function useThreadCommands({ conversationId, projectId, pickers }: ThreadCommandsInput) {
   const api = useApi();
-  const machineId = useMachineId();
+  const nodeId = useNodeId();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [renaming, setRenaming] = useState(false);
@@ -37,7 +37,7 @@ export function useThreadCommands({ conversationId, projectId, pickers }: Thread
         api.conversations
           .compact(conversationId, instructions ? { instructions } : {})
           .catch((error: unknown) => void toast.error(compactFailureMessage(error))),
-      new: () => void navigate(newThreadPath(projectId, machineId)),
+      new: () => void navigate(newThreadPath(projectId, nodeId)),
       model: () => pickers.current?.openModel(),
       thinking: () => pickers.current?.openThinking(),
       rename: () => setRenaming(true),
@@ -55,7 +55,7 @@ export function useThreadCommands({ conversationId, projectId, pickers }: Thread
         navigate("/");
       },
     };
-  }, [api, machineId, conversationId, projectId, pickers, navigate, queryClient]);
+  }, [api, nodeId, conversationId, projectId, pickers, navigate, queryClient]);
 
   const rename = async (title: string) => {
     await api.conversations.rename(conversationId, title);

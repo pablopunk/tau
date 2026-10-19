@@ -10,7 +10,7 @@ const StoredDeviceSchema = Type.Object({
     Type.Literal("browser"),
     Type.Literal("phone"),
     Type.Literal("cli"),
-    Type.Literal("machine"),
+    Type.Literal("machine"), // stays "machine" until MVP13 Step 1
   ]),
   createdAt: Type.Number(),
   lastSeenAt: Type.Number(),

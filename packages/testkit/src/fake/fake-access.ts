@@ -12,10 +12,10 @@ import {
 } from "@tau/protocol";
 
 export type FakeAccess = Core["access"] & {
-  /** Removes every device and machine, as a new URL or remote off does. */
+  /** Removes every device and node, as a new URL or remote off does. */
   clearAll(): Promise<void>;
-  /** Adds a machine device without a pairing code (the fake hub's seeded machines). */
-  addMachineDevice(name: string): { id: string; secret: string };
+  /** Adds a node device without a pairing code (the fake hub's seeded nodes). */
+  addNodeDevice(name: string): { id: string; secret: string };
 };
 
 export interface FakeAccessOptions {
@@ -92,10 +92,10 @@ export function createFakeAccess({ now, emit, remoteUrl }: FakeAccessOptions): F
     if (record.at.length >= PEER_FAILURE_LIMIT) record.lockedUntil = now() + PEER_LOCK_MS;
     failures.set(peer, record);
   };
-  const find = (secret: string, machine: boolean) => {
+  const find = (secret: string, node: boolean) => {
     const hash = sha256(secret);
     return [...devices.values()].find(
-      (entry) => entry.secretHash === hash && (entry.device.kind === "machine") === machine,
+      (entry) => entry.secretHash === hash && (entry.device.kind === "machine") === node,
     );
   };
   return {
@@ -103,7 +103,7 @@ export function createFakeAccess({ now, emit, remoteUrl }: FakeAccessOptions): F
       const entry = find(secret, false);
       return entry ? { deviceId: entry.device.id } : undefined;
     },
-    async verifyMachine(secret) {
+    async verifyNode(secret) {
       const entry = find(secret, true);
       return entry ? { deviceId: entry.device.id } : undefined;
     },
@@ -171,7 +171,7 @@ export function createFakeAccess({ now, emit, remoteUrl }: FakeAccessOptions): F
       announce();
       return { deviceId: id, kind: found.kind, secret };
     },
-    addMachineDevice(name) {
+    addNodeDevice(name) {
       const secret = randomHex(32);
       const id = `device-${++counter}`;
       const at = now();

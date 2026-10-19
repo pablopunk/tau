@@ -4,7 +4,7 @@ import { useState } from "react";
 import { newRequestId } from "@/conversation/use-conversation-actions";
 import { errorMessage } from "@/lib/error-message";
 import { queryKeys } from "@/lib/queries";
-import { useApi } from "@/machines/machine-context";
+import { useApi } from "@/nodes/node-context";
 
 export interface WorkspaceFailure {
   code: string | null;

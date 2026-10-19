@@ -1,8 +1,8 @@
 import type { WebSocket } from "ws";
-import type { MachineGateway } from "../machines/gateway";
+import type { NodeGateway } from "../nodes/gateway";
 import { createStubGateway } from "./stub-gateway";
 
-export interface RecordingGateway extends MachineGateway {
+export interface RecordingGateway extends NodeGateway {
   /** Sizes of every message the link sockets received. */
   readonly received: number[];
   readonly links: Map<string, WebSocket>;
@@ -16,8 +16,8 @@ export function createRecordingGateway(): RecordingGateway {
     ...createStubGateway(),
     received,
     links,
-    acceptLink(machineId, socket) {
-      links.set(machineId, socket);
+    acceptLink(nodeId, socket) {
+      links.set(nodeId, socket);
       socket.on("message", (data, isBinary) => {
         const bytes = Array.isArray(data) ? Buffer.concat(data) : Buffer.from(data as Buffer);
         received.push(bytes.length);

@@ -4,7 +4,7 @@ import { useNavigate } from "react-router";
 import { PaneSplitter } from "@/components/ui/pane-splitter";
 import { PaneStrip, type PaneTab } from "@/components/ui/pane-strip";
 import { conversationPath, terminalPath } from "@/lib/paths";
-import { useMachineId } from "@/machines/machine-context";
+import { useNodeId } from "@/nodes/node-context";
 import { readSplit, SPLIT_DEFAULT, SPLIT_MAX, SPLIT_MIN, writeSplit } from "./split-width";
 import { TerminalPane } from "./terminal/TerminalPane";
 import { useNarrow } from "./use-narrow";
@@ -42,7 +42,7 @@ function focusComposer(root: HTMLElement | null) {
 
 /** The transcript next to the pane strip (side by side, or tabs below 760 px). The transcript is always the first, keyed child, so it never remounts. */
 export function ThreadPanes({ projectId, conversationId, terminalId, children }: ThreadPanesProps) {
-  const machineId = useMachineId();
+  const nodeId = useNodeId();
   useTerminalChanges();
   const navigate = useNavigate();
   const narrow = useNarrow();
@@ -65,8 +65,8 @@ export function ThreadPanes({ projectId, conversationId, terminalId, children }:
   const focus = (tab: PaneTab) =>
     navigate(
       tab.kind === "chat"
-        ? conversationPath(projectId, conversationId, machineId)
-        : terminalPath(projectId, conversationId, tab.id, machineId),
+        ? conversationPath(projectId, conversationId, nodeId)
+        : terminalPath(projectId, conversationId, tab.id, nodeId),
     );
   const closeTab = (tab: PaneTab) => {
     close.mutate(tab.id);
@@ -74,8 +74,8 @@ export function ThreadPanes({ projectId, conversationId, terminalId, children }:
     const next = list.find((terminal) => terminal.id !== tab.id);
     navigate(
       next
-        ? terminalPath(projectId, conversationId, next.id, machineId)
-        : conversationPath(projectId, conversationId, machineId),
+        ? terminalPath(projectId, conversationId, next.id, nodeId)
+        : conversationPath(projectId, conversationId, nodeId),
     );
   };
 
@@ -86,11 +86,11 @@ export function ThreadPanes({ projectId, conversationId, terminalId, children }:
     if (!gone) return;
     navigate(
       nextId
-        ? terminalPath(projectId, conversationId, nextId, machineId)
-        : conversationPath(projectId, conversationId, machineId),
+        ? terminalPath(projectId, conversationId, nextId, nodeId)
+        : conversationPath(projectId, conversationId, nodeId),
       { replace: true },
     );
-  }, [gone, nextId, navigate, projectId, conversationId, machineId]);
+  }, [gone, nextId, navigate, projectId, conversationId, nodeId]);
 
   const body =
     focusedTerminal && !gone ? (

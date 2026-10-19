@@ -1,7 +1,7 @@
 import type { ModelInfo } from "@tau/protocol";
 import { CommandGroup, CommandItem } from "@/components/ui/command";
 import { useModels } from "@/lib/queries";
-import { useApi } from "@/machines/machine-context";
+import { useApi } from "@/nodes/node-context";
 import { claudeCliFirst, modelRowLabel } from "@/setup/ModelCombobox";
 import { attempt } from "./attempt";
 import { useThreadAgent } from "./use-thread-agent";
@@ -12,7 +12,7 @@ const byProvider = (models: ModelInfo[]) =>
     models: models.filter((model) => model.providerName === name),
   }));
 
-/** The palette's second page: pick the model of the open thread. Must render under that thread's machine provider. */
+/** The palette's second page: pick the model of the open thread. Must render under that thread's node provider. */
 export function ModelPage({
   conversationId,
   run,

@@ -4,12 +4,12 @@ import { Link } from "react-router";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { conversationPath } from "@/lib/paths";
 import { useAllConversations } from "@/lib/queries";
-import { useMachineId } from "@/machines/machine-context";
+import { useNodeId } from "@/nodes/node-context";
 import { Markdown } from "../messages/Markdown";
 import { notificationVerb } from "./notification-entry";
 
 export function SubagentNotificationRow({ data }: { data: SubagentNotificationData }) {
-  const machineId = useMachineId();
+  const nodeId = useNodeId();
   const child = useAllConversations().data?.find((item) => item.id === data.childId);
   return (
     <Collapsible data-testid="subagent-notification" className="rounded-lg border bg-card text-sm">
@@ -24,7 +24,7 @@ export function SubagentNotificationRow({ data }: { data: SubagentNotificationDa
           </span>
         </CollapsibleTrigger>
         {child ? (
-          <Link className="text-xs underline" to={conversationPath(child.projectId, child.id, machineId)}>
+          <Link className="text-xs underline" to={conversationPath(child.projectId, child.id, nodeId)}>
             Open
           </Link>
         ) : null}

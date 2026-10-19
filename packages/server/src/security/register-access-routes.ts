@@ -56,7 +56,7 @@ function registerDevices({ core, sockets }: AccessRouteDeps, app: FastifyInstanc
     for (const device of before) if (device.kind !== "machine") sockets.closeDevice(device.id);
   });
   defineRoute(app, routes.mintPairing, async ({ query }) => {
-    const refusal = query.kind === "machine" ? acceptLinkRefusal(await core.machines.hubState()) : undefined;
+    const refusal = query.kind === "machine" ? acceptLinkRefusal(await core.nodes.hubState()) : undefined;
     if (refusal) throw new AppError("invalid_request", refusal);
     return core.access.mintPairing(query);
   });

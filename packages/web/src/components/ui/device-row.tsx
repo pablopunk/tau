@@ -8,7 +8,7 @@ const KIND_ICONS = {
   browser: GlobeIcon,
   phone: SmartphoneIcon,
   cli: TerminalIcon,
-  machine: ServerIcon,
+  machine: ServerIcon, // stays "machine" until MVP13 Step 1
 } satisfies Record<DeviceKindName, typeof MonitorIcon>
 
 /** Rows inside one bordered container with dividers. */

@@ -5,7 +5,7 @@ import { createLaunchdBackend } from "./launchd";
 import { createSchtasksBackend, hasHeadlessConhost } from "./schtasks";
 import { createSystemdBackend, hasUserSystemd } from "./systemd";
 
-/** The OS service manager for this machine, or undefined when it cannot host one. */
+/** The OS service manager for this node, or undefined when it cannot host one. */
 export function nativeBackendOf(context: ServiceContext): ServiceBackend | undefined {
   if (context.platform === "darwin") return createLaunchdBackend(context);
   if (context.platform === "linux")

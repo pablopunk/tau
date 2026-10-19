@@ -3,12 +3,12 @@ import userEvent from "@testing-library/user-event";
 import { toast } from "sonner";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { SidebarProvider } from "@/components/ui/sidebar";
-import { apiOfMachine } from "@/machines/machine-apis";
+import { apiOfNode } from "@/nodes/node-apis";
 import { ArchivedConversations } from "./ArchivedConversations";
 import { DeleteArchivedDialog } from "./DeleteArchivedDialog";
 import { conversation, renderAt } from "./test-support";
 
-const api = apiOfMachine();
+const api = apiOfNode();
 
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), info: vi.fn(), error: vi.fn() } }));
 vi.mock("@/lib/api", () => ({ api: { conversations: { deleteArchived: vi.fn() } } }));

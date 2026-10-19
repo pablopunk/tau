@@ -2,7 +2,7 @@ import type { ConversationSummary, Project } from "@tau/protocol";
 import { useRef } from "react";
 import { useLocation } from "react-router";
 import { useFlipList } from "@/hooks/use-flip-list";
-import { useMachineId } from "@/machines/machine-context";
+import { useNodeId } from "@/nodes/node-context";
 import { ProjectGroup } from "./ProjectGroup";
 import { isProjectOpen, projectIdFromPath, projectSections } from "./sidebar-model";
 import { useProjectOpenOverrides } from "./use-sidebar-preferences";
@@ -22,7 +22,7 @@ export function ProjectsView({
 }: ProjectsViewProps) {
   const listRef = useRef<HTMLDivElement>(null);
   const { overrides, setOpen } = useProjectOpenOverrides();
-  const currentProjectId = projectIdFromPath(useLocation().pathname, useMachineId());
+  const currentProjectId = projectIdFromPath(useLocation().pathname, useNodeId());
   const sections = projectSections(projects, conversations);
   const openKey = sections.map((section) => isProjectOpen(section, overrides, currentProjectId)).join(",");
   useFlipList(listRef, openKey);

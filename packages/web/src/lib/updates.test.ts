@@ -23,7 +23,7 @@ describe("api.updates over the fake transport", () => {
   });
 });
 
-describe("machine versions in web code", () => {
+describe("node versions in web code", () => {
   it("treats an empty tauVersion (never seen) as unknown, not as behind", () => {
     expect(isBehind("", "0.1.2")).toBeUndefined();
     expect(isBehind("0.0.9", "0.1.2")).toBe(true);

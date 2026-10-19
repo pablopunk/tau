@@ -6,29 +6,29 @@ import { FormError } from "@/app/FormError";
 import { useSubmit } from "@/app/use-submit";
 import { Button } from "@/components/ui/button";
 import { Combobox, type ComboboxOption } from "@/components/ui/combobox";
-import { MachineAvatar } from "@/components/ui/machine-avatar";
+import { NodeAvatar } from "@/components/ui/node-avatar";
 import { ProjectIcon } from "@/components/ui/project-icon";
 import { RefreshReposButton } from "@/github/RefreshReposButton";
 import { GITHUB_GROUP, githubOptions, parseGithubValue } from "@/github/repo-options";
 import { UseRepoDialog } from "@/github/UseRepoDialog";
 import { projectsHomeFirst } from "@/lib/new-thread-defaults";
-import { machineAssetUrl } from "@/lib/paths";
+import { nodeAssetUrl } from "@/lib/paths";
 import { queryKeys, useGithubRepos, useGithubStatus } from "@/lib/queries";
-import { type MachineData, MachineProvider, useHubQueryClient, useMachinesData } from "@/machines";
-import { useApi, useMachineId } from "@/machines/machine-context";
+import { type NodeData, NodeProvider, useHubQueryClient, useNodesData } from "@/nodes";
+import { useApi, useNodeId } from "@/nodes/node-context";
 import { AddProjectDialog } from "@/sidebar/AddProjectDialog";
-import { ChooseMachineDialog } from "@/sidebar/ChooseMachineDialog";
+import { ChooseNodeDialog } from "@/sidebar/ChooseNodeDialog";
 
 const PROJECTS_GROUP = "Projects";
 
-const OTHER_MACHINE = "machine:";
-const otherValue = (machineId: string, projectId: string) => `${OTHER_MACHINE}${machineId}:${projectId}`;
+const OTHER_NODE = "node:";
+const otherValue = (nodeId: string, projectId: string) => `${OTHER_NODE}${nodeId}:${projectId}`;
 
 const projectOption = (
   project: Project,
   group = PROJECTS_GROUP,
   value = project.id,
-  machineId?: string,
+  nodeId?: string,
 ): ComboboxOption => ({
   value,
   label: project.name,
@@ -38,7 +38,7 @@ const projectOption = (
     <ProjectIcon
       id={project.id}
       name={project.name}
-      iconUrl={project.iconUrl ? machineAssetUrl(project.iconUrl, machineId) : null}
+      iconUrl={project.iconUrl ? nodeAssetUrl(project.iconUrl, nodeId) : null}
       home={project.kind === "home"}
     />
   ),
@@ -50,14 +50,14 @@ interface ProjectPickerProps {
   projectId: string;
   onProject(id: string): void;
   disabled: boolean;
-  /** Another machine's project was picked (or added): the page re-scopes to that machine. */
-  onMachineProject?: (machineId: string | undefined, projectId: string) => void;
+  /** Another node's project was picked (or added): the page re-scopes to that node. */
+  onNodeProject?: (nodeId: string | undefined, projectId: string) => void;
 }
 
-function usePickerMachines(): { all: MachineData[]; groupOf: (machine: MachineData) => string } {
-  const all = useMachinesData();
-  const groupOf = (machine: MachineData) =>
-    all.length > 1 ? (machine.local ? `${machine.name} · local` : machine.name) : PROJECTS_GROUP;
+function usePickerNodes(): { all: NodeData[]; groupOf: (node: NodeData) => string } {
+  const all = useNodesData();
+  const groupOf = (node: NodeData) =>
+    all.length > 1 ? (node.local ? `${node.name} · local` : node.name) : PROJECTS_GROUP;
   return { all, groupOf };
 }
 
@@ -66,16 +66,16 @@ export function ProjectPicker({
   projectId,
   onProject,
   disabled,
-  onMachineProject,
+  onNodeProject,
 }: ProjectPickerProps) {
   const api = useApi();
-  const machineId = useMachineId();
-  const { all, groupOf } = usePickerMachines();
+  const nodeId = useNodeId();
+  const { all, groupOf } = usePickerNodes();
   const hub = useHubQueryClient();
-  const current = all.find((machine) => machine.machineId === machineId);
-  const others = all.filter((machine) => machine.machineId !== machineId);
+  const current = all.find((node) => node.nodeId === nodeId);
+  const others = all.filter((node) => node.nodeId !== nodeId);
   const [choosing, setChoosing] = useState(false);
-  const [addingOn, setAddingOn] = useState<{ machineId: string | undefined } | null>(null);
+  const [addingOn, setAddingOn] = useState<{ nodeId: string | undefined } | null>(null);
   const queryClient = useQueryClient();
   const status = useGithubStatus();
   const repos = useGithubRepos(status.data?.state === "connected");
@@ -101,9 +101,9 @@ export function ProjectPicker({
   };
 
   const onChange = (value: string) => {
-    if (value.startsWith(OTHER_MACHINE)) {
-      const [, otherMachine = "", ...rest] = value.split(":");
-      return void onMachineProject?.(otherMachine, rest.join(":"));
+    if (value.startsWith(OTHER_NODE)) {
+      const [, otherNode = "", ...rest] = value.split(":");
+      return void onNodeProject?.(otherNode, rest.join(":"));
     }
     const repoName = parseGithubValue(value);
     if (repoName) pickRepo(repoName);
@@ -113,25 +113,20 @@ export function ProjectPicker({
   const groupIcons: Record<string, ReactNode> =
     all.length > 1
       ? Object.fromEntries(
-          all.map((machine) => [
-            groupOf(machine),
-            <MachineAvatar key={machine.name} os={machine.os} status={machine.status} />,
+          all.map((node) => [
+            groupOf(node),
+            <NodeAvatar key={node.name} os={node.os} status={node.status} />,
           ]),
         )
       : {};
 
   const options = [
     ...projectsHomeFirst(projects).map((project) =>
-      projectOption(project, current ? groupOf(current) : PROJECTS_GROUP, project.id, machineId),
+      projectOption(project, current ? groupOf(current) : PROJECTS_GROUP, project.id, nodeId),
     ),
-    ...others.flatMap((machine) =>
-      projectsHomeFirst([...machine.projects]).map((project) =>
-        projectOption(
-          project,
-          groupOf(machine),
-          otherValue(machine.machineId ?? "", project.id),
-          machine.machineId,
-        ),
+    ...others.flatMap((node) =>
+      projectsHomeFirst([...node.projects]).map((project) =>
+        projectOption(project, groupOf(node), otherValue(node.nodeId ?? "", project.id), node.nodeId),
       ),
     ),
     ...githubOptions({ status: status.data, repos: repos.data, reposFailed: repos.isError }),
@@ -174,27 +169,27 @@ export function ProjectPicker({
       />
       <FormError message={error} className="w-full" />
       {choosing && (
-        <ChooseMachineDialog
-          machines={all}
+        <ChooseNodeDialog
+          nodes={all}
           onClose={() => setChoosing(false)}
           onChoose={(chosen) => {
             setChoosing(false);
-            if (chosen === machineId) setAdding(true);
-            else setAddingOn({ machineId: chosen });
+            if (chosen === nodeId) setAdding(true);
+            else setAddingOn({ nodeId: chosen });
           }}
         />
       )}
       {addingOn && (
-        <MachineProvider key={addingOn.machineId ?? "local"} machineId={addingOn.machineId}>
+        <NodeProvider key={addingOn.nodeId ?? "local"} nodeId={addingOn.nodeId}>
           <AddProjectDialog
             onClose={() => setAddingOn(null)}
             onAdded={(project) => {
               void hub.invalidateQueries({ queryKey: queryKeys.projects });
-              void hub.invalidateQueries({ queryKey: ["machine-data"] });
-              onMachineProject?.(addingOn.machineId, project.id);
+              void hub.invalidateQueries({ queryKey: ["node-data"] });
+              onNodeProject?.(addingOn.nodeId, project.id);
             }}
           />
-        </MachineProvider>
+        </NodeProvider>
       )}
       {adding && (
         <AddProjectDialog

@@ -4,13 +4,13 @@ import { type Core, WS_MAX_PAYLOAD_BYTES } from "@tau/protocol";
 import Fastify, { type FastifyInstance } from "fastify";
 import { handleError } from "./error-handler";
 import { registerLive } from "./live/register-live";
-import { createMachineGateway } from "./machines/create-gateway";
-import { createDeviceLabels } from "./machines/device-labels";
-import type { MachineGateway } from "./machines/gateway";
-import { registerMachineLink } from "./machines/register-link";
-import { registerMachineRoutes } from "./machines/register-machine-routes";
-import { registerMachineProxy } from "./machines/register-proxy";
-import { startSummaryWriter } from "./machines/summary-writer";
+import { createNodeGateway } from "./nodes/create-gateway";
+import { createDeviceLabels } from "./nodes/device-labels";
+import type { NodeGateway } from "./nodes/gateway";
+import { registerNodeLink } from "./nodes/register-link";
+import { registerNodeRoutes } from "./nodes/register-node-routes";
+import { registerNodeProxy } from "./nodes/register-proxy";
+import { startSummaryWriter } from "./nodes/summary-writer";
 import { allowEmptyJsonBodies } from "./rest/json-body";
 import { registerRoutes } from "./rest/register-routes";
 import { type AllowList, allowListForPort, hostnameOfUrl } from "./security/allow-list";
@@ -34,8 +34,8 @@ export interface ServerOptions {
   readonly host?: string;
   /** Secret that opens a session: `/?token=…` is swapped for the `tau_<port>` cookie. Persisted by the CLI in `<home>/token`. */
   readonly token: string;
-  /** The machine-link multiplexer (owner G). Default: a stub that never links. */
-  readonly gateway?: MachineGateway;
+  /** The node-link multiplexer (owner G). Default: a stub that never links. */
+  readonly gateway?: NodeGateway;
   /** Fastify logger, off by default. */
   readonly logger?: boolean;
 }
@@ -104,10 +104,10 @@ export const createServer: CreateServer = async (options) => {
   registerAccessRoutes(app, { core: options.core, tunnel: tags, sockets });
   registerLive(app, options.core, sockets);
   const labels = createDeviceLabels(options.core);
-  const gateway = options.gateway ?? createMachineGateway(options.core);
-  registerMachineRoutes(app, { core: options.core, sockets, gateway });
-  registerMachineLink(app, { core: options.core, sockets, gateway });
-  await registerMachineProxy(app, { sockets, gateway, hubDeviceLabel: labels.label });
+  const gateway = options.gateway ?? createNodeGateway(options.core);
+  registerNodeRoutes(app, { core: options.core, sockets, gateway });
+  registerNodeLink(app, { core: options.core, sockets, gateway });
+  await registerNodeProxy(app, { sockets, gateway, hubDeviceLabel: labels.label });
   await registerStaticAssets(app, options.staticDir);
   const tunnel: TunnelListener = createTunnelListener({
     app,

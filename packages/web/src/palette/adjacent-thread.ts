@@ -1,22 +1,22 @@
 import { useNavigate } from "react-router";
 import { useOpenConversation } from "@/activity";
 import { conversationPath } from "@/lib/paths";
-import { type MachineData, useMachinesData } from "@/machines";
+import { type NodeData, useNodesData } from "@/nodes";
 
 export interface ThreadRef {
-  machineId: string | undefined;
+  nodeId: string | undefined;
   projectId: string;
   id: string;
 }
 
-/** Active threads of every machine, most recently active first: the order of the sidebar's thread list. */
-export function threadOrder(machines: readonly MachineData[]): ThreadRef[] {
-  return machines
-    .flatMap((machine) =>
-      machine.conversations
+/** Active threads of every node, most recently active first: the order of the sidebar's thread list. */
+export function threadOrder(nodes: readonly NodeData[]): ThreadRef[] {
+  return nodes
+    .flatMap((node) =>
+      node.conversations
         .filter((conversation) => conversation.archivedAt === null)
         .map((conversation) => ({
-          ref: { machineId: machine.machineId, projectId: conversation.projectId, id: conversation.id },
+          ref: { nodeId: node.nodeId, projectId: conversation.projectId, id: conversation.id },
           at: conversation.lastActivityAt,
         })),
     )
@@ -27,9 +27,7 @@ export function threadOrder(machines: readonly MachineData[]): ThreadRef[] {
 /** The thread `delta` steps from the open one, wrapping around. Without an open thread: the first (or last). */
 export function adjacentThread(order: readonly ThreadRef[], current: ThreadRef | undefined, delta: 1 | -1) {
   if (order.length === 0) return undefined;
-  const index = order.findIndex(
-    (thread) => thread.id === current?.id && thread.machineId === current?.machineId,
-  );
+  const index = order.findIndex((thread) => thread.id === current?.id && thread.nodeId === current?.nodeId);
   if (index === -1) return delta === 1 ? order[0] : order.at(-1);
   return order[(index + delta + order.length) % order.length];
 }
@@ -37,13 +35,13 @@ export function adjacentThread(order: readonly ThreadRef[], current: ThreadRef |
 export function useAdjacentThread() {
   const navigate = useNavigate();
   const open = useOpenConversation();
-  const order = threadOrder(useMachinesData());
+  const order = threadOrder(useNodesData());
   const current = open.conversationId
-    ? { machineId: open.machineId, projectId: open.projectId ?? "", id: open.conversationId }
+    ? { nodeId: open.nodeId, projectId: open.projectId ?? "", id: open.conversationId }
     : undefined;
   const go = (delta: 1 | -1) => {
     const target = adjacentThread(order, current, delta);
-    if (target) navigate(conversationPath(target.projectId, target.id, target.machineId));
+    if (target) navigate(conversationPath(target.projectId, target.id, target.nodeId));
   };
   return { go, available: order.length > 1 };
 }

@@ -273,7 +273,7 @@ describe("redeem", () => {
     expect((await redeem(minted.code)).status).toBe(200);
   });
 
-  it("returns a machine secret in the body, with no cookie", async () => {
+  it("returns a node secret in the body, with no cookie", async () => {
     ctx = await startTunneledServer();
     const minted = await ctx.core.access.mintPairing({ kind: "machine" });
     const response = await redeem(minted.code);
@@ -352,4 +352,4 @@ describe("tunnel listener: destroy rules", () => {
   });
 });
 
-// The machine branch of the guard is tested in `machine-guard.test.ts`.
+// The node branch of the guard is tested in `node-guard.test.ts`.

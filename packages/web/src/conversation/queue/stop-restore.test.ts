@@ -21,7 +21,7 @@ describe("stopAndRestore", () => {
     expect(loadDraft("c1")).toBe("first\n\nsecond");
   });
 
-  it("scopes the draft per machine", async () => {
+  it("scopes the draft per node", async () => {
     const abort = vi.fn().mockResolvedValue(undefined);
     await stopAndRestore(api(abort), "c1", "m1", [queued(1, "first")]);
     expect(loadDraft("m:m1:c1")).toBe("first");

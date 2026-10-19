@@ -2,7 +2,7 @@ const FAILURE_LIMIT = 5;
 const WINDOW_MS = 60_000;
 const LOCK_MS = 10 * 60_000;
 
-/** Failed machine-secret checks per PROXY peer; the guard asks `locked` before it hashes anything. */
+/** Failed node-secret checks per PROXY peer; the guard asks `locked` before it hashes anything. */
 export interface LinkLimits {
   locked(peer: string): boolean;
   recordFailure(peer: string): void;

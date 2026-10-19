@@ -4,14 +4,14 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, useLocation } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { apiOfMachine } from "@/machines/machine-apis";
-import { MachineApiProvider } from "@/machines/machine-context";
+import { apiOfNode } from "@/nodes/node-apis";
+import { NodeApiProvider } from "@/nodes/node-context";
 import { loadDraft } from "../composer/drafts";
 import { MessageMenu } from "../messages/MessageMenu";
 import type { MessageEntry } from "../messages/message-actions";
 import { TurnChanges } from "./TurnChanges";
 
-const api = apiOfMachine();
+const api = apiOfNode();
 
 vi.mock("@/lib/api", () => ({
   api: {
@@ -39,10 +39,10 @@ function renderWithApp(ui: React.ReactNode) {
   return render(
     <MemoryRouter>
       <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-        <MachineApiProvider>
+        <NodeApiProvider>
           {ui}
           <Location />
-        </MachineApiProvider>
+        </NodeApiProvider>
       </QueryClientProvider>
     </MemoryRouter>,
   );

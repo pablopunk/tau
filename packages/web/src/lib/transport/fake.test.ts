@@ -75,26 +75,26 @@ describe("fake transport", () => {
   });
 });
 
-describe("fake transport: machines (Stage 2)", () => {
-  it("lists two machines, one online, and renames and disconnects through the routes", async () => {
-    const hub = createFakeCore({ configured: true, machines: true });
+describe("fake transport: nodes (Stage 2)", () => {
+  it("lists two nodes, one online, and renames and disconnects through the routes", async () => {
+    const hub = createFakeCore({ configured: true, nodes: true });
     const api = createApi(createFakeTransport(hub));
     await until(() => true);
-    const machines = await api.machines.list();
-    expect(machines.map(({ name, status }) => [name, status])).toEqual([
+    const nodes = await api.nodes.list();
+    expect(nodes.map(({ name, status }) => [name, status])).toEqual([
       ["Homelab", "online"],
       ["Work laptop", "offline"],
     ]);
-    await api.machines.rename(machines[0]?.id ?? "", "NAS");
-    expect((await api.machines.list())[0]?.name).toBe("NAS");
-    expect(await api.machines.hubLink()).toMatchObject({ state: "none" });
-    await api.machines.disconnect(machines[1]?.id ?? "");
-    expect(await api.machines.list()).toHaveLength(1);
+    await api.nodes.rename(nodes[0]?.id ?? "", "NAS");
+    expect((await api.nodes.list())[0]?.name).toBe("NAS");
+    expect(await api.nodes.hubLink()).toMatchObject({ state: "none" });
+    await api.nodes.disconnect(nodes[1]?.id ?? "");
+    expect(await api.nodes.list()).toHaveLength(1);
   });
 
-  it("keeps each machine's data apart from the hub's and from the other machine", async () => {
-    const hub = createFakeCore({ configured: true, machines: true });
-    const [first, second] = [...hub.machineCores.values()];
+  it("keeps each node's data apart from the hub's and from the other node", async () => {
+    const hub = createFakeCore({ configured: true, nodes: true });
+    const [first, second] = [...hub.nodeCores.values()];
     await first?.projects.add({ path: "/Users/demo/project" });
     expect(await first?.projects.list()).toHaveLength(2);
     expect(await second?.projects.list()).toHaveLength(1);

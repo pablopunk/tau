@@ -2,7 +2,7 @@ import {
   API_PREFIX,
   AppError,
   ERROR_STATUS,
-  MACHINE_LINK_PATH,
+  NODE_LINK_PATH,
   PAIR_PAGE_PATH,
   routes,
   toErrorBody,
@@ -55,7 +55,7 @@ export function bearerOf(request: FastifyRequest): string | undefined {
   return BEARER.exec(request.headers.authorization ?? "")?.[1];
 }
 
-/** Exactly `GET /api/machines/link` with `Upgrade: websocket`: the only place a machine secret is looked at. */
-export function isMachineLink(request: FastifyRequest): boolean {
-  return request.method === "GET" && pathOf(request) === MACHINE_LINK_PATH && isWebSocketUpgrade(request);
+/** Exactly `GET /api/nodes/link` with `Upgrade: websocket`: the only place a node secret is looked at. */
+export function isNodeLink(request: FastifyRequest): boolean {
+  return request.method === "GET" && pathOf(request) === NODE_LINK_PATH && isWebSocketUpgrade(request);
 }

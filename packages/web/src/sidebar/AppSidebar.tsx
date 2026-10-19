@@ -1,4 +1,4 @@
-import type { Machine } from "@tau/protocol";
+import type { Node } from "@tau/protocol";
 import { FoldersIcon, ListIcon, MessageSquarePlusIcon, SettingsIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
@@ -18,12 +18,12 @@ import {
 import { TauLogo } from "@/components/ui/tau-logo";
 import { newThreadPath } from "@/lib/paths";
 import type { SidebarMode } from "@/lib/preferences";
-import { MachineProvider, useMachines } from "@/machines";
-import { isUsable } from "@/machines/machine-text";
-import { useHubName } from "@/machines/use-machine-avatar";
-import { MachineGroup } from "./MachineGroup";
-import { MachineSection } from "./MachineSection";
-import { OfflineMachineSection } from "./OfflineMachineSection";
+import { NodeProvider, useNodes } from "@/nodes";
+import { isUsable } from "@/nodes/node-text";
+import { useHubName } from "@/nodes/use-node-avatar";
+import { NodeGroup } from "./NodeGroup";
+import { NodeSection } from "./NodeSection";
+import { OfflineNodeSection } from "./OfflineNodeSection";
 import { useSidebarMode } from "./use-sidebar-preferences";
 
 const MODE_OPTIONS = [
@@ -31,7 +31,7 @@ const MODE_OPTIONS = [
   { value: "projects", label: "Projects", icon: <FoldersIcon /> },
 ] as const satisfies readonly { value: SidebarMode; label: string; icon: React.ReactNode }[];
 
-const sameMachine = (open: string | undefined, machineId: string | undefined) => open === machineId;
+const sameNode = (open: string | undefined, nodeId: string | undefined) => open === nodeId;
 
 function useNow(): number {
   const [now, setNow] = useState(() => Date.now());
@@ -42,50 +42,50 @@ function useNow(): number {
   return now;
 }
 
-function RemoteGroup({ machine, mode }: { machine: Machine; mode: SidebarMode }) {
+function RemoteGroup({ node, mode }: { node: Node; mode: SidebarMode }) {
   const open = useOpenConversation();
   const navigate = useNavigate();
   const now = useNow();
-  const active = sameMachine(open.machineId, machine.id);
+  const active = sameNode(open.nodeId, node.id);
   return (
-    <MachineGroup machine={machine} name={machine.name}>
-      {isUsable(machine) ? (
-        <MachineProvider machineId={machine.id}>
-          <MachineSection
+    <NodeGroup node={node} name={node.name}>
+      {isUsable(node) ? (
+        <NodeProvider nodeId={node.id}>
+          <NodeSection
             mode={mode}
             activeConversationId={active ? open.conversationId : undefined}
             onProjectRemoved={(removedId) => active && removedId === open.projectId && navigate("/")}
           />
-        </MachineProvider>
+        </NodeProvider>
       ) : (
-        <OfflineMachineSection machine={machine} now={now} />
+        <OfflineNodeSection node={node} now={now} />
       )}
-    </MachineGroup>
+    </NodeGroup>
   );
 }
 
-function MachineSections({ mode }: { mode: SidebarMode }) {
-  const { machines } = useMachines();
+function NodeSections({ mode }: { mode: SidebarMode }) {
+  const { nodes } = useNodes();
   const hubName = useHubName();
   const open = useOpenConversation();
   const navigate = useNavigate();
   const local = (
-    <MachineSection
+    <NodeSection
       mode={mode}
-      activeConversationId={sameMachine(open.machineId, undefined) ? open.conversationId : undefined}
+      activeConversationId={sameNode(open.nodeId, undefined) ? open.conversationId : undefined}
       onProjectRemoved={(removedId) =>
-        open.machineId === undefined && removedId === open.projectId && navigate("/")
+        open.nodeId === undefined && removedId === open.projectId && navigate("/")
       }
     />
   );
-  if (machines.length === 0) return local;
+  if (nodes.length === 0) return local;
   return (
     <>
-      <MachineGroup machine={undefined} name={hubName} local>
+      <NodeGroup node={undefined} name={hubName} local>
         {local}
-      </MachineGroup>
-      {machines.map((machine) => (
-        <RemoteGroup key={machine.id} machine={machine} mode={mode} />
+      </NodeGroup>
+      {nodes.map((node) => (
+        <RemoteGroup key={node.id} node={node} mode={mode} />
       ))}
     </>
   );
@@ -116,7 +116,7 @@ export function AppSidebar() {
         </div>
       </SidebarHeader>
       <SidebarContent>
-        <MachineSections mode={mode} />
+        <NodeSections mode={mode} />
       </SidebarContent>
       <SidebarFooter>
         <Button variant="ghost" className="justify-start" onClick={openSettings}>

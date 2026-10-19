@@ -1,6 +1,6 @@
 import type { QueuedMessage } from "@tau/protocol";
 import type { Api } from "@/lib/api";
-import { scopeTarget } from "@/lib/machine-keys";
+import { scopeTarget } from "@/lib/node-keys";
 import { restoreQueuedToComposer } from "../composer/restore";
 
 /**
@@ -11,10 +11,10 @@ import { restoreQueuedToComposer } from "../composer/restore";
 export async function stopAndRestore(
   api: Api,
   conversationId: string,
-  machineId: string | undefined,
+  nodeId: string | undefined,
   queued: readonly QueuedMessage[],
 ): Promise<void> {
   const snapshot = [...queued];
   await api.conversations.abort(conversationId);
-  if (snapshot.length > 0) restoreQueuedToComposer(scopeTarget(conversationId, machineId), snapshot);
+  if (snapshot.length > 0) restoreQueuedToComposer(scopeTarget(conversationId, nodeId), snapshot);
 }

@@ -125,10 +125,10 @@ export const SETTINGS_INDEX: readonly SettingEntry[] = [
     keywords: ["sessions", "revoke", "sign out", "logout", "this device", "linked", "last seen"],
   },
   {
-    id: "machines",
-    section: "machines",
-    label: "Machines",
-    description: "This machine and the machines linked to it: rename, disconnect, open their settings.",
+    id: "nodes",
+    section: "nodes",
+    label: "Nodes",
+    description: "This node and the nodes linked to it: rename, disconnect, open their settings.",
     keywords: [
       "computers",
       "servers",
@@ -142,17 +142,17 @@ export const SETTINGS_INDEX: readonly SettingEntry[] = [
     ],
   },
   {
-    id: "connect-machine",
-    section: "machines",
-    label: "Connect a machine",
+    id: "connect-node",
+    section: "nodes",
+    label: "Connect a node",
     description: "Link another tau with one command: a code, a link and a QR.",
-    keywords: ["link", "add machine", "tau connect", "pair", "code", "qr", "second computer", "server"],
+    keywords: ["link", "add node", "tau connect", "pair", "code", "qr", "second computer", "server"],
   },
   {
     id: "hub-link",
-    section: "machines",
+    section: "nodes",
     label: "Linked to a hub",
-    description: "When this machine is linked to another tau: the hub's name, its state, and Disconnect.",
+    description: "When this node is linked to another tau: the hub's name, its state, and Disconnect.",
     keywords: ["hub", "disconnect", "unlink", "tau disconnect", "unreachable", "update tau"],
   },
 ];

@@ -2,7 +2,7 @@ import { compareVersions } from "@tau/protocol";
 import { lifecycleFlagsOf } from "../lifecycle/flags";
 import { gatherStatus } from "../lifecycle/status";
 import { entryOfPackage, type InstallMethod, installMethodOf } from "./install-method";
-import { linkedMachinesLine } from "./machines-behind";
+import { linkedNodesLine } from "./nodes-behind";
 import { restartInNewBinary } from "./restart-step";
 import { hasRunningWork, runningWorkOf } from "./running-work";
 import type { UpdateDeps } from "./update-deps";
@@ -82,7 +82,7 @@ async function finish(
   const code = flags.noRestart
     ? noRestartNote(deps)
     : await restartInNewBinary(deps, { ...flags, packageDir: plan.packageDir, target, home });
-  if (code === 0) await machinesBehindNote(deps, home, target);
+  if (code === 0) await nodesBehindNote(deps, home, target);
   if (code === 0)
     deps.out(deps.hasHubFile(home) ? `${text.LINKED_NOTE}\n${text.LINKED_HUB_NOTE}` : text.LINKED_NOTE);
   return code;
@@ -93,9 +93,9 @@ function noRestartNote(deps: UpdateDeps): number {
   return 0;
 }
 
-async function machinesBehindNote(deps: UpdateDeps, home: string, latest: string): Promise<void> {
+async function nodesBehindNote(deps: UpdateDeps, home: string, latest: string): Promise<void> {
   try {
-    const line = linkedMachinesLine(await deps.linkedMachines?.(home), latest);
+    const line = linkedNodesLine(await deps.linkedNodes?.(home), latest);
     if (line) deps.out(line);
   } catch {
     // best effort
@@ -104,7 +104,7 @@ async function machinesBehindNote(deps: UpdateDeps, home: string, latest: string
 
 async function checkOnly(deps: UpdateDeps, home: string, current: string, latest: string): Promise<number> {
   deps.out(`${current} -> ${latest}`);
-  await machinesBehindNote(deps, home, latest);
+  await nodesBehindNote(deps, home, latest);
   return compareVersions(current, latest) < 0 ? EXIT_UPDATE_AVAILABLE : 0;
 }
 

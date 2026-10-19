@@ -5,7 +5,7 @@ import { useDevices, useMintPairing } from "@/lib/queries";
 
 const TICK_MS = 1000;
 
-/** The device that redeemed this code: a non-machine device created after the code was minted. */
+/** The device that redeemed this code: a non-node device created after the code was minted. */
 export function linkedDevice(
   devices: readonly Device[] | undefined,
   pairing: MintedPairing | null,

@@ -24,9 +24,9 @@ import { SidebarThreadRow } from "@/components/ui/sidebar-thread-row";
 import { StatusDot } from "@/components/ui/status-dot";
 import { TreeBranch, TreeToggle } from "@/components/ui/tree-branch";
 import { PendingApprovalBadge } from "@/conversation/PendingApprovalBadge";
-import { conversationPath, machineAssetUrl } from "@/lib/paths";
+import { conversationPath, nodeAssetUrl } from "@/lib/paths";
 import { queryKeys } from "@/lib/queries";
-import { useApi, useMachineId } from "@/machines/machine-context";
+import { useApi, useNodeId } from "@/nodes/node-context";
 import { conversationDot } from "./conversation-dot";
 import { DeleteConversationDialog } from "./DeleteConversationDialog";
 import { ForkBadge, isFork } from "./ForkBadge";
@@ -64,13 +64,13 @@ export function ThreadRow({
   last = false,
   branches,
 }: ThreadRowProps) {
-  const machineId = useMachineId();
+  const nodeId = useNodeId();
   const api = useApi();
   const [dialog, setDialog] = useState<"rename" | "delete" | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const title = conversation.title.trim() || "New thread";
   const archived = conversation.archivedAt !== null;
-  const dot = conversationDot(conversation, active, machineId);
+  const dot = conversationDot(conversation, active, nodeId);
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const { isMobile, setOpenMobile } = useSidebar();
@@ -101,7 +101,7 @@ export function ThreadRow({
       <ProjectIcon
         id={project.id}
         name={project.name}
-        iconUrl={project.iconUrl ? machineAssetUrl(project.iconUrl, machineId) : null}
+        iconUrl={project.iconUrl ? nodeAssetUrl(project.iconUrl, nodeId) : null}
         home={project.kind === "home"}
         tile={tile}
       />
@@ -133,7 +133,7 @@ export function ThreadRow({
             tooltip={tooltipOf(title, project, conversation)}
             link={
               <Link
-                to={conversationPath(conversation.projectId, conversation.id, machineId)}
+                to={conversationPath(conversation.projectId, conversation.id, nodeId)}
                 aria-current={active ? "page" : undefined}
                 onClick={() => isMobile && setOpenMobile(false)}
               />

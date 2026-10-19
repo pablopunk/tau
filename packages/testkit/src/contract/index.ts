@@ -17,9 +17,9 @@ import { goalCases } from "./goals";
 import { iconCases } from "./icons";
 import { lifecycleCases } from "./lifecycle";
 import { loginCases } from "./login";
-import { machinesCases } from "./machines";
 import { mcpCases } from "./mcp";
 import { monitorCases } from "./monitors";
+import { nodesCases } from "./nodes";
 import { processCases } from "./processes";
 import { projectCases } from "./projects";
 import { providerCases } from "./providers";
@@ -87,7 +87,7 @@ export function runCoreContract(
     claudeConnectorCases(makeTarget, test);
     accessCases(makeTarget, test);
     remoteCases(makeTarget, test);
-    machinesCases(makeTarget, test);
+    nodesCases(makeTarget, test);
     updatesCases(makeTarget, test);
   });
 }

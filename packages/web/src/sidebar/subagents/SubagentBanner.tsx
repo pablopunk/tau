@@ -1,14 +1,14 @@
 import { Link } from "react-router";
 import { conversationPath } from "@/lib/paths";
 import { useAllConversations } from "@/lib/queries";
-import { useMachineId } from "@/machines/machine-context";
+import { useNodeId } from "@/nodes/node-context";
 import { AgentStatusBadge } from "./AgentStatusBadge";
 import { agentTypeLabel, isRunningChild, modelWithLevel } from "./agent-meta";
 import { StopAgentButton } from "./StopAgentButton";
 import { useModelLabel } from "./use-model-label";
 
 export function SubagentBanner({ parentId, childId }: { parentId: string; childId?: string }) {
-  const machineId = useMachineId();
+  const nodeId = useNodeId();
   const all = useAllConversations().data;
   const modelLabel = useModelLabel();
   const parent = all?.find((item) => item.id === parentId);
@@ -19,7 +19,7 @@ export function SubagentBanner({ parentId, childId }: { parentId: string; childI
     <div className="flex items-center gap-2 border-b px-4 py-1.5 text-xs text-muted-foreground">
       <p className="min-w-0 flex-1 truncate">
         Subagent of{" "}
-        <Link className="underline" to={conversationPath(parent.projectId, parent.id, machineId)}>
+        <Link className="underline" to={conversationPath(parent.projectId, parent.id, nodeId)}>
           {parent.title.trim() || "New thread"}
         </Link>
         {child ? ` · ${agentTypeLabel(child.agentType)}` : null}

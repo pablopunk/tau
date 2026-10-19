@@ -4,14 +4,14 @@ import {
   alreadyLinkedRefusal,
   connectRefusal,
   type HubLink,
-  type Machine,
+  type Node,
   RedeemPairingResponseSchema,
 } from "@tau/protocol";
 import { Value } from "typebox/value";
-import { parseConnectArgs } from "../machines/connect-args";
-import { type AfterLink, type ConnectIo, terminalIo } from "../machines/connect-io";
-import { parseConnectTarget } from "../machines/connect-target";
-import { createHubFileStore } from "../machines/hub-file";
+import { parseConnectArgs } from "../nodes/connect-args";
+import { type AfterLink, type ConnectIo, terminalIo } from "../nodes/connect-io";
+import { parseConnectTarget } from "../nodes/connect-target";
+import { createHubFileStore } from "../nodes/hub-file";
 import { CliExit, failure, usageError } from "./cli-exit";
 import { callRoute, discoverServer, type Server } from "./client";
 import { type CommandEnv, processEnv } from "./command-env";
@@ -27,9 +27,10 @@ async function runningServer(env: CommandEnv): Promise<Server | undefined> {
   }
 }
 
-async function linkedMachineCount(server: Server | undefined, env: CommandEnv): Promise<number> {
-  if (server) return ((await callRoute(server, "listMachines", {}, env)) as Machine[]).length;
+async function linkedNodeCount(server: Server | undefined, env: CommandEnv): Promise<number> {
+  if (server) return ((await callRoute(server, "listNodes", {}, env)) as Node[]).length;
   try {
+    // The summaries directory keeps its on-disk name `machines` until MVP13 Step 1.
     return (await readdir(join(env.home, "machines"))).length;
   } catch {
     return 0;
@@ -51,12 +52,12 @@ async function redeem(hubUrl: string, code: string, deviceName: string, env: Com
     throw failure(
       response.status === 429
         ? "Too many tries. Wait a few minutes and make a new code on the hub."
-        : "The hub did not accept that code. It may have expired: make a new one in Settings → Machines.",
+        : "The hub did not accept that code. It may have expired: make a new one in Settings → Nodes.",
     );
   }
   const body: unknown = await response.json().catch(() => undefined);
   if (!Value.Check(RedeemPairingResponseSchema, body) || body.secret === undefined) {
-    throw failure("The hub answered without a machine secret. Make a new link code (kind: machine).");
+    throw failure("The hub answered without a node secret. Make a new link code (kind: node).");
   }
   return body.secret;
 }
@@ -70,13 +71,13 @@ async function startAfterLink(choice: AfterLink, env: CommandEnv): Promise<void>
     const { runServiceCommand } = await import("../service/service-command");
     await runServiceCommand(["install", "--home", env.home]);
   } else {
-    env.stdout("Run `tau` (or `tau service install`) to bring this machine online.");
+    env.stdout("Run `tau` (or `tau service install`) to bring this node online.");
   }
 }
 
 /**
  * `tau connect <link | code --hub <url>> [--name <label>] [--yes]`: redeem a link code on a hub and keep its
- * machine secret in `hub.json`. A running server picks the file up on its own.
+ * node secret in `hub.json`. A running server picks the file up on its own.
  */
 export async function executeConnect(
   argv: readonly string[],
@@ -89,15 +90,15 @@ export async function executeConnect(
   const refusal = alreadyLinkedRefusal((await hubFile.read()) !== undefined);
   if (refusal) throw usageError(refusal);
   const server = await runningServer(env);
-  const loop = connectRefusal(await linkedMachineCount(server, env));
+  const loop = connectRefusal(await linkedNodeCount(server, env));
   if (loop) throw usageError(loop);
 
   const hubName = target.hubName ?? new URL(target.hubUrl).host;
-  if (!args.yes && !(await io.confirm(`Link this machine to ${hubName} (${target.hubUrl})?`))) {
+  if (!args.yes && !(await io.confirm(`Link this node to ${hubName} (${target.hubUrl})?`))) {
     throw new CliExit(1, "Not linked.");
   }
-  const machineSecret = await redeem(target.hubUrl, target.code, args.name, env);
-  await hubFile.write({ hubUrl: target.hubUrl, machineSecret, name: hubName, machineName: args.name });
+  const nodeSecret = await redeem(target.hubUrl, target.code, args.name, env);
+  await hubFile.write({ hubUrl: target.hubUrl, nodeSecret, name: hubName, nodeName: args.name });
   env.stdout(`Linked to ${hubName} as "${args.name}".`);
   if (server) return env.stdout("The running tau connects within a few seconds.");
   await startAfterLink(args.yes ? "none" : await io.chooseStart(), env);
@@ -117,7 +118,7 @@ export async function executeDisconnect(argv: readonly string[], env: CommandEnv
   await hubFile.delete();
   if (!file) return env.stdout("This tau is not linked to a hub.");
   env.stdout(
-    `Disconnected from ${file.name}. Remove this machine in the hub's Settings → Machines to revoke it there.`,
+    `Disconnected from ${file.name}. Remove this node in the hub's Settings → Nodes to revoke it there.`,
   );
 }
 

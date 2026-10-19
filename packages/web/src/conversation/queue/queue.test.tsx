@@ -3,7 +3,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { toast } from "sonner";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { MachineApiProvider } from "@/machines/machine-context";
+import { NodeApiProvider } from "@/nodes/node-context";
 import { loadDraft } from "../composer/drafts";
 import { BusyModeHint } from "./BusyModeHint";
 import { QueuedItemActions } from "./QueuedItemActions";
@@ -29,9 +29,9 @@ describe("<QueuedItemActions>", () => {
   it("shows the mode and cancels the queued item", async () => {
     mocks.cancelQueued.mockResolvedValue({ cancelled: true });
     render(
-      <MachineApiProvider>
+      <NodeApiProvider>
         <QueuedItemActions conversationId="c1" item={item} />
-      </MachineApiProvider>,
+      </NodeApiProvider>,
     );
     expect(screen.getByText("Queued")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
@@ -43,9 +43,9 @@ describe("<QueuedItemActions>", () => {
   it("labels a steer item and toasts when the item was already delivered", async () => {
     mocks.cancelQueued.mockResolvedValue({ cancelled: false });
     render(
-      <MachineApiProvider>
+      <NodeApiProvider>
         <QueuedItemActions conversationId="c1" item={{ ...item, mode: "steer" }} />
-      </MachineApiProvider>,
+      </NodeApiProvider>,
     );
     expect(screen.getByText("Steering")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
@@ -58,9 +58,9 @@ describe("<BusyModeHint>", () => {
   const renderHint = (busy: boolean) =>
     render(
       <QueryClientProvider client={new QueryClient()}>
-        <MachineApiProvider>
+        <NodeApiProvider>
           <BusyModeHint busy={busy} />
-        </MachineApiProvider>
+        </NodeApiProvider>
       </QueryClientProvider>,
     );
 

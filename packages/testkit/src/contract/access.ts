@@ -75,28 +75,28 @@ export function accessCases(make: MakeContractTarget, test: CaseRunner): void {
       await rejectsWithCode(core.access.renameDevice(second.deviceId, "Gone"), "not_found");
     });
 
-    test("[access] a machine secret is not a device secret, and the other way round", async () => {
+    test("[access] a node secret is not a device secret, and the other way round", async () => {
       const { core } = target;
       const device = await link(target, "Safari on iPhone");
-      const machine = await link(target, "homelab", "machine");
-      expect(machine.kind).toBe("machine");
-      expect(await core.access.verifyMachine(machine.secret)).toEqual({ deviceId: machine.deviceId });
-      expect(await core.access.verifyDevice(machine.secret)).toBeUndefined();
-      expect(await core.access.verifyMachine(device.secret)).toBeUndefined();
-      const listed = await core.access.listDevices(machine.deviceId);
-      expect(listed.find((entry) => entry.id === machine.deviceId)).toMatchObject({
+      const node = await link(target, "homelab", "machine");
+      expect(node.kind).toBe("machine");
+      expect(await core.access.verifyNode(node.secret)).toEqual({ deviceId: node.deviceId });
+      expect(await core.access.verifyDevice(node.secret)).toBeUndefined();
+      expect(await core.access.verifyNode(device.secret)).toBeUndefined();
+      const listed = await core.access.listDevices(node.deviceId);
+      expect(listed.find((entry) => entry.id === node.deviceId)).toMatchObject({
         kind: "machine",
         current: false,
       });
     });
 
-    test("[access] sign out all drops devices but keeps machines", async () => {
+    test("[access] sign out all drops devices but keeps nodes", async () => {
       const { core } = target;
       const device = await link(target);
-      const machine = await link(target, "homelab", "machine");
+      const node = await link(target, "homelab", "machine");
       await core.access.signOutAll();
       expect(await core.access.verifyDevice(device.secret)).toBeUndefined();
-      expect(await core.access.verifyMachine(machine.secret)).toBeDefined();
+      expect(await core.access.verifyNode(node.secret)).toBeDefined();
     });
 
     test("[access] a wrong code is a generic 401, and five failures lock the peer", async () => {

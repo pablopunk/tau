@@ -49,12 +49,12 @@ export function projectSections(
 
 export const homeRelative = (path: string): string => path.replace(/^(\/Users|\/home)\/[^/]+/, "~");
 
-/** The project in the URL, but only when the URL belongs to `machineId` (`undefined`: the hub's own machine). */
-export const projectIdFromPath = (pathname: string, machineId?: string): string | undefined => {
+/** The project in the URL, but only when the URL belongs to `nodeId` (`undefined`: the hub's own node). */
+export const projectIdFromPath = (pathname: string, nodeId?: string): string | undefined => {
   const match =
-    machineId === undefined
+    nodeId === undefined
       ? /^\/p\/([^/]+)/.exec(pathname)
-      : new RegExp(`^/m/${encodeURIComponent(machineId)}/p/([^/]+)`).exec(pathname);
+      : new RegExp(`^/n/${encodeURIComponent(nodeId)}/p/([^/]+)`).exec(pathname);
   const encoded = match?.[1];
   return encoded === undefined ? undefined : decodeURIComponent(encoded);
 };

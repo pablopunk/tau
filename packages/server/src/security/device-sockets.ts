@@ -8,10 +8,10 @@ const OWNER = "owner";
 export interface DeviceSockets {
   /** Forgets the socket when it closes. A socket of an empty `deviceId` is closed at once and `add` answers false: callers must not attach. */
   add(deviceId: string, socket: WebSocket): boolean;
-  /** A browser socket piped to `machineId` (hub-side proxy). Like `add`, plus `closeMachine`. */
-  addProxied(deviceId: string, machineId: string, socket: WebSocket): boolean;
-  /** Closes every proxied socket of a machine (it disconnected or was revoked). */
-  closeMachine(machineId: string): void;
+  /** A browser socket piped to `nodeId` (hub-side proxy). Like `add`, plus `closeNode`. */
+  addProxied(deviceId: string, nodeId: string, socket: WebSocket): boolean;
+  /** Closes every proxied socket of a node (it disconnected or was revoked). */
+  closeNode(nodeId: string): void;
   closeDevice(deviceId: string): void;
   /** Closes every socket whose device is not in `liveIds` (the owner is never closed). */
   closeExcept(liveIds: ReadonlySet<string>): void;
@@ -20,24 +20,24 @@ export interface DeviceSockets {
 
 export function createDeviceSockets(): DeviceSockets {
   const byDevice = new Map<string, Set<WebSocket>>();
-  const byMachine = new Map<string, Set<WebSocket>>();
+  const byNode = new Map<string, Set<WebSocket>>();
   const closeAll = (sockets: Iterable<WebSocket>) => {
     for (const socket of sockets) socket.close(POLICY_VIOLATION, "revoked");
   };
   const self: DeviceSockets = {
-    addProxied(deviceId, machineId, socket) {
+    addProxied(deviceId, nodeId, socket) {
       if (!self.add(deviceId, socket)) return false;
-      const set = byMachine.get(machineId) ?? new Set<WebSocket>();
+      const set = byNode.get(nodeId) ?? new Set<WebSocket>();
       set.add(socket);
-      byMachine.set(machineId, set);
+      byNode.set(nodeId, set);
       socket.once("close", () => {
         set.delete(socket);
-        if (set.size === 0) byMachine.delete(machineId);
+        if (set.size === 0) byNode.delete(nodeId);
       });
       return true;
     },
-    closeMachine(machineId) {
-      closeAll([...(byMachine.get(machineId) ?? [])]);
+    closeNode(nodeId) {
+      closeAll([...(byNode.get(nodeId) ?? [])]);
     },
     add(deviceId, socket) {
       if (deviceId === "") {

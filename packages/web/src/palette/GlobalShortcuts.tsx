@@ -6,10 +6,10 @@ import { useAdjacentThread } from "./adjacent-thread";
 
 export function GlobalShortcuts() {
   const navigate = useNavigate();
-  const { projectId, machineId } = useOpenConversation();
+  const { projectId, nodeId } = useOpenConversation();
   const { go } = useAdjacentThread();
   useHotkey("mod+alt+arrowdown", () => go(1));
   useHotkey("mod+alt+arrowup", () => go(-1));
-  useHotkey("mod+shift+o", () => navigate(newThreadPath(projectId, machineId)));
+  useHotkey("mod+shift+o", () => navigate(newThreadPath(projectId, nodeId)));
   return null;
 }

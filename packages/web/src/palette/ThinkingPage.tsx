@@ -1,9 +1,9 @@
 import { CommandGroup, CommandItem } from "@/components/ui/command";
-import { useApi } from "@/machines/machine-context";
+import { useApi } from "@/nodes/node-context";
 import { attempt } from "./attempt";
 import { useThreadAgent } from "./use-thread-agent";
 
-/** The palette's thinking level page for the open thread. Must render under that thread's machine provider. */
+/** The palette's thinking level page for the open thread. Must render under that thread's node provider. */
 export function ThinkingPage({
   conversationId,
   run,

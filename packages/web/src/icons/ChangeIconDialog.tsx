@@ -16,9 +16,9 @@ import { DropZone } from "@/components/ui/drop-zone";
 import { ImageThumbnail } from "@/components/ui/image-thumbnail";
 import { Input } from "@/components/ui/input";
 import { ProjectIcon } from "@/components/ui/project-icon";
-import { machineAssetUrl } from "@/lib/paths";
+import { nodeAssetUrl } from "@/lib/paths";
 import { queryKeys, useIconCandidates } from "@/lib/queries";
-import { useApi, useMachineId } from "@/machines/machine-context";
+import { useApi, useNodeId } from "@/nodes/node-context";
 import { renderIconPng } from "./render-icon-png";
 
 const MAX_CANDIDATES = 12;
@@ -32,7 +32,7 @@ const fetchBlob = async (url: string) => {
 /** Mount it only while open so its state resets each time. */
 export function ChangeIconDialog({ project, onClose }: { project: Project; onClose: () => void }) {
   const api = useApi();
-  const machineId = useMachineId();
+  const nodeId = useNodeId();
   const inputId = useId();
   const queryClient = useQueryClient();
   const { run, error, pending } = useSubmit();
@@ -63,7 +63,7 @@ export function ChangeIconDialog({ project, onClose }: { project: Project; onClo
           <ProjectIcon
             id={project.id}
             name={project.name}
-            iconUrl={project.iconUrl ? machineAssetUrl(project.iconUrl, machineId) : null}
+            iconUrl={project.iconUrl ? nodeAssetUrl(project.iconUrl, nodeId) : null}
             tile={48}
           />
           <DropZone onFiles={chooseFiles} disabled={pending} label="Drop an image" className="flex-1">
@@ -87,9 +87,9 @@ export function ChangeIconDialog({ project, onClose }: { project: Project; onClo
             {candidates.data.slice(0, MAX_CANDIDATES).map((candidate) => (
               <ImageThumbnail
                 key={candidate.name}
-                src={machineAssetUrl(candidate.url, machineId)}
+                src={nodeAssetUrl(candidate.url, nodeId)}
                 alt={candidate.name}
-                onOpen={() => void choose(() => fetchBlob(machineAssetUrl(candidate.url, machineId)))}
+                onOpen={() => void choose(() => fetchBlob(nodeAssetUrl(candidate.url, nodeId)))}
               />
             ))}
           </div>

@@ -58,7 +58,7 @@ const STATIC_NOTE: Partial<Record<ClaudeCliStatus["state"], string>> = {
   needs_notice: "Claude Agent SDK, under your own login.",
   missing: "Install the claude CLI and log in.",
   sdk_missing: "tau installs the Claude Agent SDK on first use.",
-  logged_out: "Run `claude`, then `/login`, on this machine.",
+  logged_out: "Run `claude`, then `/login`, on this node.",
   not_plan: "The CLI uses an API key. Use the Anthropic provider.",
 };
 

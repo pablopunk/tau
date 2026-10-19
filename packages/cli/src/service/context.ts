@@ -2,7 +2,7 @@ import { homedir, release, userInfo } from "node:os";
 import { join } from "node:path";
 import { type Runner, realRunner } from "./runner";
 
-/** Everything the service code reads from the machine, so tests can fake it. */
+/** Everything the service code reads from the node, so tests can fake it. */
 export interface ServiceContext {
   readonly platform: NodeJS.Platform;
   readonly uid: number;

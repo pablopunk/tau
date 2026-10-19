@@ -13,7 +13,7 @@ import {
 import { useNow } from "@/conversation/use-now";
 import { errorMessage } from "@/lib/error-message";
 import { useGoal } from "@/lib/queries";
-import { useApi } from "@/machines/machine-context";
+import { useApi } from "@/nodes/node-context";
 import { goalStatusFields, stateLabel } from "./goal-status";
 
 const ICONS: Record<GoalState, typeof TargetIcon> = {

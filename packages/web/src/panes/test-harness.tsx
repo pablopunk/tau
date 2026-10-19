@@ -7,7 +7,7 @@ import { LiveClientProvider } from "@/conversation/live-client-context";
 import { createStubLiveClient } from "@/conversation/test-utils";
 import { createFakeTransport } from "@/lib/transport/fake";
 import type { Transport } from "@/lib/transport/types";
-import { MachineApiProvider } from "@/machines/machine-context";
+import { NodeApiProvider } from "@/nodes/node-context";
 import { ThreadTerminalButton } from "./TerminalButton";
 import { ThreadPanes } from "./ThreadPanes";
 
@@ -57,7 +57,7 @@ export function renderPanes(path: string, core?: FakeCore) {
   return render(
     <MemoryRouter initialEntries={[path]}>
       <QueryClientProvider client={client}>
-        <MachineApiProvider>
+        <NodeApiProvider>
           <LiveClientProvider client={liveClientOf(core)}>
             <TooltipProvider>
               <Where />
@@ -66,7 +66,7 @@ export function renderPanes(path: string, core?: FakeCore) {
               </Routes>
             </TooltipProvider>
           </LiveClientProvider>
-        </MachineApiProvider>
+        </NodeApiProvider>
       </QueryClientProvider>
     </MemoryRouter>,
   );

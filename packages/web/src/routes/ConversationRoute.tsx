@@ -1,26 +1,26 @@
 import { useMatch, useParams } from "react-router";
 import { MarkSeenWhileOpen } from "@/activity";
 import { Conversation } from "@/conversation";
-import { useMachines } from "@/machines";
-import { MachineScope } from "@/machines/MachineScope";
-import { isUsable } from "@/machines/machine-text";
+import { useNodes } from "@/nodes";
+import { NodeScope } from "@/nodes/NodeScope";
+import { isUsable } from "@/nodes/node-text";
 import { ThreadPanes } from "@/panes";
-import { MachineOffline, MachineUnknown } from "./MachineOffline";
 import { NewThreadPage } from "./NewThreadPage";
-import { useMachineTitle } from "./use-machine-title";
+import { NodeOffline, NodeUnknown } from "./NodeOffline";
+import { useNodeTitle } from "./use-node-title";
 
 const LOCAL_TERMINAL = "/p/:projectId/c/:conversationId/terminal/:terminalId";
-const MACHINE_TERMINAL = "/m/:machineId/p/:projectId/c/:conversationId/terminal/:terminalId";
+const NODE_TERMINAL = "/n/:nodeId/p/:projectId/c/:conversationId/terminal/:terminalId";
 
 function useTerminalId(): string | undefined {
   const local = useMatch(LOCAL_TERMINAL)?.params.terminalId;
-  const remote = useMatch(MACHINE_TERMINAL)?.params.terminalId;
+  const remote = useMatch(NODE_TERMINAL)?.params.terminalId;
   return local ?? remote;
 }
 
 function Thread({ projectId, conversationId }: { projectId: string; conversationId: string }) {
   const terminalId = useTerminalId();
-  useMachineTitle(conversationId);
+  useNodeTitle(conversationId);
   return (
     <>
       <MarkSeenWhileOpen />
@@ -31,16 +31,16 @@ function Thread({ projectId, conversationId }: { projectId: string; conversation
   );
 }
 
-function RemoteThread({ machineId, projectId, conversationId }: ThreadIds & { machineId: string }) {
-  const { machines, isLoading } = useMachines();
-  const machine = machines.find((candidate) => candidate.id === machineId);
+function RemoteThread({ nodeId, projectId, conversationId }: ThreadIds & { nodeId: string }) {
+  const { nodes, isLoading } = useNodes();
+  const node = nodes.find((candidate) => candidate.id === nodeId);
   if (isLoading) return null;
-  if (!machine) return <MachineUnknown />;
-  if (!isUsable(machine)) return <MachineOffline machine={machine} />;
+  if (!node) return <NodeUnknown />;
+  if (!isUsable(node)) return <NodeOffline node={node} />;
   return (
-    <MachineScope machineId={machineId}>
+    <NodeScope nodeId={nodeId}>
       <Thread projectId={projectId} conversationId={conversationId} />
-    </MachineScope>
+    </NodeScope>
   );
 }
 
@@ -49,10 +49,10 @@ interface ThreadIds {
   conversationId: string;
 }
 
-/** `/p/:projectId/c/:conversationId[/terminal[/:id]]` and `/m/:machineId/...`: the same page, scoped to a machine. */
+/** `/p/:projectId/c/:conversationId[/terminal[/:id]]` and `/n/:nodeId/...`: the same page, scoped to a node. */
 export function ConversationRoute() {
-  const { machineId, projectId, conversationId } = useParams();
+  const { nodeId, projectId, conversationId } = useParams();
   if (!projectId || !conversationId) return <NewThreadPage />;
-  if (machineId === undefined) return <Thread projectId={projectId} conversationId={conversationId} />;
-  return <RemoteThread machineId={machineId} projectId={projectId} conversationId={conversationId} />;
+  if (nodeId === undefined) return <Thread projectId={projectId} conversationId={conversationId} />;
+  return <RemoteThread nodeId={nodeId} projectId={projectId} conversationId={conversationId} />;
 }

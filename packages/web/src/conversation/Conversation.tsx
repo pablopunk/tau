@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { GoalChip } from "@/goal/GoalChip";
 import { useAllConversations, useModels, useSettings } from "@/lib/queries";
-import { useApi, useMachineId } from "@/machines/machine-context";
+import { useApi, useNodeId } from "@/nodes/node-context";
 import { ThreadTerminalButton } from "@/panes";
 import { NameDialog } from "@/sidebar/NameDialog";
 import { SubagentBanner } from "@/sidebar/subagents/SubagentBanner";
@@ -70,7 +70,7 @@ function ConversationPanel({ id }: ConversationProps) {
   const state = useConversationView(id);
   const actions = useConversationActions(id);
   const api = useApi();
-  const machineId = useMachineId();
+  const nodeId = useNodeId();
   const { scrollRef, contentRef, atBottom, onScroll, scrollToBottom } = useStickToBottom();
   const models = useModels().data;
   const summary = useAllConversations().data?.find((item) => item.id === id);
@@ -79,10 +79,7 @@ function ConversationPanel({ id }: ConversationProps) {
   const view = state.status === "ready" ? state.view : undefined;
   const busy = state.status === "ready" && readLive(state.view).busy;
   const queued = view ? readLive(view).queued : [];
-  const handleStop = useCallback(
-    () => stopAndRestore(api, id, machineId, queued),
-    [api, id, machineId, queued],
-  );
+  const handleStop = useCallback(() => stopAndRestore(api, id, nodeId, queued), [api, id, nodeId, queued]);
   const messageMode = useSettings().data?.messageMode;
   const whenBusy = messageMode ? whenBusyOf(messageMode) : undefined;
   const parentId = summary?.parentId ?? null;

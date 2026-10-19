@@ -4,18 +4,18 @@ import { join } from "node:path";
 import type { ServiceContext } from "./context";
 import { createFakeRunner, type FakeRunner } from "./fake-runner";
 
-export interface TestMachine {
+export interface TestNode {
   readonly context: ServiceContext;
   readonly runner: FakeRunner;
   readonly osHome: string;
   readonly tauHome: string;
 }
 
-/** A fake machine in a temp dir: nothing here touches the real OS or `~/.tau`. */
-export function createTestMachine(
+/** A fake node in a temp dir: nothing here touches the real OS or `~/.tau`. */
+export function createTestNode(
   overrides: Partial<ServiceContext> = {},
   respond?: Parameters<typeof createFakeRunner>[0],
-): TestMachine {
+): TestNode {
   const root = mkdtempSync(join(tmpdir(), "tau-service-"));
   const osHome = join(root, "user");
   const runner = createFakeRunner(respond);

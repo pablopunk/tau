@@ -9,7 +9,7 @@ import { SidebarProvider } from "@/components/ui/sidebar";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { createApi } from "@/lib/api";
 import { createFakeTransport } from "@/lib/transport/fake";
-import { MachineApiProvider } from "@/machines/machine-context";
+import { NodeApiProvider } from "@/nodes/node-context";
 import { CommandPalette } from "@/palette/CommandPalette";
 import { SECTION_BODIES } from "./section-bodies";
 import { SETTINGS_SECTIONS } from "./sections";
@@ -34,7 +34,7 @@ function renderApp(initial: string, extra?: React.ReactNode) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={client}>
-      <MachineApiProvider>
+      <NodeApiProvider>
         <MemoryRouter initialEntries={[initial]}>
           <TooltipProvider>
             <SettingsDialogProvider>
@@ -43,7 +43,7 @@ function renderApp(initial: string, extra?: React.ReactNode) {
             </SettingsDialogProvider>
           </TooltipProvider>
         </MemoryRouter>
-      </MachineApiProvider>
+      </NodeApiProvider>
     </QueryClientProvider>,
   );
 }
@@ -72,9 +72,9 @@ describe("settings index coverage", () => {
       const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
       const body = render(
         <QueryClientProvider client={client}>
-          <MachineApiProvider>
+          <NodeApiProvider>
             <MemoryRouter>{Body()}</MemoryRouter>
-          </MachineApiProvider>
+          </NodeApiProvider>
         </QueryClientProvider>,
       );
       await waitFor(() => {

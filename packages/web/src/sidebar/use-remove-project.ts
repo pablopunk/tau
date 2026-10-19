@@ -1,6 +1,6 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/queries";
-import { useApi } from "@/machines/machine-context";
+import { useApi } from "@/nodes/node-context";
 
 export function useRemoveProject(projectId: string, onRemoved: () => void) {
   const api = useApi();

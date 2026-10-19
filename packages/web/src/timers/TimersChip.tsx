@@ -14,7 +14,7 @@ import {
 import { Spinner } from "@/components/ui/spinner";
 import { errorMessage } from "@/lib/error-message";
 import { queryKeys, useAllConversations, useTimers } from "@/lib/queries";
-import { useApi } from "@/machines/machine-context";
+import { useApi } from "@/nodes/node-context";
 import { TimerRow } from "./TimerRow";
 import { useNow } from "./use-now";
 

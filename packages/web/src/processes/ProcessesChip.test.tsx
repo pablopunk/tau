@@ -3,11 +3,11 @@ import type { ProcessInfo } from "@tau/protocol";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { apiOfMachine } from "@/machines/machine-apis";
-import { MachineApiProvider } from "@/machines/machine-context";
+import { apiOfNode } from "@/nodes/node-apis";
+import { NodeApiProvider } from "@/nodes/node-context";
 import { ProcessesChip } from "./ProcessesChip";
 
-const api = apiOfMachine();
+const api = apiOfNode();
 
 const info = (overrides: Partial<ProcessInfo>): ProcessInfo => ({
   id: "p1",
@@ -25,9 +25,9 @@ const info = (overrides: Partial<ProcessInfo>): ProcessInfo => ({
 function renderChip() {
   return render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-      <MachineApiProvider>
+      <NodeApiProvider>
         <ProcessesChip conversationId="c1" />
-      </MachineApiProvider>
+      </NodeApiProvider>
     </QueryClientProvider>,
   );
 }

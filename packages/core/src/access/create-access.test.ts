@@ -110,16 +110,16 @@ describe("access", () => {
     expect(await seen()).toBe(clock.t);
   });
 
-  test("machine and device secrets do not cross, sign out keeps machines, revoke works", async () => {
+  test("node and device secrets do not cross, sign out keeps nodes, revoke works", async () => {
     const { access, link } = setup();
     const device = await link();
-    const machine = await link("machine", "homelab");
-    expect(await access.verifyDevice(machine.secret)).toBeUndefined();
-    expect(await access.verifyMachine(device.secret)).toBeUndefined();
+    const node = await link("machine", "homelab");
+    expect(await access.verifyDevice(node.secret)).toBeUndefined();
+    expect(await access.verifyNode(device.secret)).toBeUndefined();
     await access.signOutAll();
     expect(await access.verifyDevice(device.secret)).toBeUndefined();
-    expect(await access.verifyMachine(machine.secret)).toBeDefined();
-    await access.revokeDevice(machine.deviceId);
-    expect(await access.verifyMachine(machine.secret)).toBeUndefined();
+    expect(await access.verifyNode(node.secret)).toBeDefined();
+    await access.revokeDevice(node.deviceId);
+    expect(await access.verifyNode(node.secret)).toBeUndefined();
   });
 });

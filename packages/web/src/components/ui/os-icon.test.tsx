@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
-import { MachineAvatar } from "./machine-avatar"
+import { NodeAvatar } from "./node-avatar"
 import { OsIcon, osKindOf } from "./os-icon"
 
 describe("osKindOf", () => {
@@ -29,14 +29,14 @@ describe("OsIcon", () => {
   })
 })
 
-describe("MachineAvatar", () => {
+describe("NodeAvatar", () => {
   it.each([
     ["darwin arm64", "online", "macOS, online"],
     ["linux x64", "offline", "Linux, offline"],
     ["win32 x64", "reconnecting", "Windows, reconnecting"],
     ["", "update-required", "Unknown OS, update required"],
   ] as const)("%s %s is labelled %s", (os, status, label) => {
-    render(<MachineAvatar os={os} status={status} />)
+    render(<NodeAvatar os={os} status={status} />)
     expect(screen.getByRole("img", { name: label })).toHaveAttribute("data-status", status)
   })
 })

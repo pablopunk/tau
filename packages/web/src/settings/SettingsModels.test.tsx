@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { MachineApiProvider } from "@/machines/machine-context";
+import { NodeApiProvider } from "@/nodes/node-context";
 import { SettingsModels } from "./SettingsModels";
 
 const model = (modelId: string, thinkingLevels: string[]) => ({
@@ -48,9 +48,9 @@ describe("Settings models", () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     render(
       <QueryClientProvider client={client}>
-        <MachineApiProvider>
+        <NodeApiProvider>
           <SettingsModels />
-        </MachineApiProvider>
+        </NodeApiProvider>
       </QueryClientProvider>,
     );
     const pickers = await screen.findAllByRole("combobox", { name: "Thinking level" });

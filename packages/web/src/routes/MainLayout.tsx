@@ -1,23 +1,24 @@
 import { Route, Routes, useSearchParams } from "react-router";
 import { SidebarInset, SidebarProvider, SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
 import { preferences } from "@/lib/preferences";
-import { useMachines } from "@/machines";
-import { MachineScope } from "@/machines/MachineScope";
-import { isUsable } from "@/machines/machine-text";
+import { useNodes } from "@/nodes";
+import { NodeScope } from "@/nodes/NodeScope";
+import { isUsable } from "@/nodes/node-text";
 import { NotificationWatcher } from "@/notifications";
 import { CommandPalette, GlobalShortcuts } from "@/palette";
 import { AppSidebar } from "@/sidebar/AppSidebar";
 import { ConversationRoute } from "./ConversationRoute";
+import { LegacyNodeRedirect } from "./LegacyNodeRedirect";
 import { NewThreadPage } from "./NewThreadPage";
 
 function NewThreadRoute() {
-  const machineId = useSearchParams()[0].get("machine") ?? undefined;
-  const { machines } = useMachines();
-  const usable = machines.some((machine) => machine.id === machineId && isUsable(machine));
+  const nodeId = useSearchParams()[0].get("node") ?? undefined;
+  const { nodes } = useNodes();
+  const usable = nodes.some((node) => node.id === nodeId && isUsable(node));
   return (
-    <MachineScope machineId={usable ? machineId : undefined}>
+    <NodeScope nodeId={usable ? nodeId : undefined}>
       <NewThreadPage />
-    </MachineScope>
+    </NodeScope>
   );
 }
 
@@ -49,7 +50,8 @@ export function MainLayout() {
         <div className="flex min-h-0 flex-1 flex-col overflow-auto">
           <Routes>
             <Route path="/p/:projectId/c/:conversationId/*" element={<ConversationRoute />} />
-            <Route path="/m/:machineId/p/:projectId/c/:conversationId/*" element={<ConversationRoute />} />
+            <Route path="/n/:nodeId/p/:projectId/c/:conversationId/*" element={<ConversationRoute />} />
+            <Route path="/m/*" element={<LegacyNodeRedirect />} />
             <Route path="/new" element={<NewThreadRoute />} />
             <Route path="*" element={<NewThreadRoute />} />
           </Routes>

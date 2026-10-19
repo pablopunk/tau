@@ -4,7 +4,7 @@ export const DeviceKindSchema = Type.Union([
   Type.Literal("browser"),
   Type.Literal("phone"),
   Type.Literal("cli"),
-  Type.Literal("machine"),
+  Type.Literal("machine"), // stays "machine" until MVP13 Step 1
 ]);
 export type DeviceKind = Type.Static<typeof DeviceKindSchema>;
 
@@ -14,7 +14,7 @@ export const DeviceSchema = Type.Object({
   kind: DeviceKindSchema,
   createdAt: Type.Number(),
   lastSeenAt: Type.Number(),
-  /** The device that asks; always `false` for machines. */
+  /** The device that asks; always `false` for nodes. */
   current: Type.Boolean(),
   os: Type.Optional(Type.String()),
   tauVersion: Type.Optional(Type.String()),
@@ -22,7 +22,7 @@ export const DeviceSchema = Type.Object({
 });
 export type Device = Type.Static<typeof DeviceSchema>;
 
-export const PairingKindSchema = Type.Union([Type.Literal("device"), Type.Literal("machine")]);
+export const PairingKindSchema = Type.Union([Type.Literal("device"), Type.Literal("machine")]); // stays "machine" until MVP13 Step 1
 export type PairingKind = Type.Static<typeof PairingKindSchema>;
 
 /** The query of `POST /api/pair` (no body, so `tau pair new` needs none). */
@@ -60,7 +60,7 @@ export const RedeemPairingBodySchema = Type.Object({
 });
 export type RedeemPairingBody = Type.Static<typeof RedeemPairingBodySchema>;
 
-/** What the REST route answers. `secret` is present only for a `machine` pairing; a device gets its cookie. */
+/** What the REST route answers. `secret` is present only for a `node` pairing; a device gets its cookie. */
 export const RedeemPairingResponseSchema = Type.Object({
   deviceId: Type.String(),
   secret: Type.Optional(Type.String()),
@@ -77,7 +77,7 @@ export interface RedeemPairingInput extends RedeemPairingBody {
 export interface RedeemedPairing {
   readonly deviceId: string;
   readonly kind: PairingKind;
-  /** 32 random bytes, hex. Shown once: the server turns it into a cookie or a machine response. */
+  /** 32 random bytes, hex. Shown once: the server turns it into a cookie or a node response. */
   readonly secret: string;
 }
 

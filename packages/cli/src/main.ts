@@ -38,6 +38,8 @@ export const commandTable: Readonly<Record<string, CommandHandler>> = {
   skill: runSkill,
   help: runHelp,
   ...apiCommandHandlers,
+  /** `tau machines` is the 0.1.x spelling: an alias, not a command of its own (no help entry). */
+  machines: (argv) => runApiCommand("nodes", argv),
   pair: runPair,
   connect: runConnect,
   disconnect: runDisconnect,

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { toast } from "sonner";
 import { errorMessage } from "@/lib/error-message";
-import { useApi } from "@/machines/machine-context";
+import { useApi } from "@/nodes/node-context";
 import type { MessageAction, MessageActions, MessageEntry } from "../messages/message-actions";
 import { RewindDialog } from "./RewindDialog";
 import { useOpenThread } from "./use-open-thread";

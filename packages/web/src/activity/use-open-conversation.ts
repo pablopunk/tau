@@ -1,20 +1,20 @@
 import { useMatch } from "react-router";
-import { CONVERSATION_ROUTE, MACHINE_CONVERSATION_ROUTE } from "@/lib/paths";
+import { CONVERSATION_ROUTE, NODE_CONVERSATION_ROUTE } from "@/lib/paths";
 
 export interface OpenConversation {
-  /** Absent on the hub's own machine (URLs without `/m/<id>`). */
-  machineId?: string;
+  /** Absent on the hub's own node (URLs without `/n/<id>`). */
+  nodeId?: string;
   projectId?: string;
   conversationId?: string;
 }
 
-/** Also matches the pane suffixes: `…/terminal` and `…/terminal/:terminalId`, local and under `/m/:machineId`. */
+/** Also matches the pane suffixes: `…/terminal` and `…/terminal/:terminalId`, local and under `/n/:nodeId`. */
 export function useOpenConversation(): OpenConversation {
   const local = useMatch({ path: CONVERSATION_ROUTE, end: true })?.params;
-  const remote = useMatch({ path: MACHINE_CONVERSATION_ROUTE, end: true })?.params;
+  const remote = useMatch({ path: NODE_CONVERSATION_ROUTE, end: true })?.params;
   if (remote !== undefined) {
     return {
-      machineId: remote.machineId,
+      nodeId: remote.nodeId,
       projectId: remote.projectId,
       conversationId: remote.conversationId,
     };

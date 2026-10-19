@@ -4,7 +4,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { MachineApiProvider } from "@/machines/machine-context";
+import { NodeApiProvider } from "@/nodes/node-context";
 import { ProjectPicker } from "@/routes/ProjectPicker";
 import { CodeFolderSuggestion } from "./CodeFolderSuggestion";
 import { GithubSettingsRow } from "./GithubSettingsRow";
@@ -65,7 +65,7 @@ function wrap(ui: ReactNode) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={client}>
-      <MachineApiProvider>{ui}</MachineApiProvider>
+      <NodeApiProvider>{ui}</NodeApiProvider>
     </QueryClientProvider>,
   );
 }

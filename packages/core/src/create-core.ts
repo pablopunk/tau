@@ -41,9 +41,9 @@ import { openDataHome } from "./home/data-home";
 import { acquireHomeLock } from "./home/lock";
 import { createSettingsStore } from "./home/settings-store";
 import { createIconService } from "./icons/icon-service";
-import { createMachines } from "./machines/create-machines";
 import { createMcpService } from "./mcp/mcp-service";
 import { createMcpApi } from "./mcp-api";
+import { createNodes } from "./nodes/create-nodes";
 import { createProcessService } from "./processes/process-service";
 import { createPresentProject } from "./project-view";
 import { createProjectsApi } from "./projects-api";
@@ -331,8 +331,8 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
       latestVersion: options.latestVersion,
       now: deps.now,
     });
-    const machines = createMachines({
-      directory: home.machinesDirectory,
+    const nodes = createNodes({
+      directory: home.nodesDirectory,
       now: deps.now,
       changes,
       access,
@@ -345,7 +345,7 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
       settings,
       access,
       changes,
-      forgetMachines: () => machines.reset(),
+      forgetNodes: () => nodes.reset(),
     });
 
     void remote
@@ -358,7 +358,7 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
     let closing: Promise<void> | undefined;
     return {
       access,
-      machines,
+      nodes,
       remote: remote.api,
       fs: { suggestDirectories },
       settings: createSettingsApi({

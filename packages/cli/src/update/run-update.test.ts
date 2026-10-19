@@ -3,9 +3,9 @@ import type { ConversationSummary } from "@tau/protocol";
 import { describe, expect, it } from "vitest";
 import { summary } from "../commands/test-support";
 import { createServiceManager } from "../service/manager";
-import { CLI, createTestMachine } from "../service/test-context";
+import { CLI, createTestNode } from "../service/test-context";
 import type { CommandResult } from "./command-runner";
-import type { LinkedMachines } from "./machines-behind";
+import type { LinkedNodes } from "./nodes-behind";
 import { runUpdateWith } from "./run-update";
 import type { UpdateDeps } from "./update-deps";
 
@@ -29,22 +29,22 @@ interface Options {
   ancestors?: number[];
   hub?: boolean;
   confirm?: boolean;
-  linked?: LinkedMachines | Error;
+  linked?: LinkedNodes | Error;
 }
 
 async function setup(options: Options = {}) {
-  const machine = createTestMachine({}, (line) =>
+  const node = createTestNode({}, (line) =>
     options.active !== false && line.startsWith("launchctl print gui/501/")
       ? { stdout: "pid = 4242\n" }
       : undefined,
   );
-  if (options.active !== false) await createServiceManager(machine.context, CLI, machine.tauHome).install();
+  if (options.active !== false) await createServiceManager(node.context, CLI, node.tauHome).install();
   const out: string[] = [];
   const err: string[] = [];
   const commands: { command: string; args: readonly string[]; stdio: string }[] = [];
   const instance = { current: "instance" in options ? options.instance : OLD };
   const deps: UpdateDeps = {
-    context: machine.context,
+    context: node.context,
     cli: () => CLI,
     version: () => "1.0.0",
     readInstance: async () => instance.current,
@@ -78,14 +78,14 @@ async function setup(options: Options = {}) {
     pollInstance: async (_home, version) =>
       instance.current?.version === version ? instance.current : instance.current,
     hasHubFile: () => options.hub ?? false,
-    linkedMachines: options.linked
+    linkedNodes: options.linked
       ? async () => {
           if (options.linked instanceof Error) throw options.linked;
           return options.linked;
         }
       : undefined,
   };
-  return { home: machine.tauHome, deps, out, err, commands, instance };
+  return { home: node.tauHome, deps, out, err, commands, instance };
 }
 
 const installCalls = (s: Awaited<ReturnType<typeof setup>>) => s.commands.filter((c) => c.args[0] === "i");
@@ -113,21 +113,18 @@ describe("tau update --check", () => {
   });
 });
 
-describe("tau update --check linked machines", () => {
+describe("tau update --check linked nodes", () => {
   const m = (name: string, tauVersion: string, linkedTo?: string) => ({ name, tauVersion, linkedTo });
-  it("lists machines behind the hub latest, unknown ones too, exit code unchanged", async () => {
+  it("lists nodes behind the hub latest, unknown ones too, exit code unchanged", async () => {
     const s = await setup({
       latest: "1.0.0",
-      linked: { hubLatest: "1.1.0", machines: [m("Homelab", "1.0.0"), m("Laptop", "1.1.0"), m("New", "")] },
+      linked: { hubLatest: "1.1.0", nodes: [m("Homelab", "1.0.0"), m("Laptop", "1.1.0"), m("New", "")] },
     });
     expect(await runUpdateWith(s.deps, ["--check"])).toBe(0);
-    expect(s.out).toEqual([
-      "1.0.0 -> 1.0.0",
-      "Linked machines behind: Homelab (1.0.0), New (version unknown)",
-    ]);
+    expect(s.out).toEqual(["1.0.0 -> 1.0.0", "Linked nodes behind: Homelab (1.0.0), New (version unknown)"]);
   });
-  it("says nothing when no machine is behind, no server runs or the request fails", async () => {
-    const none = await setup({ linked: { hubLatest: null, machines: [m("A", "1.1.0")] } });
+  it("says nothing when no node is behind, no server runs or the request fails", async () => {
+    const none = await setup({ linked: { hubLatest: null, nodes: [m("A", "1.1.0")] } });
     expect(await runUpdateWith(none.deps, ["--check"])).toBe(10);
     expect(none.out).toEqual(["1.0.0 -> 1.1.0"]);
     const down = await setup();
@@ -170,7 +167,7 @@ describe("tau update", () => {
     ]);
     const status = s.commands.find((c) => c.args[1] === "status");
     expect(status?.args).toEqual([`${PKG}/dist/bin.js`, "status", "--home", s.home, "--json"]);
-    expect(s.out.join("\n")).toContain("Linked machines must run the same tau version");
+    expect(s.out.join("\n")).toContain("Linked nodes must run the same tau version");
     expect(s.out.join("\n")).toContain("linked to a hub");
   });
 

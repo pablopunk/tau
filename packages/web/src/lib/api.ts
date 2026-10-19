@@ -16,8 +16,6 @@ import type {
   HubLink,
   LoginSession,
   LoopInput,
-  Machine,
-  MachineSummary,
   McpServerConfig,
   McpServerStatus,
   MessageMode,
@@ -25,6 +23,8 @@ import type {
   MintPairingInput,
   ModelInfo,
   ModelRef,
+  Node,
+  NodeSummary,
   PathSuggestion,
   ProcessInfo,
   Project,
@@ -190,14 +190,14 @@ export interface Api {
     /** Checks the registry now (the server limits it to one per minute). */
     refresh(): Promise<UpdateStatus>;
   };
-  machines: {
-    /** The machines linked to THIS tau (a hub). */
-    list(): Promise<Machine[]>;
+  nodes: {
+    /** The nodes linked to THIS tau (a hub). */
+    list(): Promise<Node[]>;
     rename(id: string, name: string): Promise<void>;
     disconnect(id: string): Promise<void>;
     /** This tau's own link to a hub ("Linked to <hub>"). */
-    /** What the hub last saw of a machine (titles and times); rejects `not_found` before the first one. */
-    summary(id: string): Promise<MachineSummary>;
+    /** What the hub last saw of a node (titles and times); rejects `not_found` before the first one. */
+    summary(id: string): Promise<NodeSummary>;
     hubLink(): Promise<HubLink>;
     disconnectHub(): Promise<void>;
   };
@@ -348,11 +348,11 @@ export function createApi(transport: Transport): Api {
       status: () => request("getUpdateStatus", {}),
       refresh: () => request("refreshUpdateStatus", {}),
     },
-    machines: {
-      list: () => request("listMachines", {}),
-      rename: (id, name) => request("renameMachine", { params: { id }, body: { name } }),
-      disconnect: (id) => request("disconnectMachine", { params: { id } }),
-      summary: (id) => request("getMachineSummary", { params: { id } }),
+    nodes: {
+      list: () => request("listNodes", {}),
+      rename: (id, name) => request("renameNode", { params: { id }, body: { name } }),
+      disconnect: (id) => request("disconnectNode", { params: { id } }),
+      summary: (id) => request("getNodeSummary", { params: { id } }),
       hubLink: () => request("getHubLink", {}),
       disconnectHub: () => request("disconnectHub", {}),
     },

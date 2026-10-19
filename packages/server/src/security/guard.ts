@@ -12,7 +12,7 @@ import { createLinkLimits, type LinkLimits } from "./link-limits";
 import {
   bearerOf,
   isApiPath,
-  isMachineLink,
+  isNodeLink,
   isOpenSurface,
   needsOriginCheck,
   rejectApi,
@@ -47,8 +47,8 @@ async function authenticateDevice(ctx: GuardContext, request: FastifyRequest): P
   return true;
 }
 
-/** Machine branch: a rate-limit check by peer BEFORE the hash lookup; only a machine secret passes, never a cookie. */
-async function authenticateMachine(
+/** Node branch: a rate-limit check by peer BEFORE the hash lookup; only a node secret passes, never a cookie. */
+async function authenticateNode(
   ctx: GuardContext,
   limits: LinkLimits,
   request: FastifyRequest,
@@ -56,7 +56,7 @@ async function authenticateMachine(
   const peer = ctx.tunnel.tagOf(request.raw.socket)?.peer ?? LOCAL_PEER;
   if (limits.locked(peer)) return false;
   const secret = bearerOf(request);
-  const verified = secret ? await ctx.access.verifyMachine(secret) : undefined;
+  const verified = secret ? await ctx.access.verifyNode(secret) : undefined;
   if (!verified) {
     limits.recordFailure(peer);
     return false;
@@ -81,8 +81,8 @@ async function guardTunneled(
     return forbid(reply, "origin");
   }
   if (isOpenSurface(request)) return rejectContentType(request, reply);
-  if (isMachineLink(request)) {
-    if (!(await authenticateMachine(ctx, limits, request))) return sendUnauthenticated(request, reply);
+  if (isNodeLink(request)) {
+    if (!(await authenticateNode(ctx, limits, request))) return sendUnauthenticated(request, reply);
     return;
   }
   if (!(await authenticateDevice(ctx, request))) return sendUnauthenticated(request, reply);
@@ -113,10 +113,10 @@ async function guardLocal(
   if (!isAllowedLocalHost(list, request.headers.host)) return forbid(reply, "host");
   if (request.headers.authorization !== undefined) {
     const master = ctx.session.isValidToken(bearerOf(request));
-    if (!master && !isMachineLink(request)) return sendUnauthenticated(request, reply);
+    if (!master && !isNodeLink(request)) return sendUnauthenticated(request, reply);
     if (hasForeignOrigin(list, request)) return forbid(reply, "origin");
     if (!master) {
-      if (!(await authenticateMachine(ctx, limits, request))) return sendUnauthenticated(request, reply);
+      if (!(await authenticateNode(ctx, limits, request))) return sendUnauthenticated(request, reply);
       return;
     }
     request.deviceId = OWNER_DEVICE_ID;
@@ -134,7 +134,7 @@ async function guardLocal(
     request.deviceId = OWNER_DEVICE_ID;
     return rejectContentType(request, reply);
   }
-  if (isMachineLink(request) || !(await authenticateDevice(ctx, request))) {
+  if (isNodeLink(request) || !(await authenticateDevice(ctx, request))) {
     return sendUnauthenticated(request, reply);
   }
   rejectContentType(request, reply);

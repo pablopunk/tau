@@ -1,5 +1,5 @@
 import { ChangeSchema } from "./entities";
-import { CHUNK_BYTES, DATA_HEADER_BYTES, LinkFrameSchema } from "./machine-link";
+import { CHUNK_BYTES, DATA_HEADER_BYTES, LinkFrameSchema } from "./node-link";
 import { routes } from "./rest";
 
 function stableStringify(value: unknown): string {
@@ -27,7 +27,7 @@ function cyrb53(text: string, seed: number): string {
   return (h2 >>> 0).toString(16).padStart(8, "0") + (h1 >>> 0).toString(16).padStart(8, "0");
 }
 
-/** What a machine and its hub must agree on: the routes table, the link frames and the `Change` union. */
+/** What a node and its hub must agree on: the routes table, the link frames and the `Change` union. */
 export function protocolSurface(): string {
   return stableStringify({
     routes,

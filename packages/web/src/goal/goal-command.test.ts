@@ -1,10 +1,10 @@
 import { QueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { apiOfMachine } from "@/machines/machine-apis";
+import { apiOfNode } from "@/nodes/node-apis";
 import { runGoalCommand } from "./goal-command";
 
-const api = apiOfMachine();
+const api = apiOfNode();
 
 vi.mock("sonner", () => ({ toast: { info: vi.fn(), error: vi.fn() } }));
 

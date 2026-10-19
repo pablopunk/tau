@@ -6,7 +6,7 @@ import { ContextMeter } from "@/components/ui/context-meter";
 import { GoalChip } from "@/goal/GoalChip";
 import { errorMessage } from "@/lib/error-message";
 import { useModels } from "@/lib/queries";
-import { useApi } from "@/machines/machine-context";
+import { useApi } from "@/nodes/node-context";
 import { ProcessesChip } from "@/processes/ProcessesChip";
 import { TimersChip } from "@/timers/TimersChip";
 import { contextUsage } from "./composer/context-usage";

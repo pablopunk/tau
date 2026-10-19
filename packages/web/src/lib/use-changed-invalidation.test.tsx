@@ -5,7 +5,7 @@ import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { LiveClientProvider } from "@/conversation";
 import type { LiveClient, LiveStatus } from "@/conversation/live-client";
-import { MachineApiProvider } from "@/machines/machine-context";
+import { NodeApiProvider } from "@/nodes/node-context";
 import { useChangedInvalidation } from "./use-changed-invalidation";
 
 function setup() {
@@ -28,9 +28,9 @@ function setup() {
   const invalidate = vi.spyOn(queryClient, "invalidateQueries");
   const wrapper = ({ children }: { children: ReactNode }) => (
     <QueryClientProvider client={queryClient}>
-      <MachineApiProvider>
+      <NodeApiProvider>
         <LiveClientProvider client={live}>{children}</LiveClientProvider>
-      </MachineApiProvider>
+      </NodeApiProvider>
     </QueryClientProvider>
   );
   renderHook(() => useChangedInvalidation(), { wrapper });

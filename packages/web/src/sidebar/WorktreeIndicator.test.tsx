@@ -1,10 +1,10 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { apiOfMachine } from "@/machines/machine-apis";
+import { apiOfNode } from "@/nodes/node-apis";
 import { conversation, renderAt } from "@/sidebar/test-support";
 import { WorktreeIndicator } from "./WorktreeIndicator";
 
-const api = apiOfMachine();
+const api = apiOfNode();
 
 vi.mock("@/lib/api", () => ({
   api: {

@@ -21,9 +21,9 @@ import {
 } from "@/components/ui/sidebar";
 import { Spinner } from "@/components/ui/spinner";
 import { ChangeIconDialog } from "@/icons/ChangeIconDialog";
-import { machineAssetUrl, newThreadPath } from "@/lib/paths";
+import { newThreadPath, nodeAssetUrl } from "@/lib/paths";
 import { queryKeys } from "@/lib/queries";
-import { useApi, useMachineId } from "@/machines/machine-context";
+import { useApi, useNodeId } from "@/nodes/node-context";
 import { ArchivedConversations } from "./ArchivedConversations";
 import { ChangeFolderDialog } from "./ChangeFolderDialog";
 import { CloneFailed } from "./CloneFailed";
@@ -53,7 +53,7 @@ export function ProjectGroup({
   onRemoved,
 }: ProjectGroupProps) {
   const api = useApi();
-  const machineId = useMachineId();
+  const nodeId = useNodeId();
   const { project, active, archived } = section;
   const [dialog, setDialog] = useState<Dialog>(null);
   const queryClient = useQueryClient();
@@ -76,7 +76,7 @@ export function ProjectGroup({
             <ProjectIcon
               id={project.id}
               name={project.name}
-              iconUrl={project.iconUrl ? machineAssetUrl(project.iconUrl, machineId) : null}
+              iconUrl={project.iconUrl ? nodeAssetUrl(project.iconUrl, nodeId) : null}
               home={isHome}
             />
             <span className="truncate">{project.name}</span>
@@ -91,7 +91,7 @@ export function ProjectGroup({
           </DropdownMenuTrigger>
           <DropdownMenuContent side="right" align="start">
             {project.status === "ready" && (
-              <DropdownMenuItem onSelect={() => navigate(newThreadPath(project.id, machineId))}>
+              <DropdownMenuItem onSelect={() => navigate(newThreadPath(project.id, nodeId))}>
                 New thread
               </DropdownMenuItem>
             )}
@@ -113,7 +113,7 @@ export function ProjectGroup({
           <SidebarGroupAction
             aria-label={`New thread in ${project.name}`}
             title="New thread"
-            onClick={() => navigate(newThreadPath(project.id, machineId))}
+            onClick={() => navigate(newThreadPath(project.id, nodeId))}
           >
             <PlusIcon />
           </SidebarGroupAction>

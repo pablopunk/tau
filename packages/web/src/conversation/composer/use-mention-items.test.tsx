@@ -1,10 +1,10 @@
 import { renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { apiOfMachine } from "@/machines/machine-apis";
+import { apiOfNode } from "@/nodes/node-apis";
 import { ComposerTestWrapper } from "./test-wrapper";
 import { useMentionItems } from "./use-mention-items";
 
-const api = apiOfMachine();
+const api = apiOfNode();
 
 vi.mock("@/lib/api", () => ({
   api: { projects: { suggestFiles: vi.fn() }, skills: { list: vi.fn() } },

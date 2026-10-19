@@ -7,7 +7,7 @@ import { SegmentedControl, type SegmentedOption } from "@/components/ui/segmente
 import { SettingRow } from "@/components/ui/settings-layout";
 import { Skeleton } from "@/components/ui/skeleton";
 import { queryKeys, useSettings } from "@/lib/queries";
-import { useApi } from "@/machines/machine-context";
+import { useApi } from "@/nodes/node-context";
 
 const textOption = <T extends string>(value: T, label: string): SegmentedOption<T> => ({
   value,

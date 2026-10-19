@@ -1,7 +1,7 @@
 import type { LoginSession } from "@tau/protocol";
 import { useEffect, useState } from "react";
 import { errorMessage } from "@/lib/error-message";
-import { useApi } from "@/machines/machine-context";
+import { useApi } from "@/nodes/node-context";
 
 const POLL_MS = 1000;
 const isActive = (session: LoginSession) => session.state === "starting" || session.state === "waiting";

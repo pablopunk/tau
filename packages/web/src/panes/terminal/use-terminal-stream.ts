@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { TerminalHandle } from "@/components/ui/terminal-view";
-import { useApi } from "@/machines/machine-context";
+import { useApi } from "@/nodes/node-context";
 import {
   createTerminalConnection,
   type TerminalConnection,

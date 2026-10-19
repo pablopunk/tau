@@ -5,7 +5,7 @@ import type { Core } from "@tau/protocol";
 import { createFakeCore, type FakeCoreOptions } from "@tau/testkit";
 import type { LightMyRequestResponse } from "fastify";
 import { createServer, type RunningServer } from "../create-server";
-import type { MachineGateway } from "../machines/gateway";
+import type { NodeGateway } from "../nodes/gateway";
 
 export const TOKEN = "test-token-123";
 
@@ -31,7 +31,7 @@ export function makeStaticDir(): string {
 }
 
 export async function startTestServer(
-  options: { core?: Core; fake?: FakeCoreOptions; staticDir?: string; gateway?: MachineGateway } = {},
+  options: { core?: Core; fake?: FakeCoreOptions; staticDir?: string; gateway?: NodeGateway } = {},
 ): Promise<TestServer> {
   const core = options.core ?? createFakeCore({ configured: true, speed: 1000, ...options.fake });
   const server = await createServer({

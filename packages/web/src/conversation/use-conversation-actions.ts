@@ -1,6 +1,6 @@
 import type { ImageInput, WhenBusy } from "@tau/protocol";
 import { useCallback } from "react";
-import { useApi } from "@/machines/machine-context";
+import { useApi } from "@/nodes/node-context";
 
 export function newRequestId(): string {
   return globalThis.crypto?.randomUUID?.() ?? `req-${Date.now()}-${Math.random().toString(36).slice(2)}`;

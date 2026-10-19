@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useOpenAndFocusTerminal, useTerminalsAvailable } from "./use-terminals";
 
-/** Opens a terminal in the thread and focuses it. Hidden when this machine cannot run terminals. */
+/** Opens a terminal in the thread and focuses it. Hidden when this node cannot run terminals. */
 export function TerminalButton({ projectId, conversationId }: { projectId: string; conversationId: string }) {
   const available = useTerminalsAvailable().data === true;
   const open = useOpenAndFocusTerminal(projectId, conversationId);

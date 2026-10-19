@@ -12,7 +12,7 @@ import {
   RETIRED_OPS,
 } from "@tau/protocol";
 import { createFakeCore, type FakeCore } from "@tau/testkit";
-import { readSummaryCache, writeSummaryCache } from "@/machines/summary-cache";
+import { readSummaryCache, writeSummaryCache } from "@/nodes/summary-cache";
 import { openFakeStream } from "./fake-terminal-stream";
 import type { LiveHandlers, LiveSocket, RouteRequest, RouteResponse, Transport } from "./types";
 
@@ -146,20 +146,20 @@ const handlers: Handlers = {
       ? { deviceId: redeemed.deviceId, secret: redeemed.secret }
       : { deviceId: redeemed.deviceId };
   },
-  listMachines: (core) => core.machines.list(),
-  renameMachine: (core, { params, body }) => core.machines.rename(params.id, body.name as string),
-  getMachineSummary: async (core, { params }) => {
-    const summary = await core.machines.readSummary(params.id);
-    if (!summary) throw new AppError("not_found", "No summary for this machine.");
+  listNodes: (core) => core.nodes.list(),
+  renameNode: (core, { params, body }) => core.nodes.rename(params.id, body.name as string),
+  getNodeSummary: async (core, { params }) => {
+    const summary = await core.nodes.readSummary(params.id);
+    if (!summary) throw new AppError("not_found", "No summary for this node.");
     return summary;
   },
-  disconnectMachine: (core, { params }) => core.machines.disconnect(params.id),
-  getHubLink: (core) => core.machines.hubState(),
+  disconnectNode: (core, { params }) => core.nodes.disconnect(params.id),
+  getHubLink: (core) => core.nodes.hubState(),
   getUpdateStatus: (core) => core.updates.status(),
   refreshUpdateStatus: (core) => core.updates.refresh(),
-  disconnectHub: (core) => core.machines.disconnectHub(),
-  linkMachine: async () => {
-    throw new AppError("not_found", "The machine link is a socket, not an HTTP call.");
+  disconnectHub: (core) => core.nodes.disconnectHub(),
+  linkNode: async () => {
+    throw new AppError("not_found", "The node link is a socket, not an HTTP call.");
   },
   decideApproval: (core, { params, body }) =>
     core.approvals.decide(params.id, params.toolUseId, body.decision as never),
@@ -229,8 +229,8 @@ async function seedReadyState(core: Core): Promise<void> {
   await core.projects.add({ path: READY_PROJECT });
 }
 
-/** A fake machine gets a thread of its own, so its sidebar group and its offline cache have something to show. */
-async function seedMachineThread(core: Core, title: string): Promise<void> {
+/** A fake node gets a thread of its own, so its sidebar group and its offline cache have something to show. */
+async function seedNodeThread(core: Core, title: string): Promise<void> {
   const [project] = await core.projects.list();
   if (!project) return;
   const thread = await core.conversations.start({
@@ -241,14 +241,14 @@ async function seedMachineThread(core: Core, title: string): Promise<void> {
   await core.conversations.rename(thread.id, title);
 }
 
-/** What a browser would have seen of an offline fake machine while it was online: written once, like the hub's `summary.json`. */
+/** What a browser would have seen of an offline fake node while it was online: written once, like the hub's `summary.json`. */
 async function cacheOfflineSummaries(hub: FakeCore): Promise<void> {
-  for (const machine of await hub.machines.list()) {
-    const core = hub.machineCores.get(machine.id);
-    if (machine.status !== "offline" || !core || readSummaryCache(machine.id)) continue;
+  for (const node of await hub.nodes.list()) {
+    const core = hub.nodeCores.get(node.id);
+    if (node.status !== "offline" || !core || readSummaryCache(node.id)) continue;
     const [projects, threads] = await Promise.all([core.projects.list(), core.conversations.listAll()]);
-    writeSummaryCache(machine.id, {
-      savedAt: machine.lastSeenAt,
+    writeSummaryCache(node.id, {
+      savedAt: node.lastSeenAt,
       projects: projects.map(({ id, name }) => ({ id, name })),
       threads: threads.map(({ id, projectId, title, updatedAt }) => ({ id, projectId, title, updatedAt })),
     });
@@ -258,22 +258,22 @@ async function cacheOfflineSummaries(hub: FakeCore): Promise<void> {
 let hub: Promise<FakeCore> | undefined;
 
 /**
- * One fake hub per page, shared by the local transport and every machine transport:
- * `?fake=ready` starts past setup with remote on (`&remote=off` starts with it off), and `&machines=2`
- * (or `&machines`) links the two fake machines (`Homelab` online, `Work laptop` offline).
+ * One fake hub per page, shared by the local transport and every node transport:
+ * `?fake=ready` starts past setup with remote on (`&remote=off` starts with it off), and `&nodes=2`
+ * (or `&nodes`) links the two fake nodes (`Homelab` online, `Work laptop` offline).
  */
 function fakeHub(): Promise<FakeCore> {
   hub ??= (async () => {
     const params = new URLSearchParams(window.location.search);
     const ready = params.get("fake") === "ready";
     const remote = ready && params.get("remote") !== "off";
-    const machines = ready && params.has("machines");
-    const core = createFakeCore({ configured: ready, remote, machines });
+    const nodes = ready && params.has("nodes");
+    const core = createFakeCore({ configured: ready, remote, nodes });
     if (ready) await seedReadyState(core);
-    for (const [machineId, machine] of core.machineCores) {
-      await seedReadyState(machine);
-      const name = (await core.machines.list()).find((listed) => listed.id === machineId)?.name ?? "Machine";
-      await seedMachineThread(machine, `${name} thread`);
+    for (const [nodeId, node] of core.nodeCores) {
+      await seedReadyState(node);
+      const name = (await core.nodes.list()).find((listed) => listed.id === nodeId)?.name ?? "Node";
+      await seedNodeThread(node, `${name} thread`);
     }
     await cacheOfflineSummaries(core);
     return core;
@@ -281,24 +281,24 @@ function fakeHub(): Promise<FakeCore> {
   return hub;
 }
 
-const OFFLINE = "This machine is offline.";
+const OFFLINE = "This node is offline.";
 
-function fakeMachineCore(core: FakeCore, machineId: string): Core {
-  const machineCore = core.machineCores.get(machineId);
-  if (!machineCore) throw new AppError("not_found", `No machine ${machineId}.`);
-  return machineCore;
+function fakeNodeCore(core: FakeCore, nodeId: string): Core {
+  const nodeCore = core.nodeCores.get(nodeId);
+  if (!nodeCore) throw new AppError("not_found", `No node ${nodeId}.`);
+  return nodeCore;
 }
 
-/** The transport of one fake machine: its own fake core, or `not_found` while the hub lists it offline. */
-export async function createDefaultFakeMachineTransport(machineId: string): Promise<Transport> {
+/** The transport of one fake node: its own fake core, or `not_found` while the hub lists it offline. */
+export async function createDefaultFakeNodeTransport(nodeId: string): Promise<Transport> {
   const core = await fakeHub();
-  const machineCore = fakeMachineCore(core, machineId);
-  const inner = createFakeTransport(machineCore);
-  const listed = async () => (await core.machines.list()).find((machine) => machine.id === machineId);
+  const nodeCore = fakeNodeCore(core, nodeId);
+  const inner = createFakeTransport(nodeCore);
+  const listed = async () => (await core.nodes.list()).find((node) => node.id === nodeId);
   return {
     async request(name, input) {
-      const machine = await listed();
-      if (machine?.status !== "online") throw new AppError("not_found", OFFLINE);
+      const node = await listed();
+      if (node?.status !== "online") throw new AppError("not_found", OFFLINE);
       return inner.request(name, input);
     },
     live: inner.live,

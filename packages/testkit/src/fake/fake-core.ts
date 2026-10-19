@@ -34,9 +34,9 @@ import { cloneWouldFail, folderNameFor, repositoryKeyOf } from "./fake-git";
 import { createFakeGithub, type FakeGithubOptions } from "./fake-github";
 import { createFakeIcons } from "./fake-icons";
 import { assertImageMatchesMimeType } from "./fake-images";
-import { createFakeMachines, FAKE_MACHINE_SEEDS, type FakeMachines } from "./fake-machines";
 import { createFakeMvp5 } from "./fake-mvp5";
 import { createFakeMvp8 } from "./fake-mvp8";
+import { createFakeNodes, FAKE_NODE_SEEDS, type FakeNodes } from "./fake-nodes";
 import { createFakeProviders } from "./fake-providers";
 import { createFakeRemote, type FakeRemote } from "./fake-remote";
 import { suggestFakeDirectories } from "./fake-suggest";
@@ -62,8 +62,8 @@ export interface FakeCoreOptions {
   readonly terminals?: boolean;
   /** Start with remote on. Default false. */
   readonly remote?: boolean;
-  /** Start as a hub with two linked machines (`Homelab` online, `Work laptop` offline). Default false. */
-  readonly machines?: boolean;
+  /** Start as a hub with two linked nodes (`Homelab` online, `Work laptop` offline). Default false. */
+  readonly nodes?: boolean;
   /** This tau's version for `updates.status()`. Default `0.0.0`. */
   readonly currentVersion?: string;
   /** The latest version the registry answers, known from the start. Default none (unreachable). */
@@ -84,15 +84,15 @@ export type FakeCore = Core & {
   readonly seedApproval: FakeConnectors["seedApproval"];
   /** Plays tunnel behaviour (`reconnecting`, errors) over the fake remote. */
   readonly remoteControl: Pick<FakeRemote, "push">;
-  /** Plays link behaviour over the fake machines registry. */
-  readonly machinesControl: Pick<FakeMachines, "setStatus">;
+  /** Plays link behaviour over the fake nodes registry. */
+  readonly nodesControl: Pick<FakeNodes, "setStatus">;
   /** Plays the registry: what the next `updates.refresh()` finds (`null`: unreachable). */
   readonly updatesControl: Pick<FakeUpdates, "setLatest">;
   /**
-   * The data of each linked machine: `core.machineCores.get(id)` is the fake tau that `/api/m/<id>/...` reaches.
-   * Empty unless `machines: true`; a machine added by `core.machines.register` has none.
+   * The data of each linked node: `core.nodeCores.get(id)` is the fake tau that `/api/n/<id>/...` reaches.
+   * Empty unless `nodes: true`; a node added by `core.nodes.register` has none.
    */
-  readonly machineCores: ReadonlyMap<string, FakeCore>;
+  readonly nodeCores: ReadonlyMap<string, FakeCore>;
 };
 
 export function createFakeCore(options: FakeCoreOptions = {}): FakeCore {
@@ -368,32 +368,32 @@ export function createFakeCore(options: FakeCoreOptions = {}): FakeCore {
   const access = createFakeAccess({ now, emit, remoteUrl: () => remote.status().url });
   const remote = createFakeRemote({ now, emit, access, enabled: options.remote });
 
-  const machines = createFakeMachines({ now, emit, access });
+  const nodes = createFakeNodes({ now, emit, access });
   const updates = createFakeUpdates({
     now,
     currentVersion: options.currentVersion,
     latest: options.latestVersion,
   });
-  const machineCores = new Map<string, FakeCore>();
-  if (options.machines) seedMachines();
+  const nodeCores = new Map<string, FakeCore>();
+  if (options.nodes) seedNodes();
 
-  function seedMachines() {
-    for (const seed of FAKE_MACHINE_SEEDS) {
-      const { id } = access.addMachineDevice(seed.name);
-      void machines.api
+  function seedNodes() {
+    for (const seed of FAKE_NODE_SEEDS) {
+      const { id } = access.addNodeDevice(seed.name);
+      void nodes.api
         .register(id, { ...seed, protocolVersion: PROTOCOL_VERSION })
-        .then(() => (seed.status === "offline" ? machines.api.markOffline(id) : undefined));
-      machineCores.set(id, createFakeCore({ configured: true, now, speed, terminals: options.terminals }));
+        .then(() => (seed.status === "offline" ? nodes.api.markOffline(id) : undefined));
+      nodeCores.set(id, createFakeCore({ configured: true, now, speed, terminals: options.terminals }));
     }
   }
 
   return {
     access,
-    machines: machines.api,
-    machinesControl: machines,
+    nodes: nodes.api,
+    nodesControl: nodes,
     updates: updates.api,
     updatesControl: updates,
-    machineCores,
+    nodeCores,
     remote: remote.api,
     remoteControl: remote,
     fs: {

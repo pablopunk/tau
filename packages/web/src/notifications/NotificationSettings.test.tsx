@@ -2,11 +2,11 @@ import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { preferences } from "@/lib/preferences";
-import { apiOfMachine } from "@/machines/machine-apis";
+import { apiOfNode } from "@/nodes/node-apis";
 import { renderAt } from "@/sidebar/test-support";
 import { NotificationSettings } from "./NotificationSettings";
 
-const api = apiOfMachine();
+const api = apiOfNode();
 
 vi.mock("@/lib/api", () => ({ api: { conversations: { listAll: vi.fn() } } }));
 

@@ -3,7 +3,7 @@ import { useNavigate } from "react-router";
 import { toast } from "sonner";
 import { errorMessage } from "@/lib/error-message";
 import { terminalPath } from "@/lib/paths";
-import { useApi, useMachineId } from "@/machines/machine-context";
+import { useApi, useNodeId } from "@/nodes/node-context";
 
 export const terminalKeys = {
   available: ["terminals", "available"] as const,
@@ -50,12 +50,12 @@ export function useCloseTerminal(conversationId: string) {
 
 /** Opens a terminal in the thread and focuses it through the URL. */
 export function useOpenAndFocusTerminal(projectId: string, conversationId: string) {
-  const machineId = useMachineId();
+  const nodeId = useNodeId();
   const open = useOpenTerminal(conversationId);
   const navigate = useNavigate();
   const run = () =>
     open.mutate(undefined, {
-      onSuccess: (terminal) => navigate(terminalPath(projectId, conversationId, terminal.id, machineId)),
+      onSuccess: (terminal) => navigate(terminalPath(projectId, conversationId, terminal.id, nodeId)),
       onError: (error) => void toast.error(errorMessage(error)),
     });
   return { run, pending: open.isPending };

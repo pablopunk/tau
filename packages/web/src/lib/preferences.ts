@@ -1,5 +1,5 @@
 import type { ModelRef, ThinkingLevel } from "@tau/protocol";
-import { machineKey } from "./machine-keys";
+import { nodeKey } from "./node-keys";
 import { clampSidebarWidth, SIDEBAR_WIDTH_DEFAULT } from "./sidebar-width";
 
 const PREFIX = "tau:";
@@ -14,7 +14,7 @@ const KEYS = {
   closedProjects: "tau-sidebar-closed-projects",
   projectOpenOverrides: "tau-sidebar-project-overrides",
   collapsedThreads: "tau-sidebar-collapsed-threads",
-  collapsedMachines: "tau-sidebar-collapsed-machines",
+  collapsedNodes: "tau-sidebar-collapsed-nodes",
   theme: `${PREFIX}theme`,
   sidebarOpen: `${PREFIX}sidebar-open`,
   sidebarWidth: `${PREFIX}sidebar-width`,
@@ -91,21 +91,20 @@ export const preferences = {
   },
   setSidebarWidth: (width: number): void => writeString(KEYS.sidebarWidth, String(clampSidebarWidth(width))),
 
-  getProjectOpenOverrides: (machineId?: string): Record<string, boolean> => ({
-    ...legacyClosedAsOverrides(readJson(machineKey(KEYS.closedProjects, machineId), isStringArray) ?? []),
-    ...(readJson(machineKey(KEYS.projectOpenOverrides, machineId), isBooleanRecord) ?? {}),
+  getProjectOpenOverrides: (nodeId?: string): Record<string, boolean> => ({
+    ...legacyClosedAsOverrides(readJson(nodeKey(KEYS.closedProjects, nodeId), isStringArray) ?? []),
+    ...(readJson(nodeKey(KEYS.projectOpenOverrides, nodeId), isBooleanRecord) ?? {}),
   }),
-  setProjectOpenOverrides: (overrides: Readonly<Record<string, boolean>>, machineId?: string): void =>
-    writeString(machineKey(KEYS.projectOpenOverrides, machineId), JSON.stringify(overrides)),
+  setProjectOpenOverrides: (overrides: Readonly<Record<string, boolean>>, nodeId?: string): void =>
+    writeString(nodeKey(KEYS.projectOpenOverrides, nodeId), JSON.stringify(overrides)),
 
-  getCollapsedThreads: (machineId?: string): string[] =>
-    readJson(machineKey(KEYS.collapsedThreads, machineId), isStringArray) ?? [],
-  setCollapsedThreads: (ids: readonly string[], machineId?: string): void =>
-    writeString(machineKey(KEYS.collapsedThreads, machineId), JSON.stringify(ids)),
+  getCollapsedThreads: (nodeId?: string): string[] =>
+    readJson(nodeKey(KEYS.collapsedThreads, nodeId), isStringArray) ?? [],
+  setCollapsedThreads: (ids: readonly string[], nodeId?: string): void =>
+    writeString(nodeKey(KEYS.collapsedThreads, nodeId), JSON.stringify(ids)),
 
-  getCollapsedMachines: (): string[] => readJson(KEYS.collapsedMachines, isStringArray) ?? [],
-  setCollapsedMachines: (ids: readonly string[]): void =>
-    writeString(KEYS.collapsedMachines, JSON.stringify(ids)),
+  getCollapsedNodes: (): string[] => readJson(KEYS.collapsedNodes, isStringArray) ?? [],
+  setCollapsedNodes: (ids: readonly string[]): void => writeString(KEYS.collapsedNodes, JSON.stringify(ids)),
 
   getTheme: (): Theme => {
     const stored = readString(KEYS.theme);
@@ -127,35 +126,32 @@ export const preferences = {
     };
   },
 
-  getLastProjectId: (machineId?: string): string | null =>
-    readString(machineKey(KEYS.lastProject, machineId)),
-  setLastProjectId: (id: string, machineId?: string): void =>
-    writeString(machineKey(KEYS.lastProject, machineId), id),
+  getLastProjectId: (nodeId?: string): string | null => readString(nodeKey(KEYS.lastProject, nodeId)),
+  setLastProjectId: (id: string, nodeId?: string): void => writeString(nodeKey(KEYS.lastProject, nodeId), id),
 
-  getLastModel: (machineId?: string): ModelRef | null =>
-    readJson(machineKey(KEYS.lastModel, machineId), isModelRef),
-  setLastModel: (ref: ModelRef, machineId?: string): void =>
-    writeString(machineKey(KEYS.lastModel, machineId), JSON.stringify(ref)),
+  getLastModel: (nodeId?: string): ModelRef | null => readJson(nodeKey(KEYS.lastModel, nodeId), isModelRef),
+  setLastModel: (ref: ModelRef, nodeId?: string): void =>
+    writeString(nodeKey(KEYS.lastModel, nodeId), JSON.stringify(ref)),
 
-  getLastThinkingLevel: (machineId?: string): ThinkingLevel | null =>
-    readString(machineKey(KEYS.lastThinkingLevel, machineId)) as ThinkingLevel | null,
-  setLastThinkingLevel: (level: ThinkingLevel, machineId?: string): void =>
-    writeString(machineKey(KEYS.lastThinkingLevel, machineId), level),
+  getLastThinkingLevel: (nodeId?: string): ThinkingLevel | null =>
+    readString(nodeKey(KEYS.lastThinkingLevel, nodeId)) as ThinkingLevel | null,
+  setLastThinkingLevel: (level: ThinkingLevel, nodeId?: string): void =>
+    writeString(nodeKey(KEYS.lastThinkingLevel, nodeId), level),
 
   getNotificationsEnabled: (): boolean => readString(KEYS.notifications) === "on",
   setNotificationsEnabled: (enabled: boolean): void =>
     writeString(KEYS.notifications, enabled ? "on" : "off"),
 
-  getLastSeenAt: (conversationId: string, machineId?: string): number | null =>
-    readJson(machineKey(KEYS.lastSeenAt, machineId), isNumberRecord)?.[conversationId] ?? null,
-  setLastSeenAt: (conversationId: string, at: number, machineId?: string): void => {
-    const key = machineKey(KEYS.lastSeenAt, machineId);
+  getLastSeenAt: (conversationId: string, nodeId?: string): number | null =>
+    readJson(nodeKey(KEYS.lastSeenAt, nodeId), isNumberRecord)?.[conversationId] ?? null,
+  setLastSeenAt: (conversationId: string, at: number, nodeId?: string): void => {
+    const key = nodeKey(KEYS.lastSeenAt, nodeId);
     writeString(key, JSON.stringify({ ...readJson(key, isNumberRecord), [conversationId]: at }));
   },
 
   /** Set on first load: a thread without `lastSeenAt` counts as seen up to this time. */
-  getSeenBaseline: (now: number, machineId?: string): number => {
-    const key = machineKey(KEYS.seenBaseline, machineId);
+  getSeenBaseline: (now: number, nodeId?: string): number => {
+    const key = nodeKey(KEYS.seenBaseline, nodeId);
     const stored = Number(readString(key));
     if (Number.isFinite(stored) && stored > 0) return stored;
     writeString(key, String(now));

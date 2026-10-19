@@ -8,7 +8,7 @@ import { realLifecycleDeps } from "../lifecycle/deps";
 import { ancestorPidsOf } from "./ancestors";
 import { spawnCommand } from "./command-runner";
 import { fetchLatestVersion } from "./latest-version";
-import { fetchLinkedMachines } from "./machines-behind";
+import { fetchLinkedNodes } from "./nodes-behind";
 import type { UpdateDeps } from "./update-deps";
 
 const POLL_MS = 500;
@@ -63,6 +63,6 @@ export async function realUpdateDeps(): Promise<UpdateDeps> {
     ancestorPids: process.platform === "win32" ? undefined : () => ancestorPidsOf(spawnCommand),
     pollInstance: pollForVersion,
     hasHubFile: (home) => existsSync(join(home, "hub.json")),
-    linkedMachines: fetchLinkedMachines,
+    linkedNodes: fetchLinkedNodes,
   };
 }

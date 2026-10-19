@@ -1,14 +1,14 @@
 import { useNavigate } from "react-router";
 import { newThreadPath } from "@/lib/paths";
 import { queryKeys } from "@/lib/queries";
-import { MachineProvider, useHubQueryClient } from "@/machines";
+import { NodeProvider, useHubQueryClient } from "@/nodes";
 import { AddProjectDialog } from "@/sidebar/AddProjectDialog";
 
 export interface AddProjectStep {
-  machineId: string | undefined;
+  nodeId: string | undefined;
 }
 
-/** Add a project on the chosen machine, then open a new thread in it. */
+/** Add a project on the chosen node, then open a new thread in it. */
 export function AddProjectFlow({
   state,
   onChange,
@@ -19,21 +19,21 @@ export function AddProjectFlow({
   const navigate = useNavigate();
   const hub = useHubQueryClient();
   if (state === null) return null;
-  const { machineId } = state;
+  const { nodeId } = state;
   const dialog = (
     <AddProjectDialog
       onClose={() => onChange(null)}
       onAdded={(project) => {
         void hub.invalidateQueries({ queryKey: queryKeys.projects });
-        void hub.invalidateQueries({ queryKey: ["machine-data"] });
-        navigate(newThreadPath(project.id, machineId));
+        void hub.invalidateQueries({ queryKey: ["node-data"] });
+        navigate(newThreadPath(project.id, nodeId));
       }}
     />
   );
-  if (machineId === undefined) return dialog;
+  if (nodeId === undefined) return dialog;
   return (
-    <MachineProvider key={machineId} machineId={machineId}>
+    <NodeProvider key={nodeId} nodeId={nodeId}>
       {dialog}
-    </MachineProvider>
+    </NodeProvider>
   );
 }

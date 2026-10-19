@@ -19,7 +19,7 @@ export const terminalStreamPath = (id: string): string =>
 
 export const TERMINAL_STREAM_MAX_INPUT_BYTES = 64 * 1024;
 
-/** The shared WebSocket server accepts frames up to this size (the machine link needs 256 KB chunks); each route enforces its own cap. */
+/** The shared WebSocket server accepts frames up to this size (the node link needs 256 KB chunks); each route enforces its own cap. */
 export const WS_MAX_PAYLOAD_BYTES = 1024 * 1024;
 /** `/live` client frames are `{type, conversationId}` only. */
 export const LIVE_MAX_FRAME_BYTES = 64 * 1024;

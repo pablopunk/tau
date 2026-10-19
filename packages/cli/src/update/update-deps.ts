@@ -2,7 +2,7 @@ import type { LockInfo } from "@tau/core";
 import type { ConversationSummary } from "@tau/protocol";
 import type { LifecycleDeps } from "../lifecycle/deps";
 import type { RunCommand } from "./command-runner";
-import type { LinkedMachines } from "./machines-behind";
+import type { LinkedNodes } from "./nodes-behind";
 
 export interface UpdateDeps extends LifecycleDeps {
   readonly err: (message: string) => void;
@@ -22,6 +22,6 @@ export interface UpdateDeps extends LifecycleDeps {
   /** Waits (up to the deadline) for the lock to report `version`; the last lock seen otherwise. */
   readonly pollInstance: (home: string, version: string) => Promise<LockInfo | undefined>;
   readonly hasHubFile: (home: string) => boolean;
-  /** Best effort: the linked machines of a running hub, or undefined. */
-  readonly linkedMachines?: (home: string) => Promise<LinkedMachines | undefined>;
+  /** Best effort: the linked nodes of a running hub, or undefined. */
+  readonly linkedNodes?: (home: string) => Promise<LinkedNodes | undefined>;
 }

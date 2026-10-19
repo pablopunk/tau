@@ -16,7 +16,7 @@ import { NO_UPDATE_OPTIONS } from "./test-support/update-options";
 
 const REAL_CORE_IMPLEMENTED = true;
 
-/** Owners A (`[access]`), B (`[remote]`) and F (`[machines]`) remove their tag when their folder passes the contract. */
+/** Owners A (`[access]`), B (`[remote]`) and F (`[nodes]`) remove their tag when their folder passes the contract. */
 const PENDING_TAGS: string[] = [];
 
 process.env.TAU_FAKE_CLAUDE_CLI = "1";
