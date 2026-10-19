@@ -4,7 +4,7 @@ import { NO_EXTRAS, renderExtras, type StatusExtras } from "./status-extras";
 
 export interface StatusReport {
   readonly installed: boolean;
-  readonly running: "service" | "foreground" | false;
+  readonly running: "service" | "background" | "foreground" | false;
   readonly pid: number | null;
   readonly url: string | null;
   readonly version: string | null;
@@ -18,6 +18,9 @@ export interface StatusReport {
   readonly tunnel: StatusExtras["tunnel"];
 }
 
+const runningKindOf = (isService: boolean, isBackground: boolean): "service" | "background" | "foreground" =>
+  isService ? "service" : isBackground ? "background" : "foreground";
+
 export async function gatherStatus(deps: LifecycleDeps, home: string): Promise<StatusReport> {
   const manager = managerOf(deps, home);
   const [installed, state, instance] = await Promise.all([
@@ -30,7 +33,10 @@ export async function gatherStatus(deps: LifecycleDeps, home: string): Promise<S
   const nodeMissing = installed && recorded !== undefined && !deps.fileExists(recorded.node);
   const cliVersion = deps.version();
   const managedPid = state.pid;
-  const isService = state.active && (managedPid === undefined || managedPid === instance?.pid);
+  const isService =
+    state.kind !== "detached" && state.active && (managedPid === undefined || managedPid === instance?.pid);
+  const isBackground =
+    state.kind === "detached" && state.active && (managedPid === undefined || managedPid === instance?.pid);
   const warnings: string[] = [];
   if (instance?.version !== undefined && instance.version !== cliVersion) {
     warnings.push(`Running version ${instance.version} is not ${cliVersion}: run \`tau restart\`.`);
@@ -38,7 +44,7 @@ export async function gatherStatus(deps: LifecycleDeps, home: string): Promise<S
   if (nodeMissing) warnings.push("node missing: run `tau` to repair the service.");
   return {
     installed,
-    running: instance ? (isService ? "service" : "foreground") : false,
+    running: instance ? runningKindOf(isService, isBackground) : false,
     pid: instance?.pid ?? null,
     url: instance?.url ?? null,
     version: instance?.version ?? null,

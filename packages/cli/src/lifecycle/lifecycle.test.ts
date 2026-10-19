@@ -1,5 +1,5 @@
 import type { LockInfo } from "@tau/core";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { createServiceManager } from "../service/manager";
 import { CLI, createTestNode } from "../service/test-context";
 import { runBareWith } from "./bare";
@@ -37,7 +37,7 @@ const RUNNING: LockInfo = { pid: 4242, url: "http://127.0.0.1:4317", version: "1
 describe("bare tau", () => {
   it("installs, starts and opens the browser on a fresh node", async () => {
     const { node, deps, opened } = setup({ instance: RUNNING });
-    await runBareWith(deps, [], vi.fn());
+    await runBareWith(deps, []);
     expect(node.runner.calls.some((call) => call.startsWith("launchctl bootstrap"))).toBe(true);
     expect(opened).toEqual(["http://127.0.0.1:4317/?token=tok"]);
   });
@@ -46,26 +46,23 @@ describe("bare tau", () => {
     const { node, deps } = setup({ instance: RUNNING });
     await createServiceManager(node.context, { ...CLI, node: "/old/node" }, node.tauHome).install();
     node.runner.calls.length = 0;
-    await runBareWith(deps, ["--no-open"], vi.fn());
+    await runBareWith(deps, ["--no-open"]);
     expect(node.runner.calls.some((call) => call.startsWith("launchctl bootstrap"))).toBe(true);
     node.runner.calls.length = 0;
-    await runBareWith(deps, ["--no-open"], vi.fn());
+    await runBareWith(deps, ["--no-open"]);
     expect(node.runner.calls.some((call) => call.includes("bootstrap"))).toBe(false);
   });
 
-  it("serves in the foreground when tau runs from an npx cache", async () => {
-    const { node, deps, output } = setup({ instance: RUNNING });
-    const serve = vi.fn(async () => undefined);
+  it("never serves in the foreground when tau runs from an npx cache", async () => {
+    const { node, deps } = setup({ instance: RUNNING });
     const cached = { ...deps, cli: () => ({ ...CLI, entry: "/h/.npm/_npx/9/tau/dist/bin.js" }) };
-    await runBareWith(cached, [], serve);
-    expect(serve).toHaveBeenCalled();
-    expect(output.join("\n")).toContain("Install tau globally first");
+    await expect(runBareWith(cached, [])).rejects.toThrow("Install tau globally first");
     expect(node.runner.calls).toEqual([]);
   });
 
   it("stores --port for the service", async () => {
     const { node, deps } = setup({ instance: RUNNING });
-    await runBareWith(deps, ["--port", "5555", "--no-open"], vi.fn());
+    await runBareWith(deps, ["--port", "5555", "--no-open"]);
     expect(readStoredPort(node.tauHome)).toBe(5555);
   });
 });

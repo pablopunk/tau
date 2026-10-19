@@ -32,6 +32,8 @@ export function createTestNode(
     runner,
     isAlive: (pid) => pid === 4242 && !killed.has(pid),
     kill: (pid) => void killed.add(pid),
+    sleep: async () => undefined,
+    commandOf: async () => undefined,
     ...overrides,
   };
   return { context, runner, osHome, tauHome: context.defaultHome };
