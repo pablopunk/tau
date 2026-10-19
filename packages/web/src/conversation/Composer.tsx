@@ -107,6 +107,12 @@ function ComposerForm({
   const menu = useComposerMenu({ text, caret, commands, projectId, pastedText });
   const canSend = (text.trim().length > 0 || attachments.length > 0) && !preparing && !disabled;
 
+  useEffect(() => {
+    const active = document.activeElement;
+    if (active && active !== document.body && active.closest("[role=dialog]")) return;
+    textarea.current?.focus({ preventScroll: true });
+  }, []);
+
   useEffect(
     () =>
       onComposerRestore(target, () => {
