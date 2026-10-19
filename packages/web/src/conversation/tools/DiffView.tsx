@@ -29,7 +29,7 @@ export function DiffView({ diff }: { diff: string }) {
   return (
     <figure
       aria-label="Diff"
-      className="max-h-96 overflow-auto rounded-md border bg-background py-1 font-mono text-xs leading-5"
+      className="relative max-h-96 overflow-auto rounded-md border bg-background py-1 font-mono text-xs leading-5"
     >
       {lines.map((line, index) => (
         // biome-ignore lint/suspicious/noArrayIndexKey: the diff is static text and lines have no identity
