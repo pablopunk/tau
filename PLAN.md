@@ -55,7 +55,8 @@ What the work plugins (`~/src/maze/claude-plugins`, 27 plugins) actually need:
   - Matchers are regexes on tool names: `Bash`, `Read`, `Write|Edit|MultiEdit`, `Skill|Agent|Task`, `AskUserQuestion`, `SendMessage`, `ExitPlanMode`, MCP names, `^ship:`.
   - JSON input on stdin; JSON output fields: `decision`/`reason` (most used), `hookSpecificOutput.permissionDecision` + `permissionDecisionReason`, `additionalContext`, `systemMessage`, `updatedInput`, `continue`.
   - Env vars: `CLAUDE_PLUGIN_ROOT`, `CLAUDE_PROJECT_DIR`, `CLAUDE_SESSION_ID`/`CLAUDE_CODE_SESSION_ID`, `CLAUDE_PID`.
-- **TypeScript hook modules** ("mods", `hooks.json` → `"modules": ["./register.ts"]`, e.g. `scoped-skill-injection`): in-process API with `session`, `fs`, `process`, `ui.log`, `state`. Lower priority, newer and rarer.
+- **TypeScript hook modules** ("mods", `hooks.json` → `"modules": ["./register.ts"]`, e.g. `scoped-skill-injection`): in-process API with `session`, `fs`, `process`, `ui.log`, `state`. Newer and rarer, but required by the `ship` captain: most of its gates (crew-read, gh, monitor-arm, memory-lint, jurisdiction, ticket-recheck) are mods in `ship/hooks/register.ts`.
+- **Per-thread settings overlay**: `ship` starts each crew member with a settings override (plugins off, tools denied). Model it as a generic per-thread toggle on top of the per-project settings, not a ship-specific flag.
 - **Skills** (23 plugins): `SKILL.md` frontmatter `name`, `description`, `argument-hint`, `allowed-tools` (incl. `Bash(cmd:*)` patterns), `disable-model-invocation`, `context: fork`, `agent:`.
 - **Agents** (8 plugins): `agents/*.md` frontmatter `name`, `description`, `model`, `effort`, `tools`, `skills`.
 - **Commands**, **output styles**, **`bin/`** on PATH.
