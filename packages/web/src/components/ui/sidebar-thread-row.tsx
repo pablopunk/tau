@@ -119,7 +119,7 @@ function SidebarThreadRow({
               <span
                 ref={slotRef}
                 data-slot="thread-project-slot"
-                className="z-10 flex size-[17px] shrink-0"
+                className={cn("z-10 flex size-[17px] shrink-0", avatarToggle && "group-data-[current=true]/menu-item:pointer-events-none")}
                 style={{ "--project-offset-x": `${offset.x}px`, "--project-offset-y": `${offset.y}px` } as React.CSSProperties}
               >
                 <span className={cn(MOTION, "flex group-data-[current=true]/menu-item:[transform:translate(var(--project-offset-x),var(--project-offset-y))_scale(1.4)]")}>
