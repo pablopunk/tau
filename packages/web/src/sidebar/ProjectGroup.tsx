@@ -68,10 +68,14 @@ export function ProjectGroup({
   };
 
   return (
-    <SidebarGroup role="group" aria-label={project.name}>
+    <SidebarGroup
+      role="group"
+      aria-label={project.name}
+      className="rounded-md has-[>div>[data-group-header]:hover]:bg-sidebar-accent has-[>div>[data-slot=sidebar-group-action]:hover]:bg-sidebar-accent"
+    >
       <Collapsible open={open} onOpenChange={onOpenChange}>
         <SidebarGroupLabel asChild title={homeRelative(project.path)} className="pr-14">
-          <CollapsibleTrigger className="w-full gap-1.5 hover:bg-sidebar-accent">
+          <CollapsibleTrigger data-group-header className="w-full gap-1.5">
             <ProjectIcon
               id={project.id}
               name={project.name}
