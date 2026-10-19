@@ -9,7 +9,7 @@ export interface McpConnection {
   close(): Promise<void>;
 }
 
-const CLIENT_INFO = { name: "tau", version: "0.0.0" };
+const CLIENT_INFO = { name: "tau", version: "0.1.0" };
 
 function transportOf(config: McpServerConfig, cwd: string): Transport {
   if ("command" in config) {
