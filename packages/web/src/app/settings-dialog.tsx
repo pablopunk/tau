@@ -1,7 +1,7 @@
 import { createContext, type ReactNode, useCallback, useContext, useMemo } from "react";
 import { useSearchParams } from "react-router";
 import { SettingsDialog } from "@/settings/SettingsDialog";
-import { SETTINGS_SECTIONS, type SettingsSectionId } from "@/settings/sections";
+import { DEFAULT_NODE_SECTION, SETTINGS_SECTIONS, type SettingsSectionId } from "@/settings/sections";
 
 type OpenSettings = (section?: SettingsSectionId, setting?: string) => void;
 
@@ -53,7 +53,7 @@ export function SettingsDialogProvider({ children }: { children: ReactNode }) {
 
   const openOn = useMemo<OpenSettings>(
     () =>
-      (target = "general", targetSetting) =>
+      (target = DEFAULT_NODE_SECTION, targetSetting) =>
         update(target, targetSetting),
     [update],
   );
@@ -64,7 +64,7 @@ export function SettingsDialogProvider({ children }: { children: ReactNode }) {
       <SettingsDialog
         open={section !== null}
         onOpenChange={(open) => !open && update(null)}
-        section={section ?? "general"}
+        section={section ?? DEFAULT_NODE_SECTION}
         nodeId={nodeId}
         onTabChange={(next, nextNodeId) => update(next, undefined, nextNodeId)}
         setting={setting}
