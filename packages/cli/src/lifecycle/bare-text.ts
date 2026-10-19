@@ -27,3 +27,8 @@ export const miseLine = (nodeVersion: string) =>
   `tau is installed under mise node ${nodeVersion}. If you change node versions, run npx @pablopunk/tau again.`;
 export const RUN_NPX_HINT = "Run: npx @pablopunk/tau";
 export const NO_NODE_ON_PATH = (command: string) => `No node found on PATH. Run: ${command}`;
+export const globalInstallFailedWith = (manual: string) => `Could not install tau globally. Run: ${manual}`;
+export const bootstrapVerifyFailed = (problem: string, manual: string) =>
+  `The global install did not verify: ${problem}\nRun: ${manual}`;
+export const newerGlobalNote = (global: string, version: string) =>
+  `tau ${global} is already installed globally (newer than ${version}): using it.`;
