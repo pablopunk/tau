@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { createChangeEmitter } from "../change-emitter";
 import { createSettingsStore } from "../home/settings-store";
 import { createProviderService } from "../provider/provider-service";
@@ -22,14 +22,17 @@ function installerThat(onInstall: () => void | Promise<void>): ClaudeSdkInstalle
   };
 }
 
-function serviceWithMissingSdk(installer: ClaudeSdkInstaller) {
+function serviceWithMissingSdk(
+  installer: ClaudeSdkInstaller,
+  noticeAt: () => Promise<number | null> = async () => 1,
+) {
   const fake = createFakeClaudeSdk();
   let installed = false;
   const service = createClaudeCliService({
     env: {},
     faux: false,
     onChange: () => undefined,
-    noticeAt: async () => 1,
+    noticeAt,
     recordNotice: async () => undefined,
     sdk: async () => {
       if (!installed) throw new ClaudeSdkMissingError();
@@ -65,6 +68,25 @@ describe("Claude Agent SDK install", () => {
     expect(installer.calls()).toBe(1);
     expect(first.state).toBe("ready");
     expect(second.state).toBe("ready");
+    await service.close();
+  });
+
+  it("installs the SDK by itself when the notice was acknowledged", async () => {
+    const installer = installerThat(() => undefined);
+    const service = serviceWithMissingSdk(installer);
+    await service.refresh();
+    await vi.waitFor(() => expect(service.status()?.state).toBe("ready"));
+    expect(installer.calls()).toBe(1);
+    await service.close();
+  });
+
+  it("waits for the user when the notice was not acknowledged", async () => {
+    const installer = installerThat(() => undefined);
+    const service = serviceWithMissingSdk(installer, async () => null);
+    await service.refresh();
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(installer.calls()).toBe(0);
+    expect(service.status()?.state).toBe("sdk_missing");
     await service.close();
   });
 

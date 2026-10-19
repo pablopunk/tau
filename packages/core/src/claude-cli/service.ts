@@ -117,12 +117,27 @@ export function createClaudeCliService(deps: ClaudeCliServiceDeps): ClaudeCliSer
   const sdk = deps.sdk ?? defaultSdkLoader(deps.env, deps.faux, deps.sdkHome);
   const installer = deps.installer ?? defaultInstaller(deps.env, deps.faux, deps.sdkHome);
   let installing: Promise<void> | null = null;
+  const installSdk = async (): Promise<ClaudeCliStatus> => {
+    installing ??= installer.install().finally(() => {
+      installing = null;
+    });
+    await installing;
+    return refresh();
+  };
+  /** The notice was acknowledged, so tau installs the SDK for the user instead of failing every thread's run. */
+  const installSdkWhenMissing = async (): Promise<void> => {
+    if (detector.status().state !== "sdk_missing" || (await deps.noticeAt()) === null) return;
+    await installSdk().catch(() => undefined);
+  };
   const planUsage = createPlanUsage({ clock, onChange: deps.onChange });
   const detector = createClaudeCliDetector({
     sdk,
     noticeAt: deps.noticeAt,
     usage: () => planUsage.current(),
-    onChange: deps.onChange,
+    onChange: () => {
+      deps.onChange();
+      void installSdkWhenMissing();
+    },
     clock,
   });
   const models = createClaudeCliModels({
@@ -175,13 +190,7 @@ export function createClaudeCliService(deps: ClaudeCliServiceDeps): ClaudeCliSer
       return detector.refresh();
     },
     refresh,
-    async installSdk() {
-      installing ??= installer.install().finally(() => {
-        installing = null;
-      });
-      await installing;
-      return refresh();
-    },
+    installSdk,
     closeThread: (piSessionId) => streamer.closeThread(piSessionId),
     interruptConversation: (piSessionId) => streamer.interruptConversation(piSessionId),
     async close() {
