@@ -33,7 +33,7 @@ export function NodeGroup({ node, name, local, children }: NodeGroupProps) {
       aria-label={name}
       data-node={key}
       data-status={status}
-      className="rounded-md has-[>div>[data-group-header]:hover]:bg-sidebar-accent"
+      className="mx-2 w-auto rounded-md px-0 has-[>div>[data-group-header]:hover]:bg-sidebar-accent"
     >
       <Collapsible open={open} onOpenChange={(next) => setOpen(key, next)}>
         <SidebarGroupLabel asChild>
