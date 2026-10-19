@@ -91,7 +91,7 @@ describe("sidebar with two machines", () => {
     stubBackend(data);
     renderSidebar();
 
-    const groups = await screen.findAllByRole("group", { name: /This machine|Homelab|Work laptop/ });
+    const groups = await screen.findAllByRole("group", { name: /^Local|Homelab|Work laptop/ });
     expect(groups.map((group) => group.getAttribute("data-machine"))).toEqual(["local", "m1", "m2"]);
     expect(await within(groups[0] as HTMLElement).findByText("Local thread")).toBeInTheDocument();
     expect(await within(groups[1] as HTMLElement).findByText("Homelab thread")).toBeInTheDocument();
@@ -109,7 +109,7 @@ describe("sidebar with two machines", () => {
     stubBackend(data);
     renderSidebar();
     expect(await screen.findByText("Only thread")).toBeInTheDocument();
-    expect(screen.queryByRole("group", { name: "This machine" })).toBeNull();
+    expect(screen.queryByRole("group", { name: /^Local/ })).toBeNull();
   });
 
   it("shows an offline machine from its cache: greyed, stale, last seen, links to the calm state, no requests", async () => {

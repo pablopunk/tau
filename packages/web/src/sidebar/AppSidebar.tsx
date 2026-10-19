@@ -5,6 +5,7 @@ import { useNavigate } from "react-router";
 import { useOpenConversation } from "@/activity";
 import { useOpenSettings } from "@/app/settings-dialog";
 import { Button } from "@/components/ui/button";
+import { NodeName } from "@/components/ui/node-name";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import {
   Sidebar,
@@ -19,6 +20,7 @@ import { newThreadPath } from "@/lib/paths";
 import type { SidebarMode } from "@/lib/preferences";
 import { MachineProvider, useMachines } from "@/machines";
 import { isUsable } from "@/machines/machine-text";
+import { useHubName } from "@/machines/use-machine-avatar";
 import { MachineGroup } from "./MachineGroup";
 import { MachineSection } from "./MachineSection";
 import { OfflineMachineSection } from "./OfflineMachineSection";
@@ -64,6 +66,7 @@ function RemoteGroup({ machine, mode }: { machine: Machine; mode: SidebarMode })
 
 function MachineSections({ mode }: { mode: SidebarMode }) {
   const { machines } = useMachines();
+  const hubName = useHubName();
   const open = useOpenConversation();
   const navigate = useNavigate();
   const local = (
@@ -78,7 +81,7 @@ function MachineSections({ mode }: { mode: SidebarMode }) {
   if (machines.length === 0) return local;
   return (
     <>
-      <MachineGroup machine={undefined} name="This machine">
+      <MachineGroup machine={undefined} name={hubName} local>
         {local}
       </MachineGroup>
       {machines.map((machine) => (

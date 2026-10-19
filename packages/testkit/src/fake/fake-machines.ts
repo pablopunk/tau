@@ -60,7 +60,7 @@ export function createFakeMachines({ now, emit, access }: FakeMachinesOptions): 
       await access.revokeDevice(id);
       announce();
     },
-    hubState: async () => ({ ...link, os: "darwin arm64" }),
+    hubState: async () => ({ ...link, os: "darwin arm64", name: "Mac" }),
     async disconnectHub() {
       link = HUB_LINK_NONE;
       announce();

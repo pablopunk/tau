@@ -11,6 +11,7 @@ import {
   CommandList,
   CommandShortcut,
 } from "@/components/ui/command";
+import { NodeName } from "@/components/ui/node-name";
 import { useSidebar } from "@/components/ui/sidebar";
 import { useHotkey } from "@/lib/hotkeys";
 import { conversationPath, newThreadPath } from "@/lib/paths";
@@ -116,7 +117,11 @@ function MainSections({
               onSelect={run(() => navigate(newThreadPath(project.id, machine.machineId)))}
             >
               {project.name}
-              {several ? <span className="ml-auto text-xs text-muted-foreground">{machine.name}</span> : null}
+              {several ? (
+                <span className="ml-auto text-xs text-muted-foreground">
+                  <NodeName name={machine.name} local={machine.local} />
+                </span>
+              ) : null}
             </CommandItem>
           )),
         )}

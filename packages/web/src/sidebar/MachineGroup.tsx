@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { MachineAvatar } from "@/components/ui/machine-avatar";
 import type { MachineDotStatus } from "@/components/ui/machine-row";
+import { NodeName } from "@/components/ui/node-name";
 import { SidebarGroup, SidebarGroupLabel } from "@/components/ui/sidebar";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useHubOs } from "@/machines/use-machine-avatar";
@@ -12,13 +13,15 @@ import { useCollapsedMachines } from "./use-sidebar-preferences";
 interface MachineGroupProps {
   /** `undefined`: the hub's own machine. */
   machine: Machine | undefined;
-  /** The label of the group: this machine's name, or "This machine". */
+  /** The label of the group: the machine's name. */
   name: string;
+  /** Shows a dim "local" after the name. */
+  local?: boolean;
   children: ReactNode;
 }
 
 /** The header of one machine's group: OS icon with status, name, collapsible. */
-export function MachineGroup({ machine, name, children }: MachineGroupProps) {
+export function MachineGroup({ machine, name, local, children }: MachineGroupProps) {
   const { isOpen, setOpen } = useCollapsedMachines();
   const key = machine?.id ?? "local";
   const hubOs = useHubOs();
@@ -41,7 +44,7 @@ export function MachineGroup({ machine, name, children }: MachineGroupProps) {
             ) : (
               <MachineAvatar os={os} status={status} />
             )}
-            <span className="truncate">{name}</span>
+            <NodeName name={name} local={local} />
           </CollapsibleTrigger>
         </SidebarGroupLabel>
         <CollapsibleContent>{children}</CollapsibleContent>

@@ -1,7 +1,6 @@
 import { useMachines } from "./MachineRegistry";
 import { isUsable } from "./machine-text";
-
-export const LOCAL_MACHINE_NAME = "This machine";
+import { useHubName } from "./use-machine-avatar";
 
 /**
  * The name to show next to a thread, but only when more than one machine is online (the hub's own counts as one);
@@ -9,8 +8,9 @@ export const LOCAL_MACHINE_NAME = "This machine";
  */
 export function useMachineName(machineId: string | undefined): string | undefined {
   const { machines } = useMachines();
+  const hubName = useHubName();
   const online = machines.filter(isUsable);
   if (online.length === 0) return undefined;
-  if (machineId === undefined) return LOCAL_MACHINE_NAME;
+  if (machineId === undefined) return hubName;
   return machines.find((machine) => machine.id === machineId)?.name;
 }

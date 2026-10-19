@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { Badge } from "@/components/ui/badge";
 import { MachineAvatar } from "@/components/ui/machine-avatar";
+import { NodeName } from "@/components/ui/node-name";
 import { useAllConversations } from "@/lib/queries";
 import { useMachineId } from "@/machines/machine-context";
 import { useMachineAvatar } from "@/machines/use-machine-avatar";
@@ -17,7 +18,7 @@ export function ThreadHeader({ id, extras }: { id: string; extras?: ReactNode })
       {machineName ? (
         <Badge variant="outline">
           <MachineAvatar os={avatar.os} status={avatar.status} />
-          {machineName}
+          <NodeName name={machineName} local={machineId === undefined} />
         </Badge>
       ) : null}
       {extras}

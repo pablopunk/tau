@@ -1,3 +1,4 @@
+import { hostname } from "node:os";
 import {
   AppError,
   type Core,
@@ -86,7 +87,11 @@ export function createMachines(deps: MachinesDeps): MachinesService {
       await deps.access.revokeDevice(id);
       announce();
     },
-    hubState: async () => ({ ...link, os: `${process.platform} ${process.arch}` }),
+    hubState: async () => ({
+      ...link,
+      os: `${process.platform} ${process.arch}`,
+      name: hostname().replace(/\.local$/i, ""),
+    }),
     async disconnectHub() {
       await deps.forgetHub?.();
       link = HUB_LINK_NONE;

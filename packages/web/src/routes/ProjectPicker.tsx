@@ -56,7 +56,8 @@ interface ProjectPickerProps {
 
 function usePickerMachines(): { all: MachineData[]; groupOf: (machine: MachineData) => string } {
   const all = useMachinesData();
-  const groupOf = (machine: MachineData) => (all.length > 1 ? machine.name : PROJECTS_GROUP);
+  const groupOf = (machine: MachineData) =>
+    all.length > 1 ? (machine.local ? `${machine.name} · local` : machine.name) : PROJECTS_GROUP;
   return { all, groupOf };
 }
 

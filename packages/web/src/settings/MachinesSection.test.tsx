@@ -51,7 +51,7 @@ let hubLink: Record<string, unknown> = {
 beforeEach(() => {
   calls.length = 0;
   forgetMachineApis();
-  hubLink = { state: "none", hubName: null, hubUrl: null, since: null, message: null };
+  hubLink = { state: "none", hubName: null, hubUrl: null, since: null, message: null, name: "Mac" };
   updateStatus = { current: "0.2.0", latest: null, checkedAt: null, behind: false };
   vi.stubGlobal(
     "fetch",
@@ -91,11 +91,11 @@ const renderSection = () =>
   );
 
 describe("Settings → Machines", () => {
-  it("lists This machine first, then each machine with its state", async () => {
+  it("lists the local node first, then each machine with its state", async () => {
     renderSection();
     const rows = await screen.findAllByRole("listitem");
     await waitFor(() => expect(screen.getAllByRole("listitem")).toHaveLength(3));
-    expect(within(rows[0] as HTMLElement).getByText("This machine")).toBeInTheDocument();
+    expect(within(rows[0] as HTMLElement).getByText("Mac")).toBeInTheDocument();
     const work = screen.getByText("Work laptop").closest("li") as HTMLElement;
     expect(within(work).getByText(/macOS · 1 thread · Offline, last seen 3 h ago/)).toBeInTheDocument();
     expect(within(work).getByRole("button", { name: /Open settings of Work laptop/ })).toBeDisabled();
@@ -131,7 +131,7 @@ describe("Settings → Machines", () => {
     updateStatus = { current: "0.0.1", latest: "0.1.5", checkedAt: Date.now(), behind: true };
     renderSection();
     expect(await screen.findByText("2 machines are behind")).toBeInTheDocument();
-    const hub = screen.getByText("This machine").closest("li") as HTMLElement;
+    const hub = screen.getByText("Mac").closest("li") as HTMLElement;
     expect(within(hub).getByText("Behind, latest 0.1.5")).toBeInTheDocument();
   });
 

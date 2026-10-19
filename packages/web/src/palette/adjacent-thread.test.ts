@@ -5,6 +5,7 @@ import { adjacentThread, threadOrder } from "./adjacent-thread";
 const machine = (machineId: string | undefined, ...threads: Parameters<typeof conversation>[0][]) => ({
   machineId,
   name: machineId ?? "local",
+  local: machineId === undefined,
   os: "linux x64",
   status: "online" as const,
   projects: [],

@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { MachineAvatar } from "@/components/ui/machine-avatar";
+import { NodeName } from "@/components/ui/node-name";
 import type { MachineData } from "@/machines";
 
 /** "Add project" with several machines asks first: whose disk is the folder on? */
@@ -29,7 +30,7 @@ export function ChooseMachineDialog({
               onClick={() => onChoose(machine.machineId)}
             >
               <MachineAvatar os={machine.os} status={machine.status} />
-              {machine.name}
+              <NodeName name={machine.name} local={machine.local} />
             </Button>
           ))}
         </div>

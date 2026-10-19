@@ -6,8 +6,7 @@ import { useHubQueryClient } from "./hub-client";
 import { useMachines } from "./MachineRegistry";
 import { apiOfMachine } from "./machine-apis";
 import { isUsable } from "./machine-text";
-import { useHubOs } from "./use-machine-avatar";
-import { LOCAL_MACHINE_NAME } from "./use-machine-name";
+import { useHubName, useHubOs } from "./use-machine-avatar";
 
 const REMOTE_REFRESH_MS = 15_000;
 
@@ -15,6 +14,8 @@ export interface MachineData {
   /** `undefined`: the hub's own machine. */
   readonly machineId: string | undefined;
   readonly name: string;
+  /** The hub's own machine: its name is shown with a dim "local". */
+  readonly local: boolean;
   readonly os: string | undefined;
   readonly status: MachineStatus;
   readonly projects: readonly Project[];
@@ -31,6 +32,7 @@ export function useMachinesData(): MachineData[] {
   const { machines } = useMachines();
   const hub = useHubQueryClient();
   const hubOs = useHubOs();
+  const hubName = useHubName();
   const localApi = apiOfMachine();
   const remote = machines.filter(isUsable);
   const results = useQueries(
@@ -63,7 +65,8 @@ export function useMachinesData(): MachineData[] {
   return useMemo(() => {
     const local: MachineData = {
       machineId: undefined,
-      name: LOCAL_MACHINE_NAME,
+      name: hubName,
+      local: true,
       os: hubOs,
       status: "online",
       projects: (results[0]?.data as Project[] | undefined) ?? [],
@@ -73,6 +76,7 @@ export function useMachinesData(): MachineData[] {
       return {
         machineId: machine.id,
         name: machine.name,
+        local: false,
         os: machine.os,
         status: machine.status,
         projects: (results[2 + index * 2]?.data as Project[] | undefined) ?? [],
@@ -80,5 +84,5 @@ export function useMachinesData(): MachineData[] {
       };
     });
     return [local, ...others];
-  }, [signature, remoteKey, hubOs]);
+  }, [signature, remoteKey, hubOs, hubName]);
 }

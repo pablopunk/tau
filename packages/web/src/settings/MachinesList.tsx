@@ -16,6 +16,7 @@ import {
   MachineRowBody,
   MachineRowVersion,
 } from "@/components/ui/machine-row";
+import { NodeName } from "@/components/ui/node-name";
 import { SettingRow } from "@/components/ui/settings-layout";
 import {
   useAllConversations,
@@ -26,6 +27,7 @@ import {
 } from "@/lib/queries";
 import { useMachines } from "@/machines";
 import { osLabel, stateLine } from "@/machines/machine-text";
+import { useHubName } from "@/machines/use-machine-avatar";
 import { MachineSettingsDialog } from "./MachineSettingsDialog";
 import { MachinesUpdateBar, UpdateCommand, versionState } from "./MachinesVersion";
 
@@ -158,6 +160,7 @@ function MachineItem({
 function ThisMachineRow() {
   const threads = useAllConversations().data?.length ?? 0;
   const link = useHubLink().data;
+  const hubNodeName = useHubName();
   const status = useUpdateStatus().data;
   const hubName = link && link.state !== "none" ? (link.hubName ?? link.hubUrl ?? "a hub") : null;
   return (
@@ -165,7 +168,7 @@ function ThisMachineRow() {
       <MachineRowBody>
         <span className="flex min-w-0 items-center gap-2 text-sm font-medium">
           <MachineAvatar os={link?.os} status="online" />
-          <span className="truncate">This machine</span>
+          <NodeName name={hubNodeName} local />
           {hubName ? null : <Badge variant="secondary">Hub</Badge>}
         </span>
         <span className="text-xs text-muted-foreground">

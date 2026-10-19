@@ -48,6 +48,8 @@ export const HubLinkSchema = Type.Object({
   message: Type.Union([Type.String(), Type.Null()]),
   /** The OS of this tau itself ("darwin arm64"), set by core on every read. */
   os: Type.Optional(Type.String()),
+  /** The name of this tau itself (its hostname without ".local"), set by core on every read. */
+  name: Type.Optional(Type.String()),
 });
 export type HubLink = Type.Static<typeof HubLinkSchema>;
 
