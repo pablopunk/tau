@@ -2,6 +2,7 @@ import type { LockInfo } from "@tau/core";
 import type { ConversationSummary } from "@tau/protocol";
 import type { LifecycleDeps } from "../lifecycle/deps";
 import type { RunCommand } from "./command-runner";
+import type { JobReporter } from "./job-child";
 import type { LinkedNodes } from "./nodes-behind";
 
 export interface UpdateDeps extends LifecycleDeps {
@@ -11,6 +12,10 @@ export interface UpdateDeps extends LifecycleDeps {
   readonly listConversations: (home: string) => Promise<readonly ConversationSummary[]>;
   readonly confirm: (question: string) => Promise<boolean>;
   readonly isTty: boolean;
+  /** This process's pid; default `process.pid`. */
+  readonly pid?: number;
+  /** Set while running as the detached updater child. */
+  readonly job?: JobReporter;
   readonly env: Readonly<Record<string, string | undefined>>;
   readonly execPath: string;
   /** `realpath(argv[1])`. */

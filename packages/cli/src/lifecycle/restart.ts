@@ -2,6 +2,7 @@ import { ForegroundHolderError } from "../service/detached";
 import { foregroundHolder } from "./bare-text";
 import { type LifecycleDeps, managerOf, realLifecycleDeps } from "./deps";
 import { lifecycleFlagsOf } from "./flags";
+import { installOrRepairService } from "./install-or-repair";
 import { writeStoredPort } from "./port-store";
 import { gatherStatus } from "./status";
 
@@ -15,8 +16,13 @@ export async function runRestartWith(deps: LifecycleDeps, argv: readonly string[
     process.exitCode = 1;
     return;
   }
+  const prepared = await installOrRepairService(deps, flags.home);
+  if (prepared.kind === "failed") {
+    deps.out(prepared.message);
+    process.exitCode = 1;
+    return;
+  }
   const manager = managerOf(deps, flags.home);
-  if (await manager.needsRepair()) deps.out("Repairing the service.");
   try {
     await manager.restart();
   } catch (error) {

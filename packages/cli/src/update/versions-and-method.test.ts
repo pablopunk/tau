@@ -1,7 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { RunCommand } from "./command-runner";
 import { installMethodOf } from "./install-method";
-import { fetchLatestVersion } from "./latest-version";
 
 const probe = (entry: string, platform: NodeJS.Platform = "darwin") => ({
   entry,
@@ -60,37 +58,25 @@ describe("installMethodOf", () => {
   });
 });
 
-describe("fetchLatestVersion", () => {
-  const run =
-    (result: Awaited<ReturnType<RunCommand>>): RunCommand =>
-    async () =>
-      result;
-  it("returns a plain version", async () => {
-    await expect(
-      fetchLatestVersion(run({ code: 0, stdout: "1.2.3\n", stderr: "" }), "/n/bin/node"),
-    ).resolves.toBe("1.2.3");
-  });
-  it("fails offline and on a non-semver answer", async () => {
-    await expect(
-      fetchLatestVersion(run({ code: 1, stdout: "", stderr: "ENOTFOUND" }), "/n/bin/node"),
-    ).rejects.toThrow(/ENOTFOUND/);
-    await expect(
-      fetchLatestVersion(run({ code: null, stdout: "", stderr: "timed out" }), "/n/bin/node"),
-    ).rejects.toThrow();
-    await expect(
-      fetchLatestVersion(run({ code: 0, stdout: "2.0.0-beta.1", stderr: "" }), "/n/bin/node"),
-    ).rejects.toThrow(/unexpected/);
-  });
-  it("calls npm next to node with an args array", async () => {
-    const calls: unknown[][] = [];
-    await fetchLatestVersion(
-      async (c, a, o) => (calls.push([c, a, o]), { code: 0, stdout: "1.0.0", stderr: "" }),
-      "/n/bin/node",
-    );
-    expect(calls[0]).toEqual([
-      "/n/bin/npm",
-      ["view", "@pablopunk/tau@latest", "version", "--prefer-online"],
-      { stdio: "capture", timeoutMs: 15000 },
-    ]);
+describe("manualCommand", () => {
+  it.each([
+    [
+      "bun",
+      "/h/.bun/install/global/node_modules/@pablopunk/tau/dist/bin.js",
+      "bun add -g @pablopunk/tau@1.2.3",
+    ],
+    [
+      "volta",
+      "/h/.volta/tools/image/packages/@pablopunk/tau/lib/node_modules/@pablopunk/tau/dist/bin.js",
+      "volta install @pablopunk/tau@1.2.3",
+    ],
+    [
+      "npx",
+      "/h/.npm/_npx/abc/node_modules/@pablopunk/tau/dist/bin.js",
+      "npm i -g @pablopunk/tau@latest && tau restart",
+    ],
+    ["dev checkout", "/h/src/tau/packages/cli/dist/bin.js", undefined],
+  ])("%s", (_name, entry, command) => {
+    expect(installMethodOf(probe(entry))).toMatchObject({ kind: "manual", manualCommand: command });
   });
 });

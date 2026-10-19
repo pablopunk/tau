@@ -5,7 +5,7 @@ import {
   publishServerUrl,
   readRunningInstance,
 } from "@tau/core";
-import type { Core, CreateCore } from "@tau/protocol";
+import type { Core, CreateCore, UpdaterPort } from "@tau/protocol";
 import type { CreateServer } from "@tau/server";
 import { listenOnFreePort } from "./listen-on-free-port";
 import type { StartLinkClient } from "./nodes/link-client";
@@ -13,6 +13,7 @@ import type { CliOptions } from "./options";
 import { ensurePrivateDirectory } from "./private-files";
 import { readOrCreateToken } from "./token";
 import { latestVersionSource } from "./update/latest-source";
+import { createRealUpdater } from "./update/real-updater";
 
 export interface RunDependencies {
   readonly createCore: CreateCore;
@@ -28,6 +29,8 @@ export interface RunDependencies {
   readonly version?: string;
   /** The registry's latest version for core's update status. Default: npm, or `TAU_FAKE_LATEST`. */
   readonly latestVersion?: () => Promise<string>;
+  /** Builds the updater (async: it probes `systemctl` once). Default: the real one when `cliEntry` is set, else none. */
+  readonly createUpdater?: (home: string) => Promise<UpdaterPort | undefined>;
 }
 
 export interface RunningApp {
@@ -55,6 +58,9 @@ async function openBrowserSafely(url: string, { openBrowser, log }: RunDependenc
   }
 }
 
+const defaultUpdater = (dependencies: RunDependencies) => async (home: string) =>
+  dependencies.cliEntry === undefined ? undefined : createRealUpdater(home, dependencies.version);
+
 /** Resolves to the running app, or `undefined` when another instance already serves this home. */
 export async function run(
   options: CliOptions,
@@ -64,6 +70,7 @@ export async function run(
   const token = await readOrCreateToken(options.home);
   if (await reportExistingInstance(options, dependencies, token)) return undefined;
 
+  const updater = await (dependencies.createUpdater ?? defaultUpdater(dependencies))(options.home);
   const tunnelTarget = createTunnelTargetRef();
   const core: Core = await dependencies.createCore({
     home: options.home,
@@ -71,7 +78,9 @@ export async function run(
     cliEntry: dependencies.cliEntry,
     tunnelTarget: tunnelTarget.get,
     currentVersion: dependencies.version ?? "",
-    latestVersion: dependencies.latestVersion ?? latestVersionSource(),
+    latestVersion: dependencies.latestVersion ?? latestVersionSource(process.env, options.home),
+    updater,
+    autoStartUpdates: true,
   });
   try {
     const server = await listenOnFreePort(options.port, (port) =>

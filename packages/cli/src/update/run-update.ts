@@ -1,8 +1,9 @@
-import { compareVersions } from "@tau/protocol";
+import { compareVersions, isPlainVersion } from "@tau/protocol";
 import { lifecycleFlagsOf } from "../lifecycle/flags";
 import { gatherStatus } from "../lifecycle/status";
 import { globalPackageDir } from "./global-package";
 import { entryOfPackage, type InstallMethod, installMethodOf } from "./install-method";
+import { createJobReporter } from "./job-child";
 import { linkedNodesLine } from "./nodes-behind";
 import { restartInNewBinary } from "./restart-step";
 import { hasRunningWork, runningWorkOf } from "./running-work";
@@ -112,12 +113,48 @@ async function latestOrError(deps: UpdateDeps): Promise<string | undefined> {
   }
 }
 
-/** `tau update`; resolves to the exit code. */
+const problemOf = (errors: readonly string[]) => errors.join("\n").slice(0, 2000) || "The update failed.";
+
+/** `tau update`; resolves to the exit code. As the detached updater child it also reports every step to the job file. */
 export async function runUpdateWith(deps: UpdateDeps, argv: readonly string[]): Promise<number> {
   const flags = updateFlagsOf(argv);
+  if (flags.target !== undefined && !isPlainVersion(flags.target)) {
+    deps.err(`--target needs a plain version like 1.2.3, got: ${flags.target}`);
+    return 1;
+  }
   const home = lifecycleFlagsOf(argv, deps.context).home;
+  const job =
+    flags.target === undefined ? undefined : createJobReporter(deps.env, home, deps.pid ?? process.pid);
+  if (job === undefined) return performUpdate(deps, flags, argv, home);
+  const errors: string[] = [];
+  const tracked: UpdateDeps = {
+    ...deps,
+    job,
+    err: (message) => {
+      errors.push(message);
+      deps.err(message);
+    },
+  };
+  let code = 1;
+  try {
+    code = await performUpdate(tracked, flags, argv, home);
+  } catch (error) {
+    errors.push(error instanceof Error ? error.message : String(error));
+  }
+  if (code === 0) job.step("idle");
+  else job.step("failed", problemOf(errors));
+  await job.release(deps.runCommand);
+  return code;
+}
+
+async function performUpdate(
+  deps: UpdateDeps,
+  flags: UpdateFlags,
+  argv: readonly string[],
+  home: string,
+): Promise<number> {
   const current = deps.version();
-  const latest = await latestOrError(deps);
+  const latest = flags.target ?? (await latestOrError(deps));
   if (latest === undefined) return 1;
   if (flags.check) return checkOnly(deps, home, current, latest);
   if (compareVersions(current, latest) >= 0) {

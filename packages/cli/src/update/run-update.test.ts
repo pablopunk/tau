@@ -5,9 +5,11 @@ import { summary } from "../commands/test-support";
 import { createServiceManager } from "../service/manager";
 import { CLI, createTestNode } from "../service/test-context";
 import type { CommandResult } from "./command-runner";
+import { readJobFile, writeJobFile } from "./job-file";
 import type { LinkedNodes } from "./nodes-behind";
 import { runUpdateWith } from "./run-update";
 import type { UpdateDeps } from "./update-deps";
+import type { JobFile } from "./updater";
 
 const ENTRY = "/usr/local/lib/node_modules/@pablopunk/tau/dist/bin.js";
 const PKG = "/usr/local/lib/node_modules/@pablopunk/tau";
@@ -30,6 +32,7 @@ interface Options {
   hub?: boolean;
   confirm?: boolean;
   linked?: LinkedNodes | Error;
+  pid?: number;
 }
 
 async function setup(options: Options = {}) {
@@ -70,6 +73,7 @@ async function setup(options: Options = {}) {
     confirm: async () => options.confirm ?? true,
     isTty: options.tty ?? true,
     env: options.env ?? {},
+    pid: options.pid,
     execPath: "/n/bin/node",
     entry: options.entry ?? ENTRY,
     realpath: (p) => p,
@@ -300,5 +304,93 @@ describe("tau update", () => {
     expect(await runUpdateWith(s.deps, ["--yes"])).toBe(1);
     expect(s.err.join()).toContain("bun add -g @pablopunk/tau@1.1.0");
     expect(s.commands).toEqual([]);
+  });
+});
+
+describe("tau update --target (the detached child)", () => {
+  const seed = (home: string, patch: Partial<JobFile> = {}) =>
+    writeJobFile(home, {
+      state: "installing",
+      target: "1.1.0",
+      from: "1.0.0",
+      nonce: "abc",
+      pid: null,
+      startedAt: 1,
+      error: null,
+      ...patch,
+    });
+  const flipOnPoll = (s: Awaited<ReturnType<typeof setup>>): UpdateDeps => ({
+    ...s.deps,
+    pollInstance: async () => {
+      s.instance.current = NEW;
+      return NEW;
+    },
+  });
+
+  it("rejects a target that is not a plain version before anything runs", async () => {
+    const s = await setup();
+    for (const bad of ["latest", "1.1", "1.1.0-beta.1", "1.1.0; rm -rf /", ""]) {
+      expect(await runUpdateWith(s.deps, ["--target", bad, "--yes"])).toBe(1);
+    }
+    expect(s.commands).toEqual([]);
+    expect(s.err[0]).toContain("--target needs a plain version");
+  });
+
+  it("installs exactly the target, not a fresh latest, and never prompts without a terminal", async () => {
+    const s = await setup({ latest: new Error("registry down"), tty: false });
+    expect(await runUpdateWith(s.deps, ["--target", "1.1.0", "--yes", "--force"])).toBe(1);
+    expect(installCalls(s)[0]?.args).toEqual(["i", "-g", "@pablopunk/tau@1.1.0"]);
+    expect(s.err.join()).not.toContain("registry down");
+    expect(s.err.join()).not.toContain("Add --yes");
+  });
+
+  it("reports pid, restarting and idle to the job file and survives the inside-server check", async () => {
+    const s = await setup({ env: { TAU_UPDATE_JOB: "abc" }, pid: 777, ancestors: [4242] });
+    seed(s.home);
+    const code = await runUpdateWith(flipOnPoll(s), [
+      "--target",
+      "1.1.0",
+      "--yes",
+      "--force",
+      "--home",
+      s.home,
+    ]);
+    expect(code).toBe(0);
+    expect(readJobFile(s.home)).toMatchObject({ state: "idle", pid: 777, error: null });
+    expect(restartCalls(s)).toHaveLength(1);
+  });
+
+  it("writes failed with the error when the install fails", async () => {
+    const s = await setup({
+      env: { TAU_UPDATE_JOB: "abc" },
+      pid: 777,
+      install: { code: 1, stdout: "", stderr: "boom" },
+    });
+    seed(s.home);
+    expect(await runUpdateWith(s.deps, ["--target", "1.1.0", "--yes", "--force", "--home", s.home])).toBe(1);
+    expect(readJobFile(s.home)).toMatchObject({ state: "failed", pid: 777 });
+    expect(readJobFile(s.home)?.error).toContain("The install failed");
+  });
+
+  it("keeps refusing inside tau with TAU_THREAD_ID even with a valid nonce, and for a wrong nonce or pid", async () => {
+    const thread = await setup({ env: { TAU_UPDATE_JOB: "abc", TAU_THREAD_ID: "me" }, pid: 777 });
+    seed(thread.home, { pid: 777 });
+    expect(await runUpdateWith(thread.deps, ["--yes", "--home", thread.home])).toBe(1);
+    expect(restartCalls(thread)).toEqual([]);
+    const wrongNonce = await setup({ env: { TAU_UPDATE_JOB: "zzz" }, pid: 777, ancestors: [4242] });
+    seed(wrongNonce.home, { pid: 777 });
+    expect(await runUpdateWith(wrongNonce.deps, ["--yes", "--home", wrongNonce.home])).toBe(1);
+    expect(restartCalls(wrongNonce)).toEqual([]);
+    const wrongPid = await setup({ env: { TAU_UPDATE_JOB: "abc" }, pid: 1, ancestors: [4242] });
+    seed(wrongPid.home, { pid: 777 });
+    expect(await runUpdateWith(wrongPid.deps, ["--yes", "--home", wrongPid.home])).toBe(1);
+    expect(restartCalls(wrongPid)).toEqual([]);
+  });
+
+  it("does not prompt: a valid nonce with a recorded pid skips the ancestry check on a plain `tau update` too", async () => {
+    const s = await setup({ env: { TAU_UPDATE_JOB: "abc" }, pid: 777, ancestors: [4242], tty: false });
+    seed(s.home, { pid: 777 });
+    await runUpdateWith(flipOnPoll(s), ["--yes", "--home", s.home]);
+    expect(restartCalls(s)).toHaveLength(1);
   });
 });

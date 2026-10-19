@@ -1,5 +1,7 @@
+import { installOrRepairService } from "../lifecycle/install-or-repair";
 import { gatherStatus } from "../lifecycle/status";
 import { entryOfPackage } from "./install-method";
+import { isUpdateChild } from "./job-child";
 import type { UpdateDeps } from "./update-deps";
 import * as text from "./update-text";
 
@@ -12,6 +14,7 @@ interface RestartRequest {
 
 async function isInsideServer(deps: UpdateDeps, home: string): Promise<boolean> {
   if (deps.env.TAU_THREAD_ID) return true;
+  if (isUpdateChild(deps.env, home, deps.pid ?? process.pid)) return false;
   const [instance, ancestors] = [
     await deps.readInstance(home),
     await (deps.ancestorPids?.() ?? Promise.resolve([] as readonly number[])),
@@ -28,6 +31,12 @@ export async function restartInNewBinary(deps: UpdateDeps, request: RestartReque
     deps.err(text.INSIDE_TAU);
     return 1;
   }
+  const prepared = await installOrRepairService(deps, request.home);
+  if (prepared.kind === "failed") {
+    deps.err(prepared.message);
+    return 1;
+  }
+  deps.job?.step("restarting");
   const args = [entryOfPackage(request.packageDir), "restart", ...request.forwarded];
   const result = await deps.runCommand(deps.execPath, args, { stdio: "inherit" });
   if (result.code !== 0) {
