@@ -2,6 +2,7 @@ import {
   CHUNK_BYTES,
   CREDIT_WINDOW_BYTES,
   chunkBody,
+  chunkMessage,
   type DataFrame,
   decodeDataFrame,
   encodeDataFrame,
@@ -215,7 +216,7 @@ export class RawPeer {
       messages: [],
       closed: new Promise((resolve) => (resolveClosed = resolve)),
       send: (payload, text = false) => {
-        for (const piece of chunkBody(id, payload, text)) this.queue(id, { ...piece, end: false });
+        for (const piece of chunkMessage(id, payload, text)) this.queue(id, piece);
         this.flush();
       },
       close: (code = 1000) => this.sendControl({ type: "close", id, code, reason: "" }),
@@ -280,7 +281,7 @@ export class RawPeer {
     if (!open)
       return void this.sendControl({ type: "close", id: frame.id, code: 1011, reason: "no streams" });
     const send = (payload: Uint8Array, text = false) => {
-      for (const piece of chunkBody(frame.id, payload, text)) this.queue(frame.id, { ...piece, end: false });
+      for (const piece of chunkMessage(frame.id, payload, text)) this.queue(frame.id, piece);
       this.flush();
     };
     this.streams.set(frame.id, open(frame.path, send));

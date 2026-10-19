@@ -49,6 +49,10 @@ export const PROOF_DOMAIN = "tau-proof-v1";
 export const FLAG_END = 0x01;
 /** The payload is one text WebSocket message (`/live`), not binary. */
 export const FLAG_TEXT = 0x02;
+/** More parts of the same WebSocket message follow: the receiver joins them before it delivers the message. */
+export const FLAG_MORE = 0x04;
+/** The largest WebSocket message a link stream carries in parts (a long thread's `/live` snapshot). */
+export const LINK_MAX_MESSAGE_BYTES = 64 * 1024 * 1024;
 
 const StreamId = Type.Integer({ minimum: 1, maximum: 0xffffffff });
 
@@ -144,13 +148,15 @@ export interface DataFrame {
   readonly end: boolean;
   readonly text: boolean;
   readonly payload: Uint8Array;
+  /** Another part of this message follows. Absent means false. */
+  readonly more?: boolean;
 }
 
-export function encodeDataFrame({ id, end, text, payload }: DataFrame): Uint8Array {
+export function encodeDataFrame({ id, end, text, payload, more }: DataFrame): Uint8Array {
   if (payload.byteLength > CHUNK_BYTES) throw new RangeError("A data frame carries at most CHUNK_BYTES");
   const out = new Uint8Array(DATA_HEADER_BYTES + payload.byteLength);
   new DataView(out.buffer).setUint32(0, id);
-  out[4] = (end ? FLAG_END : 0) | (text ? FLAG_TEXT : 0);
+  out[4] = (end ? FLAG_END : 0) | (text ? FLAG_TEXT : 0) | (more ? FLAG_MORE : 0);
   out.set(payload, DATA_HEADER_BYTES);
   return out;
 }
@@ -163,6 +169,7 @@ export function decodeDataFrame(bytes: Uint8Array): DataFrame | undefined {
     id: new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength).getUint32(0),
     end: (flags & FLAG_END) !== 0,
     text: (flags & FLAG_TEXT) !== 0,
+    more: (flags & FLAG_MORE) !== 0,
     payload: bytes.subarray(DATA_HEADER_BYTES),
   };
 }
@@ -175,4 +182,9 @@ export function* chunkBody(id: number, body: Uint8Array, text = false): Generato
     offset += payload.byteLength;
     yield { id, end: offset >= body.byteLength, text, payload };
   } while (offset < body.byteLength);
+}
+
+/** Splits one WebSocket message into parts: every part but the last has `more`; none ends the stream. */
+export function* chunkMessage(id: number, message: Uint8Array, text: boolean): Generator<DataFrame> {
+  for (const part of chunkBody(id, message, text)) yield { ...part, end: false, more: !part.end };
 }

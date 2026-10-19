@@ -86,6 +86,25 @@ describe.each(ROLES)("stream rules (the real node is the %s)", (role) => {
     await vi.waitFor(() => expect(link?.peer.dataFramesReceived).toBe(1));
   });
 
+  it("delivers a /live message larger than the credit window as one whole message", async () => {
+    const big = "x".repeat(2_500_000);
+    link = await linkRaw(node, role, {
+      handlers: {
+        request: () => ok,
+        open: (_path, send) => {
+          send(Buffer.from(big), true);
+          return {};
+        },
+      },
+    });
+    const socket = await dialBrowser(`/api/n/${link.peer.nodeId}${LIVE_PATH}`);
+    const [data, isBinary] = await new Promise<[WebSocket.RawData, boolean]>((resolve) =>
+      socket.once("message", (raw, binary) => resolve([raw, binary])),
+    );
+    expect(isBinary).toBe(false);
+    expect(data.toString()).toBe(big);
+  });
+
   it("closes a stream 1013 after 60 s without credit, and keeps the link", async () => {
     link = await linkRaw(node, role, {
       withholdCredit: true,

@@ -3,7 +3,9 @@ import { describe, expect, it } from "vitest";
 import {
   CHUNK_BYTES,
   chunkBody,
+  chunkMessage,
   DATA_HEADER_BYTES,
+  type DataFrame,
   decodeDataFrame,
   encodeDataFrame,
   FLAG_END,
@@ -27,11 +29,21 @@ describe("node link constants", () => {
 
 describe("data frames", () => {
   it("round-trips an id, the flags and the payload", () => {
-    const frame = { id: 0xfffffffe, end: true, text: true, payload: new Uint8Array([1, 2, 3]) };
+    const frame = { id: 0xfffffffe, end: true, text: true, more: false, payload: new Uint8Array([1, 2, 3]) };
     const bytes = encodeDataFrame(frame);
     expect(bytes.byteLength).toBe(DATA_HEADER_BYTES + 3);
     expect(bytes[4]).toBe(FLAG_END | 2);
     expect(decodeDataFrame(bytes)).toEqual(frame);
+  });
+
+  it("splits a message into parts: more on all but the last, end on none", () => {
+    const parts = [...chunkMessage(3, new Uint8Array(CHUNK_BYTES * 2 + 1), true)];
+    expect(parts.map((part) => [part.more, part.end, part.text])).toEqual([
+      [true, false, true],
+      [true, false, true],
+      [false, false, true],
+    ]);
+    expect(decodeDataFrame(encodeDataFrame(parts[0] as DataFrame))?.more).toBe(true);
   });
 
   it("refuses a payload above a chunk and short frames", () => {

@@ -1,4 +1,10 @@
-import { CHUNK_BYTES, CREDIT_WINDOW_BYTES, chunkBody, type DataFrame, type LinkFrame } from "@tau/protocol";
+import {
+  CREDIT_WINDOW_BYTES,
+  chunkMessage,
+  type DataFrame,
+  LINK_MAX_MESSAGE_BYTES,
+  type LinkFrame,
+} from "@tau/protocol";
 import WebSocket from "ws";
 import { sanitiseVia } from "./device-labels";
 import { isUnsafeQuery, targetOf, wireCloseCode } from "./link-frames";
@@ -32,7 +38,7 @@ function relay(context: ResponderContext, frame: OpenFrame, path: string): void 
   const { id } = frame;
   const loopback = new WebSocket(`ws://127.0.0.1:${context.port}${targetOf(path, frame.query)}`, {
     headers: loopbackHeaders(context, sanitiseVia(frame.via)),
-    maxPayload: CHUNK_BYTES * 4,
+    maxPayload: LINK_MAX_MESSAGE_BYTES,
   });
   const queued: DataFrame[] = [];
   let open = false;
@@ -101,11 +107,7 @@ function relay(context: ResponderContext, frame: OpenFrame, path: string): void 
   loopback.on("message", (data, isBinary) => {
     if (ended) return;
     const bytes = Buffer.isBuffer(data) ? data : Buffer.concat(data as Buffer[]);
-    if (!isBinary && bytes.byteLength > CHUNK_BYTES) {
-      loopback.close(TOO_BIG, "message too big");
-      return finish(TOO_BIG, "message too big");
-    }
-    for (const part of chunkBody(id, bytes, !isBinary)) enqueue(stream, { ...part, end: false });
+    for (const part of chunkMessage(id, bytes, !isBinary)) enqueue(stream, part);
     mux.pump();
     if (stream.pendingBytes >= CREDIT_WINDOW_BYTES) loopback.pause();
   });
