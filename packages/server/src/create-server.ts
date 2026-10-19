@@ -12,6 +12,7 @@ import type { AttachPeer } from "./nodes/peer-seam";
 import { registerNodeLink } from "./nodes/register-link";
 import { registerNodeRoutes } from "./nodes/register-node-routes";
 import { registerNodeProxy } from "./nodes/register-proxy";
+import { createRelay } from "./nodes/relay";
 import { startSummaryWriter } from "./nodes/summary-writer";
 import { allowEmptyJsonBodies } from "./rest/json-body";
 import { registerRoutes } from "./rest/register-routes";
@@ -21,7 +22,7 @@ import "./security/fastify-augmentation";
 import { createGuard } from "./security/guard";
 import { registerAccessRoutes } from "./security/register-access-routes";
 import { registerLegacyLink } from "./security/register-legacy-link";
-import { createSession } from "./security/session";
+import { createSession, type Session } from "./security/session";
 import { createTunnelListener, type TunnelListener } from "./security/tunnel-listener";
 import { createTunnelTags } from "./security/tunnel-tags";
 import { registerStaticAssets } from "./static-assets";
@@ -37,6 +38,8 @@ export interface ServerOptions {
   readonly host?: string;
   /** Secret that opens a session: `/?token=…` is swapped for the `tau_<port>` cookie. Persisted by the CLI in `<home>/token`. */
   readonly token: string;
+  /** Called with the new master token before `tau access rotate` swaps it (the CLI writes `<home>/token`); a rejection aborts the rotate. */
+  readonly onTokenRotated?: (token: string) => Promise<void>;
   /** What `/api/n/<id>/**` talks to. Default: the registry of the links `attachPeer` runs (tests may stub it). */
   readonly gateway?: NodeGateway;
   /** Fastify logger, off by default. */
@@ -88,7 +91,8 @@ export const createServer: CreateServer = async (options) => {
   let allowList: AllowList | undefined;
   const tags = createTunnelTags();
   const sockets = createDeviceSockets();
-  const session = () => createSession(options.token, boundPort);
+  let liveSession: Session | undefined;
+  const session = () => (liveSession ??= createSession(options.token, boundPort));
   const guard = (() => {
     let built: ReturnType<typeof createGuard> | undefined;
     return (...args: Parameters<ReturnType<typeof createGuard>>) => {
@@ -109,13 +113,22 @@ export const createServer: CreateServer = async (options) => {
   app.decorateRequest("deviceId", "");
   app.addHook("onRequest", guard);
   registerRoutes(app, options.core, sockets);
-  registerAccessRoutes(app, { core: options.core, tunnel: tags, sockets });
+  registerAccessRoutes(app, {
+    core: options.core,
+    tunnel: tags,
+    sockets,
+    rotateToken: async (token) => {
+      await options.onTokenRotated?.(token);
+      session().rotate(token);
+    },
+  });
   registerLive(app, options.core, sockets);
   const labels = createDeviceLabels(options.core);
   const links = createLinkRegistry(options.core);
   const gateway = options.gateway ?? links.gateway;
   let attachPeer: AttachPeer | undefined;
-  registerNodeRoutes(app, { core: options.core, sockets, gateway });
+  const relay = createRelay({ core: options.core, registry: links, sockets, now: Date.now });
+  registerNodeRoutes(app, { core: options.core, sockets, gateway, relay });
   registerNodeLink(app, { sockets, attachPeer: () => attachPeer as AttachPeer });
   registerLegacyLink(app);
   await registerNodeProxy(app, { sockets, gateway, viaLabel: labels.label });
@@ -128,11 +141,13 @@ export const createServer: CreateServer = async (options) => {
   let stopFollowing = () => {};
   let stopReaping = () => {};
   let stopSummaries = () => {};
+  let stopRelay = () => {};
   try {
     await app.listen({ port: options.port, host: options.host ?? DEFAULT_HOST });
     boundPort = portOf(app.server.address(), options.port);
     allowList = allowListForPort(boundPort);
     stopSummaries = startSummaryWriter(options.core, gateway);
+    stopRelay = relay.start();
     stopFollowing = followTunnelHostname(options.core, () => allowList);
     stopReaping = options.core.onChange((change) => {
       if (change.resource === "devices") void closeSocketsOfGoneDevices(options.core, sockets);
@@ -144,7 +159,9 @@ export const createServer: CreateServer = async (options) => {
   attachPeer = createAttachPeer({
     core: options.core,
     port: boundPort,
-    token: options.token,
+    get token() {
+      return session().currentToken();
+    },
     registry: links,
   });
   const { port: tunnelPort } = await tunnel.start();
@@ -161,6 +178,7 @@ export const createServer: CreateServer = async (options) => {
       stopFollowing();
       stopReaping();
       stopSummaries();
+      stopRelay();
       await tunnel.close();
       await app.close();
     },

@@ -8,6 +8,7 @@ import { waitForFreeHome } from "./lifecycle/wait-for-lock";
 import { mirrorConsoleToLogFile } from "./logging/file-logging";
 import { startLinkClient } from "./nodes/link-client";
 import { defaultHome, parseCliOptions } from "./options";
+import { writePrivateFile } from "./private-files";
 import { run } from "./run";
 import { findStaticDir } from "./static-dir";
 import { cliVersion } from "./version";
@@ -54,7 +55,12 @@ async function serveOnce(argv: readonly string[]): Promise<void> {
   const options = { ...parsed, port: resolvePort(parsed.home, explicitPort) };
   const app = await run(options, {
     createCore,
-    createServer,
+    // `tau access rotate` swaps the master token live; the new one is written to `<home>/token` first.
+    createServer: (serverOptions) =>
+      createServer({
+        ...serverOptions,
+        onTokenRotated: (token) => writePrivateFile(join(options.home, "token"), `${token}\n`),
+      }),
     openBrowser,
     startLinkClient,
     log: (message) => console.log(message),

@@ -165,6 +165,15 @@ const handlers: Handlers = {
   disconnectNode: (core, { params }) => core.nodes.disconnect(params.id),
   getNodeSelf: (core) => core.nodes.self(),
   forgetNode: (core, { params }) => core.nodes.forget(params.id),
+  getNodeDirectory: (core) => core.nodes.directory(),
+  listExpulsions: (core) => core.nodes.expulsions(),
+  removeNode: async (core, { params, body }) => {
+    await core.nodes.group.createExpel(params.id, body.confirm as string);
+  },
+  rotateAccess: async (core, { body }) => ({
+    revoked: await core.access.rotate({ keep: (body.keep as string[] | undefined) ?? [] }),
+    token: "fake-rotated-token",
+  }),
   resetNodeIdentity: (core) => core.nodes.resetIdentity(),
   setSetupSkipped: (core, { body }) => core.settings.setSetupSkipped(body.skipped as boolean),
   getUpdateStatus: (core) => core.updates.status(),

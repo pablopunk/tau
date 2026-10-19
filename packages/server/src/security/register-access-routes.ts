@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { type Core, PAIR_PAGE_PATH, routes } from "@tau/protocol";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { defineRoute } from "../rest/define-route";
@@ -13,6 +14,8 @@ export interface AccessRouteDeps {
   readonly core: Core;
   readonly tunnel: TunnelTags;
   readonly sockets: DeviceSockets;
+  /** Writes the new token (`onTokenRotated`), then swaps it in the session (`session.rotate`). */
+  readonly rotateToken: (token: string) => Promise<void>;
 }
 
 function setDeviceCookie(reply: FastifyReply, secret: string, secure: boolean): void {
@@ -52,12 +55,25 @@ function registerRedeem({ core, tunnel }: AccessRouteDeps, app: FastifyInstance)
   );
 }
 
-function registerDevices({ core, sockets }: AccessRouteDeps, app: FastifyInstance): void {
+function registerDevices({ core, sockets, rotateToken }: AccessRouteDeps, app: FastifyInstance): void {
   defineRoute(app, routes.listDevices, (_input, request) => core.access.listDevices(request.deviceId));
   defineRoute(app, routes.renameDevice, ({ params, body }) => core.access.renameDevice(params.id, body.name));
   defineRoute(app, routes.revokeDevice, async ({ params }) => {
     await core.access.revokeDevice(params.id);
     sockets.closeDevice(params.id);
+  });
+  defineRoute(app, routes.rotateAccess, async ({ body }, request) => {
+    const revoked = await core.access.rotate({
+      keep: body.keep ?? [],
+      ...(request.deviceId ? { callerDeviceId: request.deviceId } : {}),
+    });
+    for (const device of revoked) {
+      sockets.closeDevice(device.id);
+      sockets.closeNode(device.id);
+    }
+    const token = randomBytes(32).toString("base64url");
+    await rotateToken(token);
+    return { revoked, token };
   });
   defineRoute(app, routes.signOutAllDevices, async () => {
     const before = await core.access.listDevices();
