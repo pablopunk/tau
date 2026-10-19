@@ -8,7 +8,6 @@ import {
 import type { Core, CreateCore } from "@tau/protocol";
 import type { CreateServer } from "@tau/server";
 import { listenOnFreePort } from "./listen-on-free-port";
-import { createHubFileStore, type HubFileStore } from "./nodes/hub-file";
 import type { StartLinkClient } from "./nodes/link-client";
 import type { CliOptions } from "./options";
 import { ensurePrivateDirectory } from "./private-files";
@@ -66,7 +65,6 @@ export async function run(
   if (await reportExistingInstance(options, dependencies, token)) return undefined;
 
   const tunnelTarget = createTunnelTargetRef();
-  const hubFile: HubFileStore = createHubFileStore(options.home);
   const core: Core = await dependencies.createCore({
     home: options.home,
     faux: options.faux,
@@ -84,9 +82,6 @@ export async function run(
     dependencies.log(`tau is running: ${server.url}`);
     if (options.open) await openBrowserSafely(server.url, dependencies);
     const link = dependencies.startLinkClient?.({
-      port: server.port,
-      token,
-      hubFile,
       core,
       attachPeer: server.attachPeer,
       peers: createFilePeersStore(peersFilePath(options.home)),

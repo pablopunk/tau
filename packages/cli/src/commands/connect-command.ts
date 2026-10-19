@@ -1,9 +1,12 @@
-import { alreadyLinkedRefusal, type Node, RedeemPairingResponseSchema } from "@tau/protocol";
+import { readFile, rm } from "node:fs/promises";
+import { createFilePeersStore, hubFilePath, type Peer, peerIdOf, peersFilePath } from "@tau/core";
+import { alreadyLinkedRefusal, RedeemPairingResponseSchema, selfLinkRefusal } from "@tau/protocol";
 import { Value } from "typebox/value";
 import { parseConnectArgs } from "../nodes/connect-args";
 import { type AfterLink, type ConnectIo, terminalIo } from "../nodes/connect-io";
 import { parseConnectTarget } from "../nodes/connect-target";
-import { createHubFileStore } from "../nodes/hub-file";
+import { ownNodeId } from "../nodes/own-node-id";
+import { pickPeer } from "../nodes/peer-pick";
 import { CliExit, failure, usageError } from "./cli-exit";
 import { callRoute, discoverServer, type Server } from "./client";
 import { type CommandEnv, processEnv } from "./command-env";
@@ -19,7 +22,12 @@ async function runningServer(env: CommandEnv): Promise<Server | undefined> {
   }
 }
 
-async function redeem(hubUrl: string, code: string, deviceName: string, env: CommandEnv): Promise<string> {
+interface Redeemed {
+  readonly secret: string;
+  readonly nodeId?: string;
+}
+
+async function redeem(hubUrl: string, code: string, deviceName: string, env: CommandEnv): Promise<Redeemed> {
   let response: Response;
   try {
     response = await env.fetch(`${hubUrl}${REDEEM_PATH}`, {
@@ -28,20 +36,20 @@ async function redeem(hubUrl: string, code: string, deviceName: string, env: Com
       body: JSON.stringify({ code, deviceName }),
     });
   } catch {
-    throw failure(`Could not reach the hub at ${hubUrl}. Is it running and online?`);
+    throw failure(`Could not reach the node at ${hubUrl}. Is it running and online?`);
   }
   if (!response.ok) {
     throw failure(
       response.status === 429
-        ? "Too many tries. Wait a few minutes and make a new code on the hub."
-        : "The hub did not accept that code. It may have expired: make a new one in Settings → Nodes.",
+        ? "Too many tries. Wait a few minutes and make a new code on that node."
+        : "The node did not accept that code. It may have expired: make a new one in Settings → Nodes.",
     );
   }
   const body: unknown = await response.json().catch(() => undefined);
   if (!Value.Check(RedeemPairingResponseSchema, body) || body.secret === undefined) {
-    throw failure("The hub answered without a node secret. Make a new link code (kind: node).");
+    throw failure("The node answered without a node secret. Make a new link code (kind: node).");
   }
-  return body.secret;
+  return { secret: body.secret, ...(body.nodeId !== undefined && { nodeId: body.nodeId }) };
 }
 
 async function startAfterLink(choice: AfterLink, env: CommandEnv): Promise<void> {
@@ -57,9 +65,12 @@ async function startAfterLink(choice: AfterLink, env: CommandEnv): Promise<void>
   }
 }
 
+const sameNode = (peer: Peer, url: string, nodeId: string | undefined): boolean =>
+  peer.url === url || (nodeId !== undefined && peer.nodeId === nodeId);
+
 /**
- * `tau connect <link | code --hub <url>> [--name <label>] [--yes]`: redeem a link code on a hub and keep its
- * node secret in `hub.json`. A running server picks the file up on its own.
+ * `tau connect <link | code --hub <url>> [--name <label>] [--yes]`: redeem a link code on another node and keep its
+ * node secret, with its pinned `nodeId`, in `peers.json`. A running server picks the entry up on its own.
  */
 export async function executeConnect(
   argv: readonly string[],
@@ -68,38 +79,81 @@ export async function executeConnect(
 ): Promise<void> {
   const args = parseConnectArgs(argv);
   const target = parseConnectTarget(args.target, args.hub);
-  const hubFile = createHubFileStore(env.home);
-  const refusal = alreadyLinkedRefusal((await hubFile.read()) !== undefined);
+  const peers = createFilePeersStore(peersFilePath(env.home));
+  const known = (await peers.read()).some((peer) => sameNode(peer, target.hubUrl, target.nodeId));
+  const refusal = alreadyLinkedRefusal(known);
   if (refusal) throw usageError(refusal);
   const server = await runningServer(env);
+  const own = await ownNodeId(env, server);
+  const self = selfLinkRefusal(own ?? "", target.nodeId);
+  if (self) throw usageError(self);
 
-  const hubName = target.hubName ?? new URL(target.hubUrl).host;
-  if (!args.yes && !(await io.confirm(`Link this node to ${hubName} (${target.hubUrl})?`))) {
+  const peerName = target.hubName ?? new URL(target.hubUrl).host;
+  if (!args.yes && !(await io.confirm(`Link this node to ${peerName} (${target.hubUrl})?`))) {
     throw new CliExit(1, "Not linked.");
   }
-  const nodeSecret = await redeem(target.hubUrl, target.code, args.name, env);
-  await hubFile.write({ hubUrl: target.hubUrl, nodeSecret, name: hubName, nodeName: args.name });
-  env.stdout(`Linked to ${hubName} as "${args.name}".`);
+  const redeemed = await redeem(target.hubUrl, target.code, args.name, env);
+  if (target.nodeId !== undefined && redeemed.nodeId !== undefined && redeemed.nodeId !== target.nodeId) {
+    throw failure("The node that answered is not the one in the link. Nothing was linked.");
+  }
+  const nodeId = redeemed.nodeId ?? target.nodeId;
+  const answeredSelf = selfLinkRefusal(own ?? "", nodeId);
+  if (answeredSelf) throw usageError(answeredSelf);
+  const entry: Peer = {
+    url: target.hubUrl,
+    name: peerName,
+    secret: redeemed.secret,
+    nodeName: args.name,
+    ...(nodeId !== undefined && { nodeId }),
+  };
+  await peers.write([...(await peers.read()), entry]);
+  env.stdout(`Linked to ${peerName} as "${args.name}".`);
   if (server) return env.stdout("The running tau connects within a few seconds.");
   await startAfterLink(args.yes ? "none" : await io.chooseStart(), env);
 }
 
-/** `tau disconnect`: tells the running server (it closes the link and forgets the hub), then removes `hub.json`. */
-export async function executeDisconnect(argv: readonly string[], env: CommandEnv): Promise<void> {
-  if (argv.length > 0) throw usageError("Usage: tau disconnect");
-  const hubFile = createHubFileStore(env.home);
-  const file = await hubFile.read();
-  const server = await runningServer(env);
-  if (!file && !server) return env.stdout("This tau is not linked to a hub.");
-  if (server) {
-    const peers = (await callRoute(server, "listNodes", {}, env)) as Node[];
-    const hub = peers.find((peer) => peer.links.some((link) => link.direction === "dialled"));
-    if (hub) await callRoute(server, "disconnectNode", { params: { id: hub.id } }, env);
+function hubUrlOf(text: string): unknown {
+  try {
+    return (JSON.parse(text) as { hubUrl?: unknown } | null)?.hubUrl;
+  } catch {
+    return undefined;
   }
-  await hubFile.delete();
-  if (!file) return env.stdout("This tau is not linked to a hub.");
+}
+
+/** The 0.1.x `hub.json` stays after migration (downgrade); it goes with the peer it describes. */
+async function removeLegacyHubFile(home: string, peer: Peer | undefined): Promise<void> {
+  const file = hubFilePath(home);
+  const text = await readFile(file, "utf8").catch(() => undefined);
+  if (text === undefined) return;
+  const hubUrl = hubUrlOf(text);
+  if (peer === undefined || hubUrl === peer.url || typeof hubUrl !== "string")
+    await rm(file, { force: true });
+}
+
+async function tellServer(env: CommandEnv, id: string): Promise<void> {
+  const server = await runningServer(env);
+  if (!server) return;
+  await callRoute(server, "disconnectNode", { params: { id } }, env).catch(() => undefined);
+}
+
+/**
+ * `tau disconnect [node]`: tells the running server (it closes the link and revokes the peer), then removes the
+ * `peers.json` entry and any left-over 0.1.x `hub.json` (so a downgrade does not bring the link back).
+ */
+export async function executeDisconnect(argv: readonly string[], env: CommandEnv): Promise<void> {
+  if (argv.length > 1) throw usageError("Usage: tau disconnect [node]");
+  const store = createFilePeersStore(peersFilePath(env.home));
+  const peers = await store.read();
+  const peer = pickPeer(peers, argv[0]);
+  if (peer) {
+    await tellServer(env, peerIdOf(peer));
+    const rest = (await store.read()).filter((entry) => peerIdOf(entry) !== peerIdOf(peer));
+    await store.write(rest);
+  }
+  await removeLegacyHubFile(env.home, peer);
+  if (!peer) return env.stdout("This node is not linked to another node.");
   env.stdout(
-    `Disconnected from ${file.name}. Remove this node in the hub's Settings → Nodes to revoke it there.`,
+    `Disconnected from ${peer.name}. Remove this node in that node's Settings → Nodes to revoke it there.`,
   );
 }
 

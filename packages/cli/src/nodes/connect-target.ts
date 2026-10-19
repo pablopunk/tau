@@ -3,8 +3,10 @@ import { usageError } from "../commands/cli-exit";
 export interface ConnectTarget {
   readonly hubUrl: string;
   readonly code: string;
-  /** The hub's name from the link fragment, when the link carries one. */
+  /** The other node's name from the link fragment, when the link carries one. */
   readonly hubName?: string;
+  /** The other node's `nodeId` from `&node=`, when the link carries one. */
+  readonly nodeId?: string;
 }
 
 const LOOPBACK = new Set(["127.0.0.1", "localhost", "[::1]"]);
@@ -39,8 +41,14 @@ export function parseConnectTarget(input: string, hub?: string): ConnectTarget {
   if (url.pathname !== "/pair" || fragment === "") {
     throw usageError("That is not a link code. Make one in Settings → Nodes on the hub.");
   }
-  const dot = fragment.indexOf(".");
-  const code = dot < 0 ? fragment : fragment.slice(0, dot);
-  const name = dot < 0 ? "" : decodeURIComponent(fragment.slice(dot + 1));
-  return { hubUrl: url.origin, code, ...(name !== "" && { hubName: name }) };
+  const [codeAndName = "", nodeId = ""] = fragment.split("&node=");
+  const dot = codeAndName.indexOf(".");
+  const code = dot < 0 ? codeAndName : codeAndName.slice(0, dot);
+  const name = dot < 0 ? "" : decodeURIComponent(codeAndName.slice(dot + 1));
+  return {
+    hubUrl: url.origin,
+    code,
+    ...(name !== "" && { hubName: name }),
+    ...(nodeId !== "" && { nodeId: decodeURIComponent(nodeId) }),
+  };
 }

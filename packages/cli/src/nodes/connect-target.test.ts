@@ -14,6 +14,15 @@ describe("tau connect target", () => {
     });
   });
 
+  it("reads the node id after &node=", () => {
+    expect(parseConnectTarget("https://abc.test/pair#c0de.Home%20Mac&node=n-123")).toEqual({
+      hubUrl: "https://abc.test",
+      code: "c0de",
+      hubName: "Home Mac",
+      nodeId: "n-123",
+    });
+  });
+
   it("takes a short code with --hub, spaces ignored", () => {
     expect(parseConnectTarget("ABCD 2345", "https://abc.test/anything")).toEqual({
       hubUrl: "https://abc.test",

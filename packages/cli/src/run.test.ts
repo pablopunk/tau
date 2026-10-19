@@ -68,13 +68,6 @@ describe("run", () => {
     serverClose.mockImplementation(async () => void order.push("server"));
     const app = await run(optionsFor(home, "--port", "5001"), dependencies);
     expect(startLinkClient).toHaveBeenCalledWith({
-      port: 5001,
-      token: expect.stringMatching(/.{32,}/),
-      hubFile: expect.objectContaining({
-        read: expect.any(Function),
-        write: expect.any(Function),
-        delete: expect.any(Function),
-      }),
       core,
       attachPeer: expect.any(Function),
       peers: expect.objectContaining({ read: expect.any(Function), write: expect.any(Function) }),

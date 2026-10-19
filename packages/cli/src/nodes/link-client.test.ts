@@ -1,246 +1,300 @@
-import { mkdtempSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { type Core, LINK_CLOSE_UPDATE_REQUIRED, type NodeLinkReport, type RequestFrame } from "@tau/protocol";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createHubFileStore, type HubFileStore } from "./hub-file";
+import type { IncomingHttpHeaders } from "node:http";
+import type { AddressInfo } from "node:net";
+import type { Peer, PeersStore } from "@tau/core";
+import type { Core, NodeLinkReport } from "@tau/protocol";
+import {
+  LINK_CLOSE_DUPLICATE,
+  LINK_CLOSE_POLICY,
+  LINK_CLOSE_REMOVED,
+  LINK_CLOSE_UPDATE_REQUIRED,
+} from "@tau/protocol";
+import type { AttachPeer, PeerClosed, PeerHandle, PeerInfo } from "@tau/server";
+import { afterEach, describe, expect, it } from "vitest";
+import { WebSocketServer } from "ws";
 import { type LinkClient, type LinkTuning, startLinkClientWith } from "./link-client";
-import { bodyOf, startTestHub, type TestHub } from "./link-test-hub";
-import { MASTER, sha256, startTestNode, type TestNode } from "./link-test-node";
+import { secretKeyOf } from "./peer-dialler";
 
 const SECRET = "s".repeat(43);
 const logs: string[] = [];
 const tuning: LinkTuning = {
-  pollMs: 20,
-  backoffBaseMs: 20,
-  backoffMaxMs: 80,
+  pollMs: 15,
+  backoffBaseMs: 15,
+  backoffMaxMs: 60,
+  standbyMs: 40,
   unreachableAfter: 3,
-  pingMs: 100,
   log: (message) => void logs.push(message),
 };
 
-let hub: TestHub;
-let node: TestNode;
-let hubFile: HubFileStore;
+interface FakeHub {
+  readonly url: string;
+  readonly headers: IncomingHttpHeaders[];
+  close(): Promise<void>;
+}
+
+const hubs: FakeHub[] = [];
+
+function closeServer(server: WebSocketServer): Promise<void> {
+  for (const socket of server.clients) socket.terminate();
+  return new Promise((resolve) => void server.close(() => resolve()));
+}
 let client: LinkClient | undefined;
-let states: Array<NodeLinkReport & { peerId: string }>;
 
-const fakeCore = (): Core =>
-  ({
-    nodes: { reportLink: (peerId: string, state: NodeLinkReport) => void states.push({ peerId, ...state }) },
-    conversations: { listAll: async () => [{}, {}] },
-  }) as unknown as Core;
+async function startHub(): Promise<FakeHub> {
+  const headers: IncomingHttpHeaders[] = [];
+  const server = new WebSocketServer({ port: 0, host: "127.0.0.1" });
+  server.on("connection", (_socket, request) => void headers.push(request.headers));
+  await new Promise((resolve) => server.once("listening", resolve));
+  const hub = {
+    url: `http://127.0.0.1:${(server.address() as AddressInfo).port}`,
+    headers,
+    close: () => closeServer(server),
+  };
+  hubs.push(hub);
+  return hub;
+}
 
-const request = (id: number, path: string, extra: Partial<RequestFrame> = {}): RequestFrame => ({
-  type: "request",
-  id,
-  method: "GET",
-  path,
-  query: "",
-  via: "Phone",
-  ...extra,
-});
-
-const start = () => {
-  client = startLinkClientWith(
-    {
-      port: node.port,
-      token: MASTER,
-      hubFile,
-      core: fakeCore(),
-      attachPeer: (() => {
-        throw new Error("legacy client does not use attachPeer");
-      }) as never,
-      peers: { read: async () => [], write: async () => undefined },
+/** A hub that answers every upgrade with an HTTP status. */
+async function startRefusingHub(status: number): Promise<FakeHub> {
+  const headers: IncomingHttpHeaders[] = [];
+  const server = new WebSocketServer({
+    port: 0,
+    host: "127.0.0.1",
+    verifyClient: (info, done) => {
+      headers.push(info.req.headers);
+      done(false, status);
     },
-    tuning,
-  );
-};
-const statesNamed = () => states.map((state) => state.state);
-const responseOf = (id: number) => hub.frames.find((frame) => frame.type === "response" && frame.id === id);
+  });
+  await new Promise((resolve) => server.once("listening", resolve));
+  const hub = {
+    url: `http://127.0.0.1:${(server.address() as AddressInfo).port}`,
+    headers,
+    close: () => closeServer(server),
+  };
+  hubs.push(hub);
+  return hub;
+}
 
-beforeEach(async () => {
-  logs.length = 0;
-  states = [];
-  hub = await startTestHub();
-  node = await startTestNode();
-  hubFile = createHubFileStore(mkdtempSync(join(tmpdir(), "tau-link-")));
-  await hubFile.write({ hubUrl: hub.url, nodeSecret: SECRET, name: "Home hub", nodeName: "Laptop" });
-  start();
-  await hub.socket();
-  await hub.waitFor(() => hub.frames.some((frame) => frame.type === "hello"));
+interface Attached {
+  readonly info: PeerInfo;
+  readonly closeWith: (closed: Partial<PeerClosed>) => void;
+  closeCalls: number;
+}
+
+function fakeAttach(): { attachPeer: AttachPeer; attached: Attached[] } {
+  const attached: Attached[] = [];
+  const attachPeer: AttachPeer = (_socket, role, info) => {
+    expect(role).toBe("dialler");
+    let resolve!: (closed: PeerClosed) => void;
+    const closed = new Promise<PeerClosed>((done) => {
+      resolve = done;
+    });
+    const entry: Attached = {
+      info,
+      closeCalls: 0,
+      closeWith: (value) => resolve({ code: 1006, reason: "", linked: true, bye: false, ...value }),
+    };
+    attached.push(entry);
+    const handle: PeerHandle = {
+      closed,
+      close: () => {
+        entry.closeCalls++;
+        entry.closeWith({ code: 1000 });
+      },
+    };
+    return handle;
+  };
+  return { attachPeer, attached };
+}
+
+function memoryPeers(initial: Peer[]): PeersStore & { set(next: Peer[]): void } {
+  let current = initial;
+  return {
+    read: async () => current,
+    write: async (next) => {
+      current = [...next];
+    },
+    set: (next) => {
+      current = next;
+    },
+  };
+}
+
+interface Reported extends NodeLinkReport {
+  peerId: string;
+}
+
+function setup(peers: PeersStore, attachPeer: AttachPeer, nodes: unknown[] = []) {
+  const reports: Reported[] = [];
+  const core = {
+    nodes: {
+      reportLink: (peerId: string, state: NodeLinkReport) => void reports.push({ peerId, ...state }),
+      list: async () => nodes,
+    },
+  } as unknown as Core;
+  client = startLinkClientWith({ attachPeer, peers, core }, tuning);
+  return {
+    reports,
+    states: (peerId?: string) => reports.filter((r) => !peerId || r.peerId === peerId).map((r) => r.state),
+  };
+}
+
+const waitFor = async (condition: () => boolean, ms = 3000): Promise<void> => {
+  const end = Date.now() + ms;
+  while (!condition()) {
+    if (Date.now() > end) throw new Error("timed out");
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+};
+const settle = () => new Promise((resolve) => setTimeout(resolve, 150));
+
+const peerAt = (hub: FakeHub, extra: Partial<Peer> = {}): Peer => ({
+  url: hub.url,
+  name: "Peer",
+  secret: SECRET,
+  nodeId: "n-aaa",
+  ...extra,
 });
 
 afterEach(async () => {
   await client?.stop();
-  await hub.close();
-  await node.close();
+  client = undefined;
+  await Promise.all(hubs.splice(0).map((hub) => hub.close()));
 });
 
-describe("link client", () => {
-  it("dials with the node secret and the hub origin, then says hello", async () => {
-    expect(hub.upgrades[0]?.authorization).toBe(`Bearer ${SECRET}`);
-    expect(hub.upgrades[0]?.origin).toBe(hub.url);
-    expect(hub.frames[0]).toMatchObject({ type: "hello", name: "Laptop", threadCount: 2 });
-    await vi.waitFor(() => expect(statesNamed()).toContain("linked"));
-    expect(states.at(-1)?.peerId).toMatch(/^u-[0-9a-f]{12}$/);
+describe("multi-peer dialler", () => {
+  it("dials every entry with its secret and origin and attaches it pinned", async () => {
+    const [a, b] = [await startHub(), await startHub()];
+    const { attachPeer, attached } = fakeAttach();
+    const peers = memoryPeers([peerAt(a), peerAt(b, { nodeId: "n-bbb", secret: "t".repeat(43) })]);
+    const { states } = setup(peers, attachPeer);
+    await waitFor(() => attached.length === 2);
+    expect(a.headers[0]?.authorization).toBe(`Bearer ${SECRET}`);
+    expect(a.headers[0]?.origin).toBe(new URL(a.url).origin);
+    expect(attached.map((entry) => entry.info)).toEqual([
+      { peerId: "n-aaa", pinnedNodeId: "n-aaa", secretKey: secretKeyOf(SECRET) },
+      { peerId: "n-bbb", pinnedNodeId: "n-bbb", secretKey: secretKeyOf("t".repeat(43)) },
+    ]);
+    expect(states("n-aaa")).toEqual(["connecting", "linked"]);
   });
 
-  it("answers a request on loopback with the master token and the hub device", async () => {
-    await hub.sendFrame(request(1, "/api/hello", { query: "a=1" }));
-    await hub.waitFor(() => hub.ends.has(1));
-    expect(responseOf(1)).toMatchObject({ status: 200 });
-    expect(JSON.parse(bodyOf(hub, 1).toString())).toMatchObject({ url: "/api/hello?a=1", method: "GET" });
-    const seen = node.seen[0];
-    expect(seen?.authorization).toBe(`Bearer ${MASTER}`);
-    expect(seen?.host).toBe(`127.0.0.1:${node.port}`);
-    expect(seen?.origin).toBeUndefined();
-    expect(seen?.["x-tau-via"]).toBe("Phone");
+  it("picks up a new entry without a restart and closes the link of a removed one", async () => {
+    const [a, b] = [await startHub(), await startHub()];
+    const { attachPeer, attached } = fakeAttach();
+    const peers = memoryPeers([peerAt(a)]);
+    setup(peers, attachPeer);
+    await waitFor(() => attached.length === 1);
+    peers.set([peerAt(a), peerAt(b, { nodeId: "n-bbb" })]);
+    await waitFor(() => attached.length === 2);
+    peers.set([peerAt(b, { nodeId: "n-bbb" })]);
+    await waitFor(() => attached[0]?.closeCalls === 1);
+    expect(attached[1]?.closeCalls).toBe(0);
   });
 
-  it("streams a 5 MB response in chunks of at most 256 KB", async () => {
-    await hub.sendFrame(request(2, "/api/big"));
-    await hub.waitFor(() => hub.ends.has(2), 15_000);
-    expect(bodyOf(hub, 2).byteLength).toBe(5 * 1024 * 1024);
-    expect(Math.max(...(hub.data.get(2) ?? []).map((chunk) => chunk.byteLength))).toBeLessThanOrEqual(
-      256 * 1024,
+  it("learns the node id without redialling", async () => {
+    const a = await startHub();
+    const { attachPeer, attached } = fakeAttach();
+    const peers = memoryPeers([peerAt(a, { nodeId: undefined })]);
+    const { states } = setup(peers, attachPeer);
+    await waitFor(() => attached.length === 1);
+    expect(attached[0]?.info.pinnedNodeId).toBeUndefined();
+    peers.set([peerAt(a)]);
+    await settle();
+    attached[0]?.closeWith({ code: 1006 });
+    await waitFor(() => attached.length === 2);
+    expect(attached[1]?.info.peerId).toBe("n-aaa");
+    expect(states("n-aaa")).toContain("reconnecting");
+  });
+
+  it("retries a dropped link with a backoff, then reports unreachable after three failures", async () => {
+    const a = await startHub();
+    const { attachPeer, attached } = fakeAttach();
+    const { states } = setup(memoryPeers([peerAt(a)]), attachPeer);
+    await waitFor(() => attached.length === 1);
+    await a.close();
+    attached[0]?.closeWith({ code: 1006 });
+    await waitFor(() => states("n-aaa").includes("unreachable"));
+    expect(states("n-aaa").slice(0, 4)).toEqual(["connecting", "linked", "reconnecting", "reconnecting"]);
+  });
+
+  it.each([
+    ["4002 duplicate", { code: LINK_CLOSE_DUPLICATE }, "duplicate"],
+    ["4003 removed", { code: LINK_CLOSE_REMOVED }, "refused"],
+    ["1008 policy (pinned id mismatch)", { code: LINK_CLOSE_POLICY }, "refused"],
+    ["bye", { code: 1000, bye: true }, "refused"],
+  ] as const)("does not retry after %s", async (_name, closed, state) => {
+    const a = await startHub();
+    const { attachPeer, attached } = fakeAttach();
+    const { states } = setup(memoryPeers([peerAt(a)]), attachPeer);
+    await waitFor(() => attached.length === 1);
+    attached[0]?.closeWith(closed);
+    await waitFor(() => states("n-aaa").includes(state));
+    await settle();
+    expect(attached).toHaveLength(1);
+    expect(a.headers).toHaveLength(1);
+  });
+
+  it("reports update-required on 4001 and keeps trying", async () => {
+    const a = await startHub();
+    const { attachPeer, attached } = fakeAttach();
+    const { states } = setup(memoryPeers([peerAt(a)]), attachPeer);
+    await waitFor(() => attached.length === 1);
+    attached[0]?.closeWith({ code: LINK_CLOSE_UPDATE_REQUIRED });
+    await waitFor(() => attached.length === 2);
+    expect(states("n-aaa")).toContain("update-required");
+  });
+
+  it.each([401, 403])("stops on an HTTP %s as refused", async (status) => {
+    const hub = await startRefusingHub(status);
+    const { attachPeer, attached } = fakeAttach();
+    const { states } = setup(memoryPeers([peerAt(hub)]), attachPeer);
+    await waitFor(() => states("n-aaa").includes("refused"));
+    await settle();
+    expect(hub.headers).toHaveLength(1);
+    expect(attached).toHaveLength(0);
+  });
+
+  it("dials again after peers.json changes the secret of a refused peer", async () => {
+    const hub = await startRefusingHub(401);
+    const { attachPeer } = fakeAttach();
+    const peers = memoryPeers([peerAt(hub)]);
+    setup(peers, attachPeer);
+    await waitFor(() => hub.headers.length === 1);
+    peers.set([peerAt(hub, { secret: "u".repeat(43) })]);
+    await waitFor(() => hub.headers.length === 2);
+    expect(hub.headers[1]?.authorization).toBe(`Bearer ${"u".repeat(43)}`);
+  });
+
+  it("keeps a standby (same node, another link alive) off the wire and retries it", async () => {
+    const [a, b] = [await startHub(), await startHub()];
+    const { attachPeer, attached } = fakeAttach();
+    const nodes = [{ id: "n-aaa", links: [{ direction: "accepted", state: "linked" }] }];
+    const { states } = setup(
+      memoryPeers([peerAt(a), peerAt(b, { secret: "t".repeat(43) })]),
+      attachPeer,
+      nodes,
     );
+    await waitFor(() => states("n-aaa").filter((state) => state === "standby").length >= 2);
+    expect(attached).toHaveLength(0);
+    expect(a.headers).toHaveLength(0);
   });
 
-  it("streams a 42 MB request body under credit", async () => {
-    const body = Buffer.alloc(42 * 1024 * 1024, 9);
-    await hub.sendFrame(
-      request(3, "/api/upload", {
-        method: "POST",
-        bodyBytes: body.byteLength,
-        contentType: "application/octet-stream",
-      }),
-    );
-    await hub.sendBody(3, body);
-    await hub.waitFor(() => hub.ends.has(3), 30_000);
-    expect(JSON.parse(bodyOf(hub, 3).toString())).toMatchObject({
-      bytes: body.byteLength,
-      sha: sha256(body),
-    });
-  }, 60_000);
-
-  it("serves parallel requests", async () => {
-    for (let id = 10; id < 30; id++) await hub.sendFrame(request(id, `/api/p${id}`));
-    await hub.waitFor(() => [...Array(20).keys()].every((n) => hub.ends.has(n + 10)));
-    expect(JSON.parse(bodyOf(hub, 29).toString()).url).toBe("/api/p29");
-  });
-
-  it("answers 502 when its own server is down", async () => {
-    await node.close();
-    await hub.sendFrame(request(4, "/api/hello"));
-    await hub.waitFor(() => hub.ends.has(4));
-    expect(responseOf(4)).toMatchObject({ status: 502 });
-  });
-
-  it("queues hub frames until the loopback socket opens and relays text and binary both ways", async () => {
-    await hub.sendFrame({ type: "open", id: 5, path: "/api/live", query: "", via: "Phone" });
-    await hub.sendData(5, Buffer.from("hello"), true);
-    await hub.sendData(5, Uint8Array.from([1, 2, 3, 255, 0, 9]), false);
-    await hub.waitFor(() => (hub.data.get(5)?.length ?? 0) >= 2);
-    expect(hub.data.get(5)?.[0]?.toString()).toBe("hello");
-    expect(hub.textFlags.get(5)).toEqual([true, false]);
-    expect([...(hub.data.get(5)?.[1] ?? [])]).toEqual([1, 2, 3, 255, 0, 9]);
-    expect(node.socketHeaders[0]?.authorization).toBe(`Bearer ${MASTER}`);
-    expect(node.socketHeaders[0]?.origin).toBeUndefined();
-    expect(node.socketHeaders[0]?.["x-tau-via"]).toBe("Phone");
-  });
-
-  it("confirms an opened stream with an open frame so the hub releases its queued frames", async () => {
-    await hub.sendFrame({ type: "open", id: 21, path: "/api/live", query: "x=1", via: "Phone" });
-    await hub.waitFor(() => hub.frames.some((frame) => frame.type === "open" && frame.id === 21));
-    await hub.sendFrame({ type: "close", id: 21, code: 1000, reason: "" });
-  });
-
-  it("splits binary input above 64 KB and refuses an oversize text frame", async () => {
-    await hub.sendFrame({ type: "open", id: 6, path: "/api/live", query: "", via: "Phone" });
-    await hub.sendData(6, Buffer.alloc(150 * 1024, 1), false);
-    await hub.waitFor(() => node.received.length >= 3);
-    expect(node.received.map((message) => message.size)).toEqual([65536, 65536, 150 * 1024 - 131072]);
-    await hub.sendData(6, Buffer.alloc(100 * 1024, 97), true);
-    await hub.waitFor(() => hub.frames.some((frame) => frame.type === "close" && frame.id === 6));
-    expect(hub.frames.find((frame) => frame.type === "close")).toMatchObject({ code: 1009 });
-  });
-
-  it("stops sending when credit runs out and resumes on credit", async () => {
-    hub.autoCredit = false;
-    await hub.sendFrame({ type: "open", id: 7, path: "/api/flood", query: "", via: "Phone" });
-    await hub.waitFor(() => bodyOf(hub, 7).byteLength >= 1024 * 1024);
-    await new Promise((resolve) => setTimeout(resolve, 300));
-    const stalled = bodyOf(hub, 7).byteLength;
-    expect(stalled).toBeLessThan(1024 * 1024 + 256 * 1024);
-    await new Promise((resolve) => setTimeout(resolve, 200));
-    expect(bodyOf(hub, 7).byteLength).toBe(stalled);
-    await hub.sendFrame({ type: "credit", id: 7, bytes: 512 * 1024 });
-    await hub.waitFor(() => bodyOf(hub, 7).byteLength > stalled);
-  });
-
-  it("round-robins between streams that both have credit", async () => {
-    hub.autoCredit = false;
-    await hub.sendFrame(request(8, "/api/big"));
-    await hub.sendFrame(request(9, "/api/big"));
-    await hub.waitFor(
-      () => bodyOf(hub, 8).byteLength >= 512 * 1024 && bodyOf(hub, 9).byteLength >= 512 * 1024,
-    );
-    await hub.sendFrame({ type: "close", id: 8, code: 1000, reason: "" });
-    await hub.sendFrame({ type: "close", id: 9, code: 1000, reason: "" });
-  });
-
-  it("aborts in-flight streams when the hub closes the link and reconnects with backoff", async () => {
-    hub.autoCredit = false;
-    await hub.sendFrame(request(11, "/api/endless"));
-    await hub.waitFor(() => bodyOf(hub, 11).byteLength > 0);
-    (await hub.socket()).terminate();
-    await vi.waitFor(() => expect(node.aborted).toContain("endless"));
-    await hub.waitFor(() => hub.upgrades.length >= 2);
-    await vi.waitFor(() => expect(statesNamed()).toContain("reconnecting"));
-    await vi.waitFor(() => expect(statesNamed().at(-1)).toBe("linked"));
-    expect(hub.frames.filter((frame) => frame.type === "hello")).toHaveLength(2);
-  });
-
-  it("reports unreachable after repeated failures", async () => {
+  it("stops before returning: handles are closed and nothing is redialled", async () => {
+    const a = await startHub();
+    const { attachPeer, attached } = fakeAttach();
+    setup(memoryPeers([peerAt(a)]), attachPeer);
+    await waitFor(() => attached.length === 1);
     await client?.stop();
-    await hub.close();
-    states = [];
-    start();
-    await vi.waitFor(() => expect(statesNamed()).toContain("unreachable"), { timeout: 5000 });
+    client = undefined;
+    expect(attached[0]?.closeCalls).toBe(1);
+    await settle();
+    expect(attached).toHaveLength(1);
   });
 
-  it("reports refused and stops retrying when the hub answers 401", async () => {
-    await client?.stop();
-    hub.refuseWith = 401;
-    states = [];
-    const before = hub.upgrades.length;
-    start();
-    await vi.waitFor(() => expect(statesNamed()).toContain("refused"));
-    await new Promise((resolve) => setTimeout(resolve, 200));
-    expect(hub.upgrades.length).toBe(before + 1);
-  });
-
-  it("reports update-required when the hub closes with the update code", async () => {
-    states = [];
-    (await hub.socket()).close(LINK_CLOSE_UPDATE_REQUIRED, "update required");
-    await vi.waitFor(() => expect(statesNamed()).toContain("update-required"));
-    await vi.waitFor(() => expect(statesNamed().at(-1)).toBe("linked"), { timeout: 5000 });
-  });
-
-  it("drops the link when the peer is deleted and redials when it comes back", async () => {
-    await hubFile.delete();
-    await new Promise((resolve) => setTimeout(resolve, 300));
-    states = [];
-    await hubFile.write({ hubUrl: hub.url, nodeSecret: SECRET, name: "Home hub" });
-    await vi.waitFor(() => expect(statesNamed().at(-1)).toBe("linked"));
-  });
-
-  it("never logs the node secret or the master token", async () => {
-    await hub.sendFrame(request(12, "/api/hello"));
-    await hub.waitFor(() => hub.ends.has(12));
-    expect(logs.length).toBeGreaterThan(0);
+  it("never writes a secret in the logs", async () => {
+    const a = await startHub();
+    const { attachPeer, attached } = fakeAttach();
+    setup(memoryPeers([peerAt(a)]), attachPeer);
+    await waitFor(() => attached.length === 1);
     expect(logs.join("\n")).not.toContain(SECRET);
-    expect(logs.join("\n")).not.toContain(MASTER);
   });
 });

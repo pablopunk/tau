@@ -1,203 +1,98 @@
-import { arch, hostname, platform } from "node:os";
-import type { PeersStore } from "@tau/core";
-import { type Core, type LegacyNodeHello, LINK_CLOSE_UPDATE_REQUIRED, PROTOCOL_VERSION } from "@tau/protocol";
+import { type Peer, type PeersStore, peerIdOf } from "@tau/core";
+import type { Core } from "@tau/protocol";
 import type { AttachPeer } from "@tau/server";
-import WebSocket from "ws";
-import { cliVersion } from "../version";
-import type { HubFile, HubFileStore } from "./hub-file";
-import { linkUrlOf, originOf } from "./link-endpoint";
-import { runLinkSession } from "./link-session";
-import { fileKey, type HubLinkStateName, linkReportOf, peerIdOfFile } from "./link-state";
+import { type LinkTuning, type PeerWorker, peerKey, startPeerWorker } from "./peer-dialler";
 
-/** Frozen in Phase 0: `serve.ts` calls exactly this. */
+export type { LinkTuning } from "./peer-dialler";
+
+/** `run.ts` calls exactly this. */
 export interface LinkClientOptions {
-  /** The port this server is bound to: the link client calls its own server on loopback. */
-  readonly port: number;
-  /** The master token, sent as `Authorization: Bearer`, with `Host: 127.0.0.1:<port>` and no Origin. */
-  readonly token: string;
-  /** TRANSITIONAL: the one-hub view the 0.1.x dialler still uses until owner D replaces it. */
-  readonly hubFile: HubFileStore;
-  /** FROZEN seam for owner D: the symmetric peer runs on a dialled socket through `server.attachPeer(socket, "dialler", peerInfo)`. */
+  /** FROZEN seam: the symmetric peer runs on a dialled socket through `server.attachPeer(socket, "dialler", peerInfo)`. */
   readonly attachPeer: AttachPeer;
-  /** FROZEN seam for owner D: every dialled peer (`<home>/peers.json`), polled so `tau connect` needs no restart. */
+  /** Every dialled peer (`<home>/peers.json`), polled so `tau connect` needs no restart. */
   readonly peers: PeersStore;
   /** The client reports its state per peer with `core.nodes.reportLink(peerId, state)`. */
   readonly core: Core;
 }
 
 export interface LinkClient {
-  /** Closes the hub socket and every in-flight stream. */
+  /** Closes every peer link and its in-flight streams. */
   stop(): Promise<void>;
 }
 
 export type StartLinkClient = (options: LinkClientOptions) => LinkClient;
 
-export interface LinkTuning {
-  readonly pollMs: number;
-  readonly backoffBaseMs: number;
-  readonly backoffMaxMs: number;
-  readonly pingMs?: number;
-  readonly idleMs?: number;
-  /** Failed attempts in a row before the state is `unreachable`. */
-  readonly unreachableAfter: number;
-  readonly log: (message: string) => void;
-}
-
 const DEFAULT_TUNING: LinkTuning = {
   pollMs: 1000,
   backoffBaseMs: 1000,
   backoffMaxMs: 30_000,
+  standbyMs: 60_000,
   unreachableAfter: 3,
   log: (message) => console.log(`[link] ${message}`),
 };
 
-type Outcome = "ended" | "failed" | "refused" | "update-required";
-const REFUSED_STATUSES = new Set([401, 403]);
-const REFUSED_CLOSE = 1008;
-
-async function helloOf(file: HubFile, core: Core): Promise<LegacyNodeHello> {
-  const threadCount = await core.conversations.listAll().then(
-    (all) => all.length,
-    () => 0,
-  );
-  return {
-    name: file.nodeName ?? hostname(),
-    os: `${platform()} ${arch()}`,
-    tauVersion: safeVersion(),
-    protocolVersion: PROTOCOL_VERSION,
-    threadCount,
-  };
-}
-
-function safeVersion(): string {
-  try {
-    return cliVersion();
-  } catch {
-    return "unknown";
-  }
-}
-
-/** Reads `hub.json` (and watches it by polling, so `tau connect` and `tau disconnect` need no restart) and keeps the hub link up. */
+/** Polls `peers.json` and keeps one link per entry; entries come and go while the server runs. */
 export function startLinkClientWith(options: LinkClientOptions, tuning: LinkTuning): LinkClient {
-  const { core, hubFile } = options;
+  const { core, peers, attachPeer } = options;
+  const workers = new Map<string, PeerWorker>();
   let stopped = false;
-  let wakeSleeper: (() => void) | undefined;
-  /** A pause that `stop()` cuts short, so shutting down never waits for a poll tick. */
-  const sleep = (ms: number) =>
-    new Promise<void>((resolve) => {
-      const timer = setTimeout(resolve, ms);
-      wakeSleeper = () => {
-        clearTimeout(timer);
-        resolve();
-      };
-    });
-  let active: WebSocket | undefined;
-  let lastState: HubLinkStateName = "none";
-  let since = Date.now();
+  let wake: (() => void) | undefined;
 
-  const report = (state: HubLinkStateName, file: HubFile | undefined) => {
-    if (state !== lastState) since = Date.now();
-    lastState = state;
-    const linkReport = linkReportOf(state, since);
-    if (file && linkReport) core.nodes.reportLink(peerIdOfFile(file), linkReport);
-  };
+  async function acceptedLinkTo(nodeId: string): Promise<boolean> {
+    const nodes = await core.nodes.list().catch(() => []);
+    return nodes.some(
+      (node) =>
+        node.id === nodeId &&
+        node.links.some((link) => link.direction === "accepted" && link.state === "linked"),
+    );
+  }
 
-  async function waitFor(ms: number, key: string): Promise<void> {
-    const deadline = Date.now() + ms;
-    while (!stopped && Date.now() < deadline) {
-      await sleep(Math.min(tuning.pollMs, Math.max(1, deadline - Date.now())));
-      if (fileKey(await hubFile.read()) !== key) return;
+  async function isStandby(peer: Peer): Promise<boolean> {
+    if (peer.nodeId === undefined) return false;
+    const other = [...workers.values()].some(
+      (worker) =>
+        worker.linked() && peerIdOf(worker.peer()) === peerIdOf(peer) && worker.peer().url !== peer.url,
+    );
+    return other || (await acceptedLinkTo(peer.nodeId));
+  }
+
+  async function sync(): Promise<void> {
+    const entries = await peers.read();
+    const wanted = new Map(entries.map((entry) => [peerKey(entry), entry]));
+    for (const [key, worker] of workers) {
+      if (wanted.has(key)) continue;
+      workers.delete(key);
+      await worker.stop();
+    }
+    for (const [key, entry] of wanted) {
+      const worker = workers.get(key);
+      if (worker) worker.update(entry);
+      else workers.set(key, startPeerWorker(entry, { core, attachPeer, tuning, isStandby }));
     }
   }
 
-  function dial(file: HubFile): Promise<{ outcome: Outcome; linked: boolean }> {
-    return new Promise((resolve) => {
-      const key = fileKey(file);
-      let linked = false;
-      const socket = new WebSocket(linkUrlOf(file.hubUrl), {
-        headers: { authorization: `Bearer ${file.nodeSecret}`, origin: originOf(file.hubUrl) },
-        handshakeTimeout: 15_000,
-      });
-      active = socket;
-      socket.once("unexpected-response", (_request, response) => {
-        response.resume();
-        resolve({ outcome: REFUSED_STATUSES.has(response.statusCode ?? 0) ? "refused" : "failed", linked });
-      });
-      socket.once("error", () => resolve({ outcome: "failed", linked }));
-      socket.once("open", () => {
-        void helloOf(file, core).then(async (hello) => {
-          if (socket.readyState !== socket.OPEN) return resolve({ outcome: "failed", linked });
-          linked = true;
-          report("linked", file);
-          const session = runLinkSession(socket, {
-            port: options.port,
-            token: options.token,
-            hello,
-            ...tuning,
-          });
-          const watch = setInterval(async () => {
-            if (fileKey(await hubFile.read()) !== key) session.close();
-          }, tuning.pollMs);
-          const end = await session.ended;
-          clearInterval(watch);
-          resolve({ outcome: outcomeOf(end), linked });
-        });
-      });
-    });
-  }
-
-  const outcomeOf = ({ code }: { code: number; reason?: string }): Outcome => {
-    if (code === REFUSED_CLOSE) return "refused";
-    return code === LINK_CLOSE_UPDATE_REQUIRED ? "update-required" : "ended";
-  };
-
-  async function loop(): Promise<void> {
-    let attempts = 0;
-    let wasLinked = false;
+  const running = (async () => {
     while (!stopped) {
-      const file = await hubFile.read();
-      if (!file) {
-        if (lastState !== "none") report("none", undefined);
-        attempts = 0;
-        wasLinked = false;
-        await sleep(tuning.pollMs);
-        continue;
-      }
-      if (lastState === "none") report("connecting", file);
-      const { outcome, linked } = await dial(file);
-      active = undefined;
-      if (stopped) return;
-      wasLinked ||= linked;
-      attempts = linked ? 1 : attempts + 1;
-      const key = fileKey(file);
-      if (outcome === "refused") {
-        report("refused", file);
-        await waitFor(Number.POSITIVE_INFINITY, key);
-        attempts = 0;
-        continue;
-      }
-      if (outcome === "update-required") report("update-required", file);
-      else if (attempts >= tuning.unreachableAfter) report("unreachable", file);
-      else report(wasLinked ? "reconnecting" : "connecting", file);
-      const delay = Math.min(tuning.backoffMaxMs, tuning.backoffBaseMs * 2 ** Math.max(0, attempts - 1));
-      await waitFor(delay, key);
+      await sync().catch((error: unknown) =>
+        tuning.log(`peers sync failed: ${error instanceof Error ? error.message : String(error)}`),
+      );
+      await new Promise<void>((resolve) => {
+        const timer = setTimeout(resolve, tuning.pollMs);
+        wake = () => {
+          clearTimeout(timer);
+          resolve();
+        };
+      });
     }
-  }
-
-  const running = loop().catch((error: unknown) => {
-    tuning.log(`link client stopped: ${error instanceof Error ? error.message : String(error)}`);
-  });
+  })();
 
   return {
     async stop() {
       stopped = true;
-      wakeSleeper?.();
-      const socket = active;
-      if (socket) {
-        socket.close(1000, "stopping");
-        setTimeout(() => socket.terminate(), 1000).unref();
-      }
+      wake?.();
       await running;
+      await Promise.all([...workers.values()].map((worker) => worker.stop()));
+      workers.clear();
     },
   };
 }
