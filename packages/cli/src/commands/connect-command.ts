@@ -68,15 +68,11 @@ async function redeem(
 }
 
 async function startAfterLink(choice: AfterLink, env: CommandEnv): Promise<void> {
-  if (choice === "serve") {
-    const { serveInForeground } = await import("../serve");
-    env.stdout("Starting tau for this session. Press Ctrl+C to stop.");
-    await serveInForeground(["--no-open", "--home", env.home]);
-  } else if (choice === "service") {
-    const { runServiceCommand } = await import("../service/service-command");
-    await runServiceCommand(["install", "--home", env.home]);
+  if (choice === "start") {
+    const { runBare } = await import("../lifecycle/bare");
+    await runBare(["--home", env.home, "--no-open"]);
   } else {
-    env.stdout("Run `tau` (or `tau service install`) to bring this node online.");
+    env.stdout("Run `tau` to bring this node online.");
   }
 }
 

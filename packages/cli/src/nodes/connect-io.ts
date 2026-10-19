@@ -1,7 +1,7 @@
 import { createInterface } from "node:readline/promises";
 import { usageError } from "../commands/cli-exit";
 
-export type AfterLink = "serve" | "service" | "none";
+export type AfterLink = "start" | "none";
 
 /** The two questions `tau connect` may ask, replaceable in tests. */
 export interface ConnectIo {
@@ -22,9 +22,7 @@ async function ask(question: string): Promise<string> {
 export const terminalIo: ConnectIo = {
   confirm: async (question) => ["y", "yes"].includes(await ask(`${question} [y/N] `)),
   async chooseStart() {
-    const answer = await ask(
-      "tau is not running here. Start it for this session (s), install it as a service (i), or neither (n)? [s/i/N] ",
-    );
-    return answer === "s" ? "serve" : answer === "i" ? "service" : "none";
+    const answer = await ask("tau is not running here. Install and start it now? [y/N] ");
+    return ["y", "yes"].includes(answer) ? "start" : "none";
   },
 };

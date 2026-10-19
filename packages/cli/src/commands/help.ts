@@ -10,7 +10,7 @@ const THREAD_EXTRAS = [
 
 const LIFECYCLE = [
   "  start, stop, restart, status, open, logs, service   Run and manage the server",
-  "  serve           Run the server in the foreground",
+  "  serve           Run the server in the foreground (for debugging; bare `tau` installs and starts the service)",
   "  update          Install the latest tau and restart the server (--check, --yes, --force, --no-restart)",
   "  skill           Print the tau skill for agents",
 ];

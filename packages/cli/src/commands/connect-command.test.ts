@@ -4,11 +4,15 @@ import { join } from "node:path";
 import { createFilePeersStore, peersFilePath } from "@tau/core";
 import { generateNodeKeys, nodeIdOf } from "@tau/protocol/identity";
 import { describe, expect, it, vi } from "vitest";
-import type { ConnectIo } from "../nodes/connect-io";
+
+import type { AfterLink, ConnectIo } from "../nodes/connect-io";
 import { CliExit } from "./cli-exit";
 import type { CommandEnv } from "./command-env";
 import { executeConnect, executeDisconnect } from "./connect-command";
 import { makeHome } from "./test-support";
+
+const runBare = vi.hoisted(() => vi.fn(async () => undefined));
+vi.mock("../lifecycle/bare", () => ({ runBare }));
 
 const SECRET = "x".repeat(43);
 const LINK = "https://hub.example.com/pair#ABCD2345.Home%20hub&node=n-peer";
@@ -29,9 +33,9 @@ function envFor(home: string, fetchImpl: typeof fetch) {
   return { env, out };
 }
 
-const io = (answer = true): ConnectIo => ({
+const io = (answer = true, start: AfterLink = "none"): ConnectIo => ({
   confirm: vi.fn(async () => answer),
-  chooseStart: vi.fn(async () => "none" as const),
+  chooseStart: vi.fn(async () => start),
 });
 
 const hubAnswers = (body: unknown, status = 200) =>
@@ -102,6 +106,18 @@ describe("tau connect", () => {
     await executeConnect(["ABCD2345", "--node", "http://127.0.0.1:9", "--yes"], env, questions);
     expect(questions.confirm).not.toHaveBeenCalled();
     expect((await peersOf(home).read())[0]).toMatchObject({ url: "http://127.0.0.1:9", nodeId: "n-x" });
+  });
+
+  it("runs the bare flow after linking when the answer is yes, else says `tau`", async () => {
+    const answers = () => hubAnswers({ deviceId: "d1", secret: SECRET, nodeId: "n-peer" });
+    const yes = envFor(emptyHome(), answers());
+    await executeConnect([LINK], yes.env, io(true, "start"));
+    expect(runBare).toHaveBeenCalledWith(["--home", yes.env.home, "--no-open"]);
+    runBare.mockClear();
+    const no = envFor(emptyHome(), answers());
+    await executeConnect([LINK], no.env, io());
+    expect(runBare).not.toHaveBeenCalled();
+    expect(no.out.join("\n")).toContain("Run `tau` to bring this node online.");
   });
 
   it("writes nothing when the answer is no", async () => {
