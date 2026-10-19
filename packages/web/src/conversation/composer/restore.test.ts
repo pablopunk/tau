@@ -2,7 +2,7 @@ import { MAX_IMAGES_PER_MESSAGE } from "@tau/protocol";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { loadAttachments, newAttachment, saveAttachments } from "../images/attachments";
 import { loadDraft, saveDraft } from "./drafts";
-import { onComposerRestore, restoreToComposer } from "./restore";
+import { onComposerRestore, restoreQueuedToComposer, restoreToComposer } from "./restore";
 
 const png = (data: string) => ({ mimeType: "image/png" as const, data });
 
@@ -55,5 +55,38 @@ describe("restoreToComposer", () => {
     off2();
     restoreToComposer("c1", { text: "y", images: [] });
     expect(one).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("restoreQueuedToComposer", () => {
+  const queued = (id: number, text: string) => ({
+    id,
+    mode: "followUp" as const,
+    text,
+    images: [],
+  });
+
+  it("does nothing when nothing was queued", () => {
+    const listener = vi.fn();
+    const off = onComposerRestore("c1", listener);
+    restoreQueuedToComposer("c1", []);
+    expect(loadDraft("c1")).toBe("");
+    expect(listener).not.toHaveBeenCalled();
+    off();
+  });
+
+  it("keeps queued order ahead of the draft", () => {
+    saveDraft("c1", "typing now");
+    restoreQueuedToComposer("c1", [queued(1, "first"), queued(2, "second")]);
+    expect(loadDraft("c1")).toBe("first\n\nsecond\n\ntyping now");
+  });
+
+  it("restores images in queued order", () => {
+    restoreQueuedToComposer("c1", [
+      { ...queued(1, "a"), images: [{ type: "image" as const, mimeType: "image/png", data: "a" }] },
+      { ...queued(2, "b"), images: [{ type: "image" as const, mimeType: "image/png", data: "b" }] },
+    ]);
+    expect(loadDraft("c1")).toBe("a\n\nb");
+    expect(loadAttachments("c1").map((item) => item.image.data)).toEqual(["a", "b"]);
   });
 });

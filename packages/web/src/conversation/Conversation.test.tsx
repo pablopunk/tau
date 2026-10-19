@@ -1,4 +1,4 @@
-import { act, screen, within } from "@testing-library/react";
+import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import {
@@ -10,7 +10,9 @@ import {
   viewWhere,
 } from "./test-utils";
 
-vi.mock("@/lib/api", () => ({ api: { conversations: { send: vi.fn(), abort: vi.fn() } } }));
+const mocks = vi.hoisted(() => ({ send: vi.fn(), abort: vi.fn() }));
+
+vi.mock("@/lib/api", () => ({ api: { conversations: { send: mocks.send, abort: mocks.abort } } }));
 
 describe("<Conversation> states", () => {
   it("subscribes to the conversation and shows a loading state until the first view", () => {
@@ -204,6 +206,19 @@ describe("<Conversation> errors, retries and the inbox", () => {
     renderView(endOf("steer"));
     expect(screen.queryByRole("list", { name: "Queued messages" })).not.toBeInTheDocument();
     expect(screen.getByText("write steered.txt steered")).toBeInTheDocument();
+  });
+
+  it("puts queued messages back in the prompt box on Stop", async () => {
+    window.localStorage.clear();
+    mocks.abort.mockClear();
+    const queued = viewWhere("steer", (view) =>
+      JSON.stringify(view.docs["pi.inbox"]).includes("steered.txt"),
+    );
+    renderView(queued);
+    expect(screen.getByRole("button", { name: "Stop" })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Stop" }));
+    expect(mocks.abort).toHaveBeenCalledWith("2");
+    await waitFor(() => expect(screen.getByLabelText("Message")).toHaveValue("write steered.txt steered"));
   });
 
   it("applies a mid-stream reset: the view after the reset renders like any other", () => {

@@ -1,12 +1,13 @@
 import { readLive } from "@tau/protocol";
 import { ArrowDown } from "lucide-react";
-import { useRef } from "react";
+import { useCallback, useRef } from "react";
 import { Link } from "react-router";
 import type { PickersHandle } from "@/components/ModelThinkingPickers";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { GoalChip } from "@/goal/GoalChip";
 import { useAllConversations, useModels, useSettings } from "@/lib/queries";
+import { useApi, useMachineId } from "@/machines/machine-context";
 import { ThreadTerminalButton } from "@/panes";
 import { NameDialog } from "@/sidebar/NameDialog";
 import { SubagentBanner } from "@/sidebar/subagents/SubagentBanner";
@@ -16,6 +17,7 @@ import { useThreadCommands } from "./composer/use-thread-commands";
 import { imagesAllowedFor } from "./model/agent";
 import { BusyModeHint } from "./queue/BusyModeHint";
 import { whenBusyOf } from "./queue/queued-mode";
+import { stopAndRestore } from "./queue/stop-restore";
 import { ThreadHeader } from "./ThreadHeader";
 import { ThreadToolbar } from "./ThreadToolbar";
 import { Transcript } from "./Transcript";
@@ -67,6 +69,8 @@ function Body({
 function ConversationPanel({ id }: ConversationProps) {
   const state = useConversationView(id);
   const actions = useConversationActions(id);
+  const api = useApi();
+  const machineId = useMachineId();
   const { scrollRef, contentRef, atBottom, onScroll, scrollToBottom } = useStickToBottom();
   const models = useModels().data;
   const summary = useAllConversations().data?.find((item) => item.id === id);
@@ -74,6 +78,11 @@ function ConversationPanel({ id }: ConversationProps) {
   const thread = useThreadCommands({ conversationId: id, projectId: summary?.projectId, pickers });
   const view = state.status === "ready" ? state.view : undefined;
   const busy = state.status === "ready" && readLive(state.view).busy;
+  const queued = view ? readLive(view).queued : [];
+  const handleStop = useCallback(
+    () => stopAndRestore(api, id, machineId, queued),
+    [api, id, machineId, queued],
+  );
   const messageMode = useSettings().data?.messageMode;
   const whenBusy = messageMode ? whenBusyOf(messageMode) : undefined;
   const parentId = summary?.parentId ?? null;
@@ -124,7 +133,7 @@ function ConversationPanel({ id }: ConversationProps) {
             commands={thread.commands}
             projectId={summary?.projectId}
             onSend={actions.send}
-            onStop={actions.stop}
+            onStop={handleStop}
             onSent={scrollToBottom}
           />
         </div>
