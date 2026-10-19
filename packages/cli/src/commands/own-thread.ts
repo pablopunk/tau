@@ -5,7 +5,7 @@ import type { CommandEnv } from "./command-env";
 
 export const GUARDED_COMMANDS: readonly string[] = ["threads delete", "threads archive"];
 
-function lineageOf(all: readonly ConversationSummary[], ownId: string): Set<string> {
+export function lineageOf(all: readonly ConversationSummary[], ownId: string): Set<string> {
   const lineage = new Set<string>();
   let current: string | null | undefined = ownId;
   while (current && !lineage.has(current)) {

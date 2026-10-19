@@ -37,6 +37,7 @@ describe("resolveCommand", () => {
       "status",
       "open",
       "logs",
+      "update",
       "service",
       "skill",
       ...COMMAND_NOUNS,

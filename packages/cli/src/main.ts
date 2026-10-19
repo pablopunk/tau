@@ -14,6 +14,7 @@ import { runStop } from "./lifecycle/stop";
 import { commandWordOf } from "./options";
 import { serveInForeground } from "./serve";
 import { runServiceCommand } from "./service/service-command";
+import { runUpdate } from "./update/run-update";
 import { cliVersion } from "./version";
 
 /** `argv` is what follows the command word; for bare `tau` it is everything. */
@@ -32,6 +33,7 @@ export const commandTable: Readonly<Record<string, CommandHandler>> = {
   status: runStatus,
   open: runOpen,
   logs: runLogs,
+  update: runUpdate,
   service: runServiceCommand,
   skill: runSkill,
   help: runHelp,

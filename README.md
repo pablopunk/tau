@@ -15,3 +15,5 @@
 ```sh
 npx @pablopunk/tau
 ```
+
+Update an installed tau with `tau update` (`tau update --check` only looks).

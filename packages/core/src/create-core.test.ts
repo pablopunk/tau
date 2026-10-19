@@ -1,4 +1,4 @@
-import { mkdir, stat } from "node:fs/promises";
+import { mkdir, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createCore, createCoreWith, defaultCoreDependencies } from "./create-core";
@@ -96,5 +96,17 @@ describe("createCore with OpenRouter", () => {
     const openrouter = (await core.providers.list()).find((provider) => provider.id === "openrouter");
     expect(openrouter?.connection).toEqual({ method: "api_key", source: "env", valid: true });
     await core.close();
+  });
+});
+
+describe("readRunningInstance with a stale lock", () => {
+  it("ignores a lock whose process is dead, even when its version matches", async () => {
+    const home = homeIn(await tempDir());
+    await mkdir(home, { recursive: true });
+    await writeFile(
+      join(home, "lock"),
+      JSON.stringify({ pid: 2 ** 22 + 12345, url: "http://x", version: "9.9.9" }),
+    );
+    expect(await readRunningInstance(home)).toBeUndefined();
   });
 });

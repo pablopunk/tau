@@ -11,7 +11,18 @@ const THREAD_EXTRAS = [
 const LIFECYCLE = [
   "  start, stop, restart, status, open, logs, service   Run and manage the server",
   "  serve           Run the server in the foreground",
+  "  update          Install the latest tau and restart the server (--check, --yes, --force, --no-restart)",
   "  skill           Print the tau skill for agents",
+];
+
+const UPDATE_FLAGS = [
+  "",
+  "tau update flags:",
+  "  --check         Print current -> latest; exit 0 current, 10 update available, 1 error",
+  '  --yes           Skip only the "Install X -> Y and restart?" question',
+  "  --force         Restart even when threads are running",
+  "  --no-restart    Install and verify, then print `tau restart`",
+  "  --home <dir>, --port <n>   Forwarded to `tau restart`",
 ];
 
 const pad = (text: string) => text.padEnd(26);
@@ -30,6 +41,7 @@ function rootHelp(): string {
     ...FLOW_COMMANDS.map((word) => `  ${word}`),
     "",
     "Run `tau <noun> --help` for the commands of a noun, `tau <noun> <verb> --help` for one command.",
+    ...UPDATE_FLAGS,
   ].join("\n");
 }
 
