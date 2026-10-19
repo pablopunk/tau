@@ -1,4 +1,11 @@
 import { Type } from "typebox";
+import {
+  AnnounceFrameSchema,
+  ExpelAckFrameSchema,
+  ExpelFrameSchema,
+  ExpelSyncFrameSchema,
+  RoutedFieldsSchema,
+} from "./node-link-routing";
 import { NodeHelloSchema } from "./nodes";
 import { API_PREFIX } from "./rest";
 import { WS_MAX_PAYLOAD_BYTES } from "./terminal-stream";
@@ -125,21 +132,39 @@ export const BASE_FRAME_SCHEMAS = {
   credit: CreditFrameSchema,
 } as const;
 
+/**
+ * `request` and `open` as Step 2 nodes send them: the base fields plus the optional routed ones. Only the
+ * BASE schemas above feed `linkProtocol`, so a Step 1 node still links (and ignores the extra fields).
+ */
+export const RoutedRequestFrameSchema = Type.Object({
+  ...RequestFrameSchema.properties,
+  ...RoutedFieldsSchema.properties,
+});
+export const RoutedOpenFrameSchema = Type.Object({
+  ...OpenFrameSchema.properties,
+  ...RoutedFieldsSchema.properties,
+});
+
 export const LinkFrameSchema = Type.Union([
   HelloFrameSchema,
   ProofFrameSchema,
   ReadyFrameSchema,
   ByeFrameSchema,
-  RequestFrameSchema,
+  RoutedRequestFrameSchema,
   ResponseFrameSchema,
-  OpenFrameSchema,
+  RoutedOpenFrameSchema,
   CloseFrameSchema,
   CreditFrameSchema,
+  AnnounceFrameSchema,
+  ExpelFrameSchema,
+  ExpelAckFrameSchema,
+  ExpelSyncFrameSchema,
   PingFrameSchema,
   PongFrameSchema,
 ]);
 export type LinkFrame = Type.Static<typeof LinkFrameSchema>;
-export type RequestFrame = Type.Static<typeof RequestFrameSchema>;
+export type RequestFrame = Type.Static<typeof RoutedRequestFrameSchema>;
+export type OpenFrame = Type.Static<typeof RoutedOpenFrameSchema>;
 export type HelloFrame = Type.Static<typeof HelloFrameSchema>;
 export type ProofFrame = Type.Static<typeof ProofFrameSchema>;
 
