@@ -23,6 +23,7 @@ function rowOf(node: DirectoryNode, now: number) {
     hops: node.hops,
     via: node.via,
     direct: node.direct,
+    links: node.links,
     unsynced: node.unsynced,
     skewMs: node.skewMs,
     threads: node.threadCount,

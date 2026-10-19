@@ -54,7 +54,10 @@ export function createControl(deps: {
     if (outcome.ack) await flood(registry, outcome.ack);
     if (!outcome.fresh) return;
     if (outcome.selfExpelled) cutEverything(registry, deps.closers);
-    else if (outcome.target) cutNode(registry, deps.closers, outcome.target);
+    else if (outcome.target) {
+      cutNode(registry, deps.closers, outcome.target);
+      await core.nodes.forget(outcome.target).catch(() => undefined);
+    }
   }
 
   async function handle(link: RegisteredLink, frame: LinkFrame): Promise<void> {

@@ -137,7 +137,6 @@ describe("expel", () => {
     expect(expulsion?.confirmations.map((e) => e.node).sort()).toEqual([a.id, b.id].sort());
     expect((await a.dir.directory()).map((n) => n.id)).toEqual([b.id]);
     expect(b.dir.group.isTombstoned(c.id)).toBe(true);
-    expect(a.forgotten).toContain(c.id);
     expect(c.dir.removal()).toMatchObject({ by: a.id });
     expect(await c.dir.directory()).toEqual([]);
   });

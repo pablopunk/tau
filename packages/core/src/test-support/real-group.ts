@@ -82,6 +82,8 @@ export async function createRealGroup(): Promise<ContractGroup> {
   async function settle(at: Key, from: Key, outcome: ExpelOutcome, frame: ExpelFrame): Promise<void> {
     if (outcome.ack) await floodAck(at, undefined, outcome.ack);
     if (outcome.reflood) await floodExpel(at, from, frame);
+    if (outcome.fresh && outcome.target && !outcome.selfExpelled)
+      await members[at].core.nodes.forget(outcome.target).catch(() => undefined);
   }
 
   async function link(x: Key, y: Key): Promise<void> {
@@ -116,6 +118,8 @@ export async function createRealGroup(): Promise<ContractGroup> {
       const out = await group(to).acceptExpel(frame, members[from].id);
       if (out.ack) await floodAck(to, undefined, out.ack);
       if (out.reflood) await floodExpel(to, from, frame);
+      if (out.fresh && out.target && !out.selfExpelled)
+        await members[to].core.nodes.forget(out.target).catch(() => undefined);
     }
   }
 
@@ -147,6 +151,7 @@ export async function createRealGroup(): Promise<ContractGroup> {
           async createExpel(target, confirm) {
             const frame = await core.nodes.group.createExpel(target, confirm);
             await floodExpel(key, undefined, frame);
+            await core.nodes.forget(target).catch(() => undefined);
             return frame;
           },
         },

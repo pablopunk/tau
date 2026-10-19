@@ -70,7 +70,6 @@ export function createDirectoryState(deps: DirectoryDepsWithSelf): Directory {
     synced.delete(target);
     if (target === selfId()) removal = { by: stored.record.by, at: stored.record.time };
     for (const listener of [...tombstoneListeners]) listener(target);
-    await deps.nodes.forget(target).catch(() => undefined);
     emitTopology();
     return "added";
   }
