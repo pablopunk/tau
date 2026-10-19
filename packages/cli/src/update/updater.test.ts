@@ -72,7 +72,8 @@ describe("updater.plan", () => {
   });
 
   it("tells a foreground run it will not restart, and stays quiet for a service run", async () => {
-    const reason = "tau was not started as a service, so it will not restart. Restart it yourself afterwards.";
+    const reason =
+      "tau was not started as a service, so it will not restart. Restart it yourself afterwards.";
     const { updater } = await setup({ foreground: true });
     expect(updater.plan("1.1.0")).toEqual({ mode: "run", command: null, reason });
     expect((await setup({ foreground: false })).updater.plan("1.1.0").reason).toBeNull();
