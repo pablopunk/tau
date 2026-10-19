@@ -10,7 +10,7 @@ export interface NodeRouteDeps {
   readonly gateway: NodeGateway;
 }
 
-/** The hub's own node routes (denylisted from the proxy, so they always answer about THIS tau). */
+/** This tau's own node routes (denylisted from the proxy, so they always answer about THIS tau). */
 export function registerNodeRoutes(app: FastifyInstance, { core, sockets, gateway }: NodeRouteDeps): void {
   defineRoute(app, routes.listNodes, () => core.nodes.list());
   defineRoute(app, routes.renameNode, ({ params, body }) => core.nodes.rename(params.id, body.name));
@@ -20,17 +20,17 @@ export function registerNodeRoutes(app: FastifyInstance, { core, sockets, gatewa
     return summary;
   });
   defineRoute(app, routes.disconnectNode, async ({ params }) => {
+    gateway.closeNode(params.id, "disconnect");
     await core.nodes.disconnect(params.id);
     sockets.closeDevice(params.id);
     sockets.closeNode(params.id);
-    gateway.closeNode(params.id);
   });
   defineRoute(app, routes.getNodeSelf, () => core.nodes.self());
   defineRoute(app, routes.forgetNode, async ({ params }) => {
+    gateway.closeNode(params.id, "forget");
     await core.nodes.forget(params.id);
     sockets.closeDevice(params.id);
     sockets.closeNode(params.id);
-    gateway.closeNode(params.id);
   });
   defineRoute(app, routes.resetNodeIdentity, () => core.nodes.resetIdentity());
 }

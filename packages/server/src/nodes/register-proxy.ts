@@ -35,7 +35,7 @@ async function proxyHttp(
     method: request.method,
     path: decision.path,
     query: parts.query,
-    hubDevice: label(request.deviceId),
+    via: label(request.deviceId),
     contentType: request.headers["content-type"],
     body,
   });
@@ -44,7 +44,7 @@ async function proxyHttp(
 
 /**
  * `/api/n/<nodeId>/**` on the hub. Registered in an encapsulated scope so a raw-buffer parser passes bodies
- * through untouched (the node validates). The guard has already required a device cookie. Owner G fills the gateway.
+ * through untouched (the node validates). The guard has already required a device cookie.
  */
 export async function registerNodeProxy(app: FastifyInstance, deps: ProxyStreamDeps): Promise<void> {
   await app.register(async (scope) => {
@@ -56,7 +56,7 @@ export async function registerNodeProxy(app: FastifyInstance, deps: ProxyStreamD
     );
     registerProxyStreams(scope, deps);
     scope.all(`${NODE_PROXY_PREFIX}/:nodeId/*`, { bodyLimit: MESSAGE_BODY_LIMIT }, (request, reply) =>
-      proxyHttp(deps.gateway, deps.hubDeviceLabel, request, reply),
+      proxyHttp(deps.gateway, deps.viaLabel, request, reply),
     );
   });
 }

@@ -5,9 +5,9 @@ import Fastify, { type FastifyInstance } from "fastify";
 import { handleError } from "./error-handler";
 import { registerLive } from "./live/register-live";
 import { createAttachPeer } from "./nodes/attach-peer";
-import { createNodeGateway } from "./nodes/create-gateway";
 import { createDeviceLabels } from "./nodes/device-labels";
 import type { NodeGateway } from "./nodes/gateway";
+import { createLinkRegistry } from "./nodes/link-registry";
 import type { AttachPeer } from "./nodes/peer-seam";
 import { registerNodeLink } from "./nodes/register-link";
 import { registerNodeRoutes } from "./nodes/register-node-routes";
@@ -37,7 +37,7 @@ export interface ServerOptions {
   readonly host?: string;
   /** Secret that opens a session: `/?token=…` is swapped for the `tau_<port>` cookie. Persisted by the CLI in `<home>/token`. */
   readonly token: string;
-  /** The node-link multiplexer (owner G). Default: a stub that never links. */
+  /** What `/api/n/<id>/**` talks to. Default: the registry of the links `attachPeer` runs (tests may stub it). */
   readonly gateway?: NodeGateway;
   /** Fastify logger, off by default. */
   readonly logger?: boolean;
@@ -112,11 +112,13 @@ export const createServer: CreateServer = async (options) => {
   registerAccessRoutes(app, { core: options.core, tunnel: tags, sockets });
   registerLive(app, options.core, sockets);
   const labels = createDeviceLabels(options.core);
-  const gateway = options.gateway ?? createNodeGateway(options.core);
+  const links = createLinkRegistry(options.core);
+  const gateway = options.gateway ?? links.gateway;
+  let attachPeer: AttachPeer | undefined;
   registerNodeRoutes(app, { core: options.core, sockets, gateway });
-  registerNodeLink(app, { core: options.core, sockets, gateway });
+  registerNodeLink(app, { sockets, attachPeer: () => attachPeer as AttachPeer });
   registerLegacyLink(app);
-  await registerNodeProxy(app, { sockets, gateway, hubDeviceLabel: labels.label });
+  await registerNodeProxy(app, { sockets, gateway, viaLabel: labels.label });
   await registerStaticAssets(app, options.staticDir);
   const tunnel: TunnelListener = createTunnelListener({
     app,
@@ -139,7 +141,12 @@ export const createServer: CreateServer = async (options) => {
     await app.close();
     throw error;
   }
-  const attachPeer = createAttachPeer({ core: options.core, sockets });
+  attachPeer = createAttachPeer({
+    core: options.core,
+    port: boundPort,
+    token: options.token,
+    registry: links,
+  });
   const { port: tunnelPort } = await tunnel.start();
   const origin = `http://${DEFAULT_HOST}:${boundPort}`;
   return {

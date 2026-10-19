@@ -1,29 +1,35 @@
 import type { DataFrame } from "@tau/protocol";
 import { CREDIT_WINDOW_BYTES } from "@tau/protocol";
 
-/** One multiplexed stream on a link: a proxied request or a proxied socket. Outbound data waits for credit. */
+/** One multiplexed stream on a link, seen from either end: a request or a socket. Outbound data waits for credit. */
 export interface LinkStream {
   readonly id: number;
-  /** Bytes the node allows us to send now. Starts at the window; `credit` frames add. */
+  /** Bytes the peer allows us to send now. Starts at the window; `credit` frames add. */
   credit: number;
   readonly pending: DataFrame[];
   pendingBytes: number;
-  /** False until the node confirms an `open`; requests are ready at once. */
+  /** False until the peer's `ready` (streams WE opened); requests and streams the peer opened are ready at once. */
   ready: boolean;
-  /** Last time this stream moved (a send, a credit, a flush); the 60 s clock starts here. */
+  /** Last time this stream moved (a send, a credit, a flush, an arrival); the 60 s clock starts here. */
   progressAt: number;
-  /** Bytes handed to the browser socket and not yet flushed (node to browser). */
+  /** Bytes handed to a local socket and not yet flushed. */
   inFlight: number;
-  /** Flushed bytes not yet returned to the node as credit. */
+  /** Consumed bytes not yet returned to the peer as credit. */
   owed: number;
-  /** The node's `response` frame (requests only). */
+  /** Bytes received and not yet returned as credit: more than the window is a protocol violation. */
+  held: number;
+  /** The handler expects inbound data (a request body): silence for 60 s ends the stream. */
+  awaitingInbound: boolean;
   onResponse?(status: number, headers: Record<string, string>): void;
-  /** A response chunk or a socket message arrived. */
+  onReady?(): void;
+  /** A body chunk or a socket message arrived. */
   onData(frame: DataFrame): void;
-  /** The node closed the stream (or the link went). */
+  /** The peer closed the stream (or the link went). */
   onClose(code: number, reason: string): void;
   /** The pending queue went below the window again. */
   onDrained?(): void;
+  /** The last queued frame with `end` went out. */
+  onSentEnd?(): void;
   /** The stream stalled for 60 s: close it (1013). */
   onStalled(): void;
 }
@@ -43,6 +49,8 @@ export function newStream(
     progressAt: now,
     inFlight: 0,
     owed: 0,
+    held: 0,
+    awaitingInbound: false,
     ...handlers,
   };
 }
@@ -56,3 +64,10 @@ export function isBlocked(stream: LinkStream): boolean {
   const head = stream.pending[0];
   return head !== undefined && (!stream.ready || stream.credit < head.payload.byteLength);
 }
+
+export const EMPTY_END = (id: number): DataFrame => ({
+  id,
+  end: true,
+  text: false,
+  payload: new Uint8Array(0),
+});

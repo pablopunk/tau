@@ -1,20 +1,26 @@
 import { AppError, chunkBody } from "@tau/protocol";
 import type { GatewayRequest, GatewayResponse } from "./gateway";
-import type { LinkSession } from "./link-session";
+import type { LinkMux } from "./link-mux";
 import { enqueue, newStream } from "./link-stream";
 
 const MAX_RESPONSE_BYTES = 256 * 1024 * 1024;
 const OFFLINE = "This node is offline.";
+const WENT_AWAY = "node went away";
+const DONE = 1000;
+const NO_CREDIT = 1013;
+const TOO_LARGE = 1009;
 
-/** One proxied HTTP call over a link: body out under the node's credit, response in under ours. */
-export function proxyRequest(session: LinkSession, request: GatewayRequest): Promise<GatewayResponse> {
+/** One proxied HTTP call over a link: body out under the peer's credit, response in under ours. */
+export function requestOverLink(mux: LinkMux, request: GatewayRequest): Promise<GatewayResponse> {
   return new Promise((resolve, reject) => {
-    const id = session.allocateId();
+    const id = mux.allocateId();
     const chunks: Buffer[] = [];
     let received = 0;
     let head: { status: number; headers: Record<string, string> } | undefined;
     const finish = (error?: AppError) => {
-      session.removeStream(id);
+      const unfinishedBody = (mux.streams.get(id)?.pending.length ?? 0) > 0;
+      mux.removeStream(id);
+      if (unfinishedBody) mux.sendControl({ type: "close", id, code: DONE, reason: "answered" });
       if (error) reject(error);
     };
     const stream = newStream(
@@ -24,21 +30,23 @@ export function proxyRequest(session: LinkSession, request: GatewayRequest): Pro
         onData(frame) {
           received += frame.payload.byteLength;
           if (received > MAX_RESPONSE_BYTES) {
-            session.sendControl({ type: "close", id, code: 1009, reason: "response too large" });
-            return finish(new AppError("too_large", "The node's response is too large."));
+            mux.sendControl({ type: "close", id, code: TOO_LARGE, reason: "response too large" });
+            mux.removeStream(id);
+            return reject(new AppError("too_large", "The node's response is too large."));
           }
           chunks.push(Buffer.from(frame.payload));
           stream.owed += frame.payload.byteLength;
-          if (!frame.end) return session.returnCredit(stream);
-          session.removeStream(id);
+          if (!frame.end) return mux.returnCredit(stream);
+          finish();
           if (head) resolve({ ...head, body: Buffer.concat(chunks) });
           else reject(new AppError("internal", "The node answered without a response."));
         },
         onClose: (_code, reason) =>
-          finish(new AppError(reason === "node went away" ? "not_found" : "internal", OFFLINE)),
+          finish(new AppError(reason === WENT_AWAY ? "not_found" : "internal", OFFLINE)),
         onStalled() {
-          session.sendControl({ type: "close", id, code: 1013, reason: "no credit" });
-          finish(new AppError("not_found", "The node stopped answering."));
+          mux.sendControl({ type: "close", id, code: NO_CREDIT, reason: "no credit" });
+          mux.removeStream(id);
+          reject(new AppError("not_found", "The node stopped answering."));
         },
       },
       true,
@@ -47,18 +55,18 @@ export function proxyRequest(session: LinkSession, request: GatewayRequest): Pro
       head = { status, headers };
     };
     const body = request.body && request.body.length > 0 ? request.body : undefined;
-    session.addStream(stream);
-    session.sendControl({
+    mux.addStream(stream);
+    mux.sendControl({
       type: "request",
       id,
       method: request.method,
       path: request.path,
       query: request.query,
-      via: request.hubDevice.slice(0, 120),
+      via: request.via,
       ...(request.contentType ? { contentType: request.contentType } : {}),
       ...(body ? { bodyBytes: body.length } : {}),
     });
     if (body) for (const frame of chunkBody(id, body)) enqueue(stream, frame);
-    session.pump();
+    mux.pump();
   });
 }

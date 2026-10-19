@@ -79,6 +79,11 @@ export function createFakeNodes({ now, emit, access, self }: FakeNodesOptions): 
     await access.revokeDevice(device);
     announce();
   }
+  /** Like the real core: an id may be a node id or a device id (a link refused before it registered). */
+  async function dropOrRevoke(id: string) {
+    if (nodes.has(id)) await drop(id);
+    else await access.revokeDevice(id);
+  }
   const selfSync = (): NodeSelf => ({
     nodeId,
     publicKey: `fake-key-${nodeId}`,
@@ -101,10 +106,10 @@ export function createFakeNodes({ now, emit, access, self }: FakeNodesOptions): 
       set({ ...node, name });
     },
     async disconnect(id) {
-      if (nodes.has(id)) await drop(id);
+      await dropOrRevoke(id);
     },
     async forget(id) {
-      if (nodes.has(id)) await drop(id);
+      await dropOrRevoke(id);
     },
     async resetIdentity() {
       for (const id of [...nodes.keys()]) await drop(id);

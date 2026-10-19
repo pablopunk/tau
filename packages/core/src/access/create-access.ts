@@ -48,6 +48,13 @@ export function createAccess(deps: AccessDeps): AccessService {
     writing = run.catch(() => undefined);
     await run;
   };
+  /** Every read-modify-write of the device list runs one at a time, so concurrent updates are never lost. */
+  let transactions: Promise<unknown> = Promise.resolve();
+  const transaction = <T>(run: () => Promise<T>): Promise<T> => {
+    const next = transactions.then(run, run);
+    transactions = next.catch(() => undefined);
+    return next;
+  };
   const find = async (secret: string, node: boolean) => {
     const hash = sha256Hex(secret);
     let found: StoredDevice | undefined;
@@ -80,24 +87,48 @@ export function createAccess(deps: AccessDeps): AccessService {
       lastSeenAt: at,
       secretHash: sha256Hex(secret),
     };
-    await save([...(await load()), device]);
+    await transaction(async () => save([...(await load()), device]));
     deps.announce();
     const nodeId = pairing.kind === "node" ? deps.nodeId?.() : undefined;
     return { deviceId: device.id, kind: pairing.kind, secret, ...(nodeId ? { nodeId } : {}) };
   }
 
+  const bindIdentity = async (
+    deviceId: string,
+    { nodeId, publicKey }: { nodeId: string; publicKey: string },
+  ): ReturnType<AccessService["bindNodeIdentity"]> => {
+    const devices = await load();
+    const device = devices.find((entry) => entry.id === deviceId && entry.kind === "node");
+    if (!device) return { ok: false, reason: "not-found" };
+    if (device.nodeId !== undefined && (device.nodeId !== nodeId || device.publicKey !== publicKey)) {
+      return { ok: false, reason: "identity-conflict" };
+    }
+    const holder = devices.find(
+      (entry) => entry.id !== deviceId && entry.kind === "node" && entry.nodeId === nodeId,
+    );
+    if (holder) {
+      return holder.publicKey === publicKey
+        ? { ok: false, reason: "duplicate-device", otherDeviceId: holder.id }
+        : { ok: false, reason: "identity-conflict", otherDeviceId: holder.id };
+    }
+    if (device.nodeId === nodeId) return { ok: true };
+    await save(devices.map((entry) => (entry === device ? { ...device, nodeId, publicKey } : entry)));
+    deps.announce();
+    return { ok: true };
+  };
+
   return {
     verifyDevice: (secret) => find(secret, false),
     verifyNode: (secret) => find(secret, true),
     touch(deviceId) {
-      void (async () => {
+      void transaction(async () => {
         const devices = await load();
         const device = devices.find((entry) => entry.id === deviceId);
         if (!device || deps.now() - device.lastSeenAt < TOUCH_THROTTLE_MS) return;
         await save(
           devices.map((entry) => (entry === device ? { ...device, lastSeenAt: deps.now() } : entry)),
         );
-      })().catch(() => undefined);
+      }).catch(() => undefined);
     },
     async listDevices(currentDeviceId) {
       const devices = await load();
@@ -105,22 +136,25 @@ export function createAccess(deps: AccessDeps): AccessService {
         .map((device) => toDevice(device, currentDeviceId))
         .sort((a, b) => b.createdAt - a.createdAt);
     },
-    async renameDevice(id, name) {
-      const devices = await load();
-      if (!devices.some((device) => device.id === id)) throw new AppError("not_found", `No device ${id}.`);
-      await save(devices.map((device) => (device.id === id ? { ...device, name } : device)));
-      deps.announce();
-    },
-    async revokeDevice(id) {
-      const devices = await load();
-      if (!devices.some((device) => device.id === id)) return;
-      await save(devices.filter((device) => device.id !== id));
-      deps.announce();
-    },
-    async signOutAll() {
-      await save((await load()).filter((device) => device.kind === "node"));
-      deps.announce();
-    },
+    renameDevice: (id, name) =>
+      transaction(async () => {
+        const devices = await load();
+        if (!devices.some((device) => device.id === id)) throw new AppError("not_found", `No device ${id}.`);
+        await save(devices.map((device) => (device.id === id ? { ...device, name } : device)));
+        deps.announce();
+      }),
+    revokeDevice: (id) =>
+      transaction(async () => {
+        const devices = await load();
+        if (!devices.some((device) => device.id === id)) return;
+        await save(devices.filter((device) => device.id !== id));
+        deps.announce();
+      }),
+    signOutAll: () =>
+      transaction(async () => {
+        await save((await load()).filter((device) => device.kind === "node"));
+        deps.announce();
+      }),
     async mintPairing({ kind = "device", name }) {
       const entry = codes.mint(kind);
       const url = deps.remoteUrl();
@@ -136,34 +170,16 @@ export function createAccess(deps: AccessDeps): AccessService {
       };
     },
     redeemPairing: redeem,
-    async bindNodeIdentity(deviceId, { nodeId, publicKey }) {
-      const devices = await load();
-      const device = devices.find((entry) => entry.id === deviceId && entry.kind === "node");
-      if (!device) return { ok: false, reason: "not-found" };
-      if (device.nodeId !== undefined && (device.nodeId !== nodeId || device.publicKey !== publicKey)) {
-        return { ok: false, reason: "identity-conflict" };
-      }
-      const holder = devices.find(
-        (entry) => entry.id !== deviceId && entry.kind === "node" && entry.nodeId === nodeId,
-      );
-      if (holder) {
-        return holder.publicKey === publicKey
-          ? { ok: false, reason: "duplicate-device", otherDeviceId: holder.id }
-          : { ok: false, reason: "identity-conflict", otherDeviceId: holder.id };
-      }
-      if (device.nodeId === nodeId) return { ok: true };
-      await save(devices.map((entry) => (entry === device ? { ...device, nodeId, publicKey } : entry)));
-      deps.announce();
-      return { ok: true };
-    },
+    bindNodeIdentity: (deviceId, identity) => transaction(() => bindIdentity(deviceId, identity)),
     async findNodeDevice(nodeId) {
       const found = (await load()).find((entry) => entry.kind === "node" && entry.nodeId === nodeId);
       return found ? toDevice(found) : undefined;
     },
-    async clearAll() {
-      codes.clear();
-      await save([]);
-      deps.announce();
-    },
+    clearAll: () =>
+      transaction(async () => {
+        codes.clear();
+        await save([]);
+        deps.announce();
+      }),
   };
 }

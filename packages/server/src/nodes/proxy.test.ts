@@ -73,7 +73,7 @@ describe("hub proxy /api/n/<id>/**", () => {
       method: "GET",
       path: "/api/conversations",
       query: "projectId=p1",
-      hubDevice: "owner",
+      via: "owner",
     });
     expect(JSON.stringify(seen[0])).not.toContain("cookie");
   });

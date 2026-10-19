@@ -14,7 +14,7 @@ export interface ProxyStreamDeps {
   readonly sockets: DeviceSockets;
   readonly gateway: NodeGateway;
   /** A label for the audit header, from the device list; the device id when unknown. */
-  readonly hubDeviceLabel: (deviceId: string) => string;
+  readonly viaLabel: (deviceId: string) => string;
 }
 
 type StreamParams = { nodeId: string; id?: string };
@@ -34,14 +34,14 @@ function hubStream(
   app.get<{ Params: StreamParams }>(hubPath, { websocket: true }, (socket, request) => {
     const { nodeId } = request.params;
     if (!deps.sockets.addProxied(request.deviceId, nodeId, socket)) return;
-    // The first line of every message handler: refuse by raw length before any parse (G keeps this when it pipes).
+    // The first line of every message handler: refuse by raw length before any parse .
     socket.on("message", (data) => void closeIfOversized(socket, data, capBytes));
     deps.gateway.openStream(
       nodeId,
       {
         path: nodePath(request.params),
         query: queryOf(request),
-        hubDevice: deps.hubDeviceLabel(request.deviceId),
+        via: deps.viaLabel(request.deviceId),
       },
       socket,
     );

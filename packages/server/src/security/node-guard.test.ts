@@ -1,12 +1,12 @@
 import { LIVE_PATH, NODE_LINK_PATH, terminalStreamPath } from "@tau/protocol";
-import { afterEach, describe, expect, it } from "vitest";
+import { generateNodeKeys } from "@tau/protocol/identity";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import WebSocket from "ws";
 import { TOKEN } from "../testing/harness";
-import { createRecordingGateway, type RecordingGateway } from "../testing/recording-gateway";
+import { RawPeer } from "../testing/raw-peer";
 import { startTunneledServer, TUNNEL_HOSTNAME, type TunneledServer } from "../testing/tunnel-harness";
 
 let ctx: TunneledServer;
-let gateway: RecordingGateway;
 afterEach(async () => {
   await ctx.server.close();
   await ctx.core.close();
@@ -15,9 +15,11 @@ afterEach(async () => {
 const ORIGIN = `https://${TUNNEL_HOSTNAME}`;
 
 async function start() {
-  gateway = createRecordingGateway();
-  ctx = await startTunneledServer({ gateway });
+  ctx = await startTunneledServer();
 }
+
+/** Speaks the link handshake on a socket: what a linked node's own server does. */
+const asPeer = (socket: WebSocket) => new RawPeer(socket, { keys: generateNodeKeys(), role: "dialler" });
 
 /** A WebSocket through the tunnel listener; resolves with the status of a refusal or the open socket. */
 function dialTunnel(path: string, headers: Record<string, string>, peer?: string) {
@@ -26,6 +28,16 @@ function dialTunnel(path: string, headers: Record<string, string>, peer?: string
     headers: { origin: ORIGIN, ...headers },
   });
   return settle(socket);
+}
+
+/** Like `dialTunnel`, but the handshake listener is attached at socket creation (the acceptor's `hello` comes with the upgrade). */
+async function dialTunnelAsPeer(path: string, headers: Record<string, string>) {
+  const socket = new WebSocket(`ws://${TUNNEL_HOSTNAME}${path}`, {
+    createConnection: () => ctx.tunnelSocket({}),
+    headers: { origin: ORIGIN, ...headers },
+  });
+  const peer = asPeer(socket);
+  return { ...(await settle(socket)), peer };
 }
 
 function dialLocal(path: string, headers: Record<string, string>) {
@@ -45,6 +57,8 @@ function settle(socket: WebSocket): Promise<{ status: number; socket: WebSocket 
   });
 }
 
+const onlineNodes = async () => (await ctx.core.nodes.list()).filter((node) => node.status === "online");
+
 const bearer = (secret: string) => ({ authorization: `Bearer ${secret}` });
 const closeOf = (socket: WebSocket) => new Promise<number>((resolve) => socket.once("close", resolve));
 
@@ -52,9 +66,11 @@ describe("node branch: the link route", () => {
   it("accepts a node Bearer on GET /api/nodes/link with an Upgrade header, on a tagged socket", async () => {
     await start();
     const { secret, deviceId } = await ctx.linkNode();
-    const { status, socket } = await dialTunnel(NODE_LINK_PATH, bearer(secret));
+    const { status, socket, peer } = await dialTunnelAsPeer(NODE_LINK_PATH, bearer(secret));
     expect(status).toBe(101);
-    expect(gateway.links.has(deviceId)).toBe(true);
+    expect(deviceId).toBeTruthy();
+    await peer.established;
+    await vi.waitFor(async () => expect(await onlineNodes()).toHaveLength(1));
     socket.close();
   });
 
@@ -215,12 +231,10 @@ describe("pin (m1): frame caps on the shared WebSocket server", () => {
   it("passes a 256 KB frame on the link and keeps the socket open", async () => {
     await start();
     const { secret } = await ctx.linkNode();
-    const { socket } = await dialTunnel(NODE_LINK_PATH, bearer(secret));
+    const { socket, peer } = await dialTunnelAsPeer(NODE_LINK_PATH, bearer(secret));
+    await peer.established;
     socket.send(Buffer.alloc(256 * 1024 + 5, 7));
-    const pong = new Promise<string>((resolve) => socket.once("message", (data) => resolve(String(data))));
-    socket.send("ping");
-    expect(await pong).toBe("pong");
-    expect(gateway.received[0]).toBe(256 * 1024 + 5);
+    await peer.ping();
     socket.close();
   });
 
@@ -252,9 +266,10 @@ describe("every node accepts links, whatever it dials itself", () => {
     const node = await ctx.request({ method: "POST", url: "/api/pair?kind=node" });
     expect(node.statusCode).toBe(200);
     expect((await ctx.request({ method: "POST", url: "/api/pair?kind=device" })).statusCode).toBe(200);
-    const { status, socket } = await dialTunnel(NODE_LINK_PATH, bearer(secret));
+    const { status, socket, peer } = await dialTunnelAsPeer(NODE_LINK_PATH, bearer(secret));
     expect(status).toBe(101);
-    expect(gateway.links.size).toBe(1);
+    await peer.established;
+    await vi.waitFor(async () => expect(await onlineNodes()).toHaveLength(1));
     socket.close();
   });
 });

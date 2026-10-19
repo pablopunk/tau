@@ -3,14 +3,14 @@ import type { NodeGateway } from "./gateway";
 
 const TICK_MS = 2000;
 const WRITE_EVERY_MS = 15_000;
-const HUB_LABEL = "hub-summary";
+const SUMMARY_LABEL = "node-summary";
 
 async function fetchJson<T>(gateway: NodeGateway, nodeId: string, path: string): Promise<T> {
   const response = await gateway.request(nodeId, {
     method: "GET",
     path,
     query: "",
-    hubDevice: HUB_LABEL,
+    via: SUMMARY_LABEL,
   });
   if (response.status !== 200) throw new Error(`${path}: ${response.status}`);
   return JSON.parse(response.body.toString("utf8")) as T;

@@ -4,7 +4,6 @@ import { afterEach, describe, expect, it } from "vitest";
 import WebSocket from "ws";
 import { filterProxyPath } from "../nodes/path-filter";
 import { TOKEN } from "../testing/harness";
-import { createRecordingGateway } from "../testing/recording-gateway";
 import { startTunneledServer, TUNNEL_HOSTNAME, type TunneledServer } from "../testing/tunnel-harness";
 
 /**
@@ -22,7 +21,7 @@ const bearer = (secret: string) => ({ authorization: `Bearer ${secret}` });
 const closeOf = (socket: WebSocket) => new Promise<number>((resolve) => socket.once("close", resolve));
 
 async function start() {
-  ctx = await startTunneledServer({ gateway: createRecordingGateway() });
+  ctx = await startTunneledServer();
 }
 
 function settle(socket: WebSocket): Promise<{ status: number; socket: WebSocket }> {
