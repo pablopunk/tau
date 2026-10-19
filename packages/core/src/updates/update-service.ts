@@ -1,14 +1,20 @@
 import {
   AppError,
+  type ConversationSummary,
+  hasRunningWork,
   IDLE_JOB,
   isBehind,
   NO_INSTALL,
+  runningWorkOf,
+  type UpdateJob,
   type UpdaterPort,
   type UpdateStartBody,
   type UpdateStatus,
 } from "@tau/protocol";
 
-export const REFRESH_EVERY_MS = 6 * 60 * 60 * 1000;
+export const REFRESH_EVERY_MS = 15 * 60_000;
+export const JITTER = 0.1;
+export const JOB_CACHE_MS = 1_000;
 export const MIN_REFRESH_GAP_MS = 60_000;
 export const FETCH_TIMEOUT_MS = 10_000;
 
@@ -20,6 +26,10 @@ export interface UpdateServiceDeps {
   readonly autoStart?: boolean;
   /** From the CLI. Absent (tests, faux): `install.mode` is `none` and `start` is `update_unsupported`. */
   readonly updater?: UpdaterPort;
+  /** Every conversation, for the `update_busy` check. Absent: nothing counts as running. */
+  readonly listConversations?: () => Promise<readonly ConversationSummary[]>;
+  /** 0..1, injectable for tests. */
+  readonly random?: () => number;
 }
 
 export interface UpdateService {
@@ -46,15 +56,32 @@ export function createUpdateService(deps: UpdateServiceDeps): UpdateService {
   let timer: NodeJS.Timeout | undefined;
   let stopped = false;
 
-  const snapshot = (): UpdateStatus => ({
+  let jobCache: { at: number; job: UpdateJob } | undefined;
+  const invalidateJob = () => {
+    jobCache = undefined;
+  };
+
+  const readJob = async (): Promise<UpdateJob> => {
+    if (!deps.updater) return IDLE_JOB;
+    if (jobCache && deps.now() - jobCache.at < JOB_CACHE_MS) return jobCache.job;
+    const raw = await deps.updater.readJob().catch(() => IDLE_JOB);
+    const job = raw.target !== null && raw.target === deps.currentVersion ? IDLE_JOB : raw;
+    jobCache = { at: deps.now(), job };
+    return job;
+  };
+
+  const isActive = (job: UpdateJob) => job.state === "installing" || job.state === "restarting";
+  const isBehindNow = () => (latest === null ? false : (isBehind(deps.currentVersion, latest) ?? false));
+
+  const snapshot = async (): Promise<UpdateStatus> => ({
     current: deps.currentVersion,
     latest,
     checkedAt,
-    behind: latest === null ? false : (isBehind(deps.currentVersion, latest) ?? false),
-    // STUB (core owner): merge `deps.updater.plan(latest)` and `readJob()` (1 s cache); redaction is the server's.
+    behind: isBehindNow(),
+    // The owner's view: only the server downgrades it per caller.
     canUpdate: true,
-    install: NO_INSTALL,
-    job: IDLE_JOB,
+    install: deps.updater && latest !== null ? deps.updater.plan(latest) : NO_INSTALL,
+    job: await readJob(),
   });
 
   const check = (): Promise<void> => {
@@ -72,10 +99,27 @@ export function createUpdateService(deps: UpdateServiceDeps): UpdateService {
     return inflight;
   };
 
+  const nextDelay = () => REFRESH_EVERY_MS * (1 + JITTER * (2 * (deps.random ?? Math.random)() - 1));
+
+  const arm = () => {
+    if (stopped) return;
+    timer = setTimeout(() => {
+      timer = undefined;
+      void check().finally(arm);
+    }, nextDelay());
+    timer.unref();
+  };
+
   const startTimer = () => {
     if (timer || stopped) return;
-    timer = setInterval(() => void check(), REFRESH_EVERY_MS);
-    timer.unref();
+    arm();
+  };
+
+  const assertCanStart = async (body: UpdateStartBody) => {
+    const install = deps.updater && latest !== null ? deps.updater.plan(latest) : NO_INSTALL;
+    if (install.mode !== "run" || body.target !== latest || !isBehindNow()) {
+      throw new AppError("update_unsupported", "This tau cannot update to that version from here.");
+    }
   };
 
   if (deps.autoStart) {
@@ -84,9 +128,19 @@ export function createUpdateService(deps: UpdateServiceDeps): UpdateService {
   }
 
   return {
-    async start(_body) {
-      // STUB (core owner): update_unsupported / update_busy rules, then `deps.updater.spawn`.
-      throw new AppError("update_unsupported", "Updating from the app is not available yet.");
+    async start(body) {
+      await assertCanStart(body);
+      const updater = deps.updater as UpdaterPort;
+      invalidateJob();
+      if (isActive(await readJob())) return snapshot();
+      if (!body.force && deps.listConversations) {
+        const work = runningWorkOf(await deps.listConversations());
+        if (hasRunningWork(work)) throw new AppError("update_busy", "Threads are still running.");
+      }
+      invalidateJob();
+      await updater.spawn({ target: body.target });
+      invalidateJob();
+      return snapshot();
     },
     async status() {
       if (lastAttemptAt === null && !stopped) {
@@ -105,7 +159,7 @@ export function createUpdateService(deps: UpdateServiceDeps): UpdateService {
     },
     stop() {
       stopped = true;
-      if (timer) clearInterval(timer);
+      if (timer) clearTimeout(timer);
       timer = undefined;
     },
   };

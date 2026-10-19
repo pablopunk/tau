@@ -115,6 +115,20 @@ describe("node status", () => {
   });
 });
 
+describe("peer protocol mismatch", () => {
+  it("is update-required with no summaries, then online again on the same version", async () => {
+    const { nodes } = setup();
+    await nodes.register("m1", { ...HELLO, protocolVersion: "v0" }, "accepted");
+    expect((await nodes.list())[0]?.status).toBe("update-required");
+    await nodes.writeSummary("m1", SUMMARY);
+    expect(await nodes.readSummary("m1")).toBeUndefined();
+    await nodes.register("m1", HELLO, "accepted");
+    expect((await nodes.list())[0]?.status).toBe("online");
+    await nodes.writeSummary("m1", SUMMARY);
+    expect(await nodes.readSummary("m1")).toEqual(SUMMARY);
+  });
+});
+
 describe("update-required after the hub closed the link", () => {
   it("stays update-required (not offline) so the hub can say why", async () => {
     const { nodes } = setup();

@@ -362,6 +362,8 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
       now: deps.now,
       autoStart: options.autoStartUpdates,
       updater: options.updater,
+      listConversations: async () =>
+        (await Promise.all((await projects.list()).map((project) => conversations.list(project.id)))).flat(),
     });
     // `TAU_NODE_NAME` names this node instead of the host name (tests and scratch nodes on one machine).
     const nodeName = deps.env.TAU_NODE_NAME || undefined;
