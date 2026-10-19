@@ -23,6 +23,7 @@ const self = {
   tauVersion: "1.2.3",
   protocolVersion: "p",
   linkProtocol: "l",
+  threadCount: 3,
 };
 
 describe("core signs the same bytes as protocol", () => {

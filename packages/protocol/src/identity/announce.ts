@@ -14,15 +14,17 @@ export interface AnnounceRecord {
   readonly tauVersion: string;
   readonly protocolVersion: string;
   readonly linkProtocol: string;
+  /** Unarchived threads on the origin, so a node reached through another shows a real count. */
+  readonly threadCount: number;
   readonly neighbours: readonly string[];
 }
 
 export type AnnounceBody = Omit<AnnounceRecord, "origin" | "publicKey">;
-const FIELD_COUNT = 10;
+const FIELD_COUNT = 11;
 /** More than the group cap minus self is a lie or an attack. */
 export const ANNOUNCE_MAX_NEIGHBOURS = GROUP_NODE_CAP - 1;
 
-/** `tau-announce-v1|origin|publicKey|boot|counter|name|os|tauVersion|protocolVersion|linkProtocol|n1,n2`. `ttl` is outside it. */
+/** `tau-announce-v1|origin|publicKey|boot|counter|name|os|tauVersion|protocolVersion|linkProtocol|threadCount|n1,n2`. `ttl` is outside it. */
 export function announcePayload(origin: string, publicKey: string, body: AnnounceBody): string {
   return signedPayload(
     DOMAIN_TAGS.announce,
@@ -35,6 +37,7 @@ export function announcePayload(origin: string, publicKey: string, body: Announc
     encodeField(body.tauVersion),
     encodeField(body.protocolVersion),
     encodeField(body.linkProtocol),
+    String(body.threadCount),
     [...body.neighbours].join(","),
   );
 }
@@ -65,12 +68,29 @@ export function verifyAnnounce(
 ): AnnounceVerdict {
   const fields = parseSignedPayload(frame.payload, DOMAIN_TAGS.announce, FIELD_COUNT);
   if (!fields) return { ok: false, reason: "bad-payload" };
-  const [origin, publicKey, boot, counter, name, os, tauVersion, protocolVersion, linkProtocol, listed] =
-    fields as [string, string, string, string, string, string, string, string, string, string];
+  const [
+    origin,
+    publicKey,
+    boot,
+    counter,
+    name,
+    os,
+    tauVersion,
+    protocolVersion,
+    linkProtocol,
+    threads,
+    listed,
+  ] = fields as [string, string, string, string, string, string, string, string, string, string, string];
   const bootN = parseCount(boot);
   const counterN = parseCount(counter);
+  const threadCount = parseCount(threads);
   const decoded = [name, os, tauVersion, protocolVersion, linkProtocol].map(decodeField);
-  if (bootN === undefined || counterN === undefined || decoded.includes(undefined)) {
+  if (
+    bootN === undefined ||
+    counterN === undefined ||
+    threadCount === undefined ||
+    decoded.includes(undefined)
+  ) {
     return { ok: false, reason: "bad-payload" };
   }
   if (!isPublicKey(publicKey) || nodeIdOf(publicKey) !== origin) return { ok: false, reason: "bad-key" };
@@ -96,6 +116,7 @@ export function verifyAnnounce(
       tauVersion: t as string,
       protocolVersion: p as string,
       linkProtocol: l as string,
+      threadCount,
       neighbours,
     },
   };

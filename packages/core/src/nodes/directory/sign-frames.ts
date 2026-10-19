@@ -12,6 +12,7 @@ export interface SelfInfo {
   readonly tauVersion: string;
   readonly protocolVersion: string;
   readonly linkProtocol: string;
+  readonly threadCount: number;
 }
 export type DirectoryDepsWithSelf = DirectoryDeps & { readonly self?: () => SelfInfo };
 
@@ -21,6 +22,7 @@ export const defaultSelf = (): SelfInfo => ({
   tauVersion: "unknown",
   protocolVersion: PROTOCOL_VERSION,
   linkProtocol: LINK_PROTOCOL,
+  threadCount: 0,
 });
 
 /** Same bytes as protocol's `createAnnounce`/`createExpel`/`createAck` (one payload builder each); core signs through `identity.sign`. */

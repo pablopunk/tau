@@ -19,6 +19,7 @@ interface Row {
   readonly status: string;
   readonly hops: number;
   readonly via: string | null;
+  readonly threads: number;
 }
 
 test.describe.configure({ mode: "serial" });
@@ -71,6 +72,10 @@ test.describe("MVP13 Step 2: a group of three nodes (A - B - C)", () => {
     await expect
       .poll(async () => await rowOf(a, idC), { timeout: 20_000, intervals: [500] })
       .toMatchObject({ name: "Node C", hops: 2, via: "Node B", status: "online" });
+    // C's announce carries its thread count, so A shows C's one thread although it has no summary of C.
+    await expect
+      .poll(async () => (await rowOf(a, idC))?.threads, { timeout: 20_000, intervals: [500] })
+      .toBe(1);
   });
 
   test("A opens a thread of C and a terminal on C, through B", async () => {

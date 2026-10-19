@@ -70,7 +70,14 @@ export async function makeNode(name: string, home?: string): Promise<TestNode> {
           forgotten.push(id);
         },
       },
-      self: () => ({ name, os: "linux x64", tauVersion: "1", protocolVersion: "v", linkProtocol: "l" }),
+      self: () => ({
+        name,
+        os: "linux x64",
+        tauVersion: "1",
+        protocolVersion: "v",
+        linkProtocol: "l",
+        threadCount: 0,
+      }),
     }),
   };
   return node;

@@ -16,6 +16,7 @@ const body = {
   tauVersion: "0.3.0",
   protocolVersion: "p",
   linkProtocol: "l",
+  threadCount: 3,
   neighbours: ["b", "c"],
 };
 

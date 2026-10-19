@@ -54,6 +54,7 @@ import { createMcpService } from "./mcp/mcp-service";
 import { createMcpApi } from "./mcp-api";
 import { createNodes } from "./nodes/create-nodes";
 import { createDirectory } from "./nodes/directory";
+import { createSelfThreadCount } from "./nodes/self-thread-count";
 import { createFilePeersStore, migrateHubFile, migrateSummaryDirectory } from "./peers/peers-store";
 import { createProcessService } from "./processes/process-service";
 import { createPresentProject } from "./project-view";
@@ -380,6 +381,12 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
       ...(nodeName && { name: nodeName }),
     });
 
+    const selfThreads = createSelfThreadCount(async () => {
+      const perProject = await Promise.all(
+        (await projects.list()).map((project) => conversations.list(project.id)),
+      );
+      return perProject.flat().filter((thread) => thread.archivedAt === null).length;
+    }, changes);
     const directory = createDirectory({
       expelledFile: home.expelledFile,
       now: deps.now,
@@ -393,6 +400,7 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
         tauVersion: options.currentVersion,
         protocolVersion: process.env.TAU_FAKE_PROTOCOL_VERSION || PROTOCOL_VERSION,
         linkProtocol: LINK_PROTOCOL,
+        threadCount: selfThreads.current(),
       }),
     });
 

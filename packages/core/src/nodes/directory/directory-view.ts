@@ -54,7 +54,7 @@ export function buildDirectory(input: ViewInput): DirectoryNode[] {
         protocolVersion: record.protocolVersion,
         status: ghost || !route ? "offline" : "online",
         lastSeenAt: input.receivedAt(record.origin) ?? 0,
-        threadCount: 0,
+        threadCount: record.threadCount,
         links: [],
         direct: false,
         hops: route?.hops ?? 2,
