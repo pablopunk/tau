@@ -12,7 +12,6 @@ import { ConnectNodeDialog } from "./ConnectNodeDialog";
 import { ExpulsionsList } from "./ExpulsionsList";
 import { NodeGroupNotes } from "./NodeGroupNotes";
 import { NodeItem } from "./NodeItem";
-import { NodeSettingsDialog } from "./NodeSettingsDialog";
 import { NodesUpdateBar } from "./NodesVersion";
 import { RemoveNodeDialog } from "./RemoveNodeDialog";
 import { ThisNodeRow } from "./ThisNodeRow";
@@ -81,7 +80,6 @@ export function NodesList() {
   const { nodes } = useNodes();
   const { perform, error } = useNodeActions();
   const [pending, setPending] = useState<Pending>(null);
-  const [settingsOf, setSettingsOf] = useState<Node | null>(null);
   const [removing, setRemoving] = useState<Node | null>(null);
   const [connectTo, setConnectTo] = useState<Node | null>(null);
   const now = Date.now();
@@ -101,7 +99,6 @@ export function NodesList() {
               onDisconnect={(target) => setPending({ kind: "disconnect", node: target })}
               onForget={(target) => setPending({ kind: "forget", node: target })}
               onRemove={setRemoving}
-              onSettings={setSettingsOf}
               onConnect={setConnectTo}
               onResetIdentity={() => setPending({ kind: "reset" })}
             />
@@ -120,7 +117,6 @@ export function NodesList() {
         }}
       />
       <RemoveNodeDialog node={removing} onClose={() => setRemoving(null)} />
-      {settingsOf ? <NodeSettingsDialog node={settingsOf} onClose={() => setSettingsOf(null)} /> : null}
       <ConnectNodeDialog
         open={connectTo !== null}
         onOpenChange={(open) => !open && setConnectTo(null)}

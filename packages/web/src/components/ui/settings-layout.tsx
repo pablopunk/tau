@@ -35,6 +35,8 @@ interface SettingsLayoutProps {
   results?: React.ReactNode
   /** Changes whenever the caller wants the section body shown, so the mobile layout leaves its list. */
   sectionRequest?: number
+  /** Replaces the generated flat section list with a custom nav tree (e.g. grouped, with nested items). */
+  nav?: React.ReactNode
   children: React.ReactNode
 }
 
@@ -99,14 +101,14 @@ function SectionScroller({ children }: { children: React.ReactNode }) {
   )
 }
 
-function DesktopSettings({ sections, active, onActiveChange, title, search, results, children }: SettingsLayoutProps) {
+function DesktopSettings({ sections, active, onActiveChange, title, search, results, nav, children }: SettingsLayoutProps) {
   return (
     <SidebarProvider className="h-full min-h-0 w-full">
       <Sidebar collapsible="none" className="w-48 shrink-0 p-2">
         <SidebarContent>
           {search}
           <SidebarGroup className="p-0">
-            <SectionNav sections={sections} active={active} onPick={onActiveChange} />
+            {nav ?? <SectionNav sections={sections} active={active} onPick={onActiveChange} />}
           </SidebarGroup>
         </SidebarContent>
       </Sidebar>
@@ -118,7 +120,7 @@ function DesktopSettings({ sections, active, onActiveChange, title, search, resu
   )
 }
 
-function MobileSettings({ sections, active, onActiveChange, title, search, results, sectionRequest, children }: SettingsLayoutProps) {
+function MobileSettings({ sections, active, onActiveChange, title, search, results, sectionRequest, nav, children }: SettingsLayoutProps) {
   const [showSection, setShowSection] = React.useState(false)
   React.useEffect(() => {
     if (sectionRequest) setShowSection(true)
@@ -146,9 +148,7 @@ function MobileSettings({ sections, active, onActiveChange, title, search, resul
           {results ? (
             <SectionScroller>{results}</SectionScroller>
           ) : (
-            <div className="p-2">
-              <SectionNav sections={sections} active={active} onPick={pick} />
-            </div>
+            <div className="p-2">{nav ?? <SectionNav sections={sections} active={active} onPick={pick} />}</div>
           )}
         </>
       )}

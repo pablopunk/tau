@@ -11,8 +11,11 @@ import { SettingsModels } from "./SettingsModels";
 import type { SettingsSectionId } from "./sections";
 import { ToolsSection } from "./tools/ToolsSection";
 
+/** App-level bodies: not scoped to any one node. */
 export const SECTION_BODIES: Record<SettingsSectionId, () => ReactNode> = {
   general: () => <GeneralSection />,
+  remote: () => <RemoteSection />,
+  nodes: () => <NodesSection />,
   providers: () => <ProvidersSection />,
   models: () => <SettingsModels />,
   projects: () => (
@@ -24,6 +27,4 @@ export const SECTION_BODIES: Record<SettingsSectionId, () => ReactNode> = {
   github: () => <GithubSettingsRow />,
   agent: () => <AgentSection />,
   tools: () => <ToolsSection />,
-  remote: () => <RemoteSection />,
-  nodes: () => <NodesSection />,
 };

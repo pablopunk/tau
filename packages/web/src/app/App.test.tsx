@@ -159,6 +159,7 @@ describe("main screen", () => {
 
     await user.click(await screen.findByRole("button", { name: "Settings" }));
     const dialog = await screen.findByRole("dialog", { name: "Settings" });
+    await user.click(within(dialog).getByRole("button", { name: "This node" }));
     await user.click(within(dialog).getByRole("button", { name: "Models" }));
     expect(await within(dialog).findByRole("combobox", { name: "Fast model" })).toHaveTextContent(
       "Same as thread",
@@ -173,6 +174,7 @@ describe("main screen", () => {
 
     await user.click(await screen.findByRole("button", { name: "Settings" }));
     const dialog = await screen.findByRole("dialog", { name: "Settings" });
+    await user.click(within(dialog).getByRole("button", { name: "This node" }));
     await user.click(within(dialog).getByRole("button", { name: "Providers" }));
 
     expect(await within(dialog).findByText("OpenRouter")).toBeInTheDocument();

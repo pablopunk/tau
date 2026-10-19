@@ -1,15 +1,13 @@
 import { useMemo } from "react";
-import { useOpenConversation } from "@/activity";
 import { useMcpServers, useModels, useProjects, useProviders } from "@/lib/queries";
 import { dynamicEntries, SETTINGS_INDEX, type SettingEntry } from "./settings-index";
 
-/** The fixed index plus one entry per provider, project, MCP server and model. */
+/** The fixed index plus one entry per provider, project, MCP server and model, all for this node. */
 export function useSettingEntries({ withModels = true } = {}): SettingEntry[] {
-  const { projectId } = useOpenConversation();
   const providers = useProviders().data;
   const projects = useProjects().data;
   const models = useModels().data;
-  const mcpServers = useMcpServers(projectId ?? null).data;
+  const mcpServers = useMcpServers(null).data;
   return useMemo(
     () => [
       ...SETTINGS_INDEX,

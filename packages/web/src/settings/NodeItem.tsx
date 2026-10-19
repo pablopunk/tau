@@ -44,7 +44,6 @@ export interface NodeItemProps {
   onDisconnect: (node: Node) => void;
   onForget: (node: Node) => void;
   onRemove: (node: Node) => void;
-  onSettings: (node: Node) => void;
   onConnect: (node: Node) => void;
   onResetIdentity: () => void;
 }
@@ -56,7 +55,6 @@ export function NodeItem({
   onDisconnect,
   onForget,
   onRemove,
-  onSettings,
   onConnect,
   onResetIdentity,
 }: NodeItemProps) {
@@ -90,15 +88,6 @@ export function NodeItem({
             latest={latest}
           />
           <NodeRowActions>
-            <Button
-              variant="ghost"
-              size="xs"
-              aria-label={`Open settings of ${node.name}`}
-              disabled={node.status !== "online"}
-              onClick={() => onSettings(node)}
-            >
-              Open settings
-            </Button>
             <Button
               variant="ghost"
               size="xs"
