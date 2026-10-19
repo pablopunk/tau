@@ -14,10 +14,10 @@ export function monitorCases(make: MakeContractTarget, test: CaseRunner): void {
 
     test("[monitors] a monitor the agent started is listed with kind monitor", async () => {
       const { core } = target;
-      const { conversation } = await startConversation(target, { text: "monitor tail -f app.log" });
+      const { conversation } = await startConversation(target, { text: "monitor sleep 60" });
       await waitFor(async () => (await core.processes.list(conversation.id)).length === 1, "the monitor");
       const [info] = await core.processes.list(conversation.id);
-      expect(info).toMatchObject({ kind: "monitor", state: "running", command: "tail -f app.log" });
+      expect(info).toMatchObject({ kind: "monitor", state: "running", command: "sleep 60" });
     });
 
     test("[monitors] a plain background process has kind process", async () => {
