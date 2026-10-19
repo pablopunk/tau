@@ -43,3 +43,16 @@ Not tested: calling a write tool through the approval card (`askBeforeWrites`) a
 - Add a real-CLI pin (in `pins/`) asserting total context < ~20k with all connectors on and a discovered call going through `canUseTool`; fail loudly if `categories` shows no "(deferred)" row (catches `ENABLE_TOOL_SEARCH=false`, disabled betas, or a custom `ANTHROPIC_BASE_URL`).
 - Await connector settle before the first turn; test haiku and the model list.
 - The `claude_connector` offering text (`harness/connector-offering.ts`) should list server names only, since the tool names come from `ToolSearch`.
+
+## Implementation status
+Done (all connectors on by default, with tool search):
+- **Tool search.** `buildQueryOptions` uses `tools: ["ToolSearch"]` only when connectors are chosen (`tools: []` otherwise); `ToolSearch` is in `allowedTools`. `probeOptions` uses `["ToolSearch"]` too.
+- **Stream.** A `ToolSearch` call becomes an observed `claude_connector` step (`server: "Tool search"`), so `connectorIds`/`observed`/"Continue." bookkeeping is unchanged. The web shows it as a small "Looked up connector tools" card (`connectors/names.ts`: `observedCallOf`, `isObservedToolName`).
+- **Context summary.** `toContextSummary` reads the `kind: 'deferred'` "MCP tools (deferred)" row (new fields `mcpTokens`, `deferredMcpTokens`, `totalTokens`); `loadedMcpToolCounts` trusts `isLoaded` only when something is deferred.
+- **Opt-out settings.** `ClaudeConnectorSettings.enabled` became `disabled`. Every connected claude.ai/user server is chosen unless disabled; `needs_auth`/failed/pending are still excluded. The settings store drops a legacy `enabled` list on read, so existing installs start with everything on. `askBeforeWrites` is untouched (default off). Protocol hash bumped.
+- **Turn 1.** The existing settle wait (`wait-connectors.ts`, 10 s cap, "late" note) now covers every chosen connector. No `alwaysLoad`.
+- **Real-CLI pin** `t` (`pins/scenario-tool-search-budget.ts`, `TAU_REAL_CLAUDE=1 TAU_PINS_ONLY=t`): model-free probe, fails if the deferred row is missing or MCP tokens in the window reach 15k. Measured here: 14 connectors, 610 tools: 608 MCP tokens in the window, 640,286 deferred, 6,914 total.
+- **Haiku: verified.** Real CLI, `tools: ["ToolSearch"]`, `ToolSearch select:` then the real `mcp__claude_ai_Context7__resolve-library-id` call succeeded for both the `haiku` alias and `claude-haiku-4-5-20251001` (the earlier "no tools" was the connect race). Only legacy Claude 3 model ids get no connectors (`connectors/tool-search.ts`), rather than loading every schema.
+
+Not verified: a write tool through the approval card after discovery (same tool name path, covered only by the fake CLI); a user-defined (non claude.ai) server through tool search; a user who exports `ENABLE_TOOL_SEARCH=false` / a custom `ANTHROPIC_BASE_URL` (the pin catches it, threads do not detect it at runtime and would load all schemas); a mid-thread switch from a legacy model to a current one keeps the old query's options until it restarts.
+Follow-up: the ~5.5k tokens of per-server MCP instructions are not deferred.

@@ -11,6 +11,7 @@ import { globAndToggleTurn, mixedTurn, toggleOffPin } from "./scenario-connector
 import { runGatePins } from "./scenario-connector-gates";
 import { runUserServerPin } from "./scenario-connector-user-servers";
 import { disallowedToolsPin } from "./scenario-disallowed-tools";
+import { toolSearchBudgetPin } from "./scenario-tool-search-budget";
 
 const REAL = process.env.TAU_REAL_CLAUDE === "1";
 const ONLY = process.env.TAU_PINS_ONLY?.split(",") ?? [
@@ -21,6 +22,7 @@ const ONLY = process.env.TAU_PINS_ONLY?.split(",") ?? [
   "o-status",
   "l-o",
   "k",
+  "t",
 ];
 const THIRTY_MINUTES_MS = 30 * 60 * 1000;
 
@@ -53,6 +55,7 @@ describe.skipIf(!REAL)("real connector pins (TAU_REAL_CLAUDE=1)", () => {
         await guarded("o-status", () => toggleOffPin(ctx));
         await guarded("l-o", () => globAndToggleTurn(ctx));
         await guarded("k", () => mixedTurn(ctx));
+        await guarded("t", () => toolSearchBudgetPin(ctx));
         await guarded("o2", () => disallowedToolsPin(ctx));
         await report.run("budget", `at most ${MAX_CONNECTOR_PIN_TURNS} Haiku turns`, async () =>
           ctx.budget.spent().join(" | "),
