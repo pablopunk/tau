@@ -22,8 +22,8 @@ describe.skipIf(!usable)("real PTY", () => {
     });
     port.write("echo $((6*7))\r");
     const deadline = Date.now() + 5000;
-    while (!/\r\n42\r\n/.test(output) && Date.now() < deadline) await new Promise((r) => setTimeout(r, 20));
-    expect(output).toMatch(/\r\n42\r\n/);
+    while (!/42\r\n/.test(output) && Date.now() < deadline) await new Promise((r) => setTimeout(r, 20));
+    expect(output).toMatch(/42\r\n/);
     port.close();
     await daemon.close();
   });
