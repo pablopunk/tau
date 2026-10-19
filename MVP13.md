@@ -1,6 +1,6 @@
 # MVP13 plan: nodes (every tau sees every tau in its group)
 
-Status: DRAFT v2 (scope agreed with the user; review rounds pending). Builds on MVP12 Stage 2 (machines, federation). Facts marked with a file were read; everything else is a proposal for the reviewer to attack.
+Status: DRAFT v3 (scope agreed with the user; the user wants group-wide expulsion from any node; review rounds pending). Builds on MVP12 Stage 2 (machines, federation). Facts marked with a file were read; everything else is a proposal for the reviewer to attack.
 
 ## Goal
 
@@ -18,6 +18,7 @@ Status: DRAFT v2 (scope agreed with the user; review rounds pending). Builds on 
 2. **Onboarding** is per node, once, and only when the node cannot run threads yet (no provider). A node with a reachable peer may skip it ("Use my other nodes"); its own setup stays available.
 3. The word is **node** (UI, CLI, URLs, code).
 4. **Propagation**: every node learns every other node in the group and can reach it through intermediate nodes.
+5. **Expel from anywhere**: from any node the user can remove any node from the whole group, in one action.
 
 ## Scope
 
@@ -36,8 +37,9 @@ Two stages. Stage 2 starts after Stage 1 passes check, test, build, e2e.
 6. A **node directory**: every node learns every node of the group (name, OS, version, status, thread count, links) and shows it in the sidebar and Settings → Nodes.
 7. **Routed requests and streams**: a request or stream for a node that is not a neighbour is relayed hop by hop to it (`/live`, terminals, 42 MB bodies included).
 8. Failover: when a link drops, routes are recomputed; a node reachable over another path stays online.
+9. **Expel** (`tau nodes remove <node>`, Settings → Nodes → Remove): a signed `expel` message is flooded; every node cuts its link to the expelled node, forgets its secret and refuses its `nodeId` for good.
 
-Out (later plans): per-link permissions or scopes; a second factor; **removing a node from the whole group in one action** (see Risks: today you cut every link of it); threads that move between nodes; direct LAN links; a group larger than 16 nodes.
+Out (later plans): per-link permissions or scopes; a second factor; threads that move between nodes; direct LAN links; a group larger than 16 nodes.
 
 ## Design, Stage 1
 
@@ -101,8 +103,8 @@ Out (later plans): per-link permissions or scopes; a second factor; **removing a
 
 - A link gives each side the owner's power on the other, and with propagation **every node has owner power on every node it can route to**. Joining one node means trusting the whole group. The link dialog says it.
 - Mitigations unchanged: the denylist keeps a peer away from devices, remote and linking; no master token over a tunnel; revoke closes both sides; the `via` chain is logged on the destination.
-- **Weak spot**: there is no "kick this node out of the group". Cutting one link does not stop a node that still has another path. Stage 2 ships `tau nodes forget <id>` only as a **local** action (it closes this node's links to it and ignores its announces for 24 h); real expulsion is a later plan. The risk is stated in Settings.
-- Announces are **unauthenticated beyond the link**: a malicious node can lie about other nodes (names, neighbours) and attract routes. Accepted for a trusted group; a test shows a lying announce cannot make a node accept a request for a different `dest`, and that a node never trusts an announce about itself.
+- **Expulsion (group-wide)**: each node has an Ed25519 key pair (`<home>/node.json`, public key announced and pinned by neighbours on first link). Announces and `expel` messages are **signed**; a node ignores an unsigned or wrongly signed one. `expel { target: nodeId, by: nodeId, seq, sig }` floods like an announce. On receipt a node: closes its own link to the target and every relayed stream through it, deletes the target's secret and node device, and adds the target to a persisted **tombstone list** `<home>/expelled.json` (nodeId and public key). A tombstoned id is refused on link, in announces and as a route. Tombstones travel in the periodic announce sync, so a node that was offline learns them on reconnect (before it accepts any route). The expelled node can rejoin only with a new pairing code from a member, with a **new `nodeId` and key**. Any member may expel any member (full power is the agreed model); a compromised node can therefore expel others: the expelled can be re-linked, and the list of expulsions with `by` is shown in Settings. `tau nodes forget <id>` stays as a local-only action. A node that is itself expelled and never contacted again keeps whatever it already holds: it is cut off from the group but not wiped (stated in the UI).
+- Announces are **signed by their origin** (see Expulsion): a relay cannot forge another node's record. A member can still lie about **its own** neighbours; a test shows a lying announce cannot make a node accept a request for a different `dest`, and that a node never trusts an announce about itself.
 
 ## Phase 0 pins (foundation runs these first; results in this doc)
 
@@ -118,6 +120,7 @@ Stage 2:
 - (r3) A lying announce (wrong neighbours, huge counts, ttl 255, an announce about the receiver itself) is bounded: sizes capped, ttl clamped to 8, self-announce ignored.
 - (r4) Credit flow across two hops: stalled browser at the far end, 20 other requests unaffected; memory per relayed stream stays within the window.
 - (r5) Group cap of 16 and the 17th node warning.
+- (r6) Expel: in a chain A–B–C and a triangle, `expel C` issued on A reaches B and C's other links within 5 s; C cannot relink, cannot route, is refused with its old id; an offline node learns the tombstone on reconnect; a forged `expel` (bad signature, wrong `by`) is ignored; a replayed older `seq` is ignored.
 
 ## Phases and owners
 
@@ -143,7 +146,7 @@ Stage 2:
 
 ## Risks
 
-- **Every node controls every node** (see Security), plus no group-wide expulsion.
+- **Every node controls every node** (see Security); expulsion cuts a node off but does not wipe what it already holds.
 - **The rename is wide** (protocol routes, files, UI, URLs, published 0.1.x); the foundation does it mechanically and the hash, tests and redirects prove it.
 - **Link refactor** (about 700 lines move from `cli` to `server`): the MVP12 tests run in both directions are the net.
 - **Routing bugs** (loops, black holes, stale routes) are the weakest part of Stage 2: pure routing module, `trail` and `ttl` as a second line, real triangle test.
