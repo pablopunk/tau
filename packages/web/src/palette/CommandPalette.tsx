@@ -19,20 +19,22 @@ import { MachineScope } from "@/machines/MachineScope";
 import { SETTINGS_SECTIONS } from "@/settings/sections";
 import { AddProjectFlow, type AddProjectStep } from "./AddProjectFlow";
 import { useAdjacentThread } from "./adjacent-thread";
-import { MachineFilter, machineKeyOf } from "./MachineFilter";
+import { MachinePage, type MachinePick } from "./MachinePage";
 import { ModelPage } from "./ModelPage";
 import { SettingsItem } from "./SettingsItem";
 import { SettingsSearchGroup, useSettingResults } from "./SettingsSearchGroup";
 import { ThinkingPage } from "./ThinkingPage";
 import { ThreadActions } from "./ThreadActions";
 
+const machineKeyOf = (machineId: string | undefined) => machineId ?? "local";
+
 interface SectionsProps {
   search: string;
   allMachines: readonly MachineData[];
-  machines: readonly MachineData[];
   several: boolean;
   run: (action: () => void) => () => void;
-  startAddProject: () => void;
+  chooseMachine: (pick: MachinePick) => void;
+  startAddProject: (machineId: string | undefined) => void;
   openModelPage: () => void;
   openThinkingPage: () => void;
 }
@@ -40,9 +42,9 @@ interface SectionsProps {
 function MainSections({
   search,
   allMachines,
-  machines,
   several,
   run,
+  chooseMachine,
   startAddProject,
   openModelPage,
   openThinkingPage,
@@ -55,6 +57,17 @@ function MainSections({
     .find((machine) => machine.machineId === openMachineId)
     ?.conversations.find((conversation) => conversation.id === conversationId);
   const settingResults = useSettingResults(search);
+  const newThread = several
+    ? () =>
+        chooseMachine({
+          heading: "New thread on",
+          onPick: (machineId) =>
+            navigate(newThreadPath(machineId === openMachineId ? projectId : undefined, machineId)),
+        })
+    : run(() => navigate(newThreadPath(projectId, openMachineId)));
+  const addProject = several
+    ? () => chooseMachine({ heading: "Add project on", onPick: startAddProject })
+    : run(() => startAddProject(undefined));
   return (
     <>
       {settingResults.length === 0 && <CommandEmpty>No results.</CommandEmpty>}
@@ -71,10 +84,8 @@ function MainSections({
         </MachineScope>
       ) : null}
       <CommandGroup heading="Actions">
-        <CommandItem onSelect={run(() => navigate(newThreadPath(projectId, openMachineId)))}>
-          New thread
-        </CommandItem>
-        <CommandItem onSelect={run(startAddProject)}>Add project</CommandItem>
+        <CommandItem onSelect={newThread}>New thread</CommandItem>
+        <CommandItem onSelect={addProject}>Add project</CommandItem>
         {adjacent.available ? (
           <>
             <CommandItem onSelect={run(() => adjacent.go(1))}>
@@ -97,7 +108,7 @@ function MainSections({
       </CommandGroup>
       <SettingsSearchGroup search={search} results={settingResults} run={run} />
       <CommandGroup heading="Projects">
-        {machines.flatMap((machine) =>
+        {allMachines.flatMap((machine) =>
           machine.projects.map((project) => (
             <CommandItem
               key={`${machineKeyOf(machine.machineId)}:${project.id}`}
@@ -111,7 +122,7 @@ function MainSections({
         )}
       </CommandGroup>
       <CommandGroup heading="Threads">
-        {machines.flatMap((machine) =>
+        {allMachines.flatMap((machine) =>
           machine.conversations.map((conversation) => {
             const projectName =
               machine.projects.find((project) => project.id === conversation.projectId)?.name ?? "";
@@ -140,23 +151,26 @@ const PLACEHOLDERS = {
   main: "Search threads, projects, actions, settings",
   model: "Search models",
   thinking: "Search thinking levels",
+  machine: "Search machines",
 };
 
 export function CommandPalette() {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
-  const [page, setPage] = useState<"model" | "thinking" | null>(null);
-  const [machineFilter, setMachineFilter] = useState<string[]>([]);
+  const [page, setPage] = useState<"model" | "thinking" | "machine" | null>(null);
+  const [machinePick, setMachinePick] = useState<MachinePick | null>(null);
   const [addProject, setAddProject] = useState<AddProjectStep | null>(null);
   const { conversationId, machineId: openMachineId } = useOpenConversation();
   const everyMachine = useMachinesData();
-  const machines = everyMachine.filter(
-    (machine) => machineFilter.length === 0 || machineFilter.includes(machineKeyOf(machine.machineId)),
-  );
   useHotkey("mod+k", () => setOpen((current) => !current));
 
-  const startAddProject = () =>
-    setAddProject(everyMachine.length > 1 ? { step: "choose" } : { step: "add", machineId: undefined });
+  const startAddProject = (machineId: string | undefined) => setAddProject({ machineId });
+
+  const chooseMachine = (pick: MachinePick) => {
+    setSearch("");
+    setMachinePick(pick);
+    setPage("machine");
+  };
 
   const changeOpen = (next: boolean) => {
     setOpen(next);
@@ -180,15 +194,27 @@ export function CommandPalette() {
 
   return (
     <>
-      <AddProjectFlow state={addProject} machines={everyMachine} onChange={setAddProject} />
+      <AddProjectFlow state={addProject} onChange={setAddProject} />
       <CommandDialog open={open} onOpenChange={changeOpen} title="Command palette">
-        <Command onKeyDown={backFromEmptySearch}>
-          <CommandInput value={search} onValueChange={setSearch} placeholder={PLACEHOLDERS[page ?? "main"]} />
-          {page === null && everyMachine.length > 1 ? (
-            <MachineFilter machines={everyMachine} selected={machineFilter} onChange={setMachineFilter} />
-          ) : null}
+        <Command key={page ?? "main"} onKeyDown={backFromEmptySearch}>
+          <CommandInput
+            autoFocus
+            value={search}
+            onValueChange={setSearch}
+            placeholder={PLACEHOLDERS[page ?? "main"]}
+          />
           <CommandList>
-            {page !== null && conversationId ? (
+            {page === "machine" && machinePick ? (
+              <>
+                <CommandEmpty>No results.</CommandEmpty>
+                <MachinePage
+                  machines={everyMachine}
+                  openMachineId={openMachineId}
+                  pick={machinePick}
+                  run={run}
+                />
+              </>
+            ) : page !== null && page !== "machine" && conversationId ? (
               <MachineScope machineId={openMachineId}>
                 <CommandEmpty>No results.</CommandEmpty>
                 {page === "model" ? (
@@ -201,9 +227,9 @@ export function CommandPalette() {
               <MainSections
                 search={search}
                 allMachines={everyMachine}
-                machines={machines}
                 several={everyMachine.length > 1}
                 run={run}
+                chooseMachine={chooseMachine}
                 startAddProject={startAddProject}
                 openModelPage={openPage("model")}
                 openThinkingPage={openPage("thinking")}
