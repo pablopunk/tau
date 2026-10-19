@@ -77,7 +77,7 @@ export function ToolCard({
       data-tool-status={status}
       className="group/tool overflow-hidden rounded-lg border bg-card text-card-foreground"
     >
-      <CollapsibleTrigger className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm outline-none transition-colors hover:bg-muted/50 focus-visible:ring-3 focus-visible:ring-ring/50">
+      <CollapsibleTrigger className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm outline-none data-[state=open]:items-start transition-colors hover:bg-muted/50 focus-visible:ring-3 focus-visible:ring-ring/50">
         <ChevronRight
           aria-hidden
           className="size-3.5 shrink-0 text-muted-foreground transition-transform group-data-[state=open]/tool:rotate-90"
@@ -87,7 +87,13 @@ export function ToolCard({
         </span>
         <span className="shrink-0 font-medium">{title}</span>
         {subtitle ? (
-          <span className={cn("min-w-0 flex-1 truncate font-mono text-xs text-muted-foreground")}>
+          <span
+            title={subtitle}
+            className={cn(
+              "min-w-0 flex-1 truncate font-mono text-xs leading-5 text-muted-foreground",
+              "group-data-[state=open]/tool:overflow-visible group-data-[state=open]/tool:whitespace-pre-wrap group-data-[state=open]/tool:break-all",
+            )}
+          >
             {subtitle}
           </span>
         ) : (

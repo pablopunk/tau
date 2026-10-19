@@ -88,3 +88,16 @@ describe("<ToolCard> auto-expand", () => {
     }
   });
 });
+
+describe("<ToolCard> subtitle", () => {
+  it("exposes the full subtitle as a tooltip and wraps it when open", () => {
+    render(
+      <ToolCard icon={<Wrench />} title="Tool" subtitle="a very long command" status="done">
+        <p>details</p>
+      </ToolCard>,
+    );
+    const subtitle = screen.getByText("a very long command");
+    expect(subtitle).toHaveAttribute("title", "a very long command");
+    expect(subtitle.className).toContain("group-data-[state=open]/tool:whitespace-pre-wrap");
+  });
+});
