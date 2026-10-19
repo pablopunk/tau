@@ -2,6 +2,7 @@ import { compareVersions } from "@tau/protocol";
 import { lifecycleFlagsOf } from "../lifecycle/flags";
 import { gatherStatus } from "../lifecycle/status";
 import { entryOfPackage, type InstallMethod, installMethodOf } from "./install-method";
+import { linkedMachinesLine } from "./machines-behind";
 import { restartInNewBinary } from "./restart-step";
 import { hasRunningWork, runningWorkOf } from "./running-work";
 import type { UpdateDeps } from "./update-deps";
@@ -81,6 +82,7 @@ async function finish(
   const code = flags.noRestart
     ? noRestartNote(deps)
     : await restartInNewBinary(deps, { ...flags, packageDir: plan.packageDir, target, home });
+  if (code === 0) await machinesBehindNote(deps, home, target);
   if (code === 0)
     deps.out(deps.hasHubFile(home) ? `${text.LINKED_NOTE}\n${text.LINKED_HUB_NOTE}` : text.LINKED_NOTE);
   return code;
@@ -91,8 +93,18 @@ function noRestartNote(deps: UpdateDeps): number {
   return 0;
 }
 
-async function checkOnly(deps: UpdateDeps, current: string, latest: string): Promise<number> {
+async function machinesBehindNote(deps: UpdateDeps, home: string, latest: string): Promise<void> {
+  try {
+    const line = linkedMachinesLine(await deps.linkedMachines?.(home), latest);
+    if (line) deps.out(line);
+  } catch {
+    // best effort
+  }
+}
+
+async function checkOnly(deps: UpdateDeps, home: string, current: string, latest: string): Promise<number> {
   deps.out(`${current} -> ${latest}`);
+  await machinesBehindNote(deps, home, latest);
   return compareVersions(current, latest) < 0 ? EXIT_UPDATE_AVAILABLE : 0;
 }
 
@@ -112,7 +124,7 @@ export async function runUpdateWith(deps: UpdateDeps, argv: readonly string[]): 
   const current = deps.version();
   const latest = await latestOrError(deps);
   if (latest === undefined) return 1;
-  if (flags.check) return checkOnly(deps, current, latest);
+  if (flags.check) return checkOnly(deps, home, current, latest);
   if (compareVersions(current, latest) >= 0) {
     deps.out(`tau ${current} is up to date. ${text.LAG_NOTE}`);
     return 0;

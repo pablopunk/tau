@@ -5,6 +5,7 @@ import { summary } from "../commands/test-support";
 import { createServiceManager } from "../service/manager";
 import { CLI, createTestMachine } from "../service/test-context";
 import type { CommandResult } from "./command-runner";
+import type { LinkedMachines } from "./machines-behind";
 import { runUpdateWith } from "./run-update";
 import type { UpdateDeps } from "./update-deps";
 
@@ -28,6 +29,7 @@ interface Options {
   ancestors?: number[];
   hub?: boolean;
   confirm?: boolean;
+  linked?: LinkedMachines | Error;
 }
 
 async function setup(options: Options = {}) {
@@ -76,6 +78,12 @@ async function setup(options: Options = {}) {
     pollInstance: async (_home, version) =>
       instance.current?.version === version ? instance.current : instance.current,
     hasHubFile: () => options.hub ?? false,
+    linkedMachines: options.linked
+      ? async () => {
+          if (options.linked instanceof Error) throw options.linked;
+          return options.linked;
+        }
+      : undefined,
   };
   return { home: machine.tauHome, deps, out, err, commands, instance };
 }
@@ -102,6 +110,32 @@ describe("tau update --check", () => {
   it("ignores the other flags", async () => {
     const s = await setup({ tty: false });
     expect(await runUpdateWith(s.deps, ["--check", "--force", "--no-restart"])).toBe(10);
+  });
+});
+
+describe("tau update --check linked machines", () => {
+  const m = (name: string, tauVersion: string, linkedTo?: string) => ({ name, tauVersion, linkedTo });
+  it("lists machines behind the hub latest, unknown ones too, exit code unchanged", async () => {
+    const s = await setup({
+      latest: "1.0.0",
+      linked: { hubLatest: "1.1.0", machines: [m("Homelab", "1.0.0"), m("Laptop", "1.1.0"), m("New", "")] },
+    });
+    expect(await runUpdateWith(s.deps, ["--check"])).toBe(0);
+    expect(s.out).toEqual([
+      "1.0.0 -> 1.0.0",
+      "Linked machines behind: Homelab (1.0.0), New (version unknown)",
+    ]);
+  });
+  it("says nothing when no machine is behind, no server runs or the request fails", async () => {
+    const none = await setup({ linked: { hubLatest: null, machines: [m("A", "1.1.0")] } });
+    expect(await runUpdateWith(none.deps, ["--check"])).toBe(10);
+    expect(none.out).toEqual(["1.0.0 -> 1.1.0"]);
+    const down = await setup();
+    expect(await runUpdateWith(down.deps, ["--check"])).toBe(10);
+    const broken = await setup({ linked: new Error("boom") });
+    expect(await runUpdateWith(broken.deps, ["--check"])).toBe(10);
+    expect(broken.out).toEqual(["1.0.0 -> 1.1.0"]);
+    expect(broken.err).toEqual([]);
   });
 });
 

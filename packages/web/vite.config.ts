@@ -10,7 +10,21 @@ export default defineConfig({
   resolve: { alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) } },
   server: {
     host: "127.0.0.1",
-    proxy: { "/api": { target: API_TARGET, ws: true, changeOrigin: false } },
+    proxy: {
+      "/api": {
+        target: API_TARGET,
+        ws: true,
+        changeOrigin: true,
+        configure(proxy) {
+          const setBackendOrigin = (request: { setHeader(name: string, value: string): void }) => {
+            const { origin } = new URL(API_TARGET);
+            request.setHeader("origin", origin);
+          };
+          proxy.on("proxyReq", setBackendOrigin);
+          proxy.on("proxyReqWs", setBackendOrigin);
+        },
+      },
+    },
   },
   build: { outDir: "dist", sourcemap: false },
 });
