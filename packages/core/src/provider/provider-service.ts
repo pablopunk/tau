@@ -69,7 +69,10 @@ export interface ProviderService {
 function settleWithin(work: Promise<void>, timeoutMs: number): Promise<void> {
   let timer: NodeJS.Timeout | undefined;
   const timeout = new Promise<void>((resolve) => {
-    timer = setTimeout(resolve, timeoutMs);
+    timer = setTimeout(() => {
+      console.warn(`tau: models were not ready after ${timeoutMs} ms; interrupted runs may fail`);
+      resolve();
+    }, timeoutMs);
   });
   return Promise.race([work, timeout]).finally(() => clearTimeout(timer));
 }

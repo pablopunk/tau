@@ -108,10 +108,10 @@ const exitAfterLogging = (error: unknown) => {
 /** Interrupted runs resume at open; with no models yet they would fail `no_model` and stay aborted. */
 const MODELS_READY_TIMEOUT_MS = 15_000;
 
-/** Only a pending model run needs the models; a normal start must not wait for them. */
-async function hasInterruptedGeneration(harness: Harness): Promise<boolean> {
-  const { tasks } = await harness.inspect(BACKGROUND);
-  return tasks.some((task) => task.record.kind === "pi.generation");
+/** Any live task or unsettled submission may start a model run on resume; a normal start has none and must not wait. */
+async function hasInterruptedWork(harness: Harness): Promise<boolean> {
+  const { tasks, submissions } = await harness.inspect(BACKGROUND);
+  return tasks.length > 0 || submissions.length > 0;
 }
 
 export const defaultCoreDependencies = (): CoreDependencies => {
@@ -160,7 +160,7 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
       onReport: (error) => console.error("tau: agent report", error),
       beforeResume: async (opened) => {
         status.attach(opened);
-        if (await hasInterruptedGeneration(opened)) await provider.ready(MODELS_READY_TIMEOUT_MS);
+        if (await hasInterruptedWork(opened)) await provider.ready(MODELS_READY_TIMEOUT_MS);
       },
     });
     harness.closed.then((end) => {
