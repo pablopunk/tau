@@ -6,7 +6,10 @@ import { writePrivateFile } from "../private-files";
 export interface HubFile {
   readonly hubUrl: string;
   readonly machineSecret: string;
+  /** The hub's name (from the link), shown as "Linked to <name>". */
   readonly name: string;
+  /** This machine's own name for the hub (`--name`); the hostname when absent. */
+  readonly machineName?: string;
 }
 
 export interface HubFileStore {
