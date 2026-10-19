@@ -4,11 +4,12 @@ import { type Core, WS_MAX_PAYLOAD_BYTES } from "@tau/protocol";
 import Fastify, { type FastifyInstance } from "fastify";
 import { handleError } from "./error-handler";
 import { registerLive } from "./live/register-live";
+import { createMachineGateway } from "./machines/create-gateway";
+import { createDeviceLabels } from "./machines/device-labels";
 import type { MachineGateway } from "./machines/gateway";
 import { registerMachineLink } from "./machines/register-link";
 import { registerMachineRoutes } from "./machines/register-machine-routes";
 import { registerMachineProxy } from "./machines/register-proxy";
-import { createStubGateway } from "./machines/stub-gateway";
 import { allowEmptyJsonBodies } from "./rest/json-body";
 import { registerRoutes } from "./rest/register-routes";
 import { type AllowList, allowListForPort, hostnameOfUrl } from "./security/allow-list";
@@ -101,10 +102,11 @@ export const createServer: CreateServer = async (options) => {
   registerRoutes(app, options.core, sockets);
   registerAccessRoutes(app, { core: options.core, tunnel: tags, sockets });
   registerLive(app, options.core, sockets);
-  const gateway = options.gateway ?? createStubGateway();
+  const labels = createDeviceLabels(options.core);
+  const gateway = options.gateway ?? createMachineGateway(options.core);
   registerMachineRoutes(app, { core: options.core, sockets, gateway });
   registerMachineLink(app, { core: options.core, sockets, gateway });
-  await registerMachineProxy(app, { sockets, gateway, hubDeviceLabel: (deviceId) => deviceId });
+  await registerMachineProxy(app, { sockets, gateway, hubDeviceLabel: labels.label });
   await registerStaticAssets(app, options.staticDir);
   const tunnel: TunnelListener = createTunnelListener({
     app,
@@ -134,6 +136,7 @@ export const createServer: CreateServer = async (options) => {
     origin,
     url: `${origin}/?token=${encodeURIComponent(options.token)}`,
     close: async () => {
+      labels.stop();
       stopFollowing();
       stopReaping();
       await tunnel.close();

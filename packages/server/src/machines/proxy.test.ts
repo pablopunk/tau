@@ -3,8 +3,8 @@ import { ERROR_STATUS, LIVE_PATH, machineApiPrefix, terminalStreamPath } from "@
 import { afterEach, describe, expect, it } from "vitest";
 import WebSocket from "ws";
 import { startTestServer, type TestServer } from "../testing/harness";
+import { createStubGateway } from "../testing/stub-gateway";
 import type { GatewayRequest, MachineGateway } from "./gateway";
-import { createStubGateway } from "./stub-gateway";
 
 let ctx: TestServer;
 afterEach(async () => {

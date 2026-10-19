@@ -1,6 +1,6 @@
 import type { WebSocket } from "ws";
 import type { MachineGateway } from "../machines/gateway";
-import { createStubGateway } from "../machines/stub-gateway";
+import { createStubGateway } from "./stub-gateway";
 
 export interface RecordingGateway extends MachineGateway {
   /** Sizes of every message the link sockets received. */
