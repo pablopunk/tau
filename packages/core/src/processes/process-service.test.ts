@@ -1,7 +1,7 @@
 import { mkdtemp, readFile, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { ConversationSummary } from "@tau/protocol";
+import { type ConversationSummary, PROCESS_EXIT_KIND } from "@tau/protocol";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { extractLocalUrls } from "./local-urls";
 import { createLogTail, lastLines } from "./log-tail";
@@ -131,3 +131,143 @@ function isAlive(pid: number): boolean {
     return false;
   }
 }
+
+describe("foreground runs", () => {
+  const notified: string[] = [];
+  const notifying = () =>
+    createProcessService({
+      home,
+      emitChange: (id) => changes.push(id),
+      stopGraceMs: 300,
+      notifications: {
+        notify: async (_conversationId, notification) => {
+          notified.push(notification.kind);
+        },
+      },
+    });
+
+  const foreground = (command: string, output: string[] = []) =>
+    service.runForeground({
+      conversationId: "c1",
+      callId: "call-1",
+      cwd,
+      command,
+      onOutput: (text) => output.push(text),
+    });
+
+  beforeEach(() => {
+    notified.length = 0;
+  });
+
+  it("streams output, reports the exit code and keeps the run out of the list", async () => {
+    const output: string[] = [];
+    const run = await foreground("echo hi; echo oops >&2; exit 3", output);
+    expect(await service.list("c1")).toEqual([]);
+    expect(service.hasRunning("c1")).toBe(false);
+    expect(await run.outcome).toEqual({ kind: "exited", exitCode: 3, stopRequested: false });
+    expect(output.join("")).toContain("hi");
+    expect(output.join("")).toContain("oops");
+    await run.release(false);
+    expect(await exists(run.logPath)).toBe(false);
+    expect(changes).toEqual([]);
+  });
+
+  it("keeps the log of a released run on request", async () => {
+    const run = await foreground("echo kept");
+    await run.outcome;
+    await run.release(true);
+    await waitFor(async () => (await readFile(run.logPath, "utf8").catch(() => "")).includes("kept"));
+  });
+
+  it("reports a stop", async () => {
+    const run = await foreground("sleep 30");
+    await run.stop();
+    expect(await run.outcome).toMatchObject({ kind: "exited", stopRequested: true });
+    await run.release(false);
+  });
+
+  it("moves a running command to the background without stopping it", async () => {
+    service = notifying();
+    const output: string[] = [];
+    const run = await foreground("echo before; sleep 1; echo after", output);
+    await waitFor(() => output.join("").includes("before"));
+    const info = await service.background("c1", "call-1");
+    expect(info).toMatchObject({ id: run.id, state: "running", kind: "process" });
+    expect(await run.outcome).toEqual({ kind: "background", info });
+    expect(await service.list("c1")).toEqual([expect.objectContaining({ id: run.id, state: "running" })]);
+    expect(service.hasRunning("c1")).toBe(true);
+    expect(changes).toContain("c1");
+    await waitFor(async () => (await service.list("c1"))[0]?.state === "exited");
+    expect((await service.list("c1"))[0]?.exitCode).toBe(0);
+    expect(await service.logs(run.id, 5)).toContain("after");
+    expect(output.join("")).not.toContain("after");
+    await waitFor(() => notified.length === 1);
+    expect(notified).toEqual([PROCESS_EXIT_KIND]);
+  });
+
+  it("does not tell the thread when a command it waits for exits", async () => {
+    service = notifying();
+    const run = await foreground("true");
+    await run.outcome;
+    await run.release(false);
+    await sleep(100);
+    expect(notified).toEqual([]);
+  });
+
+  it("reports a signal death as 128 plus the signal", async () => {
+    const run = await foreground("kill -9 $$");
+    expect(await run.outcome).toMatchObject({ kind: "exited", exitCode: 137 });
+    await run.release(false);
+  });
+
+  it("streams the reason a command could not start", async () => {
+    const output: string[] = [];
+    const run = await service.runForeground({
+      conversationId: "c1",
+      callId: "call-1",
+      cwd: "/nonexistent/folder",
+      command: "true",
+      onOutput: (text) => output.push(text),
+    });
+    expect(await run.outcome).toMatchObject({ kind: "exited", exitCode: null });
+    expect(output.join("")).toContain("ENOENT");
+    await run.release(false);
+  });
+
+  it("keeps a multibyte character that arrives in two chunks whole", async () => {
+    const output: string[] = [];
+    const run = await foreground("printf '\\303'; sleep 0.2; printf '\\251'", output);
+    await run.outcome;
+    expect(output.join("")).toBe("\u00e9");
+    await run.release(false);
+  });
+
+  it("leaves no record of a foreground run, so a restart finds no ghost", async () => {
+    const run = await foreground("sleep 30");
+    await sleep(100);
+    const second = makeService();
+    await second.reapStaleAtStartup();
+    expect(await second.list("c1")).toEqual([]);
+    await run.stop();
+    await run.outcome;
+    await run.release(false);
+    await second.stopAll();
+  });
+
+  it("refuses to background a call that is being stopped", async () => {
+    const run = await foreground("sleep 30");
+    const stopping = run.stop();
+    await expect(service.background("c1", "call-1")).rejects.toMatchObject({ code: "not_found" });
+    await stopping;
+    await run.outcome;
+    await run.release(false);
+  });
+
+  it("rejects a call that is not running", async () => {
+    await expect(service.background("c1", "nope")).rejects.toMatchObject({ code: "not_found" });
+    const run = await foreground("true");
+    await run.outcome;
+    await expect(service.background("c1", "call-1")).rejects.toMatchObject({ code: "not_found" });
+    await run.release(false);
+  });
+});

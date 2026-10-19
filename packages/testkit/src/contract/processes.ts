@@ -52,6 +52,11 @@ export function processCases(make: MakeContractTarget, test: CaseRunner): void {
       await rejectsWithCode(core.processes.stop("nope"), "not_found");
     });
 
+    test("[processes] rejects moving a bash call that is not running to the background", async () => {
+      const { conversation } = await threadWithProcess();
+      await rejectsWithCode(target.core.processes.background(conversation.id, "nope"), "not_found");
+    });
+
     test("[processes] stops a thread's processes when the thread is deleted", async () => {
       const { core } = target;
       const { conversation, info } = await threadWithProcess();

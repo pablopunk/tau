@@ -12,13 +12,13 @@ import {
 import { SUBAGENT_NOTIFICATION_KIND } from "@tau/protocol";
 import { Type } from "typebox";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { processToolServices } from "../test-support/process-tool-services";
 import { createFauxSetup } from "../testing/faux-provider";
 import { legacyWorkspace } from "./conversation-index";
 import { type ConversationStore, createConversationStore } from "./conversation-store";
 import { BACKGROUND, openAgentHarness, openSqliteStorage } from "./open";
 import { createAgentRegistry, LEGACY_TOOL_FILES, TOOL_FILES } from "./registry";
 import { startBackgroundChild, startForkedBackgroundChild } from "./subagent-runtime";
-import { createToolServicesRef } from "./tools/tool-file";
 
 const FAUX = { provider: "faux", modelId: "faux-1" };
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -71,7 +71,7 @@ function pinAgentExtension(): Extension {
 
 async function open(options: { legacyTask?: boolean } = {}) {
   const registry = createAgentRegistry(
-    createToolServicesRef(),
+    processToolServices(root),
     options.legacyTask ? LEGACY_TOOL_FILES : TOOL_FILES,
   );
   registry.install(pinAgentExtension());

@@ -291,6 +291,11 @@ export interface Core {
     logs(id: string, tail: number): Promise<string>;
     /** Idempotent for a stopped process; rejects `not_found`. */
     stop(id: string): Promise<void>;
+    /**
+     * Detaches the running `bash` call `callId` of the thread: the call returns at once and its command keeps running,
+     * now as a background process that tells the thread when it exits. Rejects `not_found` when no such call is running.
+     */
+    background(conversationId: string, callId: string): Promise<ProcessInfo>;
   };
   terminals: {
     /** False when this node cannot run terminals (unsupported platform, missing daemon, `TAU_DISABLE_TERMINALS=1`). Never rejects. */

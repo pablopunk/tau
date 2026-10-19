@@ -25,12 +25,48 @@ export interface StartProcessRequest {
   readonly notifyOnExit?: boolean;
   /** Monitors only. 0 or undefined runs until stopped. */
   readonly timeoutMs?: number;
+  /** Default `/bin/sh`. */
+  readonly shell?: string;
+  /** Added to the environment of the process. */
+  readonly env?: Readonly<Record<string, string>>;
+}
+
+/** A command a tool call waits for, as a process the thread cannot see until the call is detached. */
+export interface ForegroundRequest {
+  readonly conversationId: string;
+  /** The tool call that waits for it; what `background` names. */
+  readonly callId: string;
+  readonly cwd: string;
+  readonly command: string;
+  readonly shell?: string;
+  readonly env?: Readonly<Record<string, string>>;
+  /** Every chunk of output while the call still waits. */
+  readonly onOutput: (text: string) => void;
+}
+
+export type ForegroundOutcome =
+  | { readonly kind: "exited"; readonly exitCode: number | null; readonly stopRequested: boolean }
+  /** The process runs on, listed and announced like one the agent started in the background. */
+  | { readonly kind: "background"; readonly info: ProcessInfo };
+
+export interface ForegroundRun {
+  readonly id: string;
+  readonly logPath: string;
+  readonly outcome: Promise<ForegroundOutcome>;
+  /** SIGTERM, SIGKILL after the grace period. */
+  stop(): Promise<void>;
+  /** After `exited`: forgets the run. The log stays when `keepLog`. */
+  release(keepLog: boolean): Promise<void>;
 }
 
 export interface ProcessService {
   /** Spawns in its own process group; a pid file `<home>/processes/<id>.json`. */
   start(request: StartProcessRequest): Promise<ProcessInfo>;
   list(conversationId: string): Promise<ProcessInfo[]>;
+  /** Runs a command the calling tool call waits for; `background` lets the call go without stopping it. */
+  runForeground(request: ForegroundRequest): Promise<ForegroundRun>;
+  /** Detaches the running foreground call; rejects `not_found` when none runs. */
+  background(conversationId: string, callId: string): Promise<ProcessInfo>;
   /** True while a process or monitor of the thread runs. */
   hasRunning(conversationId: string): boolean;
   logs(id: string, tail: number): Promise<string>;
@@ -71,12 +107,25 @@ interface Entry {
   /** Pid-file writes go out in order; a removed entry writes nothing more. */
   writes: Promise<void>;
   removed?: boolean;
+  /** Default true; a plain process tells the thread when it exits by itself. */
+  notifyOnExit: boolean;
+  /** Set while a tool call waits for the process; such a process is not listed. */
+  foreground?: Attachment;
+}
+
+interface Attachment {
+  readonly callId: string;
+  readonly onOutput: (text: string) => void;
+  readonly detach: (info: ProcessInfo) => void;
 }
 
 export function createProcessService(deps: ProcessDeps): ProcessService {
   const files = createProcessFiles(deps.home);
   const grace = deps.stopGraceMs ?? DEFAULT_STOP_GRACE_MS;
   const entries = new Map<string, Entry>();
+  const foregroundKey = (conversationId: string, callId: string) => `${conversationId}\0${callId}`;
+  const foregroundEntries = new Map<string, Entry>();
+  const visible = (entry: Entry) => entry.foreground === undefined;
 
   const infoOf = (entry: Entry): ProcessInfo => entry.running?.info ?? entry.info;
   const require = (id: string): Entry => {
@@ -85,6 +134,8 @@ export function createProcessService(deps: ProcessDeps): ProcessService {
     return entry;
   };
   const persist = (entry: Entry): Promise<void> => {
+    // A command a tool call still waits for dies with the call; only a background process outlives a restart.
+    if (entry.foreground) return entry.writes;
     entry.writes = entry.writes.then(() =>
       entry.removed ? undefined : files.save({ info: infoOf(entry), pid: entry.pid }).catch(() => undefined),
     );
@@ -120,10 +171,10 @@ export function createProcessService(deps: ProcessDeps): ProcessService {
   const announceRestart = (entry: Entry) =>
     send(entry, noticeNotification(restartNoticeText(entry.info.name), `notice:${entry.info.id}:restart`));
 
-  function finishEntry(entry: Entry, details: ExitDetails, notifyOnExit: boolean) {
+  function finishEntry(entry: Entry, details: ExitDetails) {
     if (entry.timeout) clearTimeout(entry.timeout);
     if (entry.batcher) return finishMonitor(entry, details);
-    if (notifyOnExit && !details.stopRequested) {
+    if (entry.notifyOnExit && !details.stopRequested) {
       send(entry, processExitNotification(entry.info, details.exitCode, details.logTail));
     }
   }
@@ -146,62 +197,137 @@ export function createProcessService(deps: ProcessDeps): ProcessService {
     await running.exited;
   }
 
+  async function launch(request: StartProcessRequest, foreground?: Attachment): Promise<Entry> {
+    const { conversationId, cwd, command } = request;
+    await files.prepare();
+    const id = randomUUID();
+    const kind = request.kind ?? "process";
+    const info: ProcessInfo = {
+      id,
+      conversationId,
+      name: request.name?.trim() || command.slice(0, NAME_LIMIT),
+      command,
+      state: "running",
+      exitCode: null,
+      startedAt: Date.now(),
+      urls: [],
+      kind,
+    };
+    const entry: Entry = {
+      info,
+      pid: 0,
+      delivery: Promise.resolve(),
+      writes: Promise.resolve(),
+      sequence: 0,
+      notifyOnExit: request.notifyOnExit ?? true,
+      ...(foreground && { foreground }),
+    };
+    const announce = () => {
+      if (visible(entry)) deps.emitChange(conversationId);
+    };
+    if (kind === "monitor") entry.batcher = monitorBatcherFor(entry);
+    entry.running = spawnRunning({
+      info,
+      cwd,
+      logPath: files.logFile(id),
+      ...(request.shell === undefined ? {} : { shell: request.shell }),
+      ...(request.env === undefined ? {} : { env: request.env }),
+      onChunk: (text) => entry.foreground?.onOutput(text),
+      onUrls: () => {
+        void persist(entry);
+        announce();
+      },
+      onLine: (stream, line) => {
+        if (stream === "stdout") entry.batcher?.push(line);
+      },
+      onExit: (exited, details) => {
+        entry.info = exited;
+        finishEntry(entry, details);
+        void persist(entry);
+        announce();
+      },
+    });
+    entry.pid = entry.running.pid;
+    entries.set(id, entry);
+    if (kind === "monitor" && request.timeoutMs) armTimeout(entry, request.timeoutMs);
+    await persist(entry);
+    announce();
+    return entry;
+  }
+
   return {
     async start(request) {
-      const { conversationId, cwd, command } = request;
-      const id = randomUUID();
-      const kind = request.kind ?? "process";
-      const info: ProcessInfo = {
-        id,
-        conversationId,
-        name: request.name?.trim() || command.slice(0, NAME_LIMIT),
-        command,
-        state: "running",
-        exitCode: null,
-        startedAt: Date.now(),
-        urls: [],
-        kind,
-      };
-      const entry: Entry = {
-        info,
-        pid: 0,
-        delivery: Promise.resolve(),
-        writes: Promise.resolve(),
-        sequence: 0,
-      };
-      const announce = () => deps.emitChange(conversationId);
-      if (kind === "monitor") entry.batcher = monitorBatcherFor(entry);
-      entry.running = spawnRunning({
-        info,
-        cwd,
-        logPath: files.logFile(id),
-        onUrls: () => {
-          void persist(entry);
-          announce();
-        },
-        onLine: (stream, line) => {
-          if (stream === "stdout") entry.batcher?.push(line);
-        },
-        onExit: (exited, details) => {
-          entry.info = exited;
-          finishEntry(entry, details, request.notifyOnExit ?? true);
-          void persist(entry);
-          announce();
-        },
+      return infoOf(await launch(request));
+    },
+    async runForeground(request) {
+      let detach: (info: ProcessInfo) => void = () => undefined;
+      const detached = new Promise<ProcessInfo>((resolve) => {
+        detach = resolve;
       });
-      entry.pid = entry.running.pid;
-      entries.set(id, entry);
-      if (kind === "monitor" && request.timeoutMs) armTimeout(entry, request.timeoutMs);
+      const entry = await launch(
+        {
+          conversationId: request.conversationId,
+          cwd: request.cwd,
+          command: request.command,
+          notifyOnExit: false,
+          ...(request.shell === undefined ? {} : { shell: request.shell }),
+          ...(request.env === undefined ? {} : { env: request.env }),
+        },
+        { callId: request.callId, onOutput: request.onOutput, detach },
+      );
+      const key = foregroundKey(request.conversationId, request.callId);
+      foregroundEntries.set(key, entry);
+      const running = entry.running as RunningProcess;
+      const exited = running.exited.then(
+        (): ForegroundOutcome => ({
+          kind: "exited",
+          exitCode: running.shellStatus ?? infoOf(entry).exitCode,
+          stopRequested: running.stopRequested,
+        }),
+      );
+      const moved = detached.then((info): ForegroundOutcome => ({ kind: "background", info }));
+      const id = entry.info.id;
+      return {
+        id,
+        logPath: files.logFile(id),
+        outcome: Promise.race([exited, moved]),
+        stop: () => stopEntry(entry),
+        async release(keepLog) {
+          if (foregroundEntries.get(key) === entry) foregroundEntries.delete(key);
+          entries.delete(id);
+          entry.removed = true;
+          await entry.writes;
+          await (keepLog ? files.removeRecord(id) : files.remove(id));
+        },
+      };
+    },
+    async background(conversationId, callId) {
+      const key = foregroundKey(conversationId, callId);
+      const entry = foregroundEntries.get(key);
+      const attachment = entry?.foreground;
+      if (!entry || !attachment || infoOf(entry).state !== "running" || entry.running?.stopRequested) {
+        throw new AppError("not_found", `No running bash call ${callId}`);
+      }
+      foregroundEntries.delete(key);
+      delete entry.foreground;
+      entry.notifyOnExit = true;
       await persist(entry);
-      announce();
+      attachment.detach(infoOf(entry));
+      deps.emitChange(conversationId);
       return infoOf(entry);
     },
     async list(conversationId) {
-      return [...entries.values()].map(infoOf).filter((info) => info.conversationId === conversationId);
+      return [...entries.values()]
+        .filter(visible)
+        .map(infoOf)
+        .filter((info) => info.conversationId === conversationId);
     },
     hasRunning(conversationId) {
       return [...entries.values()].some(
-        (entry) => infoOf(entry).conversationId === conversationId && infoOf(entry).state === "running",
+        (entry) =>
+          visible(entry) &&
+          infoOf(entry).conversationId === conversationId &&
+          infoOf(entry).state === "running",
       );
     },
     async logs(id, tail) {
@@ -220,6 +346,7 @@ export function createProcessService(deps: ProcessDeps): ProcessService {
           delivery: Promise.resolve(),
           writes: Promise.resolve(),
           sequence: 0,
+          notifyOnExit: true,
         };
         if (record.info.state === "running") {
           if (record.pid > 0 && groupIsAlive(record.pid)) await terminateGroup(record.pid, grace);

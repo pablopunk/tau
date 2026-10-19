@@ -1,4 +1,6 @@
 import { type ChildProcess, spawn } from "node:child_process";
+import { constants } from "node:os";
+import { StringDecoder } from "node:string_decoder";
 import type { ProcessInfo } from "@tau/protocol";
 import { createLineSplitter } from "./line-splitter";
 import { extractLocalUrls } from "./local-urls";
@@ -11,6 +13,8 @@ export interface RunningProcess {
   readonly tail: LogTail;
   readonly exited: Promise<void>;
   stopRequested: boolean;
+  /** What a shell reports: the exit code, or 128 plus the signal number. Unset when the command never started. */
+  shellStatus?: number;
 }
 
 export interface SpawnRequest {
@@ -20,6 +24,12 @@ export interface SpawnRequest {
   readonly onUrls: () => void;
   readonly onExit: (info: ProcessInfo, details: ExitDetails) => void;
   readonly onLine?: (stream: OutputStream, line: string) => void;
+  /** Every chunk of output as it arrives, both streams. */
+  readonly onChunk?: (text: string) => void;
+  /** Default `/bin/sh`. */
+  readonly shell?: string;
+  /** Added to the environment of this process. */
+  readonly env?: Readonly<Record<string, string>>;
 }
 
 export type OutputStream = "stdout" | "stderr";
@@ -33,8 +43,9 @@ export interface ExitDetails {
 }
 
 export function spawnRunning(request: SpawnRequest): RunningProcess {
-  const child = spawn("/bin/sh", ["-c", request.info.command], {
+  const child = spawn(request.shell ?? "/bin/sh", ["-c", request.info.command], {
     cwd: request.cwd,
+    ...(request.env === undefined ? {} : { env: { ...process.env, ...request.env } }),
     detached: true,
     stdio: ["ignore", "pipe", "pipe"],
   });
@@ -47,9 +58,11 @@ export function spawnRunning(request: SpawnRequest): RunningProcess {
     exited: Promise.resolve(),
   };
   const splitters = pipeOutput(child, running, log, request);
-  const finish = (code: number | null) => {
+  const finish = (code: number | null, signal: NodeJS.Signals | null = null) => {
     for (const splitter of splitters) splitter.flush();
     settle(running, code);
+    const status = code ?? (signal ? 128 + (constants.signals[signal] ?? 0) : undefined);
+    if (status !== undefined) running.shellStatus = status;
     return {
       exitCode: code,
       stopRequested: running.stopRequested,
@@ -59,12 +72,15 @@ export function spawnRunning(request: SpawnRequest): RunningProcess {
   let details: ExitDetails | undefined;
   const exited = new Promise<void>((resolve) => {
     child.once("error", (error) => {
-      running.tail.append(`${error.message}\n`);
+      const message = `${error.message}\n`;
+      running.tail.append(message);
+      log.append(message);
+      request.onChunk?.(message);
       details = finish(null);
       resolve();
     });
-    child.once("exit", (code) => {
-      details ??= finish(code);
+    child.once("exit", (code, signal) => {
+      details ??= finish(code, signal);
       resolve();
     });
     child.once("close", () => void log.close());
@@ -78,11 +94,16 @@ function pipeOutput(child: ChildProcess, running: RunningProcess, log: LogFile, 
   const splitterFor = (stream: OutputStream) => createLineSplitter((line) => request.onLine?.(stream, line));
   const stdout = splitterFor("stdout");
   const stderr = splitterFor("stderr");
-  const onChunk = (splitter: ReturnType<typeof splitterFor>) => (chunk: Buffer) => {
-    const text = chunk.toString("utf8");
+  const onChunk = (splitter: ReturnType<typeof splitterFor>) => {
+    const decoder = new StringDecoder("utf8");
+    return (chunk: Buffer) => handle(decoder.write(chunk), splitter);
+  };
+  const handle = (text: string, splitter: ReturnType<typeof splitterFor>) => {
+    if (text === "") return;
     running.tail.append(text);
     log.append(text);
     if (addUrls(running, text)) request.onUrls();
+    request.onChunk?.(text);
     splitter.push(text);
   };
   child.stdout?.on("data", onChunk(stdout));

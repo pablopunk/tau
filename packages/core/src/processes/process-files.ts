@@ -11,10 +11,14 @@ export interface ProcessRecord {
 export interface ProcessFiles {
   pidFile(id: string): string;
   logFile(id: string): string;
+  /** Creates the folder, so a log can open before the first record is saved. */
+  prepare(): Promise<void>;
   save(record: ProcessRecord): Promise<void>;
   loadAll(): Promise<ProcessRecord[]>;
   readLog(id: string): Promise<string>;
   remove(id: string): Promise<void>;
+  /** The record only; the log stays for whoever still points at it. */
+  removeRecord(id: string): Promise<void>;
 }
 
 export function createProcessFiles(home: string): ProcessFiles {
@@ -24,6 +28,9 @@ export function createProcessFiles(home: string): ProcessFiles {
   return {
     pidFile,
     logFile,
+    async prepare() {
+      await mkdir(directory, { recursive: true, mode: 0o700 });
+    },
     async save(record) {
       await mkdir(directory, { recursive: true, mode: 0o700 });
       await writeFileAtomic(pidFile(record.info.id), JSON.stringify(record));
@@ -37,6 +44,9 @@ export function createProcessFiles(home: string): ProcessFiles {
     },
     async readLog(id) {
       return (await readFileIfPresent(logFile(id))) ?? "";
+    },
+    async removeRecord(id) {
+      await rm(pidFile(id), { force: true });
     },
     async remove(id) {
       await Promise.all([rm(pidFile(id), { force: true }), rm(logFile(id), { force: true })]);

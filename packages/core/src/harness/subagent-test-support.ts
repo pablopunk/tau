@@ -15,6 +15,7 @@ import type { AgentTypeLoader } from "../agents/agent-types";
 import type { ResolveModelAlias } from "../agents/model-alias";
 import { createChangeEmitter } from "../change-emitter";
 import { createConversationRemoval } from "../conversation-removal";
+import { createProcessService, type ProcessService } from "../processes/process-service";
 import type { RemovalHooks } from "../removal-hooks";
 import { createStatusTracker } from "../status/status-tracker";
 import { FAUX_MODELS } from "../testing/faux-provider";
@@ -104,6 +105,11 @@ export async function openRig(root: string, projectPath: string, options: RigOpt
     ...options.project,
   };
   const toolServices = createToolServicesRef();
+  const processes = createProcessService({
+    home: join(root, "home"),
+    emitChange: () => {},
+    stopGraceMs: 300,
+  });
   const models = createCallableFaux();
   const status = createStatusTracker({ changes: createChangeEmitter(), now: Date.now });
   const harness: Harness = await openAgentHarness({
@@ -129,6 +135,7 @@ export async function openRig(root: string, projectPath: string, options: RigOpt
   const connected = options.connected ?? [FAUX, FAUX_TWO];
   toolServices.set({
     connectedModels: async () => connected,
+    processes,
     subagents: {
       agentTypes: typesDouble([]),
       resolveModelAlias: aliasDouble,
@@ -140,10 +147,15 @@ export async function openRig(root: string, projectPath: string, options: RigOpt
       ...options.services,
     },
   } as never);
-  return rigOver(harness, store, project);
+  return rigOver(harness, store, project, processes);
 }
 
-function rigOver(harness: Harness, store: ReturnType<typeof createConversationStore>, project: Project) {
+function rigOver(
+  harness: Harness,
+  store: ReturnType<typeof createConversationStore>,
+  project: Project,
+  processes: ProcessService,
+) {
   const conversationOf = (id: string) => harness.conversation(Number(id) as never, BACKGROUND);
   const entriesOf = async (id: string) =>
     (await (await conversationOf(id))?.entries({}, 200, undefined, BACKGROUND))?.items ?? [];
@@ -156,6 +168,7 @@ function rigOver(harness: Harness, store: ReturnType<typeof createConversationSt
     harness,
     store,
     project,
+    processes,
     entriesOf,
     childrenOf,
     until,
@@ -188,7 +201,10 @@ function rigOver(harness: Harness, store: ReturnType<typeof createConversationSt
       await until(async () => (await this.notificationsOf(parentId)).length >= count);
       return this.notificationsOf(parentId);
     },
-    close: () => harness.close(BACKGROUND),
+    async close() {
+      await processes.stopAll();
+      await harness.close(BACKGROUND);
+    },
   };
 }
 

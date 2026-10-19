@@ -150,6 +150,7 @@ export interface Api {
     list(conversationId: string): Promise<ProcessInfo[]>;
     logs(id: string, tail?: number): Promise<string>;
     stop(id: string): Promise<void>;
+    background(conversationId: string, callId: string): Promise<ProcessInfo>;
   };
   approvals: {
     list(conversationId: string): Promise<Approval[]>;
@@ -314,6 +315,7 @@ export function createApi(transport: Transport): Api {
       logs: async (id, tail) =>
         (await request("getProcessLogs", { params: { id }, query: tail ? { tail: String(tail) } : {} })).logs,
       stop: (id) => request("stopProcess", { params: { id } }),
+      background: (id, callId) => request("backgroundToolCall", { params: { id, callId } }),
     },
     approvals: {
       list: (id) => request("listApprovals", { params: { id } }),

@@ -35,6 +35,7 @@ function registerToolRoutes(app: FastifyInstance, core: Core): void {
     logs: await processes.logs(params.id, query.tail ? Number(query.tail) : PROCESS_LOG_TAIL_DEFAULT),
   }));
   defineRoute(app, routes.stopProcess, ({ params }) => processes.stop(params.id));
+  defineRoute(app, routes.backgroundToolCall, ({ params }) => processes.background(params.id, params.callId));
   defineRoute(app, routes.listTimers, ({ params }) => timers.list(params.id));
   defineRoute(app, routes.deleteTimer, ({ params }) => timers.delete(params.id));
   defineRoute(app, routes.startLoop, ({ params, body }) => timers.loop(params.id, body));

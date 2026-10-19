@@ -17,7 +17,15 @@ import { openFakeStream } from "./fake-terminal-stream";
 import type { LiveHandlers, LiveSocket, RouteRequest, RouteResponse, Transport } from "./types";
 
 type Input = {
-  params: { id: string; sid: string; itemId: string; toolUseId: string; cid: string; name: string };
+  params: {
+    id: string;
+    sid: string;
+    itemId: string;
+    toolUseId: string;
+    callId: string;
+    cid: string;
+    name: string;
+  };
   query: { projectId?: string; path: string; tail?: string; force?: "true" | "false" };
   body: Record<string, unknown>;
 };
@@ -108,6 +116,7 @@ const handlers: Handlers = {
     logs: await core.processes.logs(params.id, query?.tail ? Number(query.tail) : PROCESS_LOG_TAIL_DEFAULT),
   }),
   stopProcess: (core, { params }) => core.processes.stop(params.id),
+  backgroundToolCall: (core, { params }) => core.processes.background(params.id, params.callId),
   getTerminalsAvailable: async (core) => ({ available: await core.terminals.available() }),
   listTerminals: (core, { params }) => core.terminals.list(params.id),
   openTerminal: (core, { params, body }) => core.terminals.open(params.id, body as never),

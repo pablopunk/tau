@@ -45,6 +45,9 @@ export function createFakeProcesses(deps: {
       async stop(id) {
         kill(entryOf(id));
       },
+      async background(_conversationId, callId) {
+        throw new AppError("not_found", `No running bash call ${callId}`);
+      },
     },
     start(conversationId, command, kind = "process") {
       const info: ProcessInfo = {

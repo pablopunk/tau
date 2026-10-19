@@ -443,6 +443,13 @@ export const commands: readonly CommandDef[] = [
     destructive: false,
   },
   {
+    command: "processes background",
+    route: "backgroundToolCall",
+    summary: "Move a running bash call of a thread to the background",
+    positionals: ["params.id", "params.callId"],
+    destructive: false,
+  },
+  {
     command: "terminals list",
     route: "listTerminals",
     summary: "List the terminals of a thread",

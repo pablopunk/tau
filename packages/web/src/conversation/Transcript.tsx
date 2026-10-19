@@ -15,6 +15,7 @@ import { RetryButton } from "./RetryButton";
 import { ToolApproval } from "./ToolApproval";
 import { LatestTodoCallProvider } from "./todos/latest-todo-call";
 import { latestTodoCallId } from "./todos/todo-items";
+import { ToolConversationProvider } from "./tools/tool-conversation";
 
 function hasVisibleContent(message: AssistantMessageData | undefined): message is AssistantMessageData {
   return (
@@ -82,47 +83,49 @@ export function Transcript({
   if (items.length === 0 && !live.busy && !live.compacting && live.queued.length === 0)
     return <EmptyTranscript />;
   return (
-    <LatestTodoCallProvider value={latestTodoCallId(view)}>
-      <div className="space-y-5">
-        {items.map((item, index) => {
-          if (item.kind === "compaction") return <CompactedDivider key={item.key} />;
-          if (item.kind === "subagent-notification")
-            return <SubagentNotificationRow key={item.key} data={item.data} />;
-          if (isMvpNotificationItem(item)) return <MvpNotificationRow key={item.key} item={item} />;
-          if (item.kind === "retry") return <RetriedDivider key={item.key} />;
-          if (item.kind === "user")
+    <ToolConversationProvider value={conversationId}>
+      <LatestTodoCallProvider value={latestTodoCallId(view)}>
+        <div className="space-y-5">
+          {items.map((item, index) => {
+            if (item.kind === "compaction") return <CompactedDivider key={item.key} />;
+            if (item.kind === "subagent-notification")
+              return <SubagentNotificationRow key={item.key} data={item.data} />;
+            if (isMvpNotificationItem(item)) return <MvpNotificationRow key={item.key} item={item} />;
+            if (item.kind === "retry") return <RetriedDivider key={item.key} />;
+            if (item.kind === "user")
+              return (
+                <UserMessage
+                  key={item.key}
+                  text={item.text}
+                  images={item.images}
+                  entry={entryOf(item.entryId, "user", item.text)}
+                />
+              );
+            const turnEntryId = endsTurn(items, index);
             return (
-              <UserMessage
-                key={item.key}
-                text={item.text}
-                images={item.images}
-                entry={entryOf(item.entryId, "user", item.text)}
-              />
+              <Fragment key={item.key}>
+                <AssistantMessage
+                  message={item.message}
+                  resolveTool={resolveTool}
+                  entry={entryOf(item.entryId, "assistant", markdownOf(item.message))}
+                />
+                {conversationId && turnEntryId ? (
+                  <TurnChanges conversationId={conversationId} entryId={turnEntryId} />
+                ) : null}
+              </Fragment>
             );
-          const turnEntryId = endsTurn(items, index);
-          return (
-            <Fragment key={item.key}>
-              <AssistantMessage
-                message={item.message}
-                resolveTool={resolveTool}
-                entry={entryOf(item.entryId, "assistant", markdownOf(item.message))}
-              />
-              {conversationId && turnEntryId ? (
-                <TurnChanges conversationId={conversationId} entryId={turnEntryId} />
-              ) : null}
-            </Fragment>
-          );
-        })}
-        {hasVisibleContent(live.streaming) ? (
-          <AssistantMessage message={live.streaming} resolveTool={resolveTool} streaming />
-        ) : null}
-        {live.compacting ? <CompactingNotice /> : null}
-        {live.retry ? <RetryNotice retry={live.retry} /> : null}
-        {isIdleWhileBusy(live) ? <WorkingIndicator /> : null}
-        {onRetry && isRetryable(view) ? <RetryButton onRetry={onRetry} /> : null}
-        {conversationId ? <ToolApproval conversationId={conversationId} /> : null}
-        <QueuedMessages items={live.queued} conversationId={conversationId} />
-      </div>
-    </LatestTodoCallProvider>
+          })}
+          {hasVisibleContent(live.streaming) ? (
+            <AssistantMessage message={live.streaming} resolveTool={resolveTool} streaming />
+          ) : null}
+          {live.compacting ? <CompactingNotice /> : null}
+          {live.retry ? <RetryNotice retry={live.retry} /> : null}
+          {isIdleWhileBusy(live) ? <WorkingIndicator /> : null}
+          {onRetry && isRetryable(view) ? <RetryButton onRetry={onRetry} /> : null}
+          {conversationId ? <ToolApproval conversationId={conversationId} /> : null}
+          <QueuedMessages items={live.queued} conversationId={conversationId} />
+        </div>
+      </LatestTodoCallProvider>
+    </ToolConversationProvider>
   );
 }

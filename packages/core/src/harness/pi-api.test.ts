@@ -14,6 +14,7 @@ import {
   type LiveState,
 } from "@earendil-works/pi-durable";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { processToolServices } from "../test-support/process-tool-services";
 import { createFauxSetup } from "../testing/faux-provider";
 import { BACKGROUND, openAgentHarness, openSqliteStorage } from "./open";
 import { createAgentRegistry } from "./registry";
@@ -54,7 +55,7 @@ async function open(): Promise<Harness> {
   harness = await openAgentHarness({
     storage,
     models: createFauxSetup().models,
-    registry: createAgentRegistry(),
+    registry: createAgentRegistry(processToolServices(root)),
   });
   return harness;
 }

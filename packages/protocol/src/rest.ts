@@ -89,6 +89,10 @@ const ApprovalParams = Type.Object({
   id: Type.String({ minLength: 1 }),
   toolUseId: Type.String({ minLength: 1 }),
 });
+const ToolCallParams = Type.Object({
+  id: Type.String({ minLength: 1 }),
+  callId: Type.String({ minLength: 1 }),
+});
 const ForceQuery = Type.Object({
   force: Type.Optional(Type.Union([Type.Literal("true"), Type.Literal("false")])),
 });
@@ -622,6 +626,13 @@ export const routes = {
     response: Type.Object({ logs: Type.String() }),
   },
   stopProcess: { method: "DELETE", path: `${API_PREFIX}/processes/:id`, status: 204, params: IdParams },
+  backgroundToolCall: {
+    method: "POST",
+    path: `${API_PREFIX}/conversations/:id/tool-calls/:callId/background`,
+    status: 200,
+    params: ToolCallParams,
+    response: ProcessInfoSchema,
+  },
   getTerminalsAvailable: {
     method: "GET",
     path: `${API_PREFIX}/terminals/available`,

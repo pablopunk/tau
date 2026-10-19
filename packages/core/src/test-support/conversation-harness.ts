@@ -6,8 +6,10 @@ import { createConversationRecovery } from "../conversation-recovery";
 import { legacyWorkspace } from "../harness/conversation-index";
 import { type ConversationStore, createConversationStore } from "../harness/conversation-store";
 import { BACKGROUND, openAgentHarness, openSqliteStorage } from "../harness/open";
+import { createAgentRegistry } from "../harness/registry";
 import { createStatusTracker, type StatusTracker } from "../status/status-tracker";
 import { createFauxSetup } from "../testing/faux-provider";
+import { processToolServices } from "./process-tool-services";
 
 export const FAUX_MODEL = { provider: "faux", modelId: "faux-1" };
 
@@ -37,6 +39,7 @@ export async function openConversationHarness(
   const harness = await openAgentHarness({
     storage: await openSqliteStorage(join(directory, "agent.sqlite")),
     models,
+    registry: createAgentRegistry(processToolServices(directory)),
     beforeResume: (opened) => status.attach(opened),
   });
   const store = createConversationStore(harness, async () => directory);

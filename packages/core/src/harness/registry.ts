@@ -59,7 +59,7 @@ export function createAgentRegistry(
   home?: string,
 ) {
   const registry = createRegistry();
-  registry.install(createTauCodingTools(home));
+  registry.install(createTauCodingTools(home, services));
   registry.install(codingExtension);
   registry.install(subagentRuntimeExtension);
   for (const build of toolFiles) {
