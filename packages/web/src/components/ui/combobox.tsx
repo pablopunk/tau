@@ -56,6 +56,8 @@ interface ComboboxProps {
   footer?: (close: () => void) => React.ReactNode
   /** A control shown on the right of a group's heading, by group name, e.g. a refresh button. */
   groupActions?: Record<string, React.ReactNode>
+  /** An icon shown before a group's heading, by group name, e.g. a machine's OS. */
+  groupIcons?: Record<string, React.ReactNode>
   /** `ghost` with `sm` fits inside a composer toolbar. */
   variant?: "outline" | "ghost"
   size?: "default" | "sm"
@@ -86,6 +88,7 @@ function Combobox({
   open: controlledOpen,
   onOpenChange,
   groupActions,
+  groupIcons,
   searchable = true,
   footer,
   variant = "outline",
@@ -138,7 +141,18 @@ function Combobox({
           <CommandList ref={listRef}>
             <CommandEmpty>{emptyText}</CommandEmpty>
             {groupOptions(options).map(([group, items]) => (
-              <CommandGroup key={group ?? "options"} heading={group} className="relative">
+              <CommandGroup key={group ?? "options"} heading={
+                  group !== undefined && groupIcons?.[group] ? (
+                    <span data-slot="combobox-group-heading" className="flex items-center gap-2">
+                      {groupIcons[group]}
+                      {group}
+                    </span>
+                  ) : (
+                    group
+                  )
+                }
+                className="relative"
+              >
                 {group !== undefined && groupActions?.[group] ? (
                   <div data-slot="combobox-group-action" className="absolute top-1 right-1 z-10">
                     {groupActions[group]}

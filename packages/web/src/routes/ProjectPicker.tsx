@@ -1,11 +1,12 @@
 import { useQueryClient } from "@tanstack/react-query";
 import type { GithubRepo, Project } from "@tau/protocol";
 import { PlusIcon } from "lucide-react";
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 import { FormError } from "@/app/FormError";
 import { useSubmit } from "@/app/use-submit";
 import { Button } from "@/components/ui/button";
 import { Combobox, type ComboboxOption } from "@/components/ui/combobox";
+import { MachineAvatar } from "@/components/ui/machine-avatar";
 import { ProjectIcon } from "@/components/ui/project-icon";
 import { RefreshReposButton } from "@/github/RefreshReposButton";
 import { GITHUB_GROUP, githubOptions, parseGithubValue } from "@/github/repo-options";
@@ -108,6 +109,16 @@ export function ProjectPicker({
     else onProject(value);
   };
 
+  const groupIcons: Record<string, ReactNode> =
+    all.length > 1
+      ? Object.fromEntries(
+          all.map((machine) => [
+            groupOf(machine),
+            <MachineAvatar key={machine.name} os={machine.os} status={machine.status} />,
+          ]),
+        )
+      : {};
+
   const options = [
     ...projectsHomeFirst(projects).map((project) =>
       projectOption(project, current ? groupOf(current) : PROJECTS_GROUP, project.id, machineId),
@@ -155,6 +166,7 @@ export function ProjectPicker({
             Add project…
           </Button>
         )}
+        groupIcons={groupIcons}
         groupActions={
           status.data?.state === "connected" ? { [GITHUB_GROUP]: <RefreshReposButton /> } : undefined
         }
