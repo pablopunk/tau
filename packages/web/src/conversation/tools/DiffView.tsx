@@ -24,12 +24,16 @@ function Line({ line }: { line: DiffLine }) {
   );
 }
 
-export function DiffView({ diff }: { diff: string }) {
+/** `contained` caps the height and scrolls inside the box; otherwise the diff flows with the page and only scrolls sideways. */
+export function DiffView({ diff, contained = true }: { diff: string; contained?: boolean }) {
   const lines = parseDiff(diff);
   return (
     <figure
       aria-label="Diff"
-      className="max-h-96 overflow-auto rounded-md border bg-background py-1 font-mono text-xs leading-5"
+      className={cn(
+        "rounded-md border bg-background py-1 font-mono text-xs leading-5",
+        contained ? "max-h-96 overflow-auto" : "overflow-x-auto overflow-y-hidden",
+      )}
     >
       {lines.map((line, index) => (
         // biome-ignore lint/suspicious/noArrayIndexKey: the diff is static text and lines have no identity
