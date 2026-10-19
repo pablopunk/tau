@@ -6,12 +6,14 @@ import { queryKeys } from "@/lib/queries";
 import { useApi, useMachineId } from "@/machines/machine-context";
 import { useOpenAndFocusTerminal, useTerminals, useTerminalsAvailable } from "@/panes/use-terminals";
 import { attempt } from "./attempt";
+import { useThreadAgent } from "./use-thread-agent";
 
 interface ThreadActionsProps {
   projectId: string;
   conversationId: string;
   archived: boolean;
   onChangeModel: () => void;
+  onChangeThinking: () => void;
   run: (action: () => void) => () => void;
 }
 
@@ -21,6 +23,7 @@ export function ThreadActions({
   conversationId,
   archived,
   onChangeModel,
+  onChangeThinking,
   run,
 }: ThreadActionsProps) {
   const api = useApi();
@@ -29,6 +32,7 @@ export function ThreadActions({
   const queryClient = useQueryClient();
   const available = useTerminalsAvailable().data === true;
   const terminals = useTerminals(conversationId, available).data ?? [];
+  const canThink = useThreadAgent(conversationId).model?.thinkingLevels.some((level) => level !== "off");
   const openTerminal = useOpenAndFocusTerminal(projectId, conversationId);
 
   const toggleArchive = async () => {
@@ -57,6 +61,7 @@ export function ThreadActions({
         </CommandItem>
       ) : null}
       <CommandItem onSelect={onChangeModel}>Change model…</CommandItem>
+      {canThink ? <CommandItem onSelect={onChangeThinking}>Change thinking level…</CommandItem> : null}
       <CommandItem onSelect={run(attempt(() => api.conversations.abort(conversationId)))}>
         Stop agent
       </CommandItem>

@@ -4,6 +4,7 @@ import { useModels } from "@/lib/queries";
 import { useApi } from "@/machines/machine-context";
 import { claudeCliFirst, modelRowLabel } from "@/setup/ModelCombobox";
 import { attempt } from "./attempt";
+import { useThreadAgent } from "./use-thread-agent";
 
 const byProvider = (models: ModelInfo[]) =>
   [...new Set(models.map((model) => model.providerName))].map((name) => ({
@@ -20,6 +21,7 @@ export function ModelPage({
   run: (action: () => void) => () => void;
 }) {
   const api = useApi();
+  const current = useThreadAgent(conversationId).model;
   const models = claudeCliFirst(useModels().data ?? []);
   const choose = (model: ModelInfo) =>
     run(
@@ -37,6 +39,7 @@ export function ModelPage({
             <CommandItem
               key={`${model.provider}/${model.modelId}`}
               value={`${model.provider}/${model.modelId} ${model.name}`}
+              data-checked={model.provider === current?.provider && model.modelId === current?.modelId}
               onSelect={choose(model)}
             >
               {modelRowLabel(model)}

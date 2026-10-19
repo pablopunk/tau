@@ -3,6 +3,8 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { SettingsDialogContext } from "@/app/settings-dialog";
 import { SidebarProvider } from "@/components/ui/sidebar";
+import { LiveClientProvider } from "@/conversation/live-client-context";
+import { createStubLiveClient } from "@/conversation/test-utils";
 import { apiOfMachine } from "@/machines/machine-apis";
 import { conversation, project, renderAt } from "@/sidebar/test-support";
 import { CommandPalette } from "./CommandPalette";
@@ -32,7 +34,7 @@ beforeEach(() => {
       name: "GPT 9",
       contextWindow: 1,
       images: true,
-      thinkingLevels: ["off"],
+      thinkingLevels: ["off", "high"],
     } as never,
   ]);
   vi.mocked(api.conversations.configure).mockResolvedValue(undefined);
@@ -42,15 +44,20 @@ beforeEach(() => {
   ]);
 });
 
+const threadView = {
+  entries: [],
+  docs: { "pi.agent": { model: { provider: "openai", modelId: "gpt-9" }, thinkingLevel: "off" } },
+} as never;
+
 const renderPalette = (path = "/") =>
   renderAt(
     path,
-    <>
+    <LiveClientProvider client={createStubLiveClient(threadView)}>
       <SidebarProvider>
         <CommandPalette />
       </SidebarProvider>
       <GlobalShortcuts />
-    </>,
+    </LiveClientProvider>,
   );
 
 describe("command palette", () => {
@@ -163,6 +170,28 @@ describe("models", () => {
       model: { provider: "openai", modelId: "gpt-9" },
     });
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("marks the thread's current model", async () => {
+    const user = userEvent.setup();
+    renderPalette("/p/p1/c/c1");
+
+    await user.keyboard("{Control>}k{/Control}");
+    await user.click(await screen.findByRole("option", { name: "Change model…" }));
+
+    expect(await screen.findByRole("option", { name: "GPT 9" })).toHaveAttribute("data-checked", "true");
+  });
+
+  it("changes the thinking level of the open thread", async () => {
+    const user = userEvent.setup();
+    renderPalette("/p/p1/c/c1");
+
+    await user.keyboard("{Control>}k{/Control}");
+    await user.click(await screen.findByRole("option", { name: "Change thinking level…" }));
+    expect(await screen.findByRole("option", { name: "off" })).toHaveAttribute("data-checked", "true");
+    await user.click(screen.getByRole("option", { name: "high" }));
+
+    expect(api.conversations.configure).toHaveBeenCalledWith("c1", { thinkingLevel: "high" });
   });
 
   it("Backspace on an empty search goes back to the actions", async () => {

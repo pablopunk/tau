@@ -5,6 +5,8 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter, useLocation } from "react-router";
 import { describe, expect, it, vi } from "vitest";
 import { Command, CommandList } from "@/components/ui/command";
+import { LiveClientProvider } from "@/conversation/live-client-context";
+import { createStubLiveClient } from "@/conversation/test-utils";
 import { createApi } from "@/lib/api";
 import { createFakeTransport } from "@/lib/transport/fake";
 import { MachineApiProvider } from "@/machines/machine-context";
@@ -19,20 +21,23 @@ async function renderActions(options: { terminals: boolean }) {
   render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
       <MachineApiProvider api={api}>
-        <MemoryRouter initialEntries={[`/p/home/c/${id}`]}>
-          <Command>
-            <CommandList>
-              <ThreadActions
-                projectId="home"
-                conversationId={id}
-                archived={false}
-                onChangeModel={() => {}}
-                run={run}
-              />
-            </CommandList>
-          </Command>
-          <Where />
-        </MemoryRouter>
+        <LiveClientProvider client={createStubLiveClient(null)}>
+          <MemoryRouter initialEntries={[`/p/home/c/${id}`]}>
+            <Command>
+              <CommandList>
+                <ThreadActions
+                  projectId="home"
+                  conversationId={id}
+                  archived={false}
+                  onChangeModel={() => {}}
+                  onChangeThinking={() => {}}
+                  run={run}
+                />
+              </CommandList>
+            </Command>
+            <Where />
+          </MemoryRouter>
+        </LiveClientProvider>
       </MachineApiProvider>
     </QueryClientProvider>,
   );

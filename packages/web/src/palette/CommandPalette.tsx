@@ -23,6 +23,7 @@ import { useAdjacentThread } from "./adjacent-thread";
 import { ModelPage } from "./ModelPage";
 import { SettingsItem } from "./SettingsItem";
 import { SettingsSearchGroup, useSettingResults } from "./SettingsSearchGroup";
+import { ThinkingPage } from "./ThinkingPage";
 import { ThreadActions } from "./ThreadActions";
 
 const ALL_MACHINES = "all";
@@ -66,6 +67,7 @@ interface SectionsProps {
   run: (action: () => void) => () => void;
   startAddProject: () => void;
   openModelPage: () => void;
+  openThinkingPage: () => void;
 }
 
 function MainSections({
@@ -76,6 +78,7 @@ function MainSections({
   run,
   startAddProject,
   openModelPage,
+  openThinkingPage,
 }: SectionsProps) {
   const navigate = useNavigate();
   const adjacent = useAdjacentThread();
@@ -95,6 +98,7 @@ function MainSections({
             conversationId={conversationId}
             archived={openThread?.archivedAt != null}
             onChangeModel={openModelPage}
+            onChangeThinking={openThinkingPage}
             run={run}
           />
         </MachineScope>
@@ -165,10 +169,16 @@ function MainSections({
   );
 }
 
+const PLACEHOLDERS = {
+  main: "Search threads, projects, actions, settings",
+  model: "Search models",
+  thinking: "Search thinking levels",
+};
+
 export function CommandPalette() {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
-  const [page, setPage] = useState<"model" | null>(null);
+  const [page, setPage] = useState<"model" | "thinking" | null>(null);
   const [machineFilter, setMachineFilter] = useState(ALL_MACHINES);
   const [addProject, setAddProject] = useState<AddProjectStep | null>(null);
   const { conversationId, machineId: openMachineId } = useOpenConversation();
@@ -192,9 +202,9 @@ export function CommandPalette() {
     action();
   };
 
-  const openModelPage = () => {
+  const openPage = (next: "model" | "thinking") => () => {
     setSearch("");
-    setPage("model");
+    setPage(next);
   };
 
   const backFromEmptySearch = (event: KeyboardEvent<HTMLElement>) => {
@@ -206,19 +216,19 @@ export function CommandPalette() {
       <AddProjectFlow state={addProject} machines={everyMachine} onChange={setAddProject} />
       <CommandDialog open={open} onOpenChange={changeOpen} title="Command palette">
         <Command onKeyDown={backFromEmptySearch}>
-          <CommandInput
-            value={search}
-            onValueChange={setSearch}
-            placeholder={page === "model" ? "Search models" : "Search threads, projects, actions, settings"}
-          />
+          <CommandInput value={search} onValueChange={setSearch} placeholder={PLACEHOLDERS[page ?? "main"]} />
           {page === null && everyMachine.length > 1 ? (
             <MachineFilter machines={everyMachine} value={machineFilter} onChange={setMachineFilter} />
           ) : null}
           <CommandList>
-            {page === "model" && conversationId ? (
+            {page !== null && conversationId ? (
               <MachineScope machineId={openMachineId}>
-                <CommandEmpty>No models.</CommandEmpty>
-                <ModelPage conversationId={conversationId} run={run} />
+                <CommandEmpty>No results.</CommandEmpty>
+                {page === "model" ? (
+                  <ModelPage conversationId={conversationId} run={run} />
+                ) : (
+                  <ThinkingPage conversationId={conversationId} run={run} />
+                )}
               </MachineScope>
             ) : (
               <MainSections
@@ -228,7 +238,8 @@ export function CommandPalette() {
                 several={everyMachine.length > 1}
                 run={run}
                 startAddProject={startAddProject}
-                openModelPage={openModelPage}
+                openModelPage={openPage("model")}
+                openThinkingPage={openPage("thinking")}
               />
             )}
           </CommandList>
