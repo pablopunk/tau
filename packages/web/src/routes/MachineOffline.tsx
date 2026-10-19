@@ -2,7 +2,7 @@ import type { Machine } from "@tau/protocol";
 import { Link } from "react-router";
 import { Button } from "@/components/ui/button";
 import { CopyButton } from "@/components/ui/copy-button";
-import { MachineDot } from "@/components/ui/machine-row";
+import { MachineAvatar } from "@/components/ui/machine-avatar";
 import { agoText, updateCommand } from "@/machines/machine-text";
 
 function OfflineBody({ machine }: { machine: Machine }) {
@@ -40,7 +40,7 @@ export function MachineOffline({ machine }: { machine: Machine }) {
       data-testid="machine-offline"
       className="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center"
     >
-      <MachineDot status={machine.status} className="size-3" />
+      <MachineAvatar os={machine.os} status={machine.status} className="size-6" />
       <OfflineBody machine={machine} />
       <Button asChild variant="outline" size="sm">
         <Link to="/">Back to new thread</Link>

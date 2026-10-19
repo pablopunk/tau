@@ -106,7 +106,7 @@ export function machinesCases(make: MakeContractTarget, test: CaseRunner): void 
 
     test("[machines] the hub link starts as none, follows reportLink and announces it", async () => {
       const { core } = target;
-      expect(await core.machines.hubState()).toEqual(HUB_LINK_NONE);
+      expect(await core.machines.hubState()).toMatchObject(HUB_LINK_NONE);
       const { changes, stop } = collectChanges(core);
       const linked = {
         state: "linked",
@@ -117,10 +117,10 @@ export function machinesCases(make: MakeContractTarget, test: CaseRunner): void 
       } as const;
       core.machines.reportLink(linked);
       stop();
-      expect(await core.machines.hubState()).toEqual(linked);
+      expect(await core.machines.hubState()).toMatchObject(linked);
       expect(changes).toContainEqual({ resource: "machines" });
       await core.machines.disconnectHub();
-      expect(await core.machines.hubState()).toEqual(HUB_LINK_NONE);
+      expect(await core.machines.hubState()).toMatchObject(HUB_LINK_NONE);
     });
   });
 }

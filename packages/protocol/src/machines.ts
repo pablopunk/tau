@@ -46,6 +46,8 @@ export const HubLinkSchema = Type.Object({
   since: Type.Union([Type.Number(), Type.Null()]),
   /** A neutral sentence for the user ("Hub unreachable", "Update tau on the hub"). */
   message: Type.Union([Type.String(), Type.Null()]),
+  /** The OS of this tau itself ("darwin arm64"), set by core on every read. */
+  os: Type.Optional(Type.String()),
 });
 export type HubLink = Type.Static<typeof HubLinkSchema>;
 

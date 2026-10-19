@@ -11,6 +11,7 @@ import {
   CommandList,
   CommandShortcut,
 } from "@/components/ui/command";
+import { MachineAvatar } from "@/components/ui/machine-avatar";
 import { useSidebar } from "@/components/ui/sidebar";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useHotkey } from "@/lib/hotkeys";
@@ -52,6 +53,7 @@ function MachineFilter({
       <ToggleGroupItem value={ALL_MACHINES}>All machines</ToggleGroupItem>
       {machines.map((machine) => (
         <ToggleGroupItem key={machineKeyOf(machine.machineId)} value={machineKeyOf(machine.machineId)}>
+          <MachineAvatar os={machine.os} status={machine.status} />
           {machine.name}
         </ToggleGroupItem>
       ))}

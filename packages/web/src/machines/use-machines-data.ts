@@ -1,11 +1,12 @@
 import { useQueries } from "@tanstack/react-query";
-import type { ConversationSummary, Project } from "@tau/protocol";
+import type { ConversationSummary, MachineStatus, Project } from "@tau/protocol";
 import { useMemo } from "react";
 import { byActivity, queryKeys } from "@/lib/queries";
 import { useHubQueryClient } from "./hub-client";
 import { useMachines } from "./MachineRegistry";
 import { apiOfMachine } from "./machine-apis";
 import { isUsable } from "./machine-text";
+import { useHubOs } from "./use-machine-avatar";
 import { LOCAL_MACHINE_NAME } from "./use-machine-name";
 
 const REMOTE_REFRESH_MS = 15_000;
@@ -14,6 +15,8 @@ export interface MachineData {
   /** `undefined`: the hub's own machine. */
   readonly machineId: string | undefined;
   readonly name: string;
+  readonly os: string | undefined;
+  readonly status: MachineStatus;
   readonly projects: readonly Project[];
   readonly conversations: readonly ConversationSummary[];
 }
@@ -27,6 +30,7 @@ export interface MachineData {
 export function useMachinesData(): MachineData[] {
   const { machines } = useMachines();
   const hub = useHubQueryClient();
+  const hubOs = useHubOs();
   const localApi = apiOfMachine();
   const remote = machines.filter(isUsable);
   const results = useQueries(
@@ -60,6 +64,8 @@ export function useMachinesData(): MachineData[] {
     const local: MachineData = {
       machineId: undefined,
       name: LOCAL_MACHINE_NAME,
+      os: hubOs,
+      status: "online",
       projects: (results[0]?.data as Project[] | undefined) ?? [],
       conversations: (results[1]?.data as ConversationSummary[] | undefined) ?? [],
     };
@@ -67,10 +73,12 @@ export function useMachinesData(): MachineData[] {
       return {
         machineId: machine.id,
         name: machine.name,
+        os: machine.os,
+        status: machine.status,
         projects: (results[2 + index * 2]?.data as Project[] | undefined) ?? [],
         conversations: (results[3 + index * 2]?.data as ConversationSummary[] | undefined) ?? [],
       };
     });
     return [local, ...others];
-  }, [signature, remoteKey]);
+  }, [signature, remoteKey, hubOs]);
 }

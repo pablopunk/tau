@@ -9,14 +9,8 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { CopyButton } from "@/components/ui/copy-button";
 import { FieldDescription, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import {
-  MachineDot,
-  MachineList,
-  MachineOsIcon,
-  MachineRow,
-  MachineRowActions,
-  MachineRowBody,
-} from "@/components/ui/machine-row";
+import { MachineAvatar } from "@/components/ui/machine-avatar";
+import { MachineList, MachineRow, MachineRowActions, MachineRowBody } from "@/components/ui/machine-row";
 import { SettingRow } from "@/components/ui/settings-layout";
 import { useAllConversations, useDisconnectMachine, useHubLink, useRenameMachine } from "@/lib/queries";
 import { useMachines } from "@/machines";
@@ -92,7 +86,6 @@ function MachineItem({
   const [renaming, setRenaming] = useState(false);
   return (
     <MachineRow data-machine-id={machine.id}>
-      <MachineOsIcon os={machine.os} />
       {renaming ? (
         <div className="min-w-0 flex-1">
           <RenameForm machine={machine} onDone={() => setRenaming(false)} />
@@ -101,7 +94,7 @@ function MachineItem({
         <>
           <MachineRowBody>
             <span className="flex min-w-0 items-center gap-2 text-sm font-medium">
-              <MachineDot status={machine.status} />
+              <MachineAvatar os={machine.os} status={machine.status} />
               <span className="truncate">{machine.name}</span>
             </span>
             <span className="text-xs text-muted-foreground">
@@ -149,10 +142,9 @@ function ThisMachineRow() {
   const hubName = link && link.state !== "none" ? (link.hubName ?? link.hubUrl ?? "a hub") : null;
   return (
     <MachineRow data-machine-id="local">
-      <MachineOsIcon os="" />
       <MachineRowBody>
         <span className="flex min-w-0 items-center gap-2 text-sm font-medium">
-          <MachineDot status="online" />
+          <MachineAvatar os={link?.os} status="online" />
           <span className="truncate">This machine</span>
           {hubName ? null : <Badge variant="secondary">Hub</Badge>}
         </span>

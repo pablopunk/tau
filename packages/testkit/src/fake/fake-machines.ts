@@ -25,8 +25,8 @@ export interface FakeMachinesOptions {
 
 /** The two machines a hub with `machines: true` starts with: one online, one offline. */
 export const FAKE_MACHINE_SEEDS = [
-  { name: "Homelab", os: "linux", tauVersion: "0.0.0", threadCount: 3, status: "online" },
-  { name: "Work laptop", os: "darwin", tauVersion: "0.0.0", threadCount: 1, status: "offline" },
+  { name: "Homelab", os: "linux x64", tauVersion: "0.0.0", threadCount: 3, status: "online" },
+  { name: "Work laptop", os: "win32 x64", tauVersion: "0.0.0", threadCount: 1, status: "offline" },
 ] as const;
 
 /** A working in-memory registry, the executable spec for `core/src/machines`. */
@@ -60,7 +60,7 @@ export function createFakeMachines({ now, emit, access }: FakeMachinesOptions): 
       await access.revokeDevice(id);
       announce();
     },
-    hubState: async () => link,
+    hubState: async () => ({ ...link, os: "darwin arm64" }),
     async disconnectHub() {
       link = HUB_LINK_NONE;
       announce();

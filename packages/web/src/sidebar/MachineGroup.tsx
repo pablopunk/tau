@@ -2,8 +2,10 @@ import type { Machine } from "@tau/protocol";
 import { ChevronRightIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { MachineDot, type MachineDotStatus } from "@/components/ui/machine-row";
+import { MachineAvatar } from "@/components/ui/machine-avatar";
+import type { MachineDotStatus } from "@/components/ui/machine-row";
 import { SidebarGroup, SidebarGroupLabel } from "@/components/ui/sidebar";
+import { useHubOs } from "@/machines/use-machine-avatar";
 import { useCollapsedMachines } from "./use-sidebar-preferences";
 
 interface MachineGroupProps {
@@ -14,10 +16,12 @@ interface MachineGroupProps {
   children: ReactNode;
 }
 
-/** The header of one machine's group: online dot, name, collapsible. */
+/** The header of one machine's group: OS icon with status, name, collapsible. */
 export function MachineGroup({ machine, name, children }: MachineGroupProps) {
   const { isOpen, setOpen } = useCollapsedMachines();
   const key = machine?.id ?? "local";
+  const hubOs = useHubOs();
+  const os = machine ? machine.os : hubOs;
   const status: MachineDotStatus = machine?.status ?? "online";
   const open = isOpen(key);
   return (
@@ -26,7 +30,7 @@ export function MachineGroup({ machine, name, children }: MachineGroupProps) {
         <SidebarGroupLabel asChild>
           <CollapsibleTrigger className="w-full gap-1.5">
             <ChevronRightIcon className={open ? "rotate-90 transition-transform" : "transition-transform"} />
-            <MachineDot status={status} />
+            <MachineAvatar os={os} status={status} />
             <span className="truncate">{name}</span>
           </CollapsibleTrigger>
         </SidebarGroupLabel>

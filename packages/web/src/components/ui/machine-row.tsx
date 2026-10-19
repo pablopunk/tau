@@ -1,5 +1,4 @@
 import { cva } from "class-variance-authority"
-import { LaptopIcon, MonitorIcon, ServerIcon } from "lucide-react"
 import type * as React from "react"
 import { cn } from "@/lib/utils"
 
@@ -41,17 +40,6 @@ function MachineDot({
   )
 }
 
-function osIcon(os: string) {
-  if (os === "darwin" || os === "win32") return LaptopIcon
-  if (os === "linux") return ServerIcon
-  return MonitorIcon
-}
-
-function MachineOsIcon({ os }: { os: string }) {
-  const Icon = osIcon(os)
-  return <Icon aria-hidden className="size-4 shrink-0 text-muted-foreground" />
-}
-
 /** Rows inside one bordered container with dividers. */
 function MachineList({ className, ...props }: React.ComponentProps<"ul">) {
   return (
@@ -81,5 +69,5 @@ function MachineRowActions({ className, ...props }: React.ComponentProps<"div">)
   return <div className={cn("flex shrink-0 flex-wrap items-center justify-end gap-1 max-sm:w-full max-sm:justify-start", className)} {...props} />
 }
 
-export { MachineDot, MachineList, MachineOsIcon, MachineRow, MachineRowActions, MachineRowBody }
+export { MachineDot, MachineList, MachineRow, MachineRowActions, MachineRowBody }
 export type { MachineDotStatus }

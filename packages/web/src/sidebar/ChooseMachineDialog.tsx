@@ -1,6 +1,6 @@
-import { MonitorIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { MachineAvatar } from "@/components/ui/machine-avatar";
 import type { MachineData } from "@/machines";
 
 /** "Add project" with several machines asks first: whose disk is the folder on? */
@@ -28,7 +28,7 @@ export function ChooseMachineDialog({
               className="justify-start"
               onClick={() => onChoose(machine.machineId)}
             >
-              <MonitorIcon />
+              <MachineAvatar os={machine.os} status={machine.status} />
               {machine.name}
             </Button>
           ))}
