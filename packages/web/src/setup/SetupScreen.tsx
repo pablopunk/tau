@@ -66,17 +66,16 @@ export function SetupScreen({ keyConfigured, onUseOtherNodes }: SetupScreenProps
         </header>
         {onUseOtherNodes ? <UseOtherNodes onUse={onUseOtherNodes} /> : null}
         {onModelStep ? (
-          <ModelStep />
+          <ModelStep>
+            <ProjectsFolderField />
+          </ModelStep>
         ) : (
           <ConnectStep connected={keyConfigured} onContinue={() => setContinued(true)} />
         )}
         {onModelStep ? (
-          <>
-            <ProjectsFolderField />
-            <Button type="button" variant="ghost" onClick={() => setContinued(false)}>
-              Back to providers
-            </Button>
-          </>
+          <Button type="button" variant="ghost" onClick={() => setContinued(false)}>
+            Back to providers
+          </Button>
         ) : null}
       </div>
     </main>

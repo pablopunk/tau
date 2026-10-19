@@ -10,6 +10,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { homeRelative } from "@/lib/paths";
 
 interface RemoveProjectDialogProps {
   project: Project;
@@ -29,7 +30,8 @@ export function RemoveProjectDialog({ project, onConfirm, onClose }: RemoveProje
         <DialogHeader>
           <DialogTitle>Remove {project.name}?</DialogTitle>
           <DialogDescription>
-            The project and its conversations disappear from tau. Files in {project.path} stay untouched.
+            The project and its conversations disappear from tau. Files in {homeRelative(project.path)} stay
+            untouched.
           </DialogDescription>
         </DialogHeader>
         <FormError message={error} />
