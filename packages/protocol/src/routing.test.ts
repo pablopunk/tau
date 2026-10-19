@@ -7,7 +7,7 @@ const rec = (origin: string, ...neighbours: string[]): DirectoryRecord => ({
   live: true,
 });
 
-describe("computeRoutes", () => {
+describe("computeRoutes (pin r2: triangle and 16-node chain)", () => {
   it("routes C through B in a chain A-B-C with two hops", () => {
     const table = computeRoutes({ self: "a", links: ["b"], records: [rec("b", "a", "c"), rec("c", "b")] });
     expect(table.routes.get("b")).toEqual({ dest: "b", nextHop: "b", hops: 1 });
@@ -117,7 +117,7 @@ describe("cap of 16 (pin r5)", () => {
   });
 });
 
-describe("ttl and trail", () => {
+describe("ttl and trail (pin r2: a looping frame dies)", () => {
   it("clamps a bad ttl into [0, 16]", () => {
     expect(clampTtl(99)).toBe(16);
     expect(clampTtl(-4)).toBe(0);
