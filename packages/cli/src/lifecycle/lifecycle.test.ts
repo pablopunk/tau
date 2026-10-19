@@ -54,10 +54,13 @@ describe("bare tau", () => {
   });
 
   it("never serves in the foreground when tau runs from an npx cache", async () => {
-    const { node, deps } = setup({ instance: RUNNING });
+    const { node, deps, output } = setup({ instance: RUNNING });
     const cached = { ...deps, cli: () => ({ ...CLI, entry: "/h/.npm/_npx/9/tau/dist/bin.js" }) };
-    await expect(runBareWith(cached, [])).rejects.toThrow("Install tau globally first");
+    await runBareWith(cached, []);
+    expect(process.exitCode).toBe(1);
+    expect(output).toContain("Run: npx @pablopunk/tau");
     expect(node.runner.calls).toEqual([]);
+    process.exitCode = 0;
   });
 
   it("stores --port for the service", async () => {

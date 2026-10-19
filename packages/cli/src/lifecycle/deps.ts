@@ -1,3 +1,5 @@
+import { accessSync, constants } from "node:fs";
+import { join } from "node:path";
 import { type LockInfo, readRunningInstance } from "@tau/core";
 import { type CliEntry, cliEntry } from "../cli-entry";
 import { realContext, type ServiceContext } from "../service/context";
@@ -69,6 +71,21 @@ async function realBootstrapDeps(): Promise<BootstrapDeps> {
       }
     },
     realpath: realpathSync,
-    nodeOnPath: () => undefined,
+    nodeOnPath: () => nodeOnPath(process.env.PATH, process.platform),
   };
+}
+
+export function nodeOnPath(path: string | undefined, platform: NodeJS.Platform): string | undefined {
+  const name = platform === "win32" ? "node.exe" : "node";
+  for (const dir of (path ?? "").split(platform === "win32" ? ";" : ":")) {
+    if (!dir) continue;
+    const candidate = join(dir, name);
+    try {
+      accessSync(candidate, constants.X_OK);
+      return candidate;
+    } catch {
+      // next
+    }
+  }
+  return undefined;
 }

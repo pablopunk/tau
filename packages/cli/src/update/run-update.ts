@@ -1,6 +1,7 @@
 import { compareVersions } from "@tau/protocol";
 import { lifecycleFlagsOf } from "../lifecycle/flags";
 import { gatherStatus } from "../lifecycle/status";
+import { globalPackageDir } from "./global-package";
 import { entryOfPackage, type InstallMethod, installMethodOf } from "./install-method";
 import { linkedNodesLine } from "./nodes-behind";
 import { restartInNewBinary } from "./restart-step";
@@ -33,15 +34,9 @@ async function planOf(deps: UpdateDeps, target: string): Promise<Plan | string> 
   }
   const install = { ...method.install, manual: method.manualCommand };
   if (method.kind === "npm") return { packageDir: method.packageDir, install, hint: method.hint };
-  const root = await deps.runCommand("pnpm", ["root", "-g"], { stdio: "capture", timeoutMs: 15_000 });
-  const dir = root.stdout.trim();
-  if (root.code !== 0 || !dir)
-    return `Could not find the pnpm global directory.\nRun: ${method.manualCommand}`;
-  try {
-    return { packageDir: deps.realpath(`${dir}/@pablopunk/tau`), install };
-  } catch {
-    return `Could not find the pnpm global package.\nRun: ${method.manualCommand}`;
-  }
+  const packageDir = await globalPackageDir(deps, "pnpm");
+  if (!packageDir) return `Could not find the pnpm global package.\nRun: ${method.manualCommand}`;
+  return { packageDir, install };
 }
 
 async function refusalForRunningWork(deps: UpdateDeps, home: string): Promise<string | undefined> {
@@ -135,7 +130,7 @@ export async function runUpdateWith(deps: UpdateDeps, argv: readonly string[]): 
     return 1;
   }
   const running = (await gatherStatus(deps, home)).running;
-  if (running === "service" && !flags.noRestart && !flags.force) {
+  if ((running === "service" || running === "background") && !flags.noRestart && !flags.force) {
     const refusal = await refusalForRunningWork(deps, home);
     if (refusal) {
       deps.err(refusal);

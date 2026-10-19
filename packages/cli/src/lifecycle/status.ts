@@ -18,6 +18,12 @@ export interface StatusReport {
   readonly tunnel: StatusExtras["tunnel"];
 }
 
+const RUNNING_WORDING = {
+  service: "service",
+  background: "background, not a service: it stops at reboot, run `tau` to install it",
+  foreground: "foreground",
+} as const;
+
 const runningKindOf = (isService: boolean, isBackground: boolean): "service" | "background" | "foreground" =>
   isService ? "service" : isBackground ? "background" : "foreground";
 
@@ -58,7 +64,7 @@ export async function gatherStatus(deps: LifecycleDeps, home: string): Promise<S
 }
 
 export function renderStatus(report: StatusReport): string {
-  const running = report.running ? `running (${report.running})` : "not running";
+  const running = report.running ? `running (${RUNNING_WORDING[report.running]})` : "not running";
   return [
     `tau: ${running}`,
     `installed: ${report.installed ? "yes" : "no"}`,
