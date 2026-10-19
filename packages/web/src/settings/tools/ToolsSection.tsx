@@ -1,6 +1,5 @@
 import type { McpServerStatus } from "@tau/protocol";
 import { useState } from "react";
-import { useOpenConversation } from "@/activity/use-open-conversation";
 import { FormError } from "@/app/FormError";
 import { Button } from "@/components/ui/button";
 import { FieldDescription } from "@/components/ui/field";
@@ -39,15 +38,14 @@ function ServerList({
   );
 }
 
+/** This node's own MCP servers. A project's own `.mcp.json` servers are supported automatically, not a setting. */
 export function ToolsSection() {
-  const { projectId } = useOpenConversation();
-  const servers = useMcpServers(projectId ?? null);
+  const servers = useMcpServers(null);
   const [dialog, setDialog] = useState<DialogState>(null);
 
   if (servers.isError) return <FormError message={errorMessage(servers.error)} />;
   if (servers.isPending) return <Skeleton className="h-9 w-full" />;
   const mine = servers.data.filter((server) => server.source === "settings");
-  const fromProject = servers.data.filter((server) => server.source === "project");
 
   return (
     <div className="flex flex-col gap-6">
@@ -68,7 +66,6 @@ export function ToolsSection() {
         {mine.length === 0 ? <FieldDescription>No servers added yet.</FieldDescription> : null}
       </SettingRow>
       <ServerList title="Your servers" servers={mine} onEdit={(name) => setDialog({ editing: name })} />
-      <ServerList title="From this project's .mcp.json" servers={fromProject} />
       <ClaudeConnectorsSection />
       {dialog ? <McpServerDialog editing={dialog.editing} onClose={() => setDialog(null)} /> : null}
     </div>

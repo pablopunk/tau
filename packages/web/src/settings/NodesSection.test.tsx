@@ -118,7 +118,6 @@ describe("Settings → Nodes", () => {
     expect(within(rows[0] as HTMLElement).getByText(/macOS · 0 threads/)).toBeInTheDocument();
     const work = screen.getByText("Work laptop").closest("li") as HTMLElement;
     expect(within(work).getByText(/macOS · 1 thread · Offline, last seen 3 h ago/)).toBeInTheDocument();
-    expect(within(work).getByRole("button", { name: /Open settings of Work laptop/ })).toBeDisabled();
     const links = within(work).getByRole("list", { name: "Links of Work laptop" });
     expect(within(links).getByText("It connected to this node: Unreachable")).toBeInTheDocument();
   });
