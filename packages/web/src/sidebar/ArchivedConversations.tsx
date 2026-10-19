@@ -1,5 +1,5 @@
 import type { ConversationSummary, Project } from "@tau/protocol";
-import { Trash2Icon } from "lucide-react";
+import { ArchiveIcon, Trash2Icon } from "lucide-react";
 import { Fragment, useState } from "react";
 import { toast } from "sonner";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -29,6 +29,7 @@ export function ArchivedConversations({
   return (
     <Collapsible>
       <CollapsibleTrigger className="flex w-full cursor-pointer items-center gap-1 rounded-md px-2 py-1 text-xs text-muted-foreground hover:bg-sidebar-accent">
+        <ArchiveIcon className="size-3.5" />
         Archived ({conversations.length})
       </CollapsibleTrigger>
       {confirming && <DeleteArchivedDialog archived={topLevel} onClose={() => setConfirming(false)} />}
