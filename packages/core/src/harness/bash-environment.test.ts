@@ -1,7 +1,7 @@
 import { mkdir, mkdtemp, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { delimiter, join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { tauShellEnvironment } from "./coding-tools";
 import { callPrompt, openRig, type Rig } from "./subagent-test-support";
 
@@ -40,7 +40,8 @@ describe("bash TAU_THREAD_ID", () => {
     await rig.idle(child.id);
     const listedIds = (await rig.store.list(rig.project.id)).map((thread) => thread.id);
     expect(listedIds).toContain(child.id);
-    expect(printedId(await rig.toolOutputs(child.id))).toBe(child.id);
+    // The tool output can land a moment after the thread reports idle when the machine is busy.
+    await vi.waitFor(async () => expect(printedId(await rig.toolOutputs(child.id))).toBe(child.id));
     expect(child.id).not.toBe(parent.id);
   });
 });
