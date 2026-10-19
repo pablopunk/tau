@@ -133,7 +133,7 @@ export function createFakeMcpState(input: FakeMcpInput): FakeMcpState {
       const loadedMcpToolCounts: Record<string, number> = {};
       for (const { server } of loadedConnectorTools())
         loadedMcpToolCounts[server] = (loadedMcpToolCounts[server] ?? 0) + 1;
-      return { memoryFileCount: 0, loadedMcpToolCounts };
+      return { memoryFileCount: 0, loadedMcpToolCounts, totalTokens: 0, mcpTokens: 0, deferredMcpTokens: 0 };
     },
     activeToolNames: () => loadedConnectorTools().map(({ server, tool }) => connectorCliName(server, tool)),
   };

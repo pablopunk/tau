@@ -1,5 +1,6 @@
 import { tmpdir } from "node:os";
 import { createClaudeInput } from "../claude-input";
+import { supportsToolSearch } from "../connectors/tool-search";
 import type { ClaudeContentBlock, ClaudeQuery, ClaudeSdkPort, ClaudeToolHost } from "../sdk-types";
 import type { Binding } from "./binding";
 import { type CallContext, headOf } from "./call-context";
@@ -57,10 +58,10 @@ interface ConnectorSetup {
   readonly choice: ConnectorChoice;
 }
 
-async function setupConnectors(rt: Runtime, port: ClaudeSdkPort): Promise<ConnectorSetup> {
+async function setupConnectors(rt: Runtime, port: ClaudeSdkPort, model: string): Promise<ConnectorSetup> {
   const settings = await connectorSettingsOf(rt);
   const key = optionsKeyOf(settings);
-  if (!settings) return { key, choice: NO_CONNECTORS };
+  if (!settings || !supportsToolSearch(model)) return { key, choice: NO_CONNECTORS };
   return { key, choice: chooseConnectors(settings, await readConnectorStatus(rt, port)) };
 }
 
@@ -103,7 +104,7 @@ export async function launchQuery(
 ): Promise<void> {
   const port = await rt.port();
   if (binding.listener?.isSettled()) return;
-  const { key, choice } = await setupConnectors(rt, port);
+  const { key, choice } = await setupConnectors(rt, port, call.modelValue);
   if (binding.listener?.isSettled()) return;
   const input = createClaudeInput();
   binding.tools = call.tools;

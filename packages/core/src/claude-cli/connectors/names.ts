@@ -47,3 +47,19 @@ export function parseConnectorToolName(cliToolName: string): ConnectorCall | nul
 export const serverLabelOf = (server: string): string => server.replaceAll("_", " ");
 
 export const isClaudeAiServer = (statusName: string): boolean => statusName.startsWith(SERVER_NAME_PREFIX);
+
+/** The CLI's built-in tool that loads deferred connector schemas on demand. */
+export const TOOL_SEARCH_CLI_NAME = "ToolSearch";
+
+/** `server` of the `claude_connector` step a `ToolSearch` call becomes; the web shows it as a small lookup step. */
+export const TOOL_SEARCH_SERVER = "Tool search";
+
+/** The CLI runs these itself and tau only observes them: connector tools and `ToolSearch`. */
+export const isObservedToolName = (cliToolName: string): boolean =>
+  cliToolName === TOOL_SEARCH_CLI_NAME || isConnectorToolName(cliToolName);
+
+/** The `claude_connector` call an observed CLI tool call is shown as. */
+export const observedCallOf = (cliToolName: string): ConnectorCall | null =>
+  cliToolName === TOOL_SEARCH_CLI_NAME
+    ? { server: TOOL_SEARCH_SERVER, tool: "search" }
+    : parseConnectorToolName(cliToolName);

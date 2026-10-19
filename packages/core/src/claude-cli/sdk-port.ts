@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { runAuthStatus } from "./auth-status";
+import { TOOL_SEARCH_CLI_NAME } from "./connectors/names";
 import { ClaudeSdkMissingError } from "./sdk-missing";
 import type {
   ClaudeAccountInfo,
@@ -34,18 +35,44 @@ interface SdkMcpStatus {
   tools?: { name: string; annotations?: { readOnly?: boolean } }[];
 }
 
+interface SdkContextCategory {
+  name: string;
+  tokens: number;
+  kind?: "used" | "free" | "buffer" | "deferred";
+}
+
 interface SdkContextUsage {
   isAutoCompactEnabled: boolean;
+  totalTokens?: number;
+  categories?: SdkContextCategory[];
   memoryFiles: { tokens: number }[];
   mcpTools: { serverName: string; isLoaded?: boolean }[];
 }
 
-const toContextSummary = (usage: SdkContextUsage): ClaudeContextSummary => {
+const isMcpRow = (category: SdkContextCategory): boolean => category.name.startsWith("MCP tools");
+
+const mcpTokensOf = (usage: SdkContextUsage, kind: "used" | "deferred"): number =>
+  (usage.categories ?? [])
+    .filter((category) => isMcpRow(category) && category.kind === kind)
+    .reduce((sum, category) => sum + category.tokens, 0);
+
+/** `isLoaded` is false for most tools even when they sit in the window, so the deferred row decides. */
+const isInWindow = (tool: SdkContextUsage["mcpTools"][number], deferredTokens: number): boolean =>
+  deferredTokens === 0 || tool.isLoaded === true;
+
+export const toContextSummary = (usage: SdkContextUsage): ClaudeContextSummary => {
+  const deferredMcpTokens = mcpTokensOf(usage, "deferred");
   const loadedMcpToolCounts: Record<string, number> = {};
   for (const tool of usage.mcpTools)
-    if (tool.isLoaded !== false)
+    if (isInWindow(tool, deferredMcpTokens))
       loadedMcpToolCounts[tool.serverName] = (loadedMcpToolCounts[tool.serverName] ?? 0) + 1;
-  return { memoryFileCount: usage.memoryFiles.length, loadedMcpToolCounts };
+  return {
+    memoryFileCount: usage.memoryFiles.length,
+    loadedMcpToolCounts,
+    totalTokens: usage.totalTokens ?? 0,
+    mcpTokens: mcpTokensOf(usage, "used"),
+    deferredMcpTokens,
+  };
 };
 
 interface SdkPermissionOptions {
@@ -141,7 +168,7 @@ function wrapQuery(query: SdkQuery, exposeToggle: boolean): ClaudeQuery {
 const probeOptions = (options: ClaudeProbeOptions): Record<string, unknown> => ({
   cwd: tmpdir(),
   settingSources: options.settingSources ?? [],
-  tools: [],
+  tools: [TOOL_SEARCH_CLI_NAME],
   strictMcpConfig: false,
   settings: { disableClaudeAiConnectors: false },
   permissionMode: "dontAsk",

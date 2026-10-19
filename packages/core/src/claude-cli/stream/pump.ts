@@ -1,4 +1,4 @@
-import { isConnectorToolName } from "../connectors/names";
+import { isObservedToolName } from "../connectors/names";
 import type { RateLimitInfo } from "../plan-usage";
 import type { ClaudeQuery, ClaudeSdkMessage } from "../sdk-types";
 import type { Binding } from "./binding";
@@ -78,7 +78,7 @@ const toolUseBlocksOf = (message: ClaudeSdkMessage): ToolUseBlock[] => {
 /** A connector id must be known when its result arrives, even while the call still sits in the inbox. */
 function noteConnectorCalls(binding: Binding, message: ClaudeSdkMessage): void {
   for (const block of toolUseBlocksOf(message)) {
-    if (block.type !== "tool_use" || !block.id || !isConnectorToolName(block.name ?? "")) continue;
+    if (block.type !== "tool_use" || !block.id || !isObservedToolName(block.name ?? "")) continue;
     if (binding.connectorIds.has(block.id)) continue;
     binding.connectorIds.add(block.id);
     binding.openConnectorIds.add(block.id);

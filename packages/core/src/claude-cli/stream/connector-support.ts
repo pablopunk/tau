@@ -89,3 +89,11 @@ export async function advanceUntil(harness: Harness, done: () => boolean): Promi
     await tick();
   }
 }
+
+/** The CLI's `ToolSearch` call, which loads deferred connector tools; the fake CLI runs it itself. */
+export const toolSearchStep = (result = "tool references"): FakeStep => ({
+  kind: "tools",
+  calls: [
+    { name: "ToolSearch", builtin: true, arguments: { query: "linear" }, connector: { server: "", result } },
+  ],
+});

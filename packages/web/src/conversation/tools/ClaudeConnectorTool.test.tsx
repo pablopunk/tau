@@ -8,6 +8,10 @@ describe("claude connector tool", () => {
     expect(connectorLabel("Linear", "list")).toBe("Linear · list");
   });
 
+  it("labels the tool search step as a lookup, not a connector", () => {
+    expect(connectorLabel("Tool search", "search")).toBe("Looked up connector tools");
+  });
+
   it("explains the unavailable error", () => {
     expect(connectorOutput("Tool claude_connector is not available for this model")).toBe(
       "Claude connectors need a Claude CLI model",

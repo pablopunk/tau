@@ -1,5 +1,5 @@
 import type { AssistantMessage, AssistantMessageEvent, ToolCall } from "@earendil-works/pi-ai";
-import { CONNECTOR_TOOL_NAME, type ConnectorCall, parseConnectorToolName } from "../connectors/names";
+import { CONNECTOR_TOOL_NAME, type ConnectorCall, observedCallOf } from "../connectors/names";
 import type { ClaudeSdkMessage } from "../sdk-types";
 import { TOOL_NAME_PREFIX } from "../tool-server";
 import { mergeUsage, type RawUsage } from "./usage";
@@ -102,7 +102,7 @@ export function createApiMessageReader(
     blocksStarted += 1;
     const contentIndex = message.content.length;
     if (block.type === "tool_use") {
-      const connector = parseConnectorToolName(block.name ?? "") ?? undefined;
+      const connector = observedCallOf(block.name ?? "") ?? undefined;
       const call: ToolCall = {
         type: "toolCall",
         id: block.id ?? "",

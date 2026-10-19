@@ -9,8 +9,14 @@ import type { ToolRendererProps } from "./types";
 const UNAVAILABLE_PREFIX = "Tool claude_connector is not available";
 const UNAVAILABLE_TEXT = "Claude connectors need a Claude CLI model";
 
+/** The `server` core gives the step a `ToolSearch` call becomes (core: `TOOL_SEARCH_SERVER`). */
+const TOOL_SEARCH_SERVER = "Tool search";
+const TOOL_SEARCH_LABEL = "Looked up connector tools";
+
 export const connectorLabel = (server: string | undefined, tool: string | undefined): string =>
-  `${(server ?? "?").replace(/^claude\.ai /, "")} · ${tool ?? "?"}`;
+  server === TOOL_SEARCH_SERVER
+    ? TOOL_SEARCH_LABEL
+    : `${(server ?? "?").replace(/^claude\.ai /, "")} · ${tool ?? "?"}`;
 
 export const connectorOutput = (text: string): string =>
   text.startsWith(UNAVAILABLE_PREFIX) ? UNAVAILABLE_TEXT : text;

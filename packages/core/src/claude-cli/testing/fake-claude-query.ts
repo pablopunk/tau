@@ -96,7 +96,11 @@ const deniedText = (toolName: string) => `Permission to use ${toolName} has been
 const unavailableText = (toolName: string) => `Error: No such tool available: ${toolName}`;
 
 const cliNameOf = (use: FakeToolUse): string =>
-  use.connector ? connectorCliName(use.connector.server, use.name) : `${TOOL_NAME_PREFIX}${use.name}`;
+  use.builtin
+    ? use.name
+    : use.connector
+      ? connectorCliName(use.connector.server, use.name)
+      : `${TOOL_NAME_PREFIX}${use.name}`;
 
 export function createFakeQuery(deps: FakeQueryDeps): ClaudeQuery {
   const { options, record, script, ids } = deps;
@@ -198,7 +202,7 @@ export function createFakeQuery(deps: FakeQueryDeps): ClaudeQuery {
     const toolName = cliNameOf(use);
     const call: ConnectorCallRecord = { toolName, toolUseId, ran: false };
     record.connectorCalls.push(call);
-    if (!mcp.activeToolNames().includes(toolName)) {
+    if (!use.builtin && !mcp.activeToolNames().includes(toolName)) {
       emitToolResult(toolUseId, unavailableText(toolName), true);
       return "done";
     }

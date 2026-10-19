@@ -6,6 +6,8 @@ export interface FakeToolUse {
   readonly arguments?: Record<string, unknown>;
   /** Set: the fake CLI runs this call itself (a connector). The next steps follow with no input, as the real CLI does. */
   readonly connector?: FakeConnectorRun;
+  /** Set with `connector`: a CLI built-in such as `ToolSearch`, named as is and always active. */
+  readonly builtin?: boolean;
 }
 
 export interface FakeRateLimit {

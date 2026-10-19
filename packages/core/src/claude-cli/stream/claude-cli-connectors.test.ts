@@ -13,11 +13,13 @@ import {
   linearAsking,
   linearOnly,
   SLACK,
+  toolSearchStep,
 } from "./connector-support";
 import {
   ask,
   createHarness,
   getWord,
+  modelNamed,
   systemMessage,
   textOfMessage,
   toolCallsOf,
@@ -42,6 +44,7 @@ describe("query options", () => {
     expect(options.settings.disableClaudeAiConnectors).toBe(true);
     expect(options.canUseTool).toBeUndefined();
     expect(options.disallowedTools).toBeUndefined();
+    expect(options.tools).toEqual([]);
   });
 
   it("opens the connectors with exact read-only names, no server glob and the others disallowed", async () => {
@@ -52,8 +55,10 @@ describe("query options", () => {
     const options = harness.fake.queries[0]?.options as ClaudeQueryOptions;
     expect(options).toMatchObject({ strictMcpConfig: false, permissionMode: "default" });
     expect(options.settings.disableClaudeAiConnectors).toBe(false);
+    expect(options.tools).toEqual(["ToolSearch"]);
     expect(options.allowedTools).toEqual([
       "mcp__tau__*",
+      "ToolSearch",
       "mcp__claude_ai_Linear__list_teams",
       "mcp__claude_ai_Linear__get_issue",
       "mcp__claude_ai_Linear__save_comment",
@@ -212,6 +217,63 @@ describe("observed connector calls", () => {
     const texts = harness.fake.queries[0]?.toolResults.map((result) => result.text);
     expect(texts).toEqual(["banana", "33"]);
     expect(harness.fake.queries[0]?.inputs).toEqual(["go"]);
+  });
+});
+
+describe("all connectors on by default", () => {
+  it("chooses every connected server and disallows none of them", async () => {
+    const harness = connectorHarness({
+      connectorSettings: { disabled: [], alwaysAllow: [], askBeforeWrites: true },
+      connectorStatus: connectedStatuses,
+    });
+    await ask(harness, base());
+    const options = harness.fake.queries[0]?.options as ClaudeQueryOptions;
+    expect(options.allowedTools).toEqual(
+      expect.arrayContaining([
+        "mcp__claude_ai_Linear__list_teams",
+        "mcp__claude_ai_Slack__slack_search_public",
+      ]),
+    );
+    expect(options.allowedTools).not.toContain("mcp__claude_ai_Slack__slack_send_message");
+    expect(options.disallowedTools).toEqual(["mcp__claude_ai_Notion__*"]);
+  });
+
+  it("keeps a legacy model without tool_reference support locked down", async () => {
+    const harness = connectorHarness({
+      connectorSettings: { disabled: [], alwaysAllow: [], askBeforeWrites: false },
+      connectorStatus: connectedStatuses,
+    });
+    await ask(harness, base(), { sessionId: "thread-1" }, modelNamed("claude-3-5-haiku-latest"));
+    const options = harness.fake.queries[0]?.options as ClaudeQueryOptions;
+    expect(options).toMatchObject({ strictMcpConfig: true, tools: [] });
+  });
+});
+
+describe("tool search", () => {
+  it("shows a ToolSearch call as a claude_connector step and settles its result", async () => {
+    const harness = connectorHarness({
+      script: scriptOf([[toolSearchStep("refs"), { kind: "text", text: "done" }]]),
+    });
+    const first = await ask(harness, base());
+    const [search] = toolCallsOf(first.message);
+    expect(search).toMatchObject({
+      name: CONNECTOR_TOOL_NAME,
+      arguments: { server: "Tool search", tool: "search", arguments: { query: "linear" } },
+    });
+    await waitFor(() => harness.observed.settled.has(search?.id ?? ""));
+    expect(harness.observed.settled.get(search?.id ?? "")?.content).toEqual([{ type: "text", text: "refs" }]);
+    expect(harness.fake.queries[0]?.permissionRequests).toEqual([]);
+  });
+
+  it("continues like a connector call: the CLI owns the next message", async () => {
+    const harness = connectorHarness({
+      script: scriptOf([[toolSearchStep(), { kind: "text", text: "found it" }]]),
+    });
+    const first = await ask(harness, base());
+    const [search] = toolCallsOf(first.message);
+    const second = await ask(harness, [...base(), first.message, toolResultFor(search as ToolCall, "")]);
+    expect(textOfMessage(second.message)).toBe("found it");
+    expect(harness.fake.queries).toHaveLength(1);
   });
 });
 
@@ -413,6 +475,20 @@ describe("waiting for connectors", () => {
     await advanceUntil(harness, () => (harness.fake.queries[0]?.inputs.length ?? 0) === 1);
     expect((await asked).message.stopReason).toBe("stop");
     expect(harness.late).toEqual([]);
+  });
+
+  it("with the all-on default holds turn 1 for every connected connector and reports each late one", async () => {
+    const harness = connectorHarness({
+      connectorSettings: { disabled: [], alwaysAllow: [], askBeforeWrites: false },
+      pendingPolls: 10_000,
+      connectorStatus: connectedStatuses,
+    });
+    const asked = ask(harness, base());
+    await waitFor(() => harness.fake.queries.length === 1);
+    expect(harness.fake.queries[0]?.inputs).toEqual([]);
+    await advanceUntil(harness, () => (harness.fake.queries[0]?.inputs.length ?? 0) === 1);
+    await asked;
+    expect(harness.late).toEqual([[`${LINEAR}: pending`, `${SLACK}: pending`]]);
   });
 
   it("goes on after 10 s and reports the late servers", async () => {

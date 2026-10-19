@@ -5,6 +5,8 @@ import {
   connectorServerOf,
   connectorToolPrefixOf,
   isConnectorToolName,
+  isObservedToolName,
+  observedCallOf,
   parseConnectorToolName,
   serverLabelOf,
 } from "./names";
@@ -35,5 +37,17 @@ describe("connector names", () => {
     expect(isConnectorToolName("mcp__claude_ai_Linear__")).toBe(false);
     expect(isConnectorToolName("bash")).toBe(false);
     expect(isConnectorToolName("mcp__claude_ai_Linear__list_teams")).toBe(true);
+  });
+
+  it("observes ToolSearch as a lookup step but never as a connector tool", () => {
+    expect(isConnectorToolName("ToolSearch")).toBe(false);
+    expect(isObservedToolName("ToolSearch")).toBe(true);
+    expect(isObservedToolName("mcp__claude_ai_Linear__list_teams")).toBe(true);
+    expect(isObservedToolName("mcp__tau__get_word")).toBe(false);
+    expect(observedCallOf("ToolSearch")).toEqual({ server: "Tool search", tool: "search" });
+    expect(observedCallOf("mcp__claude_ai_Linear__list_teams")).toEqual({
+      server: "Linear",
+      tool: "list_teams",
+    });
   });
 });

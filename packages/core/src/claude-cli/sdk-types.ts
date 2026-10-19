@@ -141,7 +141,13 @@ export interface ClaudeMcpControl {
 
 export interface ClaudeContextSummary {
   readonly memoryFileCount: number;
+  /** MCP tools whose schemas are in the window (not deferred behind tool search). */
   readonly loadedMcpToolCounts: Readonly<Record<string, number>>;
+  readonly totalTokens: number;
+  /** Tokens of the "MCP tools" rows that occupy the window. */
+  readonly mcpTokens: number;
+  /** Tokens of the "MCP tools (deferred)" row: out of the window until `ToolSearch` loads them. */
+  readonly deferredMcpTokens: number;
 }
 
 export interface ClaudeProbeOptions {

@@ -1,3 +1,4 @@
+import { TOOL_SEARCH_CLI_NAME } from "../connectors/names";
 import type {
   ClaudeCanUseTool,
   ClaudeEffort,
@@ -54,7 +55,7 @@ const connectorOptions = (tauTools: readonly string[], connectors: ConnectorQuer
   strictMcpConfig: false,
   settings: { disableClaudeAiConnectors: false, autoCompactEnabled: false },
   permissionMode: "default" as const,
-  allowedTools: [...new Set([...tauTools, ...connectors.allowedTools])],
+  allowedTools: [...new Set([...tauTools, TOOL_SEARCH_CLI_NAME, ...connectors.allowedTools])],
   canUseTool: connectors.canUseTool,
   ...(connectors.disallowedTools.length > 0 && { disallowedTools: connectors.disallowedTools }),
 });
@@ -76,7 +77,7 @@ export function buildQueryOptions(input: QueryOptionsInput): ClaudeQueryOptions 
     systemPrompt: input.systemPrompt,
     env: withoutApiKeys(input.env),
     title: input.title,
-    tools: [],
+    tools: input.connectors ? [TOOL_SEARCH_CLI_NAME] : [],
     settingSources: [],
     includePartialMessages: true,
     ...(input.connectors ? connectorOptions(tauTools, input.connectors) : lockedDownOptions(tauTools)),
