@@ -26,8 +26,10 @@ interface SidebarThreadRowProps extends Omit<React.ComponentProps<"li">, "title"
   flipId?: string
   /** A one-line row without the context line, for a child thread. */
   compact?: boolean
-  /** Tree decoration drawn over the row, e.g. a `TreeBranch`, `TreeTrunk` or `TreeToggle`. */
+  /** Tree decoration drawn over the row, e.g. a `TreeBranch`. */
   decoration?: React.ReactNode
+  /** Turns the avatar into a toggle for the row's children: clicking it runs this instead of following the link. */
+  avatarToggle?: { expanded: boolean; label: string; onToggle: () => void }
 }
 
 const SHOW_ACTIONS = "md:group-hover/menu-item:flex md:group-focus-within/menu-item:flex md:group-data-[actions-open=true]/menu-item:flex"
@@ -77,13 +79,30 @@ function SidebarThreadRow({
   className,
   compact = false,
   decoration,
+  avatarToggle,
   ...props
 }: SidebarThreadRowProps) {
   const { avatarRef, slotRef, offset } = useProjectIconOffset(!!projectIcon && !!context)
   const Item = compact ? SidebarMenuSubItem : SidebarMenuItem
   const content = (
     <>
-      <span ref={avatarRef} data-slot="thread-avatar" className={cn("relative flex shrink-0 items-center justify-center", compact ? "size-5" : "size-6")}>
+      <span
+        ref={avatarRef}
+        data-slot="thread-avatar"
+        className={cn("relative flex shrink-0 items-center justify-center", compact ? "size-5" : "size-6")}
+        {...(avatarToggle
+          ? {
+              role: "button",
+              "aria-expanded": avatarToggle.expanded,
+              "aria-label": avatarToggle.label,
+              onClick: (event: React.MouseEvent) => {
+                event.preventDefault()
+                event.stopPropagation()
+                avatarToggle.onToggle()
+              },
+            }
+          : {})}
+      >
         <span className={cn(MOTION, projectIcon && "group-data-[current=true]/menu-item:scale-80 group-data-[current=true]/menu-item:opacity-0")}>
           {avatar}
         </span>

@@ -22,7 +22,7 @@ import { RelativeTime } from "@/components/ui/relative-time";
 import { useSidebar } from "@/components/ui/sidebar";
 import { SidebarThreadRow } from "@/components/ui/sidebar-thread-row";
 import { StatusDot } from "@/components/ui/status-dot";
-import { TreeBranch, TreeToggle } from "@/components/ui/tree-branch";
+import { TreeBranch } from "@/components/ui/tree-branch";
 import { PendingApprovalBadge } from "@/conversation/PendingApprovalBadge";
 import { conversationPath, nodeAssetUrl } from "@/lib/paths";
 import { queryKeys } from "@/lib/queries";
@@ -47,7 +47,7 @@ interface ThreadRowProps {
   /** Only for a child: it is the last of its siblings. */
   last?: boolean;
   /** Only for a parent with children. */
-  branches?: { expanded: boolean };
+  branches?: { expanded: boolean; onToggle: () => void };
 }
 
 const tooltipOf = (title: string, project: Project | undefined, conversation: ConversationSummary) =>
@@ -108,15 +108,14 @@ export function ThreadRow({
     ) : null;
   const ArchiveToggleIcon = archived ? ArchiveRestoreIcon : ArchiveIcon;
 
-  const decoration =
-    depth > 0 ? (
-      <TreeBranch last={last} />
-    ) : branches ? (
-      <TreeToggle
-        expanded={branches.expanded}
-        aria-label={`${branches.expanded ? "Collapse" : "Expand"} subagents of ${title}`}
-      />
-    ) : undefined;
+  const decoration = depth > 0 ? <TreeBranch last={last} /> : undefined;
+  const avatarToggle = branches
+    ? {
+        expanded: branches.expanded,
+        label: `${branches.expanded ? "Collapse" : "Expand"} subagents of ${title}`,
+        onToggle: branches.onToggle,
+      }
+    : undefined;
 
   return (
     <>
@@ -127,6 +126,7 @@ export function ThreadRow({
             data-depth={depth}
             compact={depth > 0}
             decoration={decoration}
+            avatarToggle={avatarToggle}
             flipId={conversation.id}
             current={active}
             title={title}

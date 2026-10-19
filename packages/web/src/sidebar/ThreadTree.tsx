@@ -23,16 +23,12 @@ export function ThreadTree({ node, project, projects, activeConversationId, show
       project={project}
       active={conversation.id === activeConversationId}
       showProject={showProject}
-      branches={children.length > 0 ? { expanded } : undefined}
+      branches={children.length > 0 ? { expanded, onToggle: () => toggle(conversation.id) } : undefined}
     />
   );
   if (children.length === 0) return row;
   return (
-    <Collapsible
-      open={expanded}
-      onOpenChange={() => toggle(conversation.id)}
-      data-testid={`thread-tree-${conversation.id}`}
-    >
+    <Collapsible open={expanded} data-testid={`thread-tree-${conversation.id}`}>
       {row}
       <CollapsibleContent>
         <SidebarMenuSub className="mr-0 ml-5">
