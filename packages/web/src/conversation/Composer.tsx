@@ -272,7 +272,7 @@ function ComposerForm({
           rows={1}
           className="max-h-48 min-h-9 resize-none border-0 bg-transparent px-2 py-1.5 shadow-none focus-visible:ring-0 dark:bg-transparent"
         />
-        <div className="flex items-start gap-1">
+        <div className="flex flex-wrap items-start gap-1 sm:flex-nowrap">
           {toolbarStart}
           {imagesAllowed ? (
             <>
@@ -297,23 +297,34 @@ function ComposerForm({
               </Button>
             </>
           ) : null}
-          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">{toolbar}</div>
-          {hint}
-          {busy && onStop ? (
-            <Button
-              type="button"
-              variant="outline"
-              size="icon"
-              aria-label="Stop"
-              disabled={stopping}
-              onClick={stop}
-            >
-              <Square className="fill-current" />
-            </Button>
+          <div className="order-last flex w-full min-w-0 flex-wrap items-center gap-x-2 gap-y-1 sm:order-none sm:w-auto sm:flex-1">
+            {toolbar}
+          </div>
+          {hint ? (
+            <div className="ml-auto min-w-0 self-center truncate sm:ml-0 sm:shrink-0">{hint}</div>
           ) : null}
-          <Button type="submit" size="icon" aria-label={busy ? "Send as steer" : "Send"} disabled={!canSend}>
-            <ArrowUp />
-          </Button>
+          <div className="flex shrink-0 gap-1 max-sm:ml-1">
+            {busy && onStop ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                aria-label="Stop"
+                disabled={stopping}
+                onClick={stop}
+              >
+                <Square className="fill-current" />
+              </Button>
+            ) : null}
+            <Button
+              type="submit"
+              size="icon"
+              aria-label={busy ? "Send as steer" : "Send"}
+              disabled={!canSend}
+            >
+              <ArrowUp />
+            </Button>
+          </div>
         </div>
       </div>
       {footer}

@@ -51,7 +51,7 @@ export function WorkspaceChip({ conversationId }: { conversationId: string }) {
   const { branch, base, state } = thread.workspace;
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex min-w-0 items-center gap-2">
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button variant="outline" size="xs" aria-label="Workspace">

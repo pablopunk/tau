@@ -10,6 +10,7 @@ import { NotificationWatcher } from "@/notifications";
 import { CommandPalette, GlobalShortcuts } from "@/palette";
 import { AppSidebar } from "@/sidebar/AppSidebar";
 import { ConversationRoute } from "./ConversationRoute";
+import { HeaderSlotOutlet, HeaderSlotProvider } from "./header-slot";
 import { LegacyNodeRedirect } from "./LegacyNodeRedirect";
 import { NewThreadPage, NewThreadSkeleton } from "./NewThreadPage";
 
@@ -34,6 +35,7 @@ function MainHeader() {
     <header className="flex h-12 shrink-0 items-center gap-2 border-b px-3">
       <SidebarTrigger aria-label="Open sidebar" />
       <span className="text-sm font-semibold">tau</span>
+      <HeaderSlotOutlet />
     </header>
   );
 }
@@ -52,16 +54,18 @@ export function MainLayout() {
       <GlobalShortcuts />
       <NotificationWatcher />
       <SidebarInset className="h-dvh min-w-0">
-        <MainHeader />
-        <div className="flex min-h-0 flex-1 flex-col overflow-auto">
-          <Routes>
-            <Route path="/p/:projectId/c/:conversationId/*" element={<ConversationRoute />} />
-            <Route path="/n/:nodeId/p/:projectId/c/:conversationId/*" element={<ConversationRoute />} />
-            <Route path="/m/*" element={<LegacyNodeRedirect />} />
-            <Route path="/new" element={<NewThreadRoute />} />
-            <Route path="*" element={<NewThreadRoute />} />
-          </Routes>
-        </div>
+        <HeaderSlotProvider>
+          <MainHeader />
+          <div className="flex min-h-0 flex-1 flex-col overflow-auto">
+            <Routes>
+              <Route path="/p/:projectId/c/:conversationId/*" element={<ConversationRoute />} />
+              <Route path="/n/:nodeId/p/:projectId/c/:conversationId/*" element={<ConversationRoute />} />
+              <Route path="/m/*" element={<LegacyNodeRedirect />} />
+              <Route path="/new" element={<NewThreadRoute />} />
+              <Route path="*" element={<NewThreadRoute />} />
+            </Routes>
+          </div>
+        </HeaderSlotProvider>
       </SidebarInset>
     </SidebarProvider>
   );
