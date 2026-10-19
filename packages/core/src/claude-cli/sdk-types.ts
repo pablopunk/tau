@@ -124,6 +124,8 @@ export interface ClaudeQueryOptions {
   readonly disallowedTools?: readonly string[];
   readonly includePartialMessages: boolean;
   readonly toolHost?: ClaudeToolHost;
+  /** Extra stdio servers (pins only: tau threads load none). Merged next to the in-process `tau` server. */
+  readonly mcpServers?: Readonly<Record<string, unknown>>;
 }
 
 /** An SDK message. The adapter reads the fields it needs; the shapes are the SDK's own. */

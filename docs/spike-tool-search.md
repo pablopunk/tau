@@ -56,3 +56,11 @@ Done (all connectors on by default, with tool search):
 
 Not verified: a write tool through the approval card after discovery (same tool name path, covered only by the fake CLI); a user-defined (non claude.ai) server through tool search; a user who exports `ENABLE_TOOL_SEARCH=false` / a custom `ANTHROPIC_BASE_URL` (the pin catches it, threads do not detect it at runtime and would load all schemas); a mid-thread switch from a legacy model to a current one keeps the old query's options until it restarts.
 Follow-up: the ~5.5k tokens of per-server MCP instructions are not deferred.
+
+### Write and user-server verification (real CLI)
+Pins `w1` to `w5` (`pins/real-tool-search-pins.test.ts`, `TAU_REAL_CLAUDE=1`, fixture `pins/fixtures/tool-search-fixture-server.mjs`: a local stdio server with `fixture_read` (readOnlyHint true) and `fixture_write` (appends to a temp file)). Options come from tau's `buildQueryOptions`, `chooseServers` and `createCanUseTool`; only the approvals port is a fake. The server is named `claude.ai Fixture` so tau's connector names apply. Observed on CLI 2.1.302, haiku, 5 turns:
+- Both tools were found with `ToolSearch` first, then called; the CLI status reports `fixture_read:true, fixture_write:false`.
+- `askBeforeWrites` on: the read ran with no `canUseTool` and no approval; the write reached `canUseTool` (`mcp__claude_ai_Fixture__fixture_write`) and the approvals port (`Fixture/fixture_write`) before running; deny left the file empty; allow wrote `tau-pin-write`.
+- `askBeforeWrites` off: the write ran with no prompt.
+- A server named like a user server (`tau_fixture_user`): ToolSearch found it and the read ran (the CLI side works).
+Still not verified: a real claude.ai write tool (none was safe to run: nothing is both private and reversible); a user-defined server inside a real tau thread. Tau threads use `settingSources: []`, so user-scope servers are not loaded, and the stream layer (`observedCallOf`, `createCanUseTool`) only maps `mcp__claude_ai_*` names, so such a server would need both changed. `ClaudeQueryOptions.mcpServers` was added for the pins only.

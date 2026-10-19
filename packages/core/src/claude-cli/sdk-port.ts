@@ -143,12 +143,14 @@ const mcpControlOf = (query: SdkQuery) => ({
 
 function sdkOptions(sdk: SdkModule, options: ClaudeQueryOptions): Record<string, unknown> {
   const toolServer = options.toolHost ? buildToolServer(sdk.createSdkMcpServer, options.toolHost) : undefined;
-  const { prompt: _prompt, toolHost: _host, canUseTool, env, ...rest } = options;
+  const { prompt: _prompt, toolHost: _host, canUseTool, env, mcpServers, ...rest } = options;
   return {
     ...rest,
     ...(canUseTool && { canUseTool: toSdkCanUseTool(canUseTool) }),
     env: withoutApiKeys(env),
-    ...(toolServer && { mcpServers: { [TOOL_SERVER_NAME]: toolServer.config } }),
+    ...((toolServer || mcpServers) && {
+      mcpServers: { ...mcpServers, ...(toolServer && { [TOOL_SERVER_NAME]: toolServer.config }) },
+    }),
   };
 }
 
