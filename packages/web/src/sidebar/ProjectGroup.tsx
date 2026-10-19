@@ -1,6 +1,6 @@
 import { useQueryClient } from "@tanstack/react-query";
 import type { Project } from "@tau/protocol";
-import { ChevronRightIcon, MoreHorizontalIcon, PlusIcon } from "lucide-react";
+import { MoreHorizontalIcon, PlusIcon } from "lucide-react";
 import { useState } from "react";
 import { useNavigate } from "react-router";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -71,8 +71,7 @@ export function ProjectGroup({
     <SidebarGroup role="group" aria-label={project.name}>
       <Collapsible open={open} onOpenChange={onOpenChange}>
         <SidebarGroupLabel asChild title={homeRelative(project.path)} className="pr-14">
-          <CollapsibleTrigger className="w-full gap-1.5">
-            <ChevronRightIcon className={open ? "rotate-90 transition-transform" : "transition-transform"} />
+          <CollapsibleTrigger className="w-full gap-1.5 hover:bg-sidebar-accent">
             <ProjectIcon
               id={project.id}
               name={project.name}

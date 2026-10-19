@@ -28,8 +28,6 @@ interface SidebarThreadRowProps extends Omit<React.ComponentProps<"li">, "title"
   compact?: boolean
   /** Tree decoration drawn over the row, e.g. a `TreeBranch`. */
   decoration?: React.ReactNode
-  /** Turns the avatar into a toggle for the row's children: clicking it runs this instead of following the link. */
-  avatarToggle?: { expanded: boolean; label: string; onToggle: () => void }
 }
 
 const SHOW_ACTIONS = "md:group-hover/menu-item:flex md:group-focus-within/menu-item:flex md:group-data-[actions-open=true]/menu-item:flex"
@@ -79,7 +77,6 @@ function SidebarThreadRow({
   className,
   compact = false,
   decoration,
-  avatarToggle,
   ...props
 }: SidebarThreadRowProps) {
   const { avatarRef, slotRef, offset } = useProjectIconOffset(!!projectIcon && !!context)
@@ -90,18 +87,6 @@ function SidebarThreadRow({
         ref={avatarRef}
         data-slot="thread-avatar"
         className={cn("relative flex shrink-0 items-center justify-center", compact ? "size-5" : "size-6")}
-        {...(avatarToggle
-          ? {
-              role: "button",
-              "aria-expanded": avatarToggle.expanded,
-              "aria-label": avatarToggle.label,
-              onClick: (event: React.MouseEvent) => {
-                event.preventDefault()
-                event.stopPropagation()
-                avatarToggle.onToggle()
-              },
-            }
-          : {})}
       >
         <span className={cn(MOTION, projectIcon && "group-data-[current=true]/menu-item:scale-80 group-data-[current=true]/menu-item:opacity-0")}>
           {avatar}
@@ -119,7 +104,7 @@ function SidebarThreadRow({
               <span
                 ref={slotRef}
                 data-slot="thread-project-slot"
-                className={cn("z-10 flex size-[17px] shrink-0", avatarToggle && "group-data-[current=true]/menu-item:pointer-events-none")}
+                className="z-10 flex size-[17px] shrink-0"
                 style={{ "--project-offset-x": `${offset.x}px`, "--project-offset-y": `${offset.y}px` } as React.CSSProperties}
               >
                 <span className={cn(MOTION, "flex group-data-[current=true]/menu-item:[transform:translate(var(--project-offset-x),var(--project-offset-y))_scale(1.4)]")}>

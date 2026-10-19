@@ -1,5 +1,4 @@
 import type { Node } from "@tau/protocol";
-import { ChevronRightIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { NodeAvatar } from "@/components/ui/node-avatar";
@@ -32,8 +31,7 @@ export function NodeGroup({ node, name, local, children }: NodeGroupProps) {
     <SidebarGroup role="group" aria-label={name} data-node={key} data-status={status}>
       <Collapsible open={open} onOpenChange={(next) => setOpen(key, next)}>
         <SidebarGroupLabel asChild>
-          <CollapsibleTrigger className="w-full gap-1.5">
-            <ChevronRightIcon className={open ? "rotate-90 transition-transform" : "transition-transform"} />
+          <CollapsibleTrigger className="w-full gap-1.5 hover:bg-sidebar-accent">
             {status === "update-required" ? (
               <Tooltip>
                 <TooltipTrigger asChild>

@@ -22,14 +22,14 @@ describe("nestThreads", () => {
 
 describe("<ThreadsView> nesting", () => {
   beforeEach(() => window.localStorage.clear());
-  const renderView = () =>
+  const renderView = (activeConversationId?: string) =>
     renderAt(
       "/",
       <SidebarProvider>
         <ThreadsView
           projects={[project()]}
           conversations={[parent, child]}
-          activeConversationId={undefined}
+          activeConversationId={activeConversationId}
           onProjectRemoved={() => {}}
         />
       </SidebarProvider>,
@@ -81,12 +81,16 @@ describe("<ThreadsView> nesting", () => {
     expect(screen.getAllByText("Home")).toHaveLength(1);
   });
 
-  it("collapses the children from the parent row and remembers it", async () => {
+  it("only a click on the focused parent collapses its children, and it is remembered", async () => {
     const view = renderView();
-    await userEvent.click(screen.getByRole("button", { name: "Collapse subagents of Parent thread" }));
+    await userEvent.click(screen.getByRole("link", { name: /Parent thread/ }));
+    expect(screen.getByText("Child thread")).toBeInTheDocument();
+    view.unmount();
+    const focused = renderView("1");
+    await userEvent.click(screen.getByRole("link", { name: /Parent thread/ }));
     expect(screen.queryByText("Child thread")).not.toBeInTheDocument();
     expect(preferences.getCollapsedThreads()).toEqual(["1"]);
-    view.unmount();
+    focused.unmount();
     renderView();
     expect(screen.queryByText("Child thread")).not.toBeInTheDocument();
   });

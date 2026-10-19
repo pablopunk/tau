@@ -1,7 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import type { ConversationSummary, Project } from "@tau/protocol";
 import { ArchiveIcon, ArchiveRestoreIcon, MoreHorizontalIcon } from "lucide-react";
-import { useState } from "react";
+import { type MouseEvent, useState } from "react";
 import { Link, useNavigate } from "react-router";
 import { BotAvatar } from "@/components/ui/bot-avatar";
 import { Button } from "@/components/ui/button";
@@ -109,13 +109,14 @@ export function ThreadRow({
   const ArchiveToggleIcon = archived ? ArchiveRestoreIcon : ArchiveIcon;
 
   const decoration = depth > 0 ? <TreeBranch last={last} /> : undefined;
-  const avatarToggle = branches
-    ? {
-        expanded: branches.expanded,
-        label: `${branches.expanded ? "Collapse" : "Expand"} subagents of ${title}`,
-        onToggle: branches.onToggle,
-      }
-    : undefined;
+  const followLink = (event: MouseEvent) => {
+    if (active && branches) {
+      event.preventDefault();
+      branches.onToggle();
+      return;
+    }
+    if (isMobile) setOpenMobile(false);
+  };
 
   return (
     <>
@@ -126,7 +127,6 @@ export function ThreadRow({
             data-depth={depth}
             compact={depth > 0}
             decoration={decoration}
-            avatarToggle={avatarToggle}
             flipId={conversation.id}
             current={active}
             title={title}
@@ -135,7 +135,8 @@ export function ThreadRow({
               <Link
                 to={conversationPath(conversation.projectId, conversation.id, nodeId)}
                 aria-current={active ? "page" : undefined}
-                onClick={() => isMobile && setOpenMobile(false)}
+                aria-expanded={branches?.expanded}
+                onClick={followLink}
               />
             }
             avatar={
