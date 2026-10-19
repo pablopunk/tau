@@ -8,6 +8,7 @@ import {
 } from "@earendil-works/pi-ai/providers/faux";
 
 import { JUDGE_SYSTEM_MARKER } from "../goals/judge-prompt";
+import { type FauxReplies, scriptedStep } from "./faux-replies";
 
 export const SCRIPT_USAGE = [
   "write <path> <text>",
@@ -219,13 +220,15 @@ function lastUserMessage(messages: readonly Message[]): UserMessage | undefined 
  * A faux response function: the last user message is a tiny script (see SCRIPT_USAGE), a tool result is answered
  * with "Done.", and anything else gets a slow streamed reply. `fail` is a final error, `overloaded` a retryable one, and `flaky` is retryable on its first attempt only.
  */
-export function createFauxScript(): FauxResponseFactory {
+export function createFauxScript(replies?: FauxReplies): FauxResponseFactory {
   const attempts = new Map<string, number>();
   return (context, _options, _state, model) => {
     if (isJudgeRequest(context.messages)) return judgeReply(context.messages);
     const user = lastUserMessage(context.messages);
     const input = user ? messageText(user) : "";
     if (model.id === FAST_MODEL_ID) return titleReply(input);
+    const scripted = replies && scriptedStep(replies, context.messages, messageText);
+    if (scripted) return scripted;
     if (lastMessageIsToolResult(context.messages)) return fauxAssistantMessage("Done.");
     const requestKey = `${user?.timestamp}:${input}`;
     const attempt = attempts.get(requestKey) ?? 0;

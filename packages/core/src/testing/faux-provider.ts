@@ -7,6 +7,7 @@ import {
   fauxProvider,
 } from "@earendil-works/pi-ai/providers/faux";
 import { withFauxChatGptLogin } from "./faux-chatgpt-login";
+import type { FauxReplies } from "./faux-replies";
 import { createFauxScript } from "./faux-script";
 
 export const FAUX_PROVIDER_ID = "faux";
@@ -36,13 +37,15 @@ function keepScriptRunning(faux: FauxProviderHandle, script: FauxResponseFactory
 export interface FauxSetupOptions {
   readonly tokensPerSecond?: number;
   readonly credentials?: CredentialStore;
+  /** Prompt-keyed replies played before the generic script, for screenshots and demos. */
+  readonly replies?: FauxReplies;
   /** The Claude CLI provider, backed by the fake Agent SDK, so a thread on one of its models runs in faux mode. */
   readonly claudeCli?: Provider<Api> | null;
 }
 
 export function createFauxSetup(options: FauxSetupOptions = {}): FauxSetup {
   const faux = fauxProvider({ models: FAUX_MODELS, tokensPerSecond: options.tokensPerSecond });
-  const script = createFauxScript();
+  const script = createFauxScript(options.replies);
   faux.setResponses(Array.from({ length: QUEUED_STEPS }, () => keepScriptRunning(faux, script)));
   const models = createModels({ credentials: options.credentials });
   models.setProvider(faux.provider);

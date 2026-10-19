@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "playwright test --pass-with-no-tests"
+    "test": "playwright test --pass-with-no-tests",
+    "screenshots": "tsx screenshots/capture.ts"
   },
   "devDependencies": {
     "@playwright/test": "1.64.1"

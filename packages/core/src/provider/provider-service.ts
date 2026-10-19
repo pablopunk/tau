@@ -16,6 +16,7 @@ import { type ClaudeSdkInstaller, sdkHomeOf } from "../claude-cli/sdk-install";
 import { claudeCliDisabled, createClaudeCliService } from "../claude-cli/service";
 import type { SettingsStore } from "../home/settings-store";
 import { createFauxSetup } from "../testing/faux-provider";
+import { loadFauxReplies } from "../testing/faux-replies";
 import { createConnectionReader } from "./connections";
 import { createLoginSessions, type LoginSessions } from "./login-sessions";
 import { createModelLister } from "./model-list";
@@ -78,7 +79,11 @@ export function createProviderService(options: ProviderServiceOptions): Provider
     ...(options.observed && { observed: options.observed }),
   });
   const models = options.faux
-    ? createFauxSetup({ credentials, claudeCli: claudeCli.provider }).models
+    ? createFauxSetup({
+        credentials,
+        claudeCli: claudeCli.provider,
+        replies: loadFauxReplies(options.env.TAU_FAUX_REPLIES),
+      }).models
     : createRealModels(credentials, options.env, claudeCli.provider);
   const connections = createConnectionReader({ credentials, models, faux: options.faux, claudeCli });
   const entries = visibleProviders(!claudeCliDisabled(options.env));
