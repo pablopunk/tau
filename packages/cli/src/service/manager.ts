@@ -15,6 +15,10 @@ export interface RecordedPaths {
 
 export interface ServiceManager {
   readonly spec: ServiceSpec;
+  /** The backend that runs tau here: the native one when installed, else detached. */
+  readonly kind: ServiceBackend["kind"];
+  /** The OS has a native service manager (false: only a detached process is possible). */
+  readonly native: boolean;
   installed(): Promise<boolean>;
   recorded(): RecordedPaths | undefined;
   /** Installed, but the recorded node or entry is not the current one. */
@@ -76,6 +80,8 @@ export function createServiceManager(context: ServiceContext, cli: CliEntry, hom
 
   return {
     spec,
+    kind: native?.kind ?? detached.kind,
+    native: native !== undefined,
     installed,
     recorded: () => readRecord(home),
     async needsRepair() {

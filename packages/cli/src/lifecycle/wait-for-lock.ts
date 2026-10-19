@@ -40,7 +40,7 @@ export async function waitForUrl(
     readInstance = readRunningInstance,
     sleep = sleepFor,
     intervalMs = 250,
-    attempts = 60,
+    attempts = 240,
   } = dependencies;
   for (let attempt = 0; attempt < attempts; attempt += 1) {
     const info = await readInstance(home);

@@ -1,12 +1,15 @@
-const TEMPORARY_RUNNER_FOLDERS = [
-  /[\\/]_npx[\\/]/,
-  /[\\/]dlx-[^\\/]+[\\/]/,
-  /[\\/]pnpm[\\/]dlx[\\/]/,
-  /[\\/]\.bun[\\/]install[\\/]cache[\\/]/,
+export type TemporaryRunner = "npx" | "pnpm" | "bun";
+
+const TEMPORARY_RUNNER_FOLDERS: ReadonlyArray<readonly [TemporaryRunner, RegExp]> = [
+  ["npx", /[\\/]_npx[\\/]/],
+  ["pnpm", /[\\/]dlx-[^\\/]+[\\/]/],
+  ["pnpm", /[\\/]pnpm[\\/]dlx[\\/]/],
+  ["bun", /[\\/]\.bun[\\/]install[\\/]cache[\\/]/],
 ];
 
-export const isTemporaryRunnerEntry = (entry: string): boolean =>
-  TEMPORARY_RUNNER_FOLDERS.some((folder) => folder.test(entry));
+/** Which temporary runner (npx, pnpm dlx, bunx) cache holds this entry, if any. */
+export const temporaryRunnerOf = (entry: string): TemporaryRunner | undefined =>
+  TEMPORARY_RUNNER_FOLDERS.find(([, folder]) => folder.test(entry))?.[0];
 
 export class TemporaryEntryError extends Error {
   constructor(entry: string) {
@@ -16,5 +19,5 @@ export class TemporaryEntryError extends Error {
 }
 
 export function refuseTemporaryEntry(entry: string): void {
-  if (isTemporaryRunnerEntry(entry)) throw new TemporaryEntryError(entry);
+  if (temporaryRunnerOf(entry) !== undefined) throw new TemporaryEntryError(entry);
 }

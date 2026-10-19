@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import { readStoredPort, resolvePort } from "../lifecycle/port-store";
 import { waitForFreeHome } from "../lifecycle/wait-for-lock";
 import { createRotatingLog } from "../logging/rotating-log";
-import { isTemporaryRunnerEntry } from "./entry-guard";
+import { temporaryRunnerOf } from "./entry-guard";
 import { serviceNames } from "./names";
 import { captureServicePath } from "./path-capture";
 
@@ -38,12 +38,15 @@ describe("captureServicePath", () => {
   });
 });
 
-describe("isTemporaryRunnerEntry", () => {
+describe("temporaryRunnerOf", () => {
   it("flags npx and pnpm dlx caches, not global installs", () => {
-    expect(isTemporaryRunnerEntry("/h/.npm/_npx/abc/node_modules/tau/dist/bin.js")).toBe(true);
-    expect(isTemporaryRunnerEntry("/h/.cache/pnpm/dlx/xyz/node_modules/tau/bin.js")).toBe(true);
-    expect(isTemporaryRunnerEntry("/h/Library/pnpm/.tools/dlx-123/tau/bin.js")).toBe(true);
-    expect(isTemporaryRunnerEntry("/usr/local/lib/node_modules/tau/dist/bin.js")).toBe(false);
+    expect(temporaryRunnerOf("/h/.npm/_npx/abc/node_modules/tau/dist/bin.js")).toBeDefined();
+    expect(temporaryRunnerOf("/h/.cache/pnpm/dlx/xyz/node_modules/tau/bin.js")).toBeDefined();
+    expect(temporaryRunnerOf("/h/Library/pnpm/.tools/dlx-123/tau/bin.js")).toBeDefined();
+    expect(temporaryRunnerOf("/usr/local/lib/node_modules/tau/dist/bin.js")).toBeUndefined();
+    expect(temporaryRunnerOf("/h/.npm/_npx/abc/x.js")).toBe("npx");
+    expect(temporaryRunnerOf("/h/.cache/pnpm/dlx/xyz/x.js")).toBe("pnpm");
+    expect(temporaryRunnerOf("/h/.bun/install/cache/x/bin.js")).toBe("bun");
   });
 });
 

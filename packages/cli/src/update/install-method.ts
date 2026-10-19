@@ -1,4 +1,5 @@
 import { dirname, join } from "node:path";
+import { temporaryRunnerOf } from "../service/entry-guard";
 import { npmOf, PACKAGE_NAME } from "./latest-version";
 
 export interface Command {
@@ -38,7 +39,7 @@ function refusalOf(entry: string, target: string): string | undefined {
   const spec = `${PACKAGE_NAME}@${target}`;
   if (entry.includes("/.bun/")) return `Installed with bun. Run: bun add -g ${spec}`;
   if (entry.includes("/.volta/")) return `Installed with volta. Run: volta install ${spec}`;
-  if (/\/_npx\/|\/dlx\/|\/\.bun\/install\/cache\//.test(entry) || entry.includes("/_npx/")) {
+  if (temporaryRunnerOf(entry) !== undefined) {
     return "Running from a temporary npx/dlx cache: nothing to update. Run `npx @pablopunk/tau@latest` again.";
   }
   if (/\/packages\/cli\/dist\/bin\.js$/.test(entry))

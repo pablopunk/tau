@@ -45,7 +45,7 @@ export const commandTable: Readonly<Record<string, CommandHandler>> = {
   disconnect: runDisconnect,
 };
 
-export const bareHandler: CommandHandler = (argv) => runBare(argv, serveInForeground);
+export const bareHandler: CommandHandler = (argv) => runBare(argv);
 
 const wantsHelp = (argv: readonly string[]) => argv.includes("--help") || argv.includes("-h");
 
