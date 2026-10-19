@@ -19,6 +19,7 @@ import { buildHello, buildProof, checkHello, checkProof } from "./link-handshake
 import { type IncomingOpen, LinkMux } from "./link-mux";
 import type { LinkRegistry, RegisteredLink } from "./link-registry";
 import type { PeerClosed, PeerHandle, PeerInfo } from "./peer-seam";
+import type { LinkHub } from "./relay/hub";
 import { requestOverLink } from "./request-client";
 import { serveRequest } from "./request-responder";
 import { pipeSocketOverLink } from "./socket-client";
@@ -321,16 +322,18 @@ class Peer implements LinkPeer {
   }
 
   private serve(frame: IncomingOpen): void {
-    if (frame.dest === undefined) return this.serveHere(frame);
+    if (frame.dest === undefined) return void this.serveHere(frame);
     const { hub } = this.options.server.registry;
-    const refusal =
-      frame.dest === this.ownNodeId
-        ? hub?.verifyLocal(this, this.ownNodeId, frame)
-        : (hub?.forward(this, this.ownNodeId, frame) ?? { code: 1008, reason: "no_route" });
+    const local = frame.dest === this.ownNodeId;
+    const refusal = hub ? this.routedRefusal(hub, local, frame) : { code: 1008, reason: "no_route" };
     if (refusal) return void this.mux.sendControl({ type: "close", id: frame.id, ...refusal });
-    if (frame.dest !== this.ownNodeId) return;
+    if (!local) return;
     hub?.trackLocal(this, frame);
     this.serveHere(frame);
+  }
+
+  private routedRefusal(hub: LinkHub, local: boolean, frame: IncomingOpen) {
+    return local ? hub.verifyLocal(this, this.ownNodeId, frame) : hub.forward(this, this.ownNodeId, frame);
   }
 
   private serveHere(frame: IncomingOpen): void {
