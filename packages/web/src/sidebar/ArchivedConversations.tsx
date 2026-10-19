@@ -32,7 +32,7 @@ export function ArchivedConversations({
         Archived ({conversations.length})
       </CollapsibleTrigger>
       {confirming && <DeleteArchivedDialog archived={topLevel} onClose={() => setConfirming(false)} />}
-      <CollapsibleContent>
+      <CollapsibleContent className="pl-2">
         <SidebarMenu>
           {conversations.map((conversation) => (
             <Fragment key={conversation.id}>

@@ -51,7 +51,7 @@ export function NodeGroup({ node, name, local, children }: NodeGroupProps) {
             <NodeName name={name} local={local} />
           </CollapsibleTrigger>
         </SidebarGroupLabel>
-        <CollapsibleContent>{children}</CollapsibleContent>
+        <CollapsibleContent className="pr-1 pl-2">{children}</CollapsibleContent>
       </Collapsible>
     </SidebarGroup>
   );

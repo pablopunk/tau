@@ -29,7 +29,7 @@ export function ThreadsView({
   );
   const visible = conversations.filter((conversation) => readyIds.has(conversation.projectId));
   return (
-    <SidebarGroup>
+    <SidebarGroup className="p-1">
       <SidebarGroupContent>
         <div ref={listRef}>
           <SidebarMenu>

@@ -71,7 +71,7 @@ export function ProjectGroup({
     <SidebarGroup
       role="group"
       aria-label={project.name}
-      className="rounded-md has-[>div>[data-group-header]:hover]:bg-sidebar-accent has-[>div>[data-slot=sidebar-group-action]:hover]:bg-sidebar-accent"
+      className="rounded-md p-1 has-[>div>[data-group-header]:hover]:bg-sidebar-accent has-[>div>[data-slot=sidebar-group-action]:hover]:bg-sidebar-accent"
     >
       <Collapsible open={open} onOpenChange={onOpenChange}>
         <SidebarGroupLabel asChild title={homeRelative(project.path)} className="pr-14">
@@ -121,7 +121,7 @@ export function ProjectGroup({
             <PlusIcon />
           </SidebarGroupAction>
         )}
-        <CollapsibleContent>
+        <CollapsibleContent className="pl-2">
           {project.status === "failed" && (
             <CloneFailed projectId={project.id} error={project.error} onRemove={() => setDialog("remove")} />
           )}
