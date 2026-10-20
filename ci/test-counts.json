@@ -6,7 +6,7 @@
     "packages/server": 367,
     "packages/cli": 303,
     "packages/core": 1283,
-    "packages/web": 737
+    "packages/web": 732
   },
   "e2e": 101
 }
