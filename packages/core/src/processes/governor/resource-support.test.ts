@@ -7,6 +7,7 @@ import type { Exec, ExecResult } from "./exec";
 import {
   createResourceSupport,
   FIRST_PROBE_SCRIPT,
+  PRESPAWN_DEADLINE_MS,
   PROBE_TIMEOUT_MS,
   priorityIsCgroupLimited,
 } from "./resource-support";
@@ -32,7 +33,7 @@ const supportWith = (exec: Exec, env: NodeJS.ProcessEnv = {}) =>
     platform: "linux",
     env,
     binaries: BINS,
-    sleep: async () => {},
+    sleep: (ms) => (ms >= PRESPAWN_DEADLINE_MS ? new Promise<void>(() => {}) : Promise.resolve()),
   });
 const probes = (calls: { args: readonly string[]; timeoutMs?: number }[]) =>
   calls.filter((call) => call.args.some((arg) => arg.startsWith("--unit=tau-probe-")));
