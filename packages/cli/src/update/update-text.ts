@@ -1,6 +1,6 @@
 import type { RunningWork } from "./running-work";
 
-export const LAG_NOTE = "A release can take 1-3 minutes to show up in the npm registry.";
+export const LAG_NOTE = "A release shows up here once its archive and SHA256SUMS are published.";
 export const LINKED_NOTE = "Linked nodes must run the same tau version: run `tau update` on each.";
 export const LINKED_HUB_NOTE = "This tau is linked to other nodes: update every node to the same version.";
 export const INSIDE_TAU =
@@ -26,14 +26,14 @@ export const resumingText = (work: RunningWork): string | undefined =>
     ? `${work.resuming.length} thread(s) with timers or a goal will resume after the restart.`
     : undefined;
 
-export const failedInstallText = (manual: string, rollback: string): string =>
-  `The install failed. Run it yourself: ${manual}\nTo go back: ${rollback}`;
+export const failedInstallText = (problem: string, manual: string): string =>
+  `The install failed: ${problem}\nNothing changed: the old version still runs. Or run: ${manual}`;
 
-export const permissionText = (manual: string): string =>
-  `Permission denied. Fix the permissions of the npm prefix (or use a node version manager), then run: ${manual}`;
+export const rolledBackText = (target: string, previous: string): string =>
+  `Rolled back to tau ${previous}: version ${target} did not come up.`;
 
-export const verifyFailedText = (problem: string, rollback: string): string =>
-  `The update did not verify: ${problem}\nNothing was restarted: the old server still runs on old in-memory code and files on disk may be inconsistent. Re-run \`tau update\`, or go back with: ${rollback}`;
+export const noRollbackText = (target: string): string =>
+  `There is no previous version to go back to: version ${target} stays installed.`;
 
 export const skewText = (running: string | undefined, target: string): string =>
   `The server still reports version ${running ?? "none"}, expected ${target}. Check \`tau status\` and \`tau logs\`.`;

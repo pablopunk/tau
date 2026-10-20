@@ -1,43 +1,24 @@
 import { compareVersions, isPlainVersion } from "@tau/protocol";
 import { lifecycleFlagsOf } from "../lifecycle/flags";
 import { gatherStatus } from "../lifecycle/status";
-import { globalPackageDir } from "./global-package";
-import { entryOfPackage, type InstallMethod, installMethodOf } from "./install-method";
+import { currentVersionOf, pruneVersions, swapCurrent } from "./install-layout";
+import { installRelease } from "./install-release";
 import { createJobReporter } from "./job-child";
 import { linkedNodesLine } from "./nodes-behind";
-import { restartInNewBinary } from "./restart-step";
+import { ROLLBACK_TIMEOUT_MS, type RestartOutcome, restartCommandOf, restartInNewBinary } from "./restart-step";
 import { hasRunningWork, runningWorkOf } from "./running-work";
 import type { UpdateDeps } from "./update-deps";
 import { type UpdateFlags, updateFlagsOf } from "./update-flags";
 import * as text from "./update-text";
-import { verifyInstall } from "./verify-install";
+import { DEV_CHECKOUT_REASON, INSTALL_COMMAND, NO_BINARY_REASON } from "./updater";
 
 export const EXIT_UPDATE_AVAILABLE = 10;
 
-type Plan = { readonly packageDir: string; readonly install: InstallStep; readonly hint?: string };
-interface InstallStep {
-  readonly command: string;
-  readonly args: readonly string[];
-  readonly manual: string;
-}
-
-async function planOf(deps: UpdateDeps, target: string): Promise<Plan | string> {
-  const method: InstallMethod = installMethodOf({
-    entry: deps.entry,
-    execPath: deps.execPath,
-    platform: deps.context.platform,
-    target,
-  });
-  if (method.kind === "manual") {
-    return [method.reason, method.manualCommand ? `Run: ${method.manualCommand}` : ""]
-      .filter(Boolean)
-      .join("\n");
-  }
-  const install = { ...method.install, manual: method.manualCommand };
-  if (method.kind === "npm") return { packageDir: method.packageDir, install, hint: method.hint };
-  const packageDir = await globalPackageDir(deps, "pnpm");
-  if (!packageDir) return `Could not find the pnpm global package.\nRun: ${method.manualCommand}`;
-  return { packageDir, install };
+/** Why this tau cannot update itself, or undefined when it can. */
+function refusalOf(deps: UpdateDeps): string | undefined {
+  if (deps.installRoot === undefined) return DEV_CHECKOUT_REASON;
+  if (deps.platformKey === undefined) return NO_BINARY_REASON;
+  return undefined;
 }
 
 async function refusalForRunningWork(deps: UpdateDeps, home: string): Promise<string | undefined> {
@@ -53,35 +34,49 @@ async function refusalForRunningWork(deps: UpdateDeps, home: string): Promise<st
   return hasRunningWork(work) ? text.runningWorkText(work) : undefined;
 }
 
-async function installStep(deps: UpdateDeps, plan: Plan, current: string): Promise<string | undefined> {
-  const { command, args, manual } = plan.install;
-  const result = await deps.runCommand(command, args, { stdio: "tee" });
-  if (result.code === 0) return undefined;
-  if (/EACCES|EPERM/.test(result.stderr)) return text.permissionText(manual);
-  return text.failedInstallText(manual, manual.replace(/@[^@]+$/, `@${current}`));
+const messageOf = (error: unknown) => (error instanceof Error ? error.message : String(error));
+
+/** Download, verify, extract, run `--version`, swap `current`. Returns the problem, if any. */
+async function installStep(deps: UpdateDeps, root: string, target: string, home: string) {
+  try {
+    const release = await deps.findRelease(target, home);
+    await installRelease({ fetch: deps.fetch, run: deps.runCommand }, release, root);
+    return undefined;
+  } catch (error) {
+    return text.failedInstallText(messageOf(error), INSTALL_COMMAND);
+  }
+}
+
+/** Puts `current` back on the previous version; when the server was already restarted, restarts it again. */
+async function rollBack(deps: UpdateDeps, root: string, previous: string | undefined, outcome: RestartOutcome, flags: UpdateFlags, target: string, home: string) {
+  if (previous === undefined) return text.noRollbackText(target);
+  swapCurrent(root, previous);
+  if (outcome.restarted) {
+    const { command, args } = restartCommandOf(deps, [...flags.forwarded]);
+    await deps.runCommand(command, args, { stdio: "inherit" });
+    await deps.pollRunningVersion(home, previous, ROLLBACK_TIMEOUT_MS);
+  }
+  return text.rolledBackText(target, previous);
 }
 
 async function finish(
   deps: UpdateDeps,
   flags: UpdateFlags,
-  plan: Plan,
-  target: string,
+  steps: { readonly root: string; readonly previous: string | undefined; readonly target: string },
   home: string,
 ): Promise<number> {
-  const rollback = plan.install.manual.replace(/@[^@]+$/, `@${deps.version()}`);
-  const problem = await verifyInstall(deps, plan.packageDir, target, home);
-  if (problem) {
-    deps.err(text.verifyFailedText(problem, rollback));
+  const { root, previous, target } = steps;
+  const outcome: RestartOutcome = flags.noRestart
+    ? { code: noRestartNote(deps), restarted: false }
+    : await restartInNewBinary(deps, { ...flags, target, home });
+  if (outcome.code !== 0) {
+    deps.err(await rollBack(deps, root, previous, outcome, flags, target, home));
     return 1;
   }
-  if (plan.hint) deps.out(plan.hint);
-  const code = flags.noRestart
-    ? noRestartNote(deps)
-    : await restartInNewBinary(deps, { ...flags, packageDir: plan.packageDir, target, home });
-  if (code === 0) await nodesBehindNote(deps, home, target);
-  if (code === 0)
-    deps.out(deps.hasHubFile(home) ? `${text.LINKED_NOTE}\n${text.LINKED_HUB_NOTE}` : text.LINKED_NOTE);
-  return code;
+  pruneVersions(root, [target, previous], home);
+  await nodesBehindNote(deps, home, target);
+  deps.out(deps.hasHubFile(home) ? `${text.LINKED_NOTE}\n${text.LINKED_HUB_NOTE}` : text.LINKED_NOTE);
+  return 0;
 }
 
 function noRestartNote(deps: UpdateDeps): number {
@@ -161,9 +156,10 @@ async function performUpdate(
     deps.out(`tau ${current} is up to date. ${text.LAG_NOTE}`);
     return 0;
   }
-  const plan = await planOf(deps, latest);
-  if (typeof plan === "string") {
-    deps.err(plan);
+  const refusal = refusalOf(deps);
+  const root = deps.installRoot;
+  if (refusal !== undefined || root === undefined) {
+    deps.err(refusal ?? DEV_CHECKOUT_REASON);
     return 1;
   }
   const running = (await gatherStatus(deps, home)).running;
@@ -185,15 +181,14 @@ async function performUpdate(
       return 0;
     }
   }
-  const failed = await installStep(deps, plan, current);
+  const previous = currentVersionOf(root);
+  const failed = await installStep(deps, root, latest, home);
   if (failed) {
     deps.err(failed);
     return 1;
   }
-  return finish(deps, flags, plan, latest, home);
+  return finish(deps, flags, { root, previous, target: latest }, home);
 }
-
-export { entryOfPackage };
 
 export async function runUpdate(argv: readonly string[]): Promise<void> {
   const { realUpdateDeps } = await import("./real-deps");

@@ -30,8 +30,8 @@ export function childEnvOf(env: NodeJS.ProcessEnv, nonce: string): NodeJS.Proces
   return { ...rest, TAU_UPDATE_JOB: nonce };
 }
 
-export const childArgsOf = (entry: string, target: string, home: string): string[] => [
-  entry,
+export const childArgsOf = (prefix: readonly string[], target: string, home: string): string[] => [
+  ...prefix,
   "update",
   "--target",
   target,
@@ -59,7 +59,7 @@ export function systemdRunArgs(request: ChildRequest, spec: { path: string }): s
     "StandardError=inherit",
     "--",
     request.cli.command,
-    ...childArgsOf(request.cli.args[0] ?? "", request.target, home),
+    ...childArgsOf(request.cli.args, request.target, home),
   ];
 }
 
@@ -83,7 +83,7 @@ export function launchdSubmitArgs(request: ChildRequest, spec: { path: string })
     `TAU_UPDATE_JOB=${request.nonce}`,
     `TAU_UPDATE_LABEL=${label}`,
     request.cli.command,
-    ...childArgsOf(request.cli.args[0] ?? "", request.target, request.home),
+    ...childArgsOf(request.cli.args, request.target, request.home),
   ];
 }
 
@@ -106,10 +106,10 @@ export async function spawnUpdateChild(request: ChildRequest): Promise<void> {
   if (request.fakeScript === undefined && request.kind === "launchd" && LAUNCHD_USE_SUBMIT) {
     return runOrThrow(request, "launchctl", launchdSubmitArgs(request, spec));
   }
-  const entry = request.fakeScript ?? request.cli.args[0] ?? "";
+  const prefix = request.fakeScript === undefined ? request.cli.args : [request.fakeScript];
   await request.context.runner.spawnDetached(
     request.cli.command,
-    childArgsOf(entry, request.target, request.home),
+    childArgsOf(prefix, request.target, request.home),
     { env: { ...env, PATH: env.PATH ?? spec.path }, logFile: logFileOf(request.home) },
   );
 }

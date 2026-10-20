@@ -1,80 +1,85 @@
-import { dirname, join } from "node:path";
 import { isPlainVersion } from "@tau/protocol";
-import type { RunCommand } from "./command-runner";
+import { archiveNameOf, SUMS_NAME } from "./platform";
 
-export const PACKAGE_NAME = "@pablopunk/tau";
-const SCOPE_KEY = "@pablopunk:registry";
-const DEFAULT_REGISTRY = "https://registry.npmjs.org";
-const NPM_TIMEOUT_MS = 15_000;
+export const REPO = "pablopunk/tau";
+export const RELEASES_API = `https://api.github.com/repos/${REPO}`;
 const HTTP_TIMEOUT_MS = 15_000;
-const PACKUMENT_ACCEPT = "application/vnd.npm.install-v1+json; q=1.0, application/json; q=0.8";
-
-export const npmOf = (execPath: string): string => join(dirname(execPath), "npm");
 
 export type FetchLike = typeof fetch;
 
-async function configValue(run: RunCommand, execPath: string, key: string): Promise<string | undefined> {
-  const result = await run(npmOf(execPath), ["config", "get", key], {
-    stdio: "capture",
-    timeoutMs: NPM_TIMEOUT_MS,
-  });
-  const value = result.stdout.trim();
-  if (result.code !== 0 || value === "" || value === "undefined" || value === "null") return undefined;
-  return value;
+/** A release that can be installed here: this platform's archive and `SHA256SUMS` are both assets. */
+export interface Release {
+  readonly version: string;
+  readonly archiveUrl: string;
+  readonly archiveName: string;
+  readonly sumsUrl: string;
 }
 
-/** The registry npm would use for the package: the scoped one, else the default one, without a trailing slash. */
-export async function registryOf(run: RunCommand, execPath: string): Promise<string> {
-  const value =
-    (await configValue(run, execPath, SCOPE_KEY)) ??
-    (await configValue(run, execPath, "registry")) ??
-    DEFAULT_REGISTRY;
-  return value.replace(/\/+$/, "");
+const unavailable = (what: string) => new Error(`Could not read the latest release from GitHub (${what}).`);
+
+function limitedText(response: Response): string {
+  const retry = response.headers.get("retry-after");
+  return `HTTP ${response.status}${retry ? `, retry after ${retry}s` : ""}`;
 }
 
-const unavailable = (what: string) =>
-  new Error(`Could not read the latest version from the npm registry (${what}).`);
-
-async function request(fetchImpl: FetchLike, url: string, method: "GET" | "HEAD", accept?: string) {
+async function releaseJson(fetchImpl: FetchLike, url: string): Promise<Record<string, unknown>> {
+  let response: Response;
   try {
-    return await fetchImpl(url, {
-      method,
-      headers: accept ? { accept } : undefined,
+    response = await fetchImpl(url, {
+      headers: { "user-agent": "tau-updater", accept: "application/vnd.github+json" },
       signal: AbortSignal.timeout(HTTP_TIMEOUT_MS),
     });
   } catch (error) {
     throw unavailable(error instanceof Error ? error.message : String(error));
   }
-}
-
-async function jsonOf(response: Response, what: string): Promise<Record<string, unknown>> {
-  if (response.status !== 200) throw unavailable(`${what}: HTTP ${response.status}`);
+  if (response.status !== 200) throw unavailable(limitedText(response));
   try {
     return (await response.json()) as Record<string, unknown>;
   } catch {
-    throw unavailable(`${what}: not JSON`);
+    throw unavailable("not JSON");
   }
 }
 
-/**
- * The registry's `latest` as plain `x.y.z`, only when `npm i` could install it right now: the version document
- * answers 200 and so does its tarball. Anything else throws, so callers keep their previous value.
- */
-export async function fetchLatestVersion(
-  run: RunCommand,
-  execPath: string,
-  fetchImpl: FetchLike = fetch,
-): Promise<string> {
-  const base = `${await registryOf(run, execPath)}/${PACKAGE_NAME.replace("/", "%2f")}`;
-  const packument = await jsonOf(await request(fetchImpl, base, "GET", PACKUMENT_ACCEPT), "package");
-  const latest = (packument["dist-tags"] as { latest?: unknown } | undefined)?.latest;
-  if (typeof latest !== "string" || !isPlainVersion(latest)) {
-    throw new Error(`The registry returned an unexpected version: ${String(latest)}`);
+function assetUrls(release: Record<string, unknown>): Map<string, string> {
+  const urls = new Map<string, string>();
+  const assets = Array.isArray(release.assets) ? (release.assets as unknown[]) : [];
+  for (const asset of assets) {
+    const { name, browser_download_url: url } = (asset ?? {}) as { name?: unknown; browser_download_url?: unknown };
+    if (typeof name === "string" && typeof url === "string") urls.set(name, url);
   }
-  const document = await jsonOf(await request(fetchImpl, `${base}/${latest}`, "GET"), `version ${latest}`);
-  const tarball = (document.dist as { tarball?: unknown } | undefined)?.tarball;
-  if (typeof tarball !== "string") throw unavailable(`version ${latest} has no tarball`);
-  const head = await request(fetchImpl, tarball, "HEAD");
-  if (head.status !== 200) throw unavailable(`tarball of ${latest}: HTTP ${head.status}`);
-  return latest;
+  return urls;
+}
+
+/**
+ * The release `tag` ("latest" or `v1.2.3`) as `Release`, only when it can be installed right now. Anything else
+ * throws, so callers keep their previous `latest` (a 403 or 429 included: the next check is hours away).
+ */
+export async function fetchRelease(
+  fetchImpl: FetchLike,
+  platformKey: string | undefined,
+  tag: "latest" | string = "latest",
+  api: string = RELEASES_API,
+): Promise<Release> {
+  if (platformKey === undefined) throw new Error("tau ships no binary for this platform.");
+  const path = tag === "latest" ? "releases/latest" : `releases/tags/${tag}`;
+  const body = await releaseJson(fetchImpl, `${api}/${path}`);
+  if (body.draft === true || body.prerelease === true) throw unavailable("the release is not published");
+  const version = String(body.tag_name ?? "").replace(/^v/, "");
+  if (!isPlainVersion(version)) throw new Error(`GitHub returned an unexpected version: ${version}`);
+  const urls = assetUrls(body);
+  const archiveName = archiveNameOf(version, platformKey);
+  const archiveUrl = urls.get(archiveName);
+  const sumsUrl = urls.get(SUMS_NAME);
+  if (archiveUrl === undefined || sumsUrl === undefined) {
+    throw unavailable(`release ${version} has no ${archiveUrl === undefined ? archiveName : SUMS_NAME} yet`);
+  }
+  return { version, archiveUrl, archiveName, sumsUrl };
+}
+
+export async function fetchLatestVersion(
+  platformKey: string | undefined,
+  fetchImpl: FetchLike = fetch,
+  api: string = RELEASES_API,
+): Promise<string> {
+  return (await fetchRelease(fetchImpl, platformKey, "latest", api)).version;
 }

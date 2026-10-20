@@ -5,7 +5,6 @@ import type { ServiceContext } from "../service/context";
 import { createServiceManager } from "../service/manager";
 import { hasUserSystemd } from "../service/systemd";
 import { fakeHooksAllowed } from "./fake-hooks";
-import { GLOBAL_LATEST_COMMAND, installMethodOf, PNPM_LATEST_COMMAND } from "./install-method";
 import { jobFileOf, logFileOf, readJobFile, writeJobFile } from "./job-file";
 import { logTailOf } from "./log-tail";
 import { spawnUpdateChild } from "./spawn-child";
@@ -32,11 +31,12 @@ export interface UpdaterDeps {
   /** This tau's version. */
   readonly version: string;
   readonly context: ServiceContext;
-  /** node and entry of this tau, for the child. */
+  /** How to start this tau again, for the child. */
   readonly cli: CliCommand;
-  /** `realpath(argv[1])`, for the install-method detection. */
-  readonly entry: string;
-  readonly execPath: string;
+  /** The install root (`current` and `versions/`); undefined in a dev checkout or the Node build. */
+  readonly installRoot: string | undefined;
+  /** `darwin-arm64` and so on; undefined where tau ships no binary. */
+  readonly platformKey: string | undefined;
   readonly env?: NodeJS.ProcessEnv;
   readonly now?: () => number;
   readonly newNonce?: () => string;
@@ -73,22 +73,14 @@ interface Facts {
   readonly systemdVersion: number | undefined;
 }
 
-function planOf(deps: UpdaterDeps, facts: Facts, target: string): UpdateInstall {
-  const method = installMethodOf({
-    entry: deps.entry,
-    execPath: deps.execPath,
-    platform: deps.context.platform,
-    target,
-  });
-  if (method.kind === "manual") {
-    return {
-      mode: method.manualCommand ? "manual" : "none",
-      command: method.manualCommand ?? null,
-      reason: method.reason,
-    };
-  }
-  const manualCommand = method.kind === "pnpm" ? PNPM_LATEST_COMMAND : GLOBAL_LATEST_COMMAND;
-  const manual = (reason: string): UpdateInstall => ({ mode: "manual", command: manualCommand, reason });
+export const INSTALL_COMMAND = "curl -fsSL https://github.com/pablopunk/tau/releases/latest/download/install.sh | sh";
+export const DEV_CHECKOUT_REASON = "Running from a development checkout: update it with git.";
+export const NO_BINARY_REASON = "Automatic update is not supported on this platform.";
+
+function planOf(deps: UpdaterDeps, facts: Facts): UpdateInstall {
+  if (deps.installRoot === undefined) return { mode: "none", command: null, reason: DEV_CHECKOUT_REASON };
+  if (deps.platformKey === undefined) return { mode: "none", command: null, reason: NO_BINARY_REASON };
+  const manual = (reason: string): UpdateInstall => ({ mode: "manual", command: INSTALL_COMMAND, reason });
   const verified = (BACKEND_VERIFIED as Record<string, boolean>)[facts.kind] === true;
   if (!verified) return manual(unverifiedReason(facts.kind));
   if (facts.kind === "systemd" && (facts.systemdVersion ?? 0) < MIN_SYSTEMD_VERSION) {
@@ -184,7 +176,7 @@ export async function createUpdater(deps: UpdaterDeps): Promise<UpdaterPort> {
   settled();
 
   return {
-    plan: (target) => planOf(deps, facts, target),
+    plan: () => planOf(deps, facts),
     spawn: ({ target }) => start(target),
     async readJob() {
       const job = settled();
