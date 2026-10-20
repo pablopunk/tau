@@ -33,59 +33,67 @@ async function statusOf(request: import("@playwright/test").APIRequestContext): 
   ).json()) as UpdateState;
 }
 
+/** The updater child records its pid in update.json and exits after the new server answers. */
+function updateChildGone(): boolean {
+  const { pid } = JSON.parse(readFileSync(join(server.home, "update.json"), "utf8")) as { pid: number };
+  try {
+    process.kill(pid, 0);
+    return false;
+  } catch {
+    return true;
+  }
+}
+
 const currentVersion = () => readlinkSync(join(server.installDir, "current")).split("/").pop();
 
-test.beforeAll(async () => {
+async function boot(latest: string): Promise<void> {
   test.setTimeout(300_000);
   const releases = await ensureReleases();
-  github = await serveReleases(releases, GOOD_VERSION);
+  github = await serveReleases(releases, latest);
   server = await startBinaryServer(releases, github);
-});
-test.afterAll(async () => {
+}
+async function shutdown(): Promise<void> {
   await server?.stop();
   await github?.close();
+}
+
+test.describe("a good release", () => {
+  test.beforeAll(() => boot(GOOD_VERSION));
+  test.afterAll(shutdown);
+
+  test("updates the installed binary to a fake release", async ({ request }) => {
+    test.setTimeout(180_000);
+    expect((await statusOf(request)).current).toBe(INSTALLED_VERSION);
+    const started = await request.post(`${server.baseURL}/api/update/start`, {
+      data: { target: GOOD_VERSION, force: true },
+      headers: headers(),
+    });
+    expect(started.status()).toBe(202);
+    await expect
+      .poll(async () => (await statusOf(request).catch(() => undefined))?.current, {
+        timeout: 120_000,
+      })
+      .toBe(GOOD_VERSION);
+    expect(currentVersion()).toBe(GOOD_VERSION);
+    await expect.poll(updateChildGone, { timeout: 60_000 }).toBe(true);
+  });
 });
 
-test("updates the installed binary to a fake release", async ({ request }) => {
-  test.setTimeout(180_000);
-  expect((await statusOf(request)).current).toBe(INSTALLED_VERSION);
-  const started = await request.post(`${server.baseURL}/api/update/start`, {
-    data: { target: GOOD_VERSION, force: true },
-    headers: headers(),
-  });
-  expect(started.status()).toBe(202);
-  await expect
-    .poll(async () => (await statusOf(request).catch(() => undefined))?.current, {
-      timeout: 120_000,
-    })
-    .toBe(GOOD_VERSION);
-  expect(currentVersion()).toBe(GOOD_VERSION);
-  await expect
-    .poll(async () => (await statusOf(request).catch(() => undefined))?.job.state, { timeout: 60_000 })
-    .toBe("idle");
-});
+test.describe("a broken release", () => {
+  test.beforeAll(() => boot(BROKEN_VERSION));
+  test.afterAll(shutdown);
 
-test("a broken release rolls back to the previous version", async ({ request }) => {
-  test.setTimeout(180_000);
-  github.latest = BROKEN_VERSION;
-  await server.tau("restart");
-  await expect
-    .poll(
-      async () =>
-        ((await statusOf(request).catch(() => undefined)) as { latest?: string } | undefined)?.latest,
-      {
-        timeout: 60_000,
-      },
-    )
-    .toBe(BROKEN_VERSION);
-  const started = await request.post(`${server.baseURL}/api/update/start`, {
-    data: { target: BROKEN_VERSION, force: true },
-    headers: headers(),
+  test("a broken release rolls back to the previous version", async ({ request }) => {
+    test.setTimeout(180_000);
+    const started = await request.post(`${server.baseURL}/api/update/start`, {
+      data: { target: BROKEN_VERSION, force: true },
+      headers: headers(),
+    });
+    expect(started.status()).toBe(202);
+    await expect
+      .poll(async () => (await statusOf(request).catch(() => undefined))?.job.state, { timeout: 120_000 })
+      .toBe("failed");
+    expect(currentVersion()).toBe(INSTALLED_VERSION);
+    expect((await statusOf(request)).current).toBe(INSTALLED_VERSION);
   });
-  expect(started.status()).toBe(202);
-  await expect
-    .poll(async () => (await statusOf(request).catch(() => undefined))?.job.state, { timeout: 120_000 })
-    .toBe("failed");
-  expect(currentVersion()).toBe(GOOD_VERSION);
-  expect((await statusOf(request)).current).toBe(GOOD_VERSION);
 });
