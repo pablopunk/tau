@@ -110,8 +110,9 @@ describe("modelsGuidance", () => {
   it("states the policy for an unpriced or free parent", () => {
     const text = modelsGuidance([model("faux", "faux-text")], ref("faux", "faux-text"));
     expect(text).toContain(
-      "If your own band is unpriced, keep your own model. If it is free, nothing is lighter",
+      "If your own band is unpriced, you cannot compare: keep your own model unless the task clearly needs a smarter one. If it is free, nothing is lighter",
     );
-    expect(text).toContain("Never pick a band heavier than your own unless the user asked");
+    expect(text).toContain("Go heavier than your own model when the task needs a smarter one");
+    expect(text).not.toContain("Never pick a band heavier");
   });
 });

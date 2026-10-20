@@ -109,7 +109,7 @@ Input: the parent provider's `ModelInfo[]`. Output per model: `free | light | mi
   the fast alias target, `(your model, fast)` when `fast` resolves to the parent. **[R2]**
 - `Aliases:` `inherit` = your model; `fast` = `<ref>` only when it resolves on this provider, else "your own model".
 - **Policy:** default to your own model. Go lighter (`free`/`light` plus low `thinking`) for search, summaries,
-  mechanical edits, bulk fan-out. Never pick a band heavier than your own unless the user asked; an explicit user
+  mechanical edits, bulk fan-out. Go heavier when the task needs a smarter model (plan review, hard bug), even from a fast parent, using few heavy workers; an explicit user
   model or effort instruction always wins. If your own band is `unpriced`, keep your own model. If it is `free`, nothing is
   lighter: keep it. If everything collapses to `mid`, the rule is vacuous: read the prices. N workers multiply
   spend/quota by N. Speed: "no latency data; lighter model + lower thinking is the speed lever". The old "only
@@ -140,7 +140,7 @@ Go allowance table (rejected by the user: drifts), family-strength hints, 410 `M
    parent; policy text for parent `unpriced`/`free`. Snapshots of the block for Go-, OpenRouter- and Anthropic-sized
    lists, claude-cli and faux.
 4. **Real use (definition of done):** built app, on the user's Go key and on claude-cli: ask for a bulk fan-out and
-   a hard task; read `model` in `list_agents`; confirm light picks for bulk, nothing heavier than the parent
+   a hard task; read `model` in `list_agents`; confirm light picks for bulk, heavier picks only for tasks that need them
    without an instruction, nothing outside the parent's provider. Playwright e2e still passes with faux costs.
 
 One agent, serial: a small change crossing protocol/testkit/core.

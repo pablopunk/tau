@@ -12,8 +12,8 @@ const BILLING_CAPTION = {
 } as const;
 
 const POLICY = [
-  "Subagent models: default to your own model. Go lighter (free or light, plus low `thinking`) for search, summaries, mechanical edits and bulk fan-out. Never pick a band heavier than your own unless the user asked; an explicit user instruction about the model or effort always wins.",
-  "If your own band is unpriced, keep your own model. If it is free, nothing is lighter: keep it. If every model shows mid, the bands say nothing: read the prices. N workers multiply spend or quota by N.",
+  "Subagent models: default to your own model. Go lighter (free or light, plus low `thinking`) for search, summaries, mechanical edits and bulk fan-out. Go heavier than your own model when the task needs a smarter one, such as reviewing a plan, a hard bug, or an architecture decision, even if you are a fast model yourself: delegate that one piece, not everything. Match the model to the task, not to your own band. An explicit user instruction about the model or effort always wins.",
+  "If your own band is unpriced, you cannot compare: keep your own model unless the task clearly needs a smarter one. If it is free, nothing is lighter. If every model shows mid, the bands say nothing: read the prices. N workers multiply spend or quota by N, and a heavier model costs more per worker: use few heavy workers.",
   "There is no latency data: a lighter model and lower `thinking` are the speed lever.",
 ];
 
