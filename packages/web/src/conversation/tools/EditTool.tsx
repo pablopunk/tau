@@ -11,11 +11,12 @@ interface EditArgument {
 }
 
 function diffFromArguments(state: ToolRendererProps["state"]): string {
-  const edits = (state.call.arguments?.edits ?? []) as readonly EditArgument[];
+  const raw = state.call.arguments?.edits;
+  const edits = (Array.isArray(raw) ? raw : []) as readonly EditArgument[];
   return edits
     .flatMap((edit) => [
-      ...(edit.oldText ?? "").split("\n").map((line) => `-${line}`),
-      ...(edit.newText ?? "").split("\n").map((line) => `+${line}`),
+      ...((edit?.oldText ?? "").split("\n").map((line) => `-${line}`)),
+      ...((edit?.newText ?? "").split("\n").map((line) => `+${line}`)),
     ])
     .join("\n");
 }
