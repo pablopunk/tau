@@ -67,10 +67,17 @@ async function compile(version: string, stage: string): Promise<void> {
   );
 }
 
+/** CI points TAU_E2E_RELEASES_DIR at a folder it caches per CLI build; locally the folder is keyed on the CLI's mtime. */
+function releasesDir(): string {
+  const cached = process.env.TAU_E2E_RELEASES_DIR;
+  if (cached) return cached;
+  const stamp = Math.floor(statSync(join(REPO, "packages/cli/dist/bin.js")).mtimeMs);
+  return join(realpathSync(tmpdir()), `tau-e2e-releases-${stamp}`);
+}
+
 /** Compiles 1.0.0, 1.0.1 and a broken 1.0.2 once per build of the CLI; later specs reuse the folder. */
 export async function ensureReleases(): Promise<string> {
-  const stamp = Math.floor(statSync(join(REPO, "packages/cli/dist/bin.js")).mtimeMs);
-  const releases = join(realpathSync(tmpdir()), `tau-e2e-releases-${stamp}`);
+  const releases = releasesDir();
   if (existsSync(join(releases, "done"))) return releases;
   const stage = mkdtempSync(join(realpathSync(tmpdir()), "tau-e2e-stage-"));
   for (const version of [INSTALLED_VERSION, GOOD_VERSION]) {
