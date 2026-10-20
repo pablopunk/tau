@@ -98,13 +98,13 @@ jobs:
       matrix:
         include:
           - shard: "1"
-            files: tests/mvp12-nodes.spec.ts tests/chat.spec.ts tests/github.spec.ts tests/mvp9-claude-cli.spec.ts tests/resources-priority.spec.ts
+            files: tests/mvp12-nodes.spec.ts tests/chat.spec.ts tests/github.spec.ts tests/mvp9-claude-cli.spec.ts tests/resources-priority.spec.ts tests/mvp13-step2-pins.spec.ts tests/thread-scroll.spec.ts tests/resources-classify.spec.ts
           - shard: "2"
-            files: tests/resources-live.spec.ts tests/mvp6.spec.ts tests/mvp7.spec.ts tests/mvp5.spec.ts tests/resources-memory.spec.ts tests/mvp12-remote.spec.ts
+            files: tests/resources-live.spec.ts tests/mvp6.spec.ts tests/mvp7.spec.ts tests/mvp5.spec.ts tests/resources-memory.spec.ts tests/mvp12-remote.spec.ts tests/terminal.spec.ts tests/mvp8-goal-monitor.spec.ts
           - shard: "3"
-            files: tests/mvp4.spec.ts tests/mvp8-timers.spec.ts tests/mvp8-restart.spec.ts tests/mvp9-connectors.spec.ts tests/resources-compare.spec.ts tests/resources-old-node.spec.ts
+            files: tests/mvp4.spec.ts tests/mvp8-timers.spec.ts tests/mvp8-restart.spec.ts tests/mvp9-connectors.spec.ts tests/resources-compare.spec.ts tests/resources-old-node.spec.ts tests/resources.spec.ts
           - shard: "4"
-            files: tests/binary.spec.ts tests/update-button.spec.ts tests/mvp13-step2-pins.spec.ts tests/resources.spec.ts tests/resources-classify.spec.ts tests/mvp8-goal-monitor.spec.ts tests/terminal.spec.ts tests/thread-scroll.spec.ts
+            files: tests/binary.spec.ts tests/update-button.spec.ts
     env:
       E2E_SHARD: ${{ matrix.shard }}
     steps:
@@ -121,13 +121,29 @@ jobs:
         with:
           path: ~/.cache/ms-playwright
           key: playwright-chromium-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+      - name: Compiled fake releases (binary shard only; rebuilt when the CLI build changes)
+        if: matrix.shard == '4'
+        id: releases-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ runner.temp }}/tau-e2e-releases
+          key: e2e-releases-${{ runner.os }}-${{ hashFiles('packages/cli/dist/**', 'packages/web/dist/**', '.bun-version') }}
       - name: Chromium (cached browser, apt deps every time)
         if: steps.playwright-cache.outputs.cache-hit != 'true'
         run: mise exec -- pnpm --filter @tau/e2e exec playwright install --with-deps chromium
       - name: Chromium system deps (browser cached)
         if: steps.playwright-cache.outputs.cache-hit == 'true'
         run: mise exec -- pnpm --filter @tau/e2e exec playwright install-deps chromium
-      - run: mise exec -- pnpm --filter @tau/e2e exec playwright test ${{ matrix.files }}
+      - name: Playwright e2e
+        env:
+          TAU_E2E_RELEASES_DIR: ${{ runner.temp }}/tau-e2e-releases
+        run: mise exec -- pnpm --filter @tau/e2e exec playwright test ${{ matrix.files }}
+      - name: Save compiled fake releases
+        if: always() && matrix.shard == '4' && steps.releases-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ runner.temp }}/tau-e2e-releases
+          key: e2e-releases-${{ runner.os }}-${{ hashFiles('packages/cli/dist/**', 'packages/web/dist/**', '.bun-version') }}
       - uses: actions/upload-artifact@v4
         if: always()
         with:

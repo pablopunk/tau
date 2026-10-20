@@ -1,5 +1,5 @@
 {
-  "source": "CI run 39455101661 on main (92df33d): vitest 'Tests' lines and Playwright stats (passed + skipped)",
+  "source": "CI run 39455101661 on main (92df33d): vitest Tests lines; e2e = Running 101 tests in the same log",
   "unit": {
     "packages/protocol": 87,
     "packages/testkit": 223,
@@ -8,5 +8,5 @@
     "packages/core": 1283,
     "packages/web": 737
   },
-  "e2e": 76
+  "e2e": 101
 }
