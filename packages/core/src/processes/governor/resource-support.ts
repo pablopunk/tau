@@ -8,7 +8,9 @@ export const PROBE_TTL_MS = 5000;
 export const PROBE_TIMEOUT_MS = 2000;
 export const REPROBE_MS = 30_000;
 const MEMORY_MAX_BYTES = 64 * 1024 * 1024;
-const FIRST_PROBE_SCRIPT = "cat /sys/fs/cgroup$(cut -d: -f3 /proc/self/cgroup)/memory.max";
+/** Shell builtins only: a minimal PATH (or none) must not break the probe. */
+export const FIRST_PROBE_SCRIPT =
+  'read line < /proc/self/cgroup; read max < "/sys/fs/cgroup${line#0::}/memory.max"; echo "$max"';
 
 export interface ProbeOutcome {
   readonly ok: boolean;
@@ -41,6 +43,8 @@ export interface SupportDeps {
   readonly nodeId: () => string;
   readonly exec?: Exec;
   readonly platform?: HostPlatform;
+  /** Test seam: skip the PATH scan. */
+  readonly binaries?: Binaries;
   readonly env?: NodeJS.ProcessEnv;
   readonly now?: () => number;
   readonly sleep?: (ms: number) => Promise<void>;
@@ -56,7 +60,7 @@ export function createResourceSupport(deps: SupportDeps): ResourceSupportProbe {
   const platform = deps.platform ?? hostPlatform();
   let resolved: Binaries | undefined;
   const binaries = () => {
-    resolved ??= resolveBinaries(platform);
+    resolved ??= deps.binaries ?? resolveBinaries(platform);
     return resolved;
   };
   const env = () => ({ ...(deps.env ?? process.env), ...systemdEnv(deps.env) });
@@ -146,6 +150,8 @@ export function createResourceSupport(deps: SupportDeps): ResourceSupportProbe {
         await clearLeftovers();
         return { cgroupMemory: true };
       }
+      // Spawns that shared this in-flight probe all land here: only the first takes the failure.
+      if (degraded) return { cgroupMemory: false };
       degraded = true;
       startReprobe();
       return { cgroupMemory: false, failure: probeFailedText(outcome.reason ?? "unknown reason") };

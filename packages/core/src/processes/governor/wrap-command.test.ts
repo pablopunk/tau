@@ -1,6 +1,7 @@
+import { spawnSync } from "node:child_process";
 import { DEFAULT_RESOURCE_SETTINGS, type ResourceSettings } from "@tau/protocol";
 import { describe, expect, it } from "vitest";
-import { findOnPath, type WrapSupport, wrapCommand } from "./wrap-command";
+import { BACKGROUND_CHRT, findOnPath, type WrapSupport, wrapCommand } from "./wrap-command";
 
 const settings = (patch: Partial<ResourceSettings>): ResourceSettings => ({
   ...DEFAULT_RESOURCE_SETTINGS,
@@ -46,10 +47,14 @@ describe("wrapCommand", () => {
       support: linux,
     });
     expect(background?.file).toBe("/bin/sh");
-    expect(background?.args[1]).toBe(
-      'chrt -i 0 true 2>/dev/null && exec chrt -i 0 "$@" || exec nice -n 19 "$@"',
-    );
-    expect(background?.args.slice(2)).toEqual(["_", "/bin/bash", "-c", "pnpm test"]);
+    expect(background?.args[1]).toBe(BACKGROUND_CHRT);
+    expect(background?.args.slice(2)).toEqual(["_", "chrt", "/usr/bin/nice", "/bin/bash", "-c", "pnpm test"]);
+  });
+
+  it("passes absolute chrt and nice to the background wrapper", () => {
+    const support = { ...linux, binaries: { ...linux.binaries, chrt: "/usr/bin/chrt" } };
+    const wrapped = wrapCommand({ ...base, settings: settings({ priority: "background" }), support });
+    expect(wrapped?.args.slice(2, 5)).toEqual(["_", "/usr/bin/chrt", "/usr/bin/nice"]);
   });
 
   it("uses a scope for the memory limit on Linux with cgroup support", () => {
@@ -90,5 +95,25 @@ describe("wrapCommand", () => {
 describe("findOnPath", () => {
   it("adds /usr/bin and /bin to a short PATH", () => {
     expect(findOnPath("sh", "/nonexistent")).toMatch(/\/(usr\/)?bin\/sh$/);
+  });
+});
+
+describe("background wrapper, really run", () => {
+  const real: WrapSupport = {
+    platform: "linux",
+    binaries: { nice: "/usr/bin/nice", sh: "/bin/sh", chrt: "/nonexistent/chrt" },
+    cgroupMemory: false,
+  };
+
+  it("falls back to nice, keeps the exit code and the pid", () => {
+    const wrapped = wrapCommand({
+      shell: "/bin/sh",
+      command: 'echo "pid=$$"; exit 3',
+      settings: settings({ priority: "background" }),
+      support: real,
+    });
+    const run = spawnSync(wrapped?.file ?? "", [...(wrapped?.args ?? [])], { encoding: "utf8" });
+    expect(run.status).toBe(3);
+    expect(run.stdout).toMatch(/^pid=\d+\n$/);
   });
 });

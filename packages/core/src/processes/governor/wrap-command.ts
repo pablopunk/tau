@@ -10,6 +10,7 @@ export const hostPlatform = (platform: NodeJS.Platform = process.platform): Host
 export interface Binaries {
   readonly taskpolicy?: string;
   readonly nice?: string;
+  readonly chrt?: string;
   readonly sh?: string;
   readonly systemdRun?: string;
 }
@@ -36,7 +37,9 @@ export interface WrapInput {
 }
 
 export const TASKPOLICY = "/usr/sbin/taskpolicy";
-const BACKGROUND_CHRT = 'chrt -i 0 true 2>/dev/null && exec chrt -i 0 "$@" || exec nice -n 19 "$@"';
+/** `$1` chrt and `$2` nice, absolute when resolved, so a minimal PATH still finds them. */
+export const BACKGROUND_CHRT =
+  'chrt=$1; nice=$2; shift 2; "$chrt" -i 0 true 2>/dev/null && exec "$chrt" -i 0 "$@" || exec "$nice" -n 19 "$@"';
 
 const isExecutable = (path: string) => {
   try {
@@ -61,7 +64,7 @@ export function resolveBinaries(platform: HostPlatform, path?: string): Binaries
   if (platform === "macos") return isExecutable(TASKPOLICY) ? { taskpolicy: TASKPOLICY } : {};
   if (platform !== "linux") return {};
   const find = (name: string) => findOnPath(name, path);
-  const found = { nice: find("nice"), sh: find("sh"), systemdRun: find("systemd-run") };
+  const found = { nice: find("nice"), chrt: find("chrt"), sh: find("sh"), systemdRun: find("systemd-run") };
   return Object.fromEntries(Object.entries(found).filter(([, value]) => value !== undefined)) as Binaries;
 }
 
@@ -75,7 +78,8 @@ function priorityPrefix(settings: ResourceSettings, support: WrapSupport): strin
   }
   if (platform !== "linux") return [];
   if (priority === "balanced") return binaries.nice ? [binaries.nice, "-n", "5"] : [];
-  return binaries.sh ? [binaries.sh, "-c", BACKGROUND_CHRT, "_"] : [];
+  if (!binaries.sh) return [];
+  return [binaries.sh, "-c", BACKGROUND_CHRT, "_", binaries.chrt ?? "chrt", binaries.nice ?? "nice"];
 }
 
 function scopePrefix({ settings, support, unit }: WrapInput): string[] {
