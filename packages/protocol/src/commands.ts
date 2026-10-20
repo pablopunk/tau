@@ -481,6 +481,13 @@ export const commands: readonly CommandDef[] = [
     destructive: false,
   },
   {
+    command: "processes stop-call",
+    route: "stopToolCall",
+    summary: "Stop a running bash call of a thread",
+    positionals: ["params.id", "params.callId"],
+    destructive: false,
+  },
+  {
     command: "terminals list",
     route: "listTerminals",
     summary: "List the terminals of a thread",

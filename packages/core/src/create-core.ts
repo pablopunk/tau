@@ -507,6 +507,7 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
         logs: (id, tail) => processes.logs(id, tail),
         stop: (id) => processes.stop(id),
         background: (id, callId) => processes.background(id, callId),
+        stopToolCall: (id, callId) => processes.stopToolCall(id, callId),
       },
       terminals: terminals.api,
       approvals: createApprovalsApi(approvals, conversations),

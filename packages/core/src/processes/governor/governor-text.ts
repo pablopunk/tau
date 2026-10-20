@@ -1,7 +1,11 @@
 import type { StopReason } from "../process-types";
 
-export const waitingForSlotText = (busy: number, limit: number) =>
-  `Waiting for a free slot (${busy} of ${limit} busy)...\n`;
+export const waitingForSlotText = (busy: number, limit: number, position?: number) =>
+  position === undefined
+    ? `Waiting for a free slot (${busy} of ${limit} busy)...\n`
+    : `Waiting for a free slot (position ${position} of ${busy} waiting, ${limit} busy)...\n`;
+
+export const probingResourcesText = () => `Checking resource limits before spawn...\n`;
 
 export const probeFailedText = (reason: string) =>
   `Resource limits unavailable: ${reason}. Fix or turn them off in Settings → Resources.`;

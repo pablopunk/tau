@@ -699,6 +699,12 @@ export const routes = {
     params: ToolCallParams,
     response: ProcessInfoSchema,
   },
+  stopToolCall: {
+    method: "POST",
+    path: `${API_PREFIX}/conversations/:id/tool-calls/:callId/stop`,
+    status: 204,
+    params: ToolCallParams,
+  },
   getTerminalsAvailable: {
     method: "GET",
     path: `${API_PREFIX}/terminals/available`,

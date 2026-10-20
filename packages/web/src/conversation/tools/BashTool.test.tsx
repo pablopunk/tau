@@ -8,11 +8,17 @@ import type { ToolResultInfo } from "../model/transcript";
 import { BashTool } from "./BashTool";
 import { ToolConversationProvider } from "./tool-conversation";
 
-const { background } = vi.hoisted(() => ({ background: vi.fn(async () => ({})) }));
+const { background, stopCall } = vi.hoisted(() => ({
+  background: vi.fn(async () => ({})),
+  stopCall: vi.fn(async () => {}),
+}));
 
 vi.mock("@/lib/api", async (importOriginal) => {
   const original = await importOriginal<typeof import("@/lib/api")>();
-  return { ...original, api: { ...original.api, processes: { ...original.api.processes, background } } };
+  return {
+    ...original,
+    api: { ...original.api, processes: { ...original.api.processes, background, stopCall } },
+  };
 });
 
 const call = { id: "call-7", name: "bash", arguments: { command: "sleep 60" } } as unknown as ToolCall;
@@ -36,7 +42,10 @@ const inThread = (state: ToolCallState) => (
 );
 
 describe("bash tool card", () => {
-  beforeEach(() => background.mockClear());
+  beforeEach(() => {
+    background.mockClear();
+    stopCall.mockClear();
+  });
 
   it("sends a running command to the background", async () => {
     renderAt("/", inThread(running));
@@ -44,14 +53,22 @@ describe("bash tool card", () => {
     expect(background).toHaveBeenCalledWith("thread-1", "call-7");
   });
 
+  it("stops a running command", async () => {
+    renderAt("/", inThread(running));
+    await userEvent.click(screen.getByRole("button", { name: "Stop" }));
+    expect(stopCall).toHaveBeenCalledWith("thread-1", "call-7");
+  });
+
   it("offers nothing once the command is done", () => {
     renderAt("/", inThread(finished({})));
     expect(screen.queryByRole("button", { name: "Run in background" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Stop" })).toBeNull();
   });
 
   it("offers nothing where the transcript has no thread", () => {
     renderAt("/", <BashTool state={running} />);
     expect(screen.queryByRole("button", { name: "Run in background" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Stop" })).toBeNull();
   });
 
   it("marks a command that was moved to the background", () => {

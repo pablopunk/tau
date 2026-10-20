@@ -88,6 +88,9 @@ export function createFakeProcesses(deps: {
       async background(_conversationId, callId) {
         throw new AppError("not_found", `No running bash call ${callId}`);
       },
+      async stopToolCall(_conversationId, callId) {
+        throw new AppError("not_found", `No running bash call ${callId}`);
+      },
     },
     queue(conversationId, command) {
       const info = newInfo(conversationId, command, "process", "queued");

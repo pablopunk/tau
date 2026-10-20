@@ -9,13 +9,14 @@ import { stopMessage } from "../../processes/governor/governor-text";
 import type { ForegroundOutcome, ForegroundRun } from "../../processes/process-types";
 import type { ToolServicesRef } from "./tool-file";
 
-const MAX_TIMEOUT_SECONDS = 2_147_483_647 / 1000;
+const DEFAULT_TIMEOUT_SECONDS = 120;
+const MAX_TIMEOUT_SECONDS = 600;
 const MAX_LINES = 2000;
 const MAX_KB = 50;
 
 const BashParameters = Type.Object({
   command: Type.String({ description: "Bash command to execute" }),
-  timeout: Type.Optional(Type.Number({ description: "Timeout in seconds (optional, no default timeout)" })),
+  timeout: Type.Optional(Type.Number({ description: "Timeout in seconds (default 120, maximum 600)" })),
 });
 
 const BashStructuredOutput = Type.Object({
@@ -109,6 +110,7 @@ export const createTauBashTool = ({ services, prepare }: TauBashOptions) =>
     outputLimits: { retain: "tail" },
     async execute({ command, timeout }, api, context) {
       validateTimeout(timeout);
+      const effectiveTimeout = timeout ?? DEFAULT_TIMEOUT_SECONDS;
       const cwd = api.env?.cwd ?? process.cwd();
       await requireDirectory(cwd);
       const execution: BashExecution = { command, cwd, env: {}, inheritEnv: true };
@@ -136,7 +138,7 @@ export const createTauBashTool = ({ services, prepare }: TauBashOptions) =>
           }
         },
       });
-      const watch = guard(run, timeout, context.abortSignal);
+      const watch = guard(run, effectiveTimeout, context.abortSignal);
       let handedOver = false;
       let keepLog = false;
       try {
@@ -162,7 +164,7 @@ export const createTauBashTool = ({ services, prepare }: TauBashOptions) =>
             details: { processId: outcome.info.id, backgrounded: true },
           };
         }
-        const timeoutText = `Command timed out after ${timeout} seconds`;
+        const timeoutText = `Command timed out after ${effectiveTimeout} seconds`;
         if (outcome.stopReason === "memory") {
           throw new Error(stopMessage("memory", settings.memoryLimitMb, timeoutText));
         }

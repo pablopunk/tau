@@ -11,7 +11,7 @@ import type { Notification, NotificationSubmitter } from "../harness/notificatio
 import { createDeferred, type Deferred } from "./deferred";
 import { type Exec, systemdEnv } from "./governor/exec";
 import { createGovernor, type Governor, type Plan } from "./governor/governor";
-import { memoryStopText, waitingForSlotText } from "./governor/governor-text";
+import { memoryStopText, probingResourcesText, waitingForSlotText } from "./governor/governor-text";
 import type { WatchHandle } from "./governor/memory-watch";
 import type { Sweep } from "./governor/ps-sweep";
 import type { ResourceState } from "./governor/resource-state";
@@ -30,7 +30,7 @@ import {
   restartNoticeText,
 } from "./process-notifications";
 import type { ExitDetails, ForegroundOutcome, ForegroundRun, StopReason } from "./process-types";
-import { type RunningProcess, type SpawnFn, spawnRunning } from "./running-process";
+import { EXIT_TAIL_LINES, type RunningProcess, type SpawnFn, spawnRunning } from "./running-process";
 
 export type { ExitDetails, ForegroundOutcome, ForegroundRun, SlotInfo };
 
@@ -97,6 +97,8 @@ export interface ProcessService {
   resourceActivity(): { holders: SlotInfo[]; waiting: SlotInfo[] };
   /** Stops a listed heavy command; `not_found` for anything not in `resourceActivity`. */
   stopResourceCommand(entryId: string): Promise<void>;
+  /** Stops the foreground call a tool waits for; `not_found` when absent or already settled. Bounded: never hangs. */
+  stopToolCall(conversationId: string, callId: string): Promise<void>;
 }
 
 export interface ProcessDeps {
@@ -121,6 +123,8 @@ export interface ProcessDeps {
 }
 
 const DEFAULT_STOP_GRACE_MS = 5000;
+/** Extra wait past the SIGTERM grace for a signalled child to reap before force-settling. */
+const STOP_SETTLE_BUFFER_MS = 2000;
 const NAME_LIMIT = 40;
 const COMMAND_LIMIT = 120;
 const ACTIVE = new Set<ProcessInfo["state"]>(["running", "queued"]);
@@ -152,6 +156,12 @@ interface Entry {
   spawned: Deferred<void>;
   /** Set by `stopEntry` before the spawn: nothing starts. */
   cancelled?: boolean;
+  /** The exit never reaped: settled by force, still listed with its pid until the real exit prunes it. */
+  reaping?: boolean;
+  /** One exit notice per entry: a late real exit after a force-settle sends nothing more. */
+  exitNotified?: boolean;
+  /** The group survived the post-SIGKILL verify poll; named in the force-settle notice. */
+  groupSurvived?: boolean;
   stopReason?: StopReason;
   slot?: SlotHandle;
   /** The memory limit the command runs under, for the stop message. */
@@ -266,6 +276,8 @@ export function createProcessService(deps: ProcessDeps): ProcessService {
 
   function finishEntry(entry: Entry, details: ExitDetails) {
     if (entry.timeout) clearTimeout(entry.timeout);
+    if (entry.exitNotified) return;
+    entry.exitNotified = true;
     if (entry.batcher) return finishMonitor(entry, details);
     const memoryStop = details.stopReason === "memory";
     if (entry.notifyOnExit && (!details.stopRequested || memoryStop)) {
@@ -305,11 +317,54 @@ export function createProcessService(deps: ProcessDeps): ProcessService {
     emitResources();
   }
 
+  /** The settle continuation, replicated for a child that never reaps: `running.exited.then` never runs for it. */
+  function forceSettle(entry: Entry, running: RunningProcess, reason: StopReason) {
+    entry.reaping = true;
+    entry.watch?.stop();
+    entry.watch = undefined;
+    entry.slot?.release();
+    entry.outcome?.resolve({ kind: "exited", exitCode: null, stopRequested: true, stopReason: reason });
+    if (entry.governed) emitResources();
+    // The entry stays listed with its pid; files go only on the real exit, which notifies nothing more.
+    if (entry.exitNotified) return;
+    entry.exitNotified = true;
+    if (entry.batcher) {
+      entry.batcher.flush();
+      send(
+        entry,
+        monitorEventNotification(
+          entry.info,
+          { lines: [], dropped: 0, ended: reason === "timeout" ? "timeout" : { exitCode: null } },
+          entry.sequence++,
+        ),
+      );
+      return;
+    }
+    if (entry.notifyOnExit) send(entry, processExitNotification(entry.info, null, reapingTailText(entry, running, reason)));
+  }
+
+  function reapingTailText(entry: Entry, running: RunningProcess, reason: StopReason): string {
+    const base =
+      reason === "timeout"
+        ? "Timed out"
+        : reason === "resources"
+          ? "Stopped from Resources settings"
+          : reason === "memory"
+            ? memoryStopText(entry.memoryLimitMb ?? null)
+            : "Command aborted";
+    const risk = entry.groupSurvived
+      ? "The process group survived SIGKILL and may still hold resources (e.g. its port)."
+      : "The process did not exit in time; its slot was released and it stays listed until it exits.";
+    return `${base}.\n${risk}\n${lastLines(running.tail.text(), EXIT_TAIL_LINES)}`;
+  }
+
   async function stopEntry(entry: Entry, reason: StopReason = "user") {
     if (entry.cancelled) {
       await entry.writes;
       return;
     }
+    // Already force-settled: the stop settled, the real exit is still pending. Never block again.
+    if (entry.reaping) return;
     const running = entry.running;
     if (!running) {
       if (entry.info.state !== "queued") {
@@ -326,9 +381,21 @@ export function createProcessService(deps: ProcessDeps): ProcessService {
     }
     running.stopRequested = true;
     running.stopReason ??= reason;
-    await terminateGroup(running.pid, grace);
-    await running.exited;
-    await entry.prune;
+    await terminateGroup(running.pid, grace, () => {
+      entry.groupSurvived = true;
+    });
+    const reaped = await Promise.race([
+      running.exited.then(
+        () => true,
+        () => false,
+      ),
+      sleep(grace + STOP_SETTLE_BUFFER_MS).then(() => false),
+    ]);
+    if (reaped) {
+      await entry.prune;
+      return;
+    }
+    forceSettle(entry, running, reason);
   }
 
   function createEntry(
@@ -478,8 +545,15 @@ export function createProcessService(deps: ProcessDeps): ProcessService {
 
   function tellWaiting(entry: Entry, plan: Plan) {
     const snapshot = governor.queue.snapshot();
-    if (snapshot.holders.some((holder) => holder.entryId === entry.info.id)) return;
-    entry.foreground?.onOutput(waitingForSlotText(snapshot.holders.length, plan.settings.heavySlots ?? 0));
+    const position = snapshot.waiting.findIndex((waiter) => waiter.entryId === entry.info.id);
+    if (position >= 0) {
+      entry.foreground?.onOutput(
+        waitingForSlotText(snapshot.holders.length, plan.settings.heavySlots ?? 0, position + 1),
+      );
+      return;
+    }
+    if (!snapshot.holders.some((holder) => holder.entryId === entry.info.id)) return;
+    entry.foreground?.onOutput(probingResourcesText());
   }
 
   async function spawnNow(entry: Entry, request: StartProcessRequest, plan: Plan) {
@@ -670,6 +744,16 @@ export function createProcessService(deps: ProcessDeps): ProcessService {
     async stopResourceCommand(entryId) {
       if (!governor.queue.has(entryId)) throw new AppError("not_found", `No resource command ${entryId}`);
       await stopEntry(require(entryId), "resources");
+    },
+    async stopToolCall(conversationId, callId) {
+      const key = foregroundKey(conversationId, callId);
+      const entry = foregroundEntries.get(key);
+      const state = entry ? infoOf(entry).state : undefined;
+      const waiting = state === "running" || state === "queued";
+      if (!entry || !waiting || entry.cancelled || entry.reaping || entry.running?.stopRequested) {
+        throw new AppError("not_found", `No running bash call ${callId}`);
+      }
+      await stopEntry(entry, "user");
     },
   };
 }

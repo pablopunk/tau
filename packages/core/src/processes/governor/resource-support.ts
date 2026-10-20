@@ -7,6 +7,8 @@ import { type Binaries, type HostPlatform, hostPlatform, resolveBinaries } from 
 
 export const PROBE_TTL_MS = 5000;
 export const PROBE_TIMEOUT_MS = 2000;
+/** Single bound for probe+retry+clear while a spawn holds a heavy slot. */
+export const PRESPAWN_DEADLINE_MS = 6000;
 export const REPROBE_MS = 30_000;
 const MEMORY_MAX_BYTES = 64 * 1024 * 1024;
 /** Shell builtins only: a minimal PATH (or none) must not break the probe. */
@@ -162,7 +164,26 @@ export function createResourceSupport(deps: SupportDeps): ResourceSupportProbe {
   const clearLeftovers = async () => {
     if (cleared) return;
     cleared = true;
-    await exec("systemctl", ["--user", "reset-failed", `${prefix()}-*.scope`], { env: env() });
+    await exec("systemctl", ["--user", "reset-failed", `${prefix()}-*.scope`], {
+      env: env(),
+      timeoutMs: PROBE_TIMEOUT_MS,
+    });
+  };
+
+  // One deadline across probe+retry+clear: per-call timeouts stacking past ~8s
+  // while a heavy slot is held would starve every waiter behind it.
+  const prepareBounded = async (): Promise<ProbeOutcome> => {
+    const prepared = (async () => {
+      const outcome = await probe();
+      if (outcome.ok) await clearLeftovers();
+      return outcome;
+    })();
+    const timedOut = await Promise.race([
+      prepared.then(() => false),
+      sleep(PRESPAWN_DEADLINE_MS).then(() => true),
+    ]);
+    if (timedOut) return { ok: false, reason: "the cgroup probe timed out" };
+    return prepared;
   };
 
   return {
@@ -170,9 +191,8 @@ export function createResourceSupport(deps: SupportDeps): ResourceSupportProbe {
     binaries,
     async prepareMemory() {
       if (degraded) return { cgroupMemory: false };
-      const outcome = await probe();
+      const outcome = await prepareBounded();
       if (outcome.ok) {
-        await clearLeftovers();
         return { cgroupMemory: true };
       }
       // Spawns that shared this in-flight probe all land here: only the first takes the failure.
@@ -216,6 +236,7 @@ export function createResourceSupport(deps: SupportDeps): ResourceSupportProbe {
       for (let waited = 0; waited <= 200; waited += 50) {
         const shown = await exec("systemctl", ["--user", "show", scope, "-p", "Result,ActiveState"], {
           env: env(),
+          timeoutMs: PROBE_TIMEOUT_MS,
         });
         const values = new Map(shown.stdout.split("\n").map((line) => line.split("=") as [string, string]));
         const state = values.get("ActiveState");
@@ -223,7 +244,10 @@ export function createResourceSupport(deps: SupportDeps): ResourceSupportProbe {
         if (state === "failed" || state === "inactive" || shown.code !== 0) break;
         await sleep(50);
       }
-      await exec("systemctl", ["--user", "reset-failed", scope], { env: env() });
+      await exec("systemctl", ["--user", "reset-failed", scope], {
+        env: env(),
+        timeoutMs: PROBE_TIMEOUT_MS,
+      });
       return verdict;
     },
     stop() {

@@ -1,4 +1,5 @@
 import { type Exec, execCommand } from "./exec";
+import { PROBE_TIMEOUT_MS } from "./resource-support";
 
 export interface ProcRow {
   readonly pid: number;
@@ -30,6 +31,7 @@ export function createPsSweep(exec: Exec = execCommand): Sweep {
   return async () => {
     const result = await exec("ps", ["-axo", "pid=,ppid=,pgid=,rss=,lstart="], {
       env: { ...process.env, LC_ALL: "C" },
+      timeoutMs: PROBE_TIMEOUT_MS,
     });
     return parsePsOutput(result.stdout);
   };

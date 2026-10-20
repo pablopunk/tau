@@ -1,3 +1,4 @@
+import { EventEmitter } from "node:events";
 import { mkdtemp, readFile, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -7,6 +8,7 @@ import { extractLocalUrls } from "./local-urls";
 import { createLogTail, lastLines } from "./log-tail";
 import { groupIsAlive, sleep } from "./process-group";
 import { createProcessService, type ProcessService } from "./process-service";
+import type { SpawnFn } from "./running-process";
 
 let home: string;
 let cwd: string;
@@ -121,6 +123,52 @@ describe("process service", () => {
     expect(await service.list("c1")).toEqual([]);
     expect(await exists(join(home, "processes", `${info.id}.json`))).toBe(false);
     expect(await exists(join(home, "processes", `${info.id}.log`))).toBe(false);
+  });
+
+  it("force-settles a spawn that never started without touching the own process group", async () => {
+    const child = new EventEmitter();
+    const pidless = createProcessService({
+      home,
+      emitChange: (id) => changes.push(id),
+      stopGraceMs: 50,
+      spawn: (() => child) as unknown as SpawnFn,
+    });
+    const info = await pidless.start({ conversationId: "c1", cwd, command: "never" });
+    expect(info.state).toBe("running");
+    // No hang (the R1.2 bound settles it) and no suicide via kill(-0).
+    await pidless.stop(info.id);
+    expect(groupIsAlive(process.pid)).toBe(true);
+    // Reaping entries stay listed with their pid until the real exit prunes them.
+    expect(await pidless.list("c1")).toHaveLength(1);
+    await pidless.stop(info.id);
+    await pidless.stopAll();
+  });
+
+  it("stops a foreground call by id", async () => {
+    const run = await service.runForeground({
+      conversationId: "c1",
+      callId: "call-9",
+      cwd,
+      command: "sleep 30",
+      onOutput: () => {},
+    });
+    await service.stopToolCall("c1", "call-9");
+    expect(await run.outcome).toMatchObject({ kind: "exited", stopRequested: true });
+    await run.release(false);
+  });
+
+  it("rejects stopToolCall for calls that are not running", async () => {
+    await expect(service.stopToolCall("c1", "nope")).rejects.toMatchObject({ code: "not_found" });
+    const run = await service.runForeground({
+      conversationId: "c1",
+      callId: "call-9",
+      cwd,
+      command: "true",
+      onOutput: () => {},
+    });
+    await run.outcome;
+    await expect(service.stopToolCall("c1", "call-9")).rejects.toMatchObject({ code: "not_found" });
+    await run.release(false);
   });
 
   it("rejects unknown ids with not_found", async () => {
