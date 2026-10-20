@@ -1,6 +1,6 @@
 # tau as a signed Bun binary (no npm)
 
-Status: draft v2, after review round 1 (agent 24302, CHANGES REQUIRED). Evidence: the validation report of 2026-10-20 (agent 24021), quoted as **[V]**; the review, quoted as **[R#n]**.
+Status: draft v3, after review rounds 1 and 2 (agent 24302). Evidence: the validation report of 2026-10-20 (agent 24021), quoted as **[V]**; the review, quoted as **[R#n]**.
 
 ## 1. Goal and decisions
 
@@ -26,8 +26,10 @@ Status: draft v2, after review round 1 (agent 24302, CHANGES REQUIRED). Evidence
 `cli/src/runtime/install-paths.ts` (foundation) gives **two different paths** **[R#1]**:
 - `stableBinary` = `<installRoot>/current/tau`. Used by the service spec, `needsRepair`, the `<home>/bin/tau` shim and `~/.local/bin/tau`. `installRoot` is derived by stripping `/versions/<v>/tau` from `realpath(process.execPath)`; if the realpath is not under a `versions/` dir (a hand-placed binary), `stableBinary` is the realpath itself.
 - `versionDir` = `dirname(realpath(process.execPath))`. Web assets, skills, `pi-env` and the Claude SDK load from it, so a running old server never reads the new `web/` between the swap and the restart.
-- `compiled`: `import.meta.url` starts with `/$bunfs`. In a dev checkout both paths fall back to today's `{ node, entry }`.
+- `compiled`: `import.meta.url` (a `file://` URL) includes `/$bunfs/`, or `Bun.main` does [R2-N6]; P8 confirms which. In a dev checkout both paths fall back to today's `{ node, entry }`.
 - `version`: the `TAU_VERSION` build define when compiled, `package.json` in dev.
+
+`TAU_INSTALL_DIR` is read only by `install.sh` and tests; the binary derives its root from its own realpath [R2-N7]. `service.json` today records `{ node, entry }` (`manager.ts:53,76`); an old record read by the new code counts as a mismatch and triggers one repair (tested) [R2-N7].
 
 Test: after a `current` swap, `buildSpec` and the rendered plist/unit are byte-identical, so `restart` takes `kickstart -k` / `systemctl restart`, never a reload. Pin P8 checks what `process.execPath` returns when the binary is started through `~/.local/bin/tau` and through `current/tau`.
 
@@ -63,9 +65,12 @@ The foundation runs `grep -rn "argv\[1\]\|import.meta.url\|process.execPath\|cre
 
 **Decision [R#9]:** the archive contains `claude-sdk/`: `@anthropic-ai/claude-agent-sdk` at the version pinned in the lockfile, plus its per-platform native package for the archive's platform, installed in CI with `pnpm deploy`/`npm pack` into the folder. No network or package manager at runtime; offline install works.
 
-- macOS: every Mach-O inside `claude-sdk/` is signed with the Developer ID and included in the notarization zip. Signing order: SDK natives, `pi-env`, then `tau` (inside-out, as spotifin `build-macos-release.sh:30-46`).
+- **Prune first [R2-N2]:** in CI, delete every vendored file not for the archive's os/arch (e.g. `vendor/ripgrep/<other platforms>`, foreign `.node` files, Linux ELF files in a macOS archive). Record the pruned size in P3.
+- **Find and sign every Mach-O [R2-N2]:** `find claude-sdk -type f -exec file {} +`, keep `Mach-O` hits, sign each. The job fails if any Mach-O is left unsigned (`codesign --verify` on each) before notarization.
+- **Entitlements for Bun-based natives [R2-N1]:** the Claude Code native CLI is (unverified) a Bun single-file executable, so it gets the same `packaging/tau.entitlements` as `tau`. Every other Mach-O (ripgrep, `.node`) is signed without entitlements. Re-signing replaces Anthropic's signature; that is expected and recorded here.
+- Signing order: SDK Mach-Os, `pi-env`, then `tau` (inside-out, as spotifin `build-macos-release.sh:30-46`). All of them go in the notarization zip.
 - `sdk-port.ts` imports the SDK from `versionDir/claude-sdk` with a `file://` URL (shown to work in a binary **[V]**).
-- Pin P3 checks: the compiled server finds the SDK, starts the native Claude CLI as a child, and a fake/no-login call reaches it. No real login.
+- Pin P3 checks, on a **hardened-runtime, Developer-ID-signed** copy of `tau` and the SDK (not an unsigned one) [R2-N1]: the compiled server finds the SDK, starts the native Claude CLI as a child without a crash, and a no-login call reaches it. No real login.
 - Cost: archive size grows by the SDK native (measured in P3).
 
 ## 6. Install, update, rollback
@@ -82,14 +87,14 @@ The foundation runs `grep -rn "argv\[1\]\|import.meta.url\|process.execPath\|cre
 - Availability: `GET https://api.github.com/repos/pablopunk/tau/releases/latest` with a `User-Agent`. A version counts only when its archive for this platform and `SHA256SUMS` are both assets. 403/429: honour `retry-after` and keep the previous `latest` (`update-service.ts:51`). Tests: 404, 403 with `retry-after`, partial assets, timeout, TLS/proxy error; each leaves a good `latest` intact **[R#11]**. The repo is public, so no auth; 4 checks/h per node is under the 60/h-per-IP limit.
 - Install step (the child): download, verify, extract into `versions/<v>`, run `versions/<v>/tau --version` and require `<v>`, swap `current`.
 - Restart step: `tau restart` as today.
-- **Rollback is done by the child** **[R#10]**: if the new server does not answer `/api/health` within 60 s, the child swaps `current` back to the previous dir, restarts, and writes the job `failed` with the log tail and `from` = the old version (so the "`current !== from` → idle" rule does not fire; tested).
-- Retention: keep the new `current` and the dir that was `current` before the swap (not semver order). Never delete the dir the running server started from (`versionDir` of the server pid). Delete others only after a successful update.
+- **Rollback is done by the child** **[R#10]**: if `GET /api/update` does not report `current === target` within 60 s (`/api/health` cannot tell the old server from the new one [R2-N4]), the child swaps `current` back to the previous dir, restarts, and writes the job `failed` with the log tail and `from` = the old version (so the "`current !== from` → idle" rule does not fire; tested).
+- Retention: keep the new `current` and the dir that was `current` before the swap (not semver order). Never delete the dir the running server started from: the server writes `{ pid, versionDir }` into `<home>/service.pid` at start, and retention reads it [R2-N5]. Delete others only after a successful update.
 - `install.mode`: `run` for a binary install, `none` for a dev checkout.
 - The `TAU_FAKE_LATEST`, `TAU_FAKE_UPDATE` and `TAU_FAKE_VERSION` hooks stay (same under-tmpdir rule) and are rewired to the release source **[R#6]**.
 
 ## 7. CI: build, sign, notarize, release
 
-New `.github/workflows/release.yml` on `v*` tags (replaces `publish.yml`). Keychain setup copies `~/src/spotifin/.github/workflows/release.yml:48-62`; secrets are those of `~/src/nvm/scripts/setup-gh-secrets.sh:8-10,36-40`.
+New `.github/workflows/release.yml` on `v*` tags (replaces `publish.yml`), with `permissions: contents: write` for the draft release [R2-N7]. Keychain setup copies `~/src/spotifin/.github/workflows/release.yml:48-62`; secrets are those of `~/src/nvm/scripts/setup-gh-secrets.sh:8-10,36-40`.
 
 Jobs:
 1. **check** (ubuntu): `pnpm check`, `pnpm test`, `pnpm build`; fail unless the tag equals `packages/cli/package.json` `version` **[R#19]**.
@@ -113,8 +118,9 @@ Delete or rewrite, each in the same step as its replacement so `check`, CI and e
 - **CLI update:** `install-method.ts`, `global-package.ts`, npm parts of `latest-version.ts` (`npmOf`, `PACKAGE_NAME`, line 12), `latest-source.ts` (its fake hooks move, see 6), `update-text.ts` (`NPM_I`), the npm matrix in `updater.ts` and `run-update.ts`, and their tests.
 - **CLI lifecycle:** the "bare tau hands off to the global package" flow in `lifecycle/bootstrap.ts:104-152` (`entryOfPackage`, `packageDir`, `isBun`, `nodeOnPath`) and `restart-step.ts`; the `node`/`node.exe` lookup in `lifecycle/deps.ts:82`.
 - **CLI service:** `service/entry-guard.ts` and `mise-notice.ts`, plus their uses in `detached.ts:6,128,142` and `manager.ts:7,107,140`.
-- **Core:** `sdk-install.ts` (npm), `createNpmSdkInstaller` wiring in `create-core.ts`, npm text in `provider-service.ts`.
-- **Web:** npm copy in `UpdateButton`, `update-copy.ts`, `node-text.ts`, `NodesSection`.
+- **Core:** `sdk-install.ts` (npm), `createNpmSdkInstaller` wiring in `create-core.ts`, npm text in `core/src/provider/provider-service.ts`.
+- **Web:** npm copy in `UpdateButton`, `update-copy.ts`, `web/src/nodes/node-text.ts`, `NodesSection`.
+- **CI e2e job:** `ci.yml` downloads `cli-dist` (`packages/cli/dist`) for e2e. Decision [R2-N6]: e2e keeps running on the Node build (`packages/cli/dist`); only `binary.spec.ts` and `smoke:binary` run the compiled binary, built in the same job.
 - **e2e:** `e2e/update-support.ts` and `tests/update-button.spec.ts` build npm-global and `_npx` layouts; rewrite them for a scratch `TAU_INSTALL_DIR` with two fake local releases.
 - **Docs and skills:** README (npx, `npm i -g`), `BARE-INSTALL.md`, the release skill (`.agents/skills/release`), the builtin `tau` skill (`core/src/skills/builtin/tau/SKILL.md`), the superseded note in `UPDATE-BUTTON.md`.
 
@@ -142,12 +148,12 @@ The data home is untouched. If step 1 fails on a node, the old install still run
 
 ## 11. Work split (no file has two owners)
 
-1. **Foundation:** `cli/src/runtime/install-paths.ts`, `cli-entry.ts` (`{ command, args }`), `version.ts`, `TAU_VERSION` define, `scripts/build-binary.ts`, `.bun-version`, `packages/cli/package.json`, `packages/cli/tsdown.config.ts`, root `package.json` scripts, protocol changes (`install.mode` values, update copy), pins P1–P8 with results, the completed section 4 grep, the P4 table, hand-off section.
-2. **Owner CLI** (`cli/src/service/**`, `cli/src/update/**`, `cli/src/lifecycle/**`, `cli/src/serve.ts`, `cli/src/commands/skill.ts`): spec and `needsRepair` on `{ command, args }`, updater for binaries, release availability check, swap, rollback, retention, fake hooks rewired, npm removal in the CLI.
-3. **Owner core** (`core/src/cli-shim/**`, `core/src/create-core.ts`, `core/src/harness/terminal-daemon.ts`, `core/src/skills/**`, `core/src/claude-cli/sdk-install.ts`, `sdk-port.ts`, `provider-service.ts`, static-dir if in core): shim, pi-env path, skills path, SDK from `versionDir`.
+1. **Foundation:** a `smoke:binary` stub script in root `package.json` (the release owner fills `scripts/smoke-binary.ts`) [R2-N3], `cli/src/runtime/install-paths.ts`, `cli-entry.ts` (`{ command, args }`), `version.ts`, `TAU_VERSION` define, `scripts/build-binary.ts`, `.bun-version`, `packages/cli/package.json`, `packages/cli/tsdown.config.ts`, root `package.json` scripts, protocol changes (`install.mode` values, update copy), pins P1–P8 with results, the completed section 4 grep, the P4 table, hand-off section.
+2. **Owner CLI** (`cli/src/service/**`, `cli/src/update/**`, `cli/src/lifecycle/**`, `cli/src/serve.ts`, `cli/src/run.ts`, `cli/src/static-dir.ts`, `cli/src/commands/skill.ts`) [R2-N3]: spec and `needsRepair` on `{ command, args }`, updater for binaries, release availability check, swap, rollback, retention, fake hooks rewired, npm removal in the CLI.
+3. **Owner core** (`core/src/cli-shim/**`, `core/src/create-core.ts`, `core/src/harness/terminal-daemon.ts`, `core/src/skills/**` **except** `core/src/skills/builtin/tau/SKILL.md`, `core/src/claude-cli/sdk-install.ts`, `sdk-port.ts`, `core/src/provider/provider-service.ts`) [R2-N3]: shim, pi-env path, skills path, SDK from `versionDir`.
 4. **Owner release** (`.github/workflows/**`, `scripts/**` except `build-binary.ts`, `install.sh`, `packaging/**`): release workflow, signing, notarization, smoke, `smoke:binary`, the `ci.yml` line, `install.sh`, secrets script.
 5. **Owner web** (`web/src/**`): update copy without npm.
-6. **Integrator:** README, release skill, builtin tau skill, `BARE-INSTALL.md`, `UPDATE-BUTTON.md` note, e2e rewrite (`update-support.ts`, `update-button.spec.ts`) and a new `binary.spec.ts` that runs the packaged binary from a scratch `TAU_INSTALL_DIR` and a hashed scratch home (`names.ts:19-24`, so labels never clash **[R#17]**): server, thread, terminal, update to a local fake release, rollback. Then the first real release, then migration (section 9) with the owner.
+6. **Integrator:** README, release skill, builtin tau skill (`core/src/skills/builtin/tau/SKILL.md`, carved out of core) [R2-N3], `BARE-INSTALL.md`, `UPDATE-BUTTON.md` note, e2e rewrite (`update-support.ts`, `update-button.spec.ts`) and a new `binary.spec.ts` that runs the packaged binary from a scratch `TAU_INSTALL_DIR` and a hashed scratch home (`names.ts:19-24`, so labels never clash **[R#17]**): server, thread, terminal, update to a local fake release, rollback. Then the first real release, then migration (section 9) with the owner.
 
 ## 12. Risks
 
@@ -157,5 +163,7 @@ The data home is untouched. If step 1 fails on a node, the old install still run
 - **100+ MB per platform** per release; fine for GitHub Releases.
 
 ## Review history
+
+- Round 2 (24302): CHANGES REQUIRED. Fixed: SDK natives pruned per platform, every Mach-O found and signed (Bun-based ones with the JIT entitlements), P3 on a signed copy, ownership of `run.ts`, `static-dir.ts`, the builtin skill and `smoke:binary`. Also: rollback checks `current === target`, the server records its `versionDir`, `$bunfs` detection, e2e stays on the Node build, `contents: write`, `TAU_INSTALL_DIR` scope, old `service.json` record, two wrong paths.
 
 - Round 1 (24302): CHANGES REQUIRED. Fixed: two-path install layout, Bun's full entitlements, no `spctl` on bare binaries, protocol mismatch during migration, PATH shadowing and the shim, complete removal list, SDK decided (ship it), rollback owner and retention, draft releases, CI runners and pi-env source, tag/version check.
