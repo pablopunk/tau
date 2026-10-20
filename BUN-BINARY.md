@@ -1,6 +1,6 @@
 # tau as a signed Bun binary (no npm)
 
-Status: draft v3, after review rounds 1 and 2 (agent 24302). Evidence: the validation report of 2026-10-20 (agent 24021), quoted as **[V]**; the review, quoted as **[R#n]**.
+Status: approved v3; Phase 0 and foundation done (sections "Phase 0 results" and "Foundation hand-off"), after review rounds 1 and 2 (agent 24302). Evidence: the validation report of 2026-10-20 (agent 24021), quoted as **[V]**; the review, quoted as **[R#n]**.
 
 ## 1. Goal and decisions
 
@@ -51,15 +51,26 @@ Every `node` + JS-entry assumption, with its fix. An entry becomes `{ command, a
 | `version.ts` reads `package.json` | `ENOENT /$bunfs/package.json` **[V]** | `install-paths.version` | foundation |
 | `cli-entry.ts:11-18` `realpath(argv[1])` | `ENOENT /$bunfs/root/tau` **[V]** | returns `{ command, args }` | foundation (first edit) |
 | `serve.ts:69`, `lifecycle/deps.ts:67`, `lifecycle/bootstrap.ts` (`boot.entry`, `execPath`), `update/real-updater.ts:10`, `update/real-deps.ts:37`, `update/updater.ts:37` | same | use `cli-entry` | CLI |
-| `service/spec.ts`, `render.ts:7,38`, `manager.ts:102,104` (`needsRepair`) | `binary binary serve` | render and compare `{ command, args }`; `command` = `stableBinary` | CLI |
+| `service/spec.ts`, `render.ts:7,38,94`, `manager.ts:53,76,102,104` (`needsRepair`) | `binary binary serve` | render and compare `{ command, args }`; `command` = `stableBinary` | CLI |
 | `core/cli-shim/write-shim.ts:9`, `core/create-core.ts:135` | `exec tau tau "$@"` **[V]** | shim from `{ command, args }` | core |
 | `static-dir.ts:5`, `discover-skills.ts:81`, `commands/skill.ts:5` | web UI and skills missing | `versionDir/web`, `versionDir/skills` | core / CLI per folder |
 | `terminal-daemon.ts:49,56` pi-env `localDaemon()` | `/$bunfs/bin/...`, terminals `available:false` **[V]** | `new Connection({ command: [versionDir + "/pi-env"] })` **[V]** | core |
 | `claude-cli/sdk-port.ts:264,272` `createRequire(import.meta.url).resolve` | dev fallback unverified in `/$bunfs` **[R#7]** | resolve from `versionDir/claude-sdk` when compiled | core |
 | `claude-cli/sdk-install.ts:27` `execFile("npm")`, consumer `createNpmSdkInstaller` in `create-core.ts` **[R#15]** | npm missing | removed: the SDK ships in the archive (section 5) | core |
 | `serve.ts:27` watchdog URL, `start-watchdog.ts:30` | works if the worker is an entrypoint **[V]** | keep; build passes both entries | — |
+| `update/real-updater.ts:10`, `update/real-deps.ts:37`, `lifecycle/deps.ts:67` `realpathSync(process.argv[1])` | **Measured:** the compiled `tau serve` dies at start with `ENOENT: lstat '/$bunfs/root/tau'` (P0 run) | take paths from `cli-entry`/`install-paths`; no `argv[1]` realpath when compiled | CLI |
+| `update/latest-source.ts:15`, `update/real-deps.ts:42` `fetchLatestVersion(spawn, process.execPath)` | npm query through `execPath` | replaced by the GitHub release check (section 6) | CLI |
+| `lifecycle/bootstrap.ts:18,111,145` `execPath`, `isBun` | bare tau hands off to a global package | removed (section 8) | CLI |
+| `claude-cli/sdk-port.ts:264` `createRequire(join(sdkHome, "package.json")).resolve(SDK)` | **Measured:** `Cannot find module` in a compiled binary, with or without a `package.json` (a `bun script` run resolves it) | import `join(versionDir, "claude-sdk/node_modules/@anthropic-ai/claude-agent-sdk/sdk.mjs")` as a `file://` URL: **measured to work** | core |
+| `provider/provider-service.ts:88` `sdkHomeOf(dirname(credentialsFile))` | SDK looked up in `<home>/claude-sdk` | `versionDir/claude-sdk` when compiled | core |
+| `core/create-core.ts:135` `writeTauShim(home.root, process.execPath, options.cliEntry)` | compiled `execPath` = `current/version/tau`, not stable | option `cliCommand` (below), shim from `{ command, args }` | core |
+| `skills/discover-skills.ts:81` `import.meta.url` + `BUILTIN_SKILL_LOCATIONS` | `/$bunfs/root/...` | add `versionDir/skills/tau/SKILL.md` | core |
+| `static-dir.ts:5` / `commands/skill.ts:5` `import.meta.url` | same | `versionDir/web` (has `index.html`), `versionDir/skills/tau/SKILL.md` | CLI |
+| `serve.ts:27` `new URL("./watchdog.js", import.meta.url)` | none: **measured** `serve --service` runs in a compiled binary with `watchdog.js` as the second entrypoint, no worker error in `logs/server.log` | keep | - |
+| `core/testing/record-fixtures.ts:9`, `claude-cli/pins/scenario-tool-search-write.ts:19`, `test-support/fake-gh.ts:32` | dev and test tools only, never in the shipped bundle | none | - |
+| deps: `pi-durable/dist/images/node.js:38,60`, `node-worker.js:9` (Photon wasm + worker), `pi-codemode/dist/wasm.js:10`, `runtime/host.js:6` (QuickJS wasm + worker) | default paths do not resolve in a compiled binary (P4) | **not called by tau** (no `createNodePhotonImages` or codemode use in `packages/*/src`); if ever enabled, pass explicit paths (P4) | - |
 
-The foundation runs `grep -rn "argv\[1\]\|import.meta.url\|process.execPath\|createRequire\|__dirname" packages/*/src --include=*.ts` (tests excluded) and adds any further hit to this table before the hand-off.
+The foundation ran `grep -rn "argv\[1\]\|import.meta.url\|process.execPath\|createRequire\|__dirname" packages/*/src --include=*.ts` (tests excluded) and added every further hit to the table above (done, with the measured results).
 
 ## 5. Claude CLI threads without npm (decided: ship the SDK)
 
@@ -161,6 +172,174 @@ The data home is untouched. If step 1 fails on a node, the old install still run
 - **Signing**: entitlements (P1) and the SDK natives inside notarization (P3). Secrets must exist before the first tag.
 - **darwin-x64** ships without a smoke run unless Rosetta works.
 - **100+ MB per platform** per release; fine for GitHub Releases.
+
+## Phase 0 results
+
+Run on 2026-10-20 by the foundation agent: macOS 26 (Darwin 27.0.0) arm64, Bun 1.4.2, binaries compiled from this branch into a `mktemp -d` scratch dir (`bun build --compile --define TAU_VERSION=... dist/bin.js dist/watchdog.js`). Driver: `serve --faux --no-open` on a scratch `--home` and a random port; `providers set-key openrouter …`, `settings set-default-model faux/faux-1`, `projects add`, `threads start`, then `POST /api/conversations/:id/terminals` and a WebSocket that types `echo $((6*7))marker` and reads `42marker`. To run the pins on macOS the foundation applied **temporary local patches that are not committed** (the owners' real fixes, see hand-off): a guard for `realpathSync(process.argv[1])` in three files, `P5_PI_ENV` as the pi-env path in `terminal-daemon.ts`, and a direct `sdk.mjs` import in `sdk-port.ts`. Totals: `tau` 99.8 MB (darwin-arm64), 118.6 MB (linux).
+
+| Pin | Result |
+|---|---|
+| P1 signing | **PASS** (four entitlements; two and even zero also ran, see below) |
+| P2 notarization | **first CI run**, steps below |
+| P3 Claude SDK sidecar | **PASS** with one required code change (no `createRequire.resolve`) |
+| P4 runtime files | table below: nothing blocks; two code paths need the explicit-path change |
+| P5 terminal | **PASS** |
+| P6 swap while running | **PASS on launchd**; systemd = **first CI run** |
+| P7 linux binaries | **PASS** on Debian 13 in Docker (arm64 native, x64-baseline emulated) |
+| P8 execPath / import.meta | **PASS**, answer below |
+
+### P1: signing (PASS)
+
+Identity `Developer ID Application: Pablo Varela (2TZ4Q825M7)` (SHA-1 `C8DCCA7E5D1F872F238B3A9A753EA902D1D7444A`, listed by `security find-identity -p codesigning -v`). No keychain dialog appeared.
+
+```
+codesign --force --options runtime --timestamp --sign C8DCCA7E… --entitlements four.plist tau
+codesign -dvv tau  ->  flags=0x10000(runtime)  Authority=Developer ID Application: Pablo Varela (2TZ4Q825M7)  Timestamp=20 Oct 2026
+codesign --verify --strict -vv tau  ->  valid on disk / satisfies its Designated Requirement
+```
+
+`four.plist` = `com.apple.security.cs.allow-jit`, `allow-unsigned-executable-memory`, `disable-executable-page-protection`, `allow-dyld-environment-variables`, each `<true/>` (standard `<plist><dict>` file; release owner puts it in `packaging/tau.entitlements`).
+
+| Signed with | health | faux thread | terminal (`42marker`) | `serve --service` |
+|---|---|---|---|---|
+| four entitlements | `{"ok":true}` | ok | **TERMINAL_OK** | ok |
+| two (`allow-jit`, `allow-unsigned-executable-memory`) | ok | ok | **TERMINAL_OK** | not run |
+| none (hardened runtime only) | ok | ok | **TERMINAL_OK** | not run; a 5e7-iteration JIT loop also ran |
+
+Decision: **ship the four** until a CI smoke on an older macOS runner shows the smaller set is safe. That zero entitlements ran here may only mean this macOS is lenient; Bun's docs require them. The plan's "prune only after P1 proves a smaller set" is met for two on this host, not for older hosts.
+
+### P2: notarization (first CI run)
+
+Not run: no Apple credentials here and no quarantined launch (it pops a GUI dialog). Exact CI steps, after signing inside-out:
+
+```
+ditto -c -k --keepParent <version-dir> notarize.zip      # signed tau, pi-env, claude-sdk Mach-Os
+xcrun notarytool submit notarize.zip --apple-id "$APPLE_ID" --password "$APPLE_APP_SPECIFIC_PASSWORD" --team-id "$APPLE_TEAM_ID" --wait
+xcrun notarytool log <submission-id>                     # on "Invalid", attach the log to the job
+# criterion (once, on a macOS runner, after a curl download that is then quarantined):
+xattr -w com.apple.quarantine "0081;$(printf %x $(date +%s));curl;" ./tau
+./tau --version                                          # must print the version with no dialog
+```
+
+Stapling bare executables is not possible. `spctl` is not used.
+
+### P3: Claude Agent SDK sidecar (PASS)
+
+- `claude-sdk/node_modules/` = the pinned SDK (0.3.302) and its siblings (`@anthropic-ai/sdk`, `@modelcontextprotocol`, `zod`) copied with `cp -RL` from pnpm's virtual store, plus `@anthropic-ai/claude-agent-sdk-darwin-arm64`. Built by `scripts/build-binary.ts`. Pruned to darwin-arm64: **288 MB on disk, 122,435,571 bytes as `tar.gz`**. The native `claude` is 256 MB of that (JS and deps ~32 MB).
+- **The native CLI is a Bun executable**: `file`: Mach-O 64-bit arm64; `strings` finds 13,004 Bun markers. It already carries Anthropic's Developer ID signature (`Q6L2SF6YDW`, `flags=0x10000(runtime)`) with `allow-jit`, `allow-unsigned-executable-memory`, `disable-library-validation`, `apple-events`, `audio-input`. Re-signing with `tau.entitlements` replaces that (section 5); keeping Anthropic's signature in the notarization zip also qualifies. Release owner decides, `tau.entitlements` as planned.
+- **Mach-O files in `claude-sdk/`: exactly one** (`…/claude-agent-sdk-darwin-arm64/claude`). No ripgrep, no `.node`, no `.dylib`. The CI "find and sign every Mach-O" step still runs, and must fail on zero hits so a layout change is noticed.
+- **Finding:** `createRequire(join(sdkHome, "package.json")).resolve("@anthropic-ai/claude-agent-sdk")` **fails in a compiled binary** (`Cannot find module`, also with a real `package.json`, also through a symlinked folder); the same line under a plain `bun t.ts` and under Node works. `Bun.resolveSync` fails too. **A direct `import(pathToFileURL(".../node_modules/@anthropic-ai/claude-agent-sdk/sdk.mjs"))` works**, and the SDK then finds its sibling native package.
+- With that one change (temporary patch), on the P1-signed binary: `tau providers "claude-cli refresh"` went from `state: sdk_missing` to `state: logged_out`, `sdkCliVersion: 2.1.302`. A separate signed probe binary imported the SDK from the sidecar and `await query.initializationResult()` returned (commands, agents, models) with the Anthropic-signed native `claude` running as a child (`pgrep` count 1), `HOME` and `CLAUDE_CONFIG_DIR` on a scratch dir, no login.
+- Caveat for the core owner: `authStatus` (`sdk-port.ts:246`) runs the `claude` on `PATH` (it reported `cliVersion 2.1.304`, the owner's own install), not the sidecar's. On a node with no `claude` installed the state must still be sensible; test it, or point it at the sidecar's native binary.
+
+### P4: runtime-loaded files
+
+Source search: the grep of section 4 plus a search of `import.meta`, `__dirname`, `new Worker`, `.wasm`, `createRequire` in the Pi packages and `pi-web-access`. "Tested" = a compiled probe binary (`/tmp`-scratch) that imports the real package files.
+
+| File or feature | Source path | Bundled or sidecar | Tested in a compiled binary |
+|---|---|---|---|
+| SQLite storage | `pi-durable/storage/sqlite/node` (`node:sqlite`) | built into Bun 1.4.2 | **works** (every server run above) |
+| Watchdog worker | `cli/src/serve.ts:27` | second entrypoint `watchdog.js` | **works** (`serve --service`, no error) |
+| Web UI | `cli/src/static-dir.ts:5` | sidecar `web/` | not served yet: the path code is the CLI owner's (hand-off) |
+| Builtin skill | `core/src/skills/discover-skills.ts:81`, `cli/src/commands/skill.ts:5` | sidecar `skills/tau/SKILL.md` | owners (hand-off) |
+| pi-env daemon | `pi-env/bin/pi-env-<os>-<arch>/pi-env` | sidecar `pi-env` | **works** with an explicit path (P5) |
+| Claude SDK + native CLI | `claude-sdk/` | sidecar | **works** with a direct file import (P3); `createRequire.resolve` **fails** |
+| Photon wasm + image worker | `pi-durable/dist/images/node.js:38,60`, `node-worker.js:9`; wasm `@silvia-odwyer/photon/photon_rs_bg.wasm` | none today | default `resolve` **fails** (`Cannot find module … photon_rs_bg.wasm`). Not called by tau (no `createNodePhotonImages` in `packages/*/src`). If used later: sidecar the wasm and call `createPhotonImages(readFile(path))`, as the Pi docs say |
+| Codemode worker + `quickjs.wasm` | `pi-codemode/dist/runtime/host.js:6`, `wasm.js:10`; `quickjs-wasi/quickjs.wasm` | none today | default `resolve` **fails**; `loadQuickJSWasm(explicitPath)` **works**; `InlineCodemodeSandbox` loads. Not called by tau. If used: sidecar `quickjs.wasm` and pass the path and the worker URL as an entrypoint |
+| pdfjs fonts and cmaps | `unpdf` (`pi-web-access`) | bundled | **works**: `getDocumentProxy` + `extractText` on a Helvetica PDF returned the text. `standardFontDataUrl`/`cMapUrl` only matter for PDFs with non-embedded fonts or CJK; untested |
+| Readability | `@mozilla/readability` + `linkedom` (`pi-web-access`) | bundled | **works** (article parsed, 1002 chars) |
+| Glimpse | `pi-web-access/dist/index.js:25127` `require.resolve("glimpseui")`, then `npm root -g` | not a dependency, not shipped | **unsupported**: the feature stays off (it already is off from npm installs unless the user installs `glimpseui`) |
+| pi-coding-agent `jiti` extension loader, `pi-tui` native modules | `loader.js:17`, `native-module-path.js:4` | not used by tau | not exercised |
+
+### P5: terminal (PASS)
+
+`createLocalTerminalDaemon` used `piEnv.localDaemon()`, which is a `/$bunfs/...` path in a binary (terminals unavailable). With the daemon path passed explicitly (`new Connection({ command: [<path>] })`, temporary patch: env `P5_PI_ENV`), unsigned and signed: `GET /api/terminals/available` = `{"available":true}`, `POST …/terminals` returns `status: "running"`, the WebSocket stream returned `42marker`. Same on linux-arm64 and linux-x64-baseline (shell `sh`).
+
+### P6: swap while the service runs (launchd PASS, systemd first CI run)
+
+Scratch label `dev.tau.scratch.p6<n>` (bootstrapped into `gui/<uid>`, booted out after; the user's `dev.tau.server` untouched), scratch `--home`, `ProgramArguments[0]` = `…/p6/current/tau`, `KeepAlive`. `versions/a` and `versions/b` both signed.
+
+```
+first signed start, bootstrap -> health:       1.5 s    pid 21612   txt=versions/a/tau   current/tau --version = 0.0.0-p0
+swap: ln -s versions/b current.tmp && mv -fh current.tmp current
+  after the swap: same pid 21612, still txt=versions/a/tau, health {"ok":true}, plist sha unchanged
+  current/tau --version now 0.0.0-p6b
+launchctl kickstart -k gui/<uid>/<label>:      7.4 s to health (first run of signed b, machine under load)   pid 21772   txt=versions/b/tau   plist sha unchanged
+rollback: swap back to a + kickstart -k:       pid 21900   txt=versions/a/tau   version 0.0.0-p0
+bootout exit 0, no scratch process left
+```
+
+So `ROLLBACK_TIMEOUT_MS` = 60 s has a wide margin (worst measured 7.4 s). systemd is not available here (Docker has no systemd): the CI smoke job on `ubuntu-latest` runs the same sequence with a user unit `tau-scratch-<n>.service` under `systemctl --user` (`loginctl enable-linger` first), `ExecStart=<root>/current/tau serve …`: assert the pid and `/proc/<pid>/exe` unchanged after `mv -T`, then `systemctl --user restart`, then rollback.
+
+### P7: linux binaries (PASS)
+
+`bun-linux-arm64` and `bun-linux-x64-baseline` compiled (118.6 MB each); `docker run debian:13-slim` (arm64 native; amd64 under the Docker Desktop emulator): `uname -m` `aarch64` / `x86_64`, `tau --version` = `0.0.0-p7`, then the full driver: health, faux thread, terminal `running` with the explicit pi-env path (linux pi-env 2.1/2.4 MB). The `42marker` step needs `node`, which the image lacks, so the terminal check there is `status: running`. systemd and real x64 hardware stay with CI.
+
+### P8: `process.execPath`, `import.meta.url`, `Bun.main` (PASS)
+
+A compiled probe started directly, through `current -> versions/1`, through a second symlink and through `PATH` lookup, from a relative cwd: `process.execPath` is **always the realpath of the file** (`…/versions/1/tau`), on macOS and on linux (Debian 13: `/i/versions/1/tau` through `/b/tau -> /i/current/tau`). `argv0` is the typed path. `import.meta.url` = `file:///$bunfs/root/<outfile name>`, `Bun.main` = `/$bunfs/root/<outfile name>`, `argv[1]` = `/$bunfs/root/<name>`. Consequences, now in `install-paths.ts` and its tests:
+- Detection `compiled()` = `import.meta.url` or `Bun.main` contains `/$bunfs/`.
+- A server started before a `current` swap keeps `versionDir` = its own old `versions/<v>`, while `stableBinary` is `<root>/current/tau` (tested with a swap).
+- Never use `argv[1]` for a binary: it is a virtual path.
+
+## Foundation hand-off
+
+### Frozen (do not change; ask the integrator)
+
+- `packages/cli/src/runtime/install-paths.ts` (+ `.test.ts`): `compiled(probe?)`, `stableBinary(probe?)`, `versionDir(probe?)`, `installRootOf`, `stableBinaryOf`, `versionDirOf`, `definedVersion()`, `RuntimeProbe`. `stableBinary` and `versionDir` **throw outside a compiled binary**: call `compiled()` first.
+- `packages/cli/src/cli-entry.ts`: `CliCommand { command; args }`; `cliEntry(argv?, execPath?, probe?)` returns `{ stableBinary, [] }` compiled, `{ node, [realpath(argv[1])] }` otherwise. The old `CliEntry`/`{node, entry}` type is gone.
+- `packages/cli/src/version.ts`: `cliVersion()` = the `TAU_VERSION` define when compiled, else `package.json`.
+- `scripts/build-binary.ts`: `pnpm build` then `mise exec -- pnpm build:binary --out <dir> [--target darwin-arm64|darwin-x64|linux-x64-baseline|linux-arm64] [--version v] [--no-sdk]`. Output = the archive's version folder: `tau`, `pi-env`, `web/` (contents of `packages/web/dist`, so `web/index.html`), `skills/` (contents of `core/src/skills/builtin`, so `skills/tau/SKILL.md`), `claude-sdk/node_modules/…`. Cross-target builds need the other platform's `pi-env` (in the package) and native SDK package (pnpm skips it on this host: CI installs per platform, or the release owner extends the script). Not signed, not archived.
+- `.bun-version` = `1.4.2`. `packages/cli/package.json`: `"private": true`, `bin`/`files`/`publishConfig`/`engines` removed, version kept (0.4.0). `tsdown.config.ts` unchanged on purpose: the Node build for tests and e2e still copies `web` and `skills`; the binary is compiled from its `dist/bin.js` + `dist/watchdog.js`.
+- Root `package.json`: `build:binary`, `smoke:binary` scripts added. `scripts/smoke-binary.ts` is an exit-1 stub.
+- **Protocol: no change.** `install.mode` `run | manual | none` already covers binary (`run`) and dev checkout (`none`); no schema changed, no `bump-protocol`.
+- Interface across owners (so both sides compile at the merge): `run.ts`'s dependency `cliEntry?: string` becomes `cliCommand?: CliCommand` (CLI owner), and `createCore` takes the same shape as `cliCommand?: { command: string; args: readonly string[] }` plus `assets?: { versionDir: string }` (core owner; `versionDir` is `undefined` outside a compiled binary). The CLI passes `cliEntry()` and `compiled() ? versionDir() : undefined`. Core never imports from cli.
+
+### Stubs and compile-only edits left in the owners' files (replace them)
+
+- `service/spec.ts`: `ServiceSpec.node = cli.command`, `entry = cli.args[0] ?? ""`. A compiled binary renders `[binary, "", serve …]`: wrong until the CLI owner makes the spec `{ command, args }`.
+- `update/spawn-child.ts`: `request.cli.command`, `cli.args[0] ?? ""` (same fix).
+- `serve.ts:69`: `cliEntry: cliEntry().args[0] ?? ""` (becomes `cliCommand: cliEntry()`).
+- `service/manager.ts:159`, `lifecycle/deps.ts`, `update/updater.ts`, tests: type renames only. Test fixtures: `service/test-context.ts` `CLI = { command, args: [entry] }` and the `{...CLI, command|args}` spreads in six test files were rewritten mechanically.
+
+### Owner CLI
+
+Files: `cli/src/service/**`, `update/**`, `lifecycle/**`, `serve.ts`, `run.ts`, `static-dir.ts`, `commands/skill.ts`.
+1. Spec, `render.ts:7,38,94`, `manager.ts` record and `needsRepair`, `install-or-repair.ts:40`, `status.ts`: `{ command, args }`; old `service.json` `{node, entry}` counts as a mismatch and repairs once (test).
+2. `realpathSync(process.argv[1])` in `update/real-updater.ts:10`, `update/real-deps.ts:37`, `lifecycle/deps.ts:67`: **the compiled server crashes at start without this** (`lstat '/$bunfs/root/tau'`). Use `cliEntry()`.
+3. `static-dir.ts`: add `join(versionDir(), "web")` when `compiled()`; `commands/skill.ts`: `join(versionDir(), "skills/tau/SKILL.md")`.
+4. `serve.ts`: write `<home>/server.json { pid, versionDir }`; pass `cliCommand`, `assets` to `createCore`.
+5. Updater for binaries, release check, swap, rollback (`ROLLBACK_TIMEOUT_MS`, worst measured start 7.4 s), retention, fake hooks, npm removal in the CLI (sections 6, 8).
+Tests: the existing `pnpm --filter @pablopunk/tau test` stays green; new: old record repair, `buildSpec`/plist byte-identical after a swap, rollback sets `from`, release-check failure table (section 6).
+
+### Owner core
+
+Files: `core/src/cli-shim/**`, `create-core.ts`, `harness/terminal-daemon.ts`, `skills/**` (not the builtin `tau/SKILL.md`), `claude-cli/sdk-install.ts`, `claude-cli/sdk-port.ts`, `provider/provider-service.ts`.
+1. `terminal-daemon.ts`: `new Connection({ command: [join(versionDir, "pi-env")] })` and the same path in `binaryUsable()` when `assets.versionDir` is set (measured: P5).
+2. `sdk-port.ts`: when `assets.versionDir` is set, import `file://<versionDir>/claude-sdk/node_modules/@anthropic-ai/claude-agent-sdk/sdk.mjs`; `createRequire(...).resolve` fails in a binary (P3). Keep the existing path for dev. `provider-service.ts:88` `sdkHome`. Decide what `authStatus` does when no `claude` is on `PATH` (P3 caveat).
+3. `create-core.ts:135` shim from `{ command, args }` (`write-shim.ts:9`); remove `createNpmSdkInstaller`.
+4. `discover-skills.ts`: add `versionDir/skills/tau/SKILL.md`.
+Tests: `core` suite plus the contract suite; add a shim test (`exec <command> <args> "$@"`) and a `sdk-port` test that the compiled-path branch builds the `file://` URL.
+
+### Owner release
+
+Files: `.github/workflows/**`, `scripts/**` except `build-binary.ts`, `install.sh`, `packaging/**`, and **the root `package.json` scripts** (the foundation is done with that file; the owner removes `smoke:install`/`smoke:bare`).
+1. `packaging/tau.entitlements` with the four keys of P1; `release.yml` per section 7; the Mach-O discovery step must fail on zero or unsigned hits (`claude-sdk` has exactly one today); decide re-sign vs keep Anthropic's signature on that file (P3).
+2. P2 steps (above) in the macOS job; P6 systemd sequence in the linux smoke job; run the P1 smaller-entitlement check on `macos-latest`.
+3. `scripts/smoke-binary.ts` (stub exists, overwrite), `install.sh`, `ci.yml` line, `setup-gh-secrets.sh`, delete `publish.yml`, `smoke-install.ts`, `smoke-bare.ts`.
+4. Archive: the dir from `build:binary` for each platform. Size: darwin-arm64 version folder 387 MB on disk; the SDK part alone is 122 MB gzipped (the native `claude`, 256 MB, dominates).
+
+### Owner web
+
+`web/src/**`: update copy without npm (`UpdateButton`, `update-copy.ts`, `nodes/node-text.ts`, `NodesSection`) once the CLI owner fixes the `install.mode`/`command` semantics (`manual` keeps its text, `run` shows the button). Tests: `pnpm --filter @tau/web test`.
+
+### Integrator notes
+
+- Merge order: core, CLI, web, release. After each: `check`, `test`.
+- The `cliCommand`/`assets` option names above are the only cross-owner contract: if an owner picks others, rename at the merge.
+- `README`, release skill, builtin tau skill, `BARE-INSTALL.md`, `UPDATE-BUTTON.md` note, e2e rewrite, `binary.spec.ts` are the integrator's (section 11). The e2e `binary.spec.ts` needs `web/` served: it works only after CLI item 3.
+- The temporary pin patches are not in the branch; the exact diff of the three kinds is described in the P5, P3 and section 4 rows. The faux driver scripts lived in `/tmp` and are not kept; `binary.spec.ts` and `smoke-binary.ts` replace them.
+- Open for the owner of the machine: P2 (needs the Apple secrets), P6 systemd, the older-macOS entitlement check (all "first CI run").
 
 ## Review history
 
