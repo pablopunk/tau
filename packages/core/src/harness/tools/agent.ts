@@ -92,7 +92,8 @@ const hasAgentTool = (input: PromptInput) => input.agent.tools.some((tool) => to
 
 async function modelsSection(ref: ToolServicesRef, input: PromptInput) {
   if (!hasAgentTool(input)) return undefined;
-  return modelsGuidance(await ref.current().connectedModels(), input.agent.model);
+  const { connectedModels, subagents } = ref.current();
+  return modelsGuidance(await connectedModels(), input.agent.model, await subagents.fastModel());
 }
 
 export const agentToolFile: ToolFileFactory = (services) => ({

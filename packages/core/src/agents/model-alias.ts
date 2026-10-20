@@ -17,7 +17,7 @@ const MAX_LISTED_OPTIONS = 10;
 
 const refId = (ref: ModelRef) => `${ref.provider}/${ref.modelId}`;
 
-function naturalCompare(a: string, b: string): number {
+export function naturalCompare(a: string, b: string): number {
   const left = a.toLowerCase().match(/\d+|\D+/g) ?? [];
   const right = b.toLowerCase().match(/\d+|\D+/g) ?? [];
   for (let i = 0; i < Math.min(left.length, right.length); i++) {
