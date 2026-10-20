@@ -24,7 +24,8 @@ export interface MemoryPreparation {
 
 export interface ResourceSupportProbe {
   readonly platform: HostPlatform;
-  readonly binaries: Binaries;
+  /** Resolved on first use, never at startup. */
+  binaries(): Binaries;
   /** Lazy; only the memory-limit spawn on Linux calls it. */
   prepareMemory(): Promise<MemoryPreparation>;
   /** For the settings panel. */
@@ -53,7 +54,11 @@ export function createResourceSupport(deps: SupportDeps): ResourceSupportProbe {
   const now = deps.now ?? Date.now;
   const sleep = deps.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
   const platform = deps.platform ?? hostPlatform();
-  const binaries = resolveBinaries(platform);
+  let resolved: Binaries | undefined;
+  const binaries = () => {
+    resolved ??= resolveBinaries(platform);
+    return resolved;
+  };
   const env = () => ({ ...(deps.env ?? process.env), ...systemdEnv(deps.env) });
   const prefix = () => `tau-${unitNodeId(deps.nodeId())}`;
 
@@ -65,13 +70,14 @@ export function createResourceSupport(deps: SupportDeps): ResourceSupportProbe {
   let timer: ReturnType<typeof setInterval> | undefined;
 
   const runProbe = async (): Promise<ProbeOutcome> => {
-    if (!binaries.systemdRun) return { ok: false, reason: "systemd-run was not found" };
+    const { systemdRun, sh } = binaries();
+    if (!systemdRun) return { ok: false, reason: "systemd-run was not found" };
     const unit = `tau-probe-${unitNodeId(deps.nodeId())}-${randomBytes(6).toString("hex")}`;
     const command = verified
       ? ["--", "true"]
-      : ["-p", `MemoryMax=${MEMORY_MAX_BYTES / 1024 / 1024}M`, "--", binaries.sh ?? "/bin/sh", "-c", FIRST_PROBE_SCRIPT];
+      : ["-p", `MemoryMax=${MEMORY_MAX_BYTES / 1024 / 1024}M`, "--", sh ?? "/bin/sh", "-c", FIRST_PROBE_SCRIPT];
     const args = ["--user", "--scope", "--quiet", "--collect", `--unit=${unit}`, ...command];
-    const result = await exec(binaries.systemdRun, args, { env: env(), timeoutMs: PROBE_TIMEOUT_MS });
+    const result = await exec(systemdRun, args, { env: env(), timeoutMs: PROBE_TIMEOUT_MS });
     if (result.timedOut) return { ok: false, reason: "the cgroup probe timed out" };
     if (result.code !== 0) {
       return { ok: false, reason: result.stderr.trim().split("\n")[0] || "systemd-run --user --scope failed" };
@@ -139,7 +145,7 @@ export function createResourceSupport(deps: SupportDeps): ResourceSupportProbe {
         return {
           platform,
           memoryEnforcement: "polled",
-          prioritySupported: binaries.taskpolicy !== undefined,
+          prioritySupported: binaries().taskpolicy !== undefined,
           sameCgroupOnly: false,
           note: POLLED_NOTE,
         };
@@ -151,7 +157,7 @@ export function createResourceSupport(deps: SupportDeps): ResourceSupportProbe {
       return {
         platform,
         memoryEnforcement: outcome.ok ? "kernel" : "polled",
-        prioritySupported: binaries.nice !== undefined,
+        prioritySupported: binaries().nice !== undefined,
         sameCgroupOnly: true,
         note: outcome.ok ? CGROUP_NOTE : `${outcome.reason ?? "cgroups unavailable"}. ${POLLED_NOTE}`,
       };
