@@ -140,17 +140,24 @@ export function ThreadRow({
               />
             }
             avatar={
-              <BotAvatar
-                size={depth > 0 ? 20 : 24}
-                avatarIndex={conversation.avatarIndex}
-                working={conversation.status === "running"}
-                badge={dot && dot !== "running" ? <StatusDot status={dot} /> : undefined}
-                originBadge={isFork(conversation) ? <ForkBadge conversation={conversation} /> : undefined}
-                goalBadge={
-                  hasActiveGoal(conversation) ? <GoalBadge conversation={conversation} /> : undefined
-                }
-                timerBadge={hasTimer(conversation) ? <TimerBadge conversation={conversation} /> : undefined}
-              />
+              archived ? (
+                <ArchiveIcon
+                  aria-label="Archived"
+                  className={depth > 0 ? "size-3.5 text-muted-foreground" : "size-4 text-muted-foreground"}
+                />
+              ) : (
+                <BotAvatar
+                  size={depth > 0 ? 20 : 24}
+                  avatarIndex={conversation.avatarIndex}
+                  working={conversation.status === "running"}
+                  badge={dot && dot !== "running" ? <StatusDot status={dot} /> : undefined}
+                  originBadge={isFork(conversation) ? <ForkBadge conversation={conversation} /> : undefined}
+                  goalBadge={
+                    hasActiveGoal(conversation) ? <GoalBadge conversation={conversation} /> : undefined
+                  }
+                  timerBadge={hasTimer(conversation) ? <TimerBadge conversation={conversation} /> : undefined}
+                />
+              )
             }
             context={depth === 0 && showProject ? project?.name : undefined}
             projectIcon={depth > 0 ? undefined : projectIcon(17)}

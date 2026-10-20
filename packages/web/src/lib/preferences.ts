@@ -15,6 +15,7 @@ const KEYS = {
   projectOpenOverrides: "tau-sidebar-project-overrides",
   collapsedThreads: "tau-sidebar-collapsed-threads",
   collapsedNodes: "tau-sidebar-collapsed-nodes",
+  showArchived: "tau-sidebar-show-archived",
   theme: `${PREFIX}theme`,
   sidebarOpen: `${PREFIX}sidebar-open`,
   sidebarWidth: `${PREFIX}sidebar-width`,
@@ -105,6 +106,9 @@ export const preferences = {
 
   getCollapsedNodes: (): string[] => readJson(KEYS.collapsedNodes, isStringArray) ?? [],
   setCollapsedNodes: (ids: readonly string[]): void => writeString(KEYS.collapsedNodes, JSON.stringify(ids)),
+
+  getShowArchived: (): boolean => readString(KEYS.showArchived) === "on",
+  setShowArchived: (show: boolean): void => writeString(KEYS.showArchived, show ? "on" : "off"),
 
   getTheme: (): Theme => {
     const stored = readString(KEYS.theme);

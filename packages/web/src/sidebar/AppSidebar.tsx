@@ -18,10 +18,11 @@ import {
 } from "@/components/ui/sidebar";
 import { TauLogo } from "@/components/ui/tau-logo";
 import { newThreadPath } from "@/lib/paths";
-import type { SidebarMode } from "@/lib/preferences";
+import { preferences, type SidebarMode } from "@/lib/preferences";
 import { NodeProvider, useNodes } from "@/nodes";
 import { isUsable } from "@/nodes/node-text";
 import { useHubName } from "@/nodes/use-node-avatar";
+import { ArchiveButton, DeleteAllArchivedButton } from "./GlobalArchive";
 import { NodeGroup } from "./NodeGroup";
 import { NodeSection } from "./NodeSection";
 import { OfflineNodeSection } from "./OfflineNodeSection";
@@ -44,7 +45,7 @@ function useNow(): number {
   return now;
 }
 
-function RemoteGroup({ node, mode }: { node: Node; mode: SidebarMode }) {
+function RemoteGroup({ node, mode, showArchived }: { node: Node; mode: SidebarMode; showArchived: boolean }) {
   const open = useOpenConversation();
   const navigate = useNavigate();
   const now = useNow();
@@ -55,6 +56,7 @@ function RemoteGroup({ node, mode }: { node: Node; mode: SidebarMode }) {
         <NodeProvider nodeId={node.id}>
           <NodeSection
             mode={mode}
+            showArchived={showArchived}
             activeConversationId={active ? open.conversationId : undefined}
             onProjectRemoved={(removedId) => active && removedId === open.projectId && navigate("/")}
           />
@@ -66,7 +68,7 @@ function RemoteGroup({ node, mode }: { node: Node; mode: SidebarMode }) {
   );
 }
 
-function NodeSections({ mode }: { mode: SidebarMode }) {
+function NodeSections({ mode, showArchived }: { mode: SidebarMode; showArchived: boolean }) {
   const { nodes } = useNodes();
   const hubName = useHubName();
   const open = useOpenConversation();
@@ -74,6 +76,7 @@ function NodeSections({ mode }: { mode: SidebarMode }) {
   const local = (
     <NodeSection
       mode={mode}
+      showArchived={showArchived}
       activeConversationId={sameNode(open.nodeId, undefined) ? open.conversationId : undefined}
       onProjectRemoved={(removedId) =>
         open.nodeId === undefined && removedId === open.projectId && navigate("/")
@@ -87,7 +90,7 @@ function NodeSections({ mode }: { mode: SidebarMode }) {
         {local}
       </NodeGroup>
       {nodes.map((node) => (
-        <RemoteGroup key={node.id} node={node} mode={mode} />
+        <RemoteGroup key={node.id} node={node} mode={mode} showArchived={showArchived} />
       ))}
     </>
   );
@@ -95,8 +98,14 @@ function NodeSections({ mode }: { mode: SidebarMode }) {
 
 export function AppSidebar() {
   const [mode, setMode] = useSidebarMode();
+  const [showArchived, setShowArchived] = useState(() => preferences.getShowArchived());
   const navigate = useNavigate();
   const openSettings = useOpenSettings();
+  const toggleArchived = () => {
+    const next = !showArchived;
+    preferences.setShowArchived(next);
+    setShowArchived(next);
+  };
   return (
     <Sidebar aria-label="Projects and threads">
       <SidebarHeader className="gap-4 px-4 py-3">
@@ -119,7 +128,7 @@ export function AppSidebar() {
         </div>
       </SidebarHeader>
       <SidebarContent>
-        <NodeSections mode={mode} />
+        <NodeSections mode={mode} showArchived={showArchived} />
       </SidebarContent>
       <SidebarFooter>
         <div className="flex items-center justify-between gap-2">
@@ -127,7 +136,11 @@ export function AppSidebar() {
             <SettingsIcon />
             Settings
           </Button>
-          <UpdateButton />
+          <div className="flex shrink-0 items-center gap-1">
+            {showArchived && <DeleteAllArchivedButton />}
+            <ArchiveButton show={showArchived} onToggle={toggleArchived} />
+            <UpdateButton />
+          </div>
         </div>
       </SidebarFooter>
       <SidebarRail />

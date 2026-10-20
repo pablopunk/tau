@@ -86,10 +86,12 @@ describe("threads mode", () => {
     expect(link.querySelector("[data-slot=project-icon]")).not.toBeNull();
   });
 
-  it("keeps one Archived section at the bottom", async () => {
+  it("toggles archived threads inline from the footer archive icon", async () => {
     const user = userEvent.setup();
     renderSidebar();
-    await user.click(await screen.findByRole("button", { name: /Archived \(1\)/ }));
+    await screen.findByRole("link", { name: /Alpha/ });
+    expect(screen.queryByRole("link", { name: /Shelved/ })).not.toBeInTheDocument();
+    await user.click(await screen.findByRole("button", { name: "Show archived threads, 1" }));
     expect(await screen.findByRole("link", { name: /Shelved/ })).toBeInTheDocument();
   });
 
