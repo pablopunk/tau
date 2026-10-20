@@ -8,10 +8,10 @@ import { ancestorPidsOf } from "./ancestors";
 import { spawnCommand } from "./command-runner";
 import { releasesApiOf } from "./fake-hooks";
 import { installRootOfThisTau } from "./install-root";
-import { fetchRelease, RELEASES_API } from "./latest-version";
 import { latestVersionSource } from "./latest-source";
-import { releasePlatformOf } from "./platform";
+import { fetchRelease, RELEASES_API } from "./latest-version";
 import { fetchLinkedNodes } from "./nodes-behind";
+import { releasePlatformOf } from "./platform";
 import type { UpdateDeps } from "./update-deps";
 
 const POLL_MS = 500;
@@ -19,7 +19,9 @@ const POLL_MS = 500;
 async function currentVersionReported(home: string): Promise<string | undefined> {
   try {
     const env = { ...processEnv(), home };
-    const status = (await callRoute(await discoverServer(env), "getUpdateStatus", {}, env)) as { current?: string };
+    const status = (await callRoute(await discoverServer(env), "getUpdateStatus", {}, env)) as {
+      current?: string;
+    };
     return status.current;
   } catch {
     return undefined;

@@ -106,14 +106,6 @@ describe("bare output", () => {
     expect(node.runner.calls.filter((call) => call.includes("systemctl"))).toEqual([]);
   });
 
-  it("service install failure: message, exit 1, no URL", async () => {
-    const { deps, output } = setup();
-    const broken = { ...deps, cli: () => ({ ...CLI, args: ["/h/.npm/_npx/1/x/dist/bin.js"] }) };
-    await runBareWith(broken, []);
-    expect(output.at(-1)).toBe("Run: npx @pablopunk/tau");
-    expect(process.exitCode).toBe(1);
-  });
-
   it("not answering: exact message, exit 1", async () => {
     const { deps, output } = setup({ noInstance: true });
     await runBareWith(deps, ["--no-open"]);

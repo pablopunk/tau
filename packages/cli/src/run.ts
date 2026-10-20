@@ -7,6 +7,7 @@ import {
 } from "@tau/core";
 import type { Core, CreateCore, UpdaterPort } from "@tau/protocol";
 import type { CreateServer } from "@tau/server";
+import type { CliCommand } from "./cli-entry";
 import { listenOnFreePort } from "./listen-on-free-port";
 import type { StartLinkClient } from "./nodes/link-client";
 import type { CliOptions } from "./options";
@@ -21,15 +22,17 @@ export interface RunDependencies {
   readonly openBrowser: (url: string) => Promise<void>;
   readonly log: (message: string) => void;
   readonly staticDir: string | undefined;
-  /** The CLI entry file, for core's `<home>/bin/tau` shim. */
-  readonly cliEntry?: string;
+  /** How to start tau again, for core's `<home>/bin/tau` shim and the updater. */
+  readonly cliCommand?: CliCommand;
+  /** Where web assets, skills, `pi-env` and `claude-sdk/` live; set only in a compiled binary. */
+  readonly assets?: { readonly versionDir: string };
   /** Dials every peer of `<home>/peers.json`; absent in tests. */
   readonly startLinkClient?: StartLinkClient;
   /** Written to the lock file. */
   readonly version?: string;
-  /** The registry's latest version for core's update status. Default: npm, or `TAU_FAKE_LATEST`. */
+  /** The latest release for core's update status. Default: GitHub Releases, or `TAU_FAKE_LATEST`. */
   readonly latestVersion?: () => Promise<string>;
-  /** Builds the updater (async: it probes `systemctl` once). Default: the real one when `cliEntry` is set, else none. */
+  /** Builds the updater (async: it probes `systemctl` once). Default: the real one when `cliCommand` is set, else none. */
   readonly createUpdater?: (home: string) => Promise<UpdaterPort | undefined>;
 }
 
@@ -59,7 +62,7 @@ async function openBrowserSafely(url: string, { openBrowser, log }: RunDependenc
 }
 
 const defaultUpdater = (dependencies: RunDependencies) => async (home: string) =>
-  dependencies.cliEntry === undefined ? undefined : createRealUpdater(home, dependencies.version);
+  dependencies.cliCommand === undefined ? undefined : createRealUpdater(home, dependencies.version);
 
 /** Resolves to the running app, or `undefined` when another instance already serves this home. */
 export async function run(
@@ -75,13 +78,16 @@ export async function run(
   const core: Core = await dependencies.createCore({
     home: options.home,
     faux: options.faux,
-    cliEntry: dependencies.cliEntry,
+    // `cliCommand` and `assets` are core's new options; the cast keeps this compiling until core declares them.
+    cliEntry: dependencies.cliCommand?.args[0],
+    cliCommand: dependencies.cliCommand,
+    assets: dependencies.assets,
     tunnelTarget: tunnelTarget.get,
     currentVersion: dependencies.version ?? "",
     latestVersion: dependencies.latestVersion ?? latestVersionSource(process.env, options.home),
     updater,
     autoStartUpdates: true,
-  });
+  } as Parameters<CreateCore>[0]);
   try {
     const server = await listenOnFreePort(options.port, (port) =>
       dependencies.createServer({ core, port, token, staticDir: dependencies.staticDir }),

@@ -53,16 +53,6 @@ describe("bare tau", () => {
     expect(node.runner.calls.some((call) => call.includes("bootstrap"))).toBe(false);
   });
 
-  it("never serves in the foreground when tau runs from an npx cache", async () => {
-    const { node, deps, output } = setup({ instance: RUNNING });
-    const cached = { ...deps, cli: () => ({ ...CLI, args: ["/h/.npm/_npx/9/tau/dist/bin.js"] }) };
-    await runBareWith(cached, []);
-    expect(process.exitCode).toBe(1);
-    expect(output).toContain("Run: npx @pablopunk/tau");
-    expect(node.runner.calls).toEqual([]);
-    process.exitCode = 0;
-  });
-
   it("stores --port for the service", async () => {
     const { node, deps } = setup({ instance: RUNNING });
     await runBareWith(deps, ["--port", "5555", "--no-open"]);
@@ -116,7 +106,7 @@ describe("status", () => {
     await createServiceManager(node.context, CLI, node.tauHome).install();
     await runStatusWith(deps, []);
     expect(output[0]).toContain("run `tau restart`");
-    expect(output[0]).toContain("node missing");
+    expect(output[0]).toContain("service program is missing");
   });
 });
 

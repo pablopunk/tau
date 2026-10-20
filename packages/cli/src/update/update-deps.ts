@@ -1,8 +1,8 @@
 import type { ConversationSummary } from "@tau/protocol";
 import type { LifecycleDeps } from "../lifecycle/deps";
 import type { RunCommand } from "./command-runner";
-import type { FetchLike, Release } from "./latest-version";
 import type { JobReporter } from "./job-child";
+import type { FetchLike, Release } from "./latest-version";
 import type { LinkedNodes } from "./nodes-behind";
 
 export interface UpdateDeps extends LifecycleDeps {
@@ -29,7 +29,11 @@ export interface UpdateDeps extends LifecycleDeps {
    * Polls `GET /api/update` until `current === version` or `timeoutMs` passes. Resolves to the last `current`
    * seen (undefined: the server never answered). `/api/health` cannot tell the old server from the new one.
    */
-  readonly pollRunningVersion: (home: string, version: string, timeoutMs: number) => Promise<string | undefined>;
+  readonly pollRunningVersion: (
+    home: string,
+    version: string,
+    timeoutMs: number,
+  ) => Promise<string | undefined>;
   readonly hasHubFile: (home: string) => boolean;
   /** Best effort: the linked nodes of a running hub, or undefined. */
   readonly linkedNodes?: (home: string) => Promise<LinkedNodes | undefined>;

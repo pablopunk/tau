@@ -7,9 +7,7 @@ import { CLI, createTestNode } from "../service/test-context";
 import { jobFileOf, readJobFile, writeJobFile } from "./job-file";
 import { createUpdater, type JobFile, type UpdaterDeps } from "./updater";
 
-const NPM_ENTRY = "/usr/local/lib/node_modules/@pablopunk/tau/dist/bin.js";
-const PNPM_ENTRY =
-  "/h/Library/pnpm/global/5/node_modules/.pnpm/@pablopunk+tau@1.0.0/node_modules/@pablopunk/tau/dist/bin.js";
+const ROOT = "/h/.local/share/tau";
 
 interface Seen {
   runs: { command: string; args: readonly string[]; options: RunOptions | undefined }[];
@@ -32,7 +30,9 @@ function recordingRunner(respond: (line: string) => Partial<CommandResult> | und
 }
 
 interface Options {
-  entry?: string;
+  /** `null`: a dev checkout. */
+  installRoot?: string | null;
+  platformKey?: string | null;
   platform?: NodeJS.Platform;
   installService?: boolean;
   respond?: (line: string) => Partial<CommandResult> | undefined;
@@ -54,8 +54,8 @@ async function setup(options: Options = {}) {
     version: options.version ?? "1.0.0",
     context: node.context,
     cli: CLI,
-    entry: options.entry ?? NPM_ENTRY,
-    execPath: "/n/bin/node",
+    installRoot: options.installRoot === null ? undefined : (options.installRoot ?? ROOT),
+    platformKey: options.platformKey === null ? undefined : (options.platformKey ?? "darwin-arm64"),
     env: options.env ?? { PATH: "/usr/bin", TAU_THREAD_ID: "t1", HOME: "/h" },
     now: options.now ?? (() => 1_000_000),
     foreground: options.foreground,
@@ -79,17 +79,9 @@ describe("updater.plan", () => {
     expect((await setup({ foreground: false })).updater.plan("1.1.0").reason).toBeNull();
   });
 
-  it("runs on pnpm and mise installs too when detached", async () => {
-    expect((await setup({ entry: PNPM_ENTRY })).updater.plan("1.1.0").mode).toBe("run");
-    const mise = "/h/.local/share/mise/installs/node/22/lib/node_modules/@pablopunk/tau/dist/bin.js";
-    expect((await setup({ entry: mise })).updater.plan("1.1.0").mode).toBe("run");
-  });
-
   it("runs on a verified launchd service", async () => {
     const { updater } = await setup({ installService: true });
     expect(updater.plan("1.1.0").mode).toBe("run");
-    const pnpm = await setup({ installService: true, entry: PNPM_ENTRY });
-    expect(pnpm.updater.plan("1.1.0").mode).toBe("run");
   });
 
   it("is manual on systemd older than 236 (no --collect)", async () => {
@@ -112,37 +104,14 @@ describe("updater.plan", () => {
     expect(seen.runs.filter((r) => r.command === "systemctl" && r.args[0] === "--version")).toHaveLength(1);
   });
 
-  it.each([
-    [
-      "npx",
-      "/h/.npm/_npx/abc/node_modules/@pablopunk/tau/dist/bin.js",
-      "manual",
-      "npm i -g @pablopunk/tau@latest && tau restart",
-    ],
-    [
-      "bun",
-      "/h/.bun/install/global/node_modules/@pablopunk/tau/dist/bin.js",
-      "manual",
-      "bun add -g @pablopunk/tau@1.1.0",
-    ],
-    [
-      "volta",
-      "/h/.volta/tools/image/packages/@pablopunk/tau/lib/node_modules/@pablopunk/tau/dist/bin.js",
-      "manual",
-      "volta install @pablopunk/tau@1.1.0",
-    ],
-    ["dev checkout", "/h/src/tau/packages/cli/dist/bin.js", "none", null],
-  ])("%s", async (_name, entry, mode, command) => {
-    const { updater } = await setup({ entry });
-    expect(updater.plan("1.1.0")).toMatchObject({ mode, command });
+  it("is none in a dev checkout", async () => {
+    const { updater } = await setup({ installRoot: null });
+    expect(updater.plan("1.1.0")).toMatchObject({ mode: "none", command: null });
   });
 
-  it("is manual on Windows", async () => {
-    const { updater } = await setup({
-      platform: "win32",
-      entry: "C:/x/lib/node_modules/@pablopunk/tau/dist/bin.js",
-    });
-    expect(updater.plan("1.1.0")).toMatchObject({ mode: "manual", command: "npm i -g @pablopunk/tau@1.1.0" });
+  it("is none on a platform with no binary (Windows)", async () => {
+    const { updater } = await setup({ platform: "win32", platformKey: null });
+    expect(updater.plan("1.1.0")).toMatchObject({ mode: "none" });
   });
 });
 
@@ -195,8 +164,8 @@ describe("updater.spawn", () => {
       version: "1.0.0",
       context: node.context,
       cli: CLI,
-      entry: NPM_ENTRY,
-      execPath: "/n/bin/node",
+      installRoot: ROOT,
+      platformKey: "darwin-arm64",
       env: {},
     });
     await updater.spawn({ target: "1.1.0" });

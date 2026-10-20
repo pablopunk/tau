@@ -44,7 +44,10 @@ function assetUrls(release: Record<string, unknown>): Map<string, string> {
   const urls = new Map<string, string>();
   const assets = Array.isArray(release.assets) ? (release.assets as unknown[]) : [];
   for (const asset of assets) {
-    const { name, browser_download_url: url } = (asset ?? {}) as { name?: unknown; browser_download_url?: unknown };
+    const { name, browser_download_url: url } = (asset ?? {}) as {
+      name?: unknown;
+      browser_download_url?: unknown;
+    };
     if (typeof name === "string" && typeof url === "string") urls.set(name, url);
   }
   return urls;

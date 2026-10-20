@@ -5,7 +5,12 @@ import { currentVersionOf, pruneVersions, swapCurrent } from "./install-layout";
 import { installRelease } from "./install-release";
 import { createJobReporter } from "./job-child";
 import { linkedNodesLine } from "./nodes-behind";
-import { ROLLBACK_TIMEOUT_MS, type RestartOutcome, restartCommandOf, restartInNewBinary } from "./restart-step";
+import {
+  type RestartOutcome,
+  ROLLBACK_TIMEOUT_MS,
+  restartCommandOf,
+  restartInNewBinary,
+} from "./restart-step";
 import { hasRunningWork, runningWorkOf } from "./running-work";
 import type { UpdateDeps } from "./update-deps";
 import { type UpdateFlags, updateFlagsOf } from "./update-flags";
@@ -48,7 +53,15 @@ async function installStep(deps: UpdateDeps, root: string, target: string, home:
 }
 
 /** Puts `current` back on the previous version; when the server was already restarted, restarts it again. */
-async function rollBack(deps: UpdateDeps, root: string, previous: string | undefined, outcome: RestartOutcome, flags: UpdateFlags, target: string, home: string) {
+async function rollBack(
+  deps: UpdateDeps,
+  root: string,
+  previous: string | undefined,
+  outcome: RestartOutcome,
+  flags: UpdateFlags,
+  target: string,
+  home: string,
+) {
   if (previous === undefined) return text.noRollbackText(target);
   swapCurrent(root, previous);
   if (outcome.restarted) {

@@ -1,4 +1,12 @@
-import { existsSync, readdirSync, readFileSync, readlinkSync, renameSync, rmSync, symlinkSync } from "node:fs";
+import {
+  existsSync,
+  readdirSync,
+  readFileSync,
+  readlinkSync,
+  renameSync,
+  rmSync,
+  symlinkSync,
+} from "node:fs";
 import { basename, join } from "node:path";
 
 export const versionsDirOf = (root: string) => join(root, "versions");

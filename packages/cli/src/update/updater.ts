@@ -73,7 +73,8 @@ interface Facts {
   readonly systemdVersion: number | undefined;
 }
 
-export const INSTALL_COMMAND = "curl -fsSL https://github.com/pablopunk/tau/releases/latest/download/install.sh | sh";
+export const INSTALL_COMMAND =
+  "curl -fsSL https://github.com/pablopunk/tau/releases/latest/download/install.sh | sh";
 export const DEV_CHECKOUT_REASON = "Running from a development checkout: update it with git.";
 export const NO_BINARY_REASON = "Automatic update is not supported on this platform.";
 

@@ -1,4 +1,8 @@
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
+import { existsSync, mkdirSync, mkdtempSync, readlinkSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { basename, dirname, join } from "node:path";
 import type { LockInfo } from "@tau/core";
 import type { ConversationSummary } from "@tau/protocol";
 import { describe, expect, it } from "vitest";
@@ -6,17 +10,30 @@ import { summary } from "../commands/test-support";
 import { createServiceManager } from "../service/manager";
 import { pidFileOf } from "../service/spec";
 import { CLI, createTestNode } from "../service/test-context";
-import type { CommandResult } from "./command-runner";
+import { type CommandResult, spawnCommand } from "./command-runner";
+import { currentVersionOf, serverRecordOf, swapCurrent } from "./install-layout";
 import { readJobFile, writeJobFile } from "./job-file";
+import type { Release } from "./latest-version";
 import type { LinkedNodes } from "./nodes-behind";
 import { runUpdateWith } from "./run-update";
 import type { UpdateDeps } from "./update-deps";
 import type { JobFile } from "./updater";
 
-const ENTRY = "/usr/local/lib/node_modules/@pablopunk/tau/dist/bin.js";
-const PKG = "/usr/local/lib/node_modules/@pablopunk/tau";
 const OLD: LockInfo = { pid: 4242, url: "http://127.0.0.1:4317", version: "1.0.0" };
 const ok: CommandResult = { code: 0, stdout: "", stderr: "" };
+const PLATFORM = "darwin-arm64";
+
+/** A real `tar.gz` with `tau-<v>-<platform>/tau`, so the install code extracts for real. */
+function archiveOf(version: string): { bytes: Buffer; sha: string } {
+  const work = mkdtempSync(join(tmpdir(), "tau-archive-"));
+  const folder = join(work, `tau-${version}-${PLATFORM}`);
+  mkdirSync(folder);
+  writeFileSync(join(folder, "tau"), "#!/bin/sh\n");
+  const file = join(work, "a.tar.gz");
+  execFileSync("tar", ["-czf", file, "-C", work, basename(folder)]);
+  const bytes = execFileSync("cat", [file], { maxBuffer: 1 << 26 });
+  return { bytes, sha: createHash("sha256").update(bytes).digest("hex") };
+}
 
 interface Options {
   latest?: string | Error;
@@ -25,11 +42,15 @@ interface Options {
   tty?: boolean;
   env?: Record<string, string>;
   conversations?: ConversationSummary[];
-  installed?: string;
-  install?: CommandResult;
-  statusJson?: CommandResult;
+  /** The new server never comes up: a restart leaves the old version. */
+  staysOld?: boolean;
+  badSum?: boolean;
+  badBinary?: boolean;
+  noRelease?: boolean;
+  /** `null`: a dev checkout. */
+  devCheckout?: boolean;
+  noPrevious?: boolean;
   restart?: CommandResult;
-  entry?: string;
   ancestors?: number[];
   hub?: boolean;
   confirm?: boolean;
@@ -44,10 +65,31 @@ async function setup(options: Options = {}) {
       : undefined,
   );
   if (options.active !== false) await createServiceManager(node.context, CLI, node.tauHome).install();
+  const root = mkdtempSync(join(tmpdir(), "tau-root-"));
+  for (const version of options.noPrevious ? [] : ["1.0.0"]) {
+    mkdirSync(join(root, "versions", version), { recursive: true });
+    writeFileSync(join(root, "versions", version, "tau"), "");
+  }
+  if (!options.noPrevious) swapCurrent(root, "1.0.0");
   const out: string[] = [];
   const err: string[] = [];
   const commands: { command: string; args: readonly string[]; stdio: string }[] = [];
   const instance = { current: "instance" in options ? options.instance : OLD };
+  const archive = archiveOf("1.1.0");
+  const fetched: string[] = [];
+  const fakeFetch = (async (input: string | URL) => {
+    const url = String(input);
+    fetched.push(url);
+    if (url.endsWith(".tar.gz")) return new Response(archive.bytes);
+    const sha = options.badSum ? "0".repeat(64) : archive.sha;
+    return new Response(`${sha}  tau-1.1.0-${PLATFORM}.tar.gz\n`);
+  }) as typeof fetch;
+  const release = (version: string): Release => ({
+    version,
+    archiveName: `tau-${version}-${PLATFORM}.tar.gz`,
+    archiveUrl: `https://releases.test/tau-${version}-${PLATFORM}.tar.gz`,
+    sumsUrl: "https://releases.test/SHA256SUMS",
+  });
   const deps: UpdateDeps = {
     context: node.context,
     cli: () => CLI,
@@ -61,28 +103,40 @@ async function setup(options: Options = {}) {
     fileExists: () => true,
     runCommand: async (command, args, o) => {
       commands.push({ command, args, stdio: o.stdio });
-      if (args[0] === "i") return options.install ?? ok;
-      if (args[1] === "status")
-        return options.statusJson ?? { code: 0, stdout: JSON.stringify({ cliVersion: "1.1.0" }), stderr: "" };
-      if (args[1] === "restart") return options.restart ?? ok;
+      if (command === "tar") return spawnCommand(command, args, o);
+      if (args[0] === "--version") {
+        const printed = options.badBinary ? "9.9.9" : basename(dirname(command));
+        return { code: 0, stdout: `${printed}\n`, stderr: "" };
+      }
+      if (args[1] === "restart") {
+        const result = options.restart ?? ok;
+        if (result.code === 0 && instance.current) {
+          const version =
+            options.staysOld && currentVersionOf(root) !== "1.0.0" ? "1.0.0" : currentVersionOf(root);
+          instance.current = { ...instance.current, version: version ?? "1.0.0" };
+        }
+        return result;
+      }
       return ok;
     },
     latestVersion: async () => {
       if (options.latest instanceof Error) throw options.latest;
       return options.latest ?? "1.1.0";
     },
+    installRoot: options.devCheckout ? undefined : root,
+    platformKey: PLATFORM,
+    fetch: fakeFetch,
+    findRelease: async (version) => {
+      if (options.noRelease) throw new Error("release 1.1.0 has no archive yet");
+      return release(version);
+    },
     listConversations: async () => options.conversations ?? [],
     confirm: async () => options.confirm ?? true,
     isTty: options.tty ?? true,
     env: options.env ?? {},
     pid: options.pid,
-    execPath: "/n/bin/node",
-    entry: options.entry ?? ENTRY,
-    realpath: (p) => p,
-    readPackageVersion: () => options.installed ?? "1.1.0",
     ancestorPids: options.ancestors ? async () => options.ancestors ?? [] : undefined,
-    pollInstance: async (_home, version) =>
-      instance.current?.version === version ? instance.current : instance.current,
+    pollRunningVersion: async () => instance.current?.version,
     hasHubFile: () => options.hub ?? false,
     linkedNodes: options.linked
       ? async () => {
@@ -91,12 +145,12 @@ async function setup(options: Options = {}) {
         }
       : undefined,
   };
-  return { home: node.tauHome, deps, out, err, commands, instance };
+  return { home: node.tauHome, deps, out, err, commands, instance, root, fetched };
 }
 
-const installCalls = (s: Awaited<ReturnType<typeof setup>>) => s.commands.filter((c) => c.args[0] === "i");
-const restartCalls = (s: Awaited<ReturnType<typeof setup>>) =>
-  s.commands.filter((c) => c.args[1] === "restart");
+type Setup = Awaited<ReturnType<typeof setup>>;
+const installCalls = (s: Setup) => s.commands.filter((c) => c.command === "tar");
+const restartCalls = (s: Setup) => s.commands.filter((c) => c.args[1] === "restart");
 const NEW: LockInfo = { ...OLD, version: "1.1.0" };
 
 describe("tau update --check", () => {
@@ -108,7 +162,7 @@ describe("tau update --check", () => {
     expect(behind.out).toEqual(["1.0.0 -> 1.1.0"]);
     expect(behind.commands).toEqual([]);
   });
-  it("exits 1 when the registry is unreachable", async () => {
+  it("exits 1 when the release check fails", async () => {
     const s = await setup({ latest: new Error("offline") });
     expect(await runUpdateWith(s.deps, ["--check"])).toBe(1);
     expect(s.err).toEqual(["offline"]);
@@ -150,37 +204,47 @@ describe("tau update", () => {
     expect(s.commands).toEqual([]);
   });
 
-  it("installs the exact version without a shell, verifies, restarts in the new binary, and succeeds on the lock version", async () => {
+  it("downloads, verifies, extracts, swaps current, restarts the stable binary and prunes", async () => {
     const s = await setup({ hub: true });
-    const poll = s.deps.pollInstance;
-    const flipped: UpdateDeps = {
-      ...s.deps,
-      pollInstance: async (h, v) => {
-        s.instance.current = NEW;
-        return poll(h, v);
-      },
-    };
-    expect(await runUpdateWith(flipped, ["--yes", "--home", s.home, "--port", "5000"])).toBe(0);
-    expect(installCalls(s)).toEqual([
-      { command: "/n/bin/npm", args: ["i", "-g", "@pablopunk/tau@1.1.0"], stdio: "tee" },
+    mkdirSync(join(s.root, "versions", "0.9.0"));
+    expect(await runUpdateWith(s.deps, ["--yes", "--home", s.home, "--port", "5000"]), s.err.join()).toBe(0);
+    expect(s.fetched).toEqual([
+      "https://releases.test/tau-1.1.0-darwin-arm64.tar.gz",
+      "https://releases.test/SHA256SUMS",
     ]);
+    expect(existsSync(join(s.root, "versions", "1.1.0", "tau"))).toBe(true);
+    expect(currentVersionOf(s.root)).toBe("1.1.0");
+    expect(readlinkSync(join(s.root, "current"))).toBe(join("versions", "1.1.0"));
+    expect(existsSync(join(s.root, "versions", "0.9.0"))).toBe(false);
+    expect(existsSync(join(s.root, "versions", "1.0.0"))).toBe(true);
+    expect(s.commands.find((c) => c.args[0] === "--version")?.command).toBe(
+      join(s.root, "versions", "1.1.0", "tau"),
+    );
     expect(restartCalls(s)).toEqual([
       {
-        command: "/n/bin/node",
-        args: [`${PKG}/dist/bin.js`, "restart", "--home", s.home, "--port", "5000"],
+        command: CLI.command,
+        args: [...CLI.args, "restart", "--home", s.home, "--port", "5000"],
         stdio: "inherit",
       },
     ]);
-    const status = s.commands.find((c) => c.args[1] === "status");
-    expect(status?.args).toEqual([`${PKG}/dist/bin.js`, "status", "--home", s.home, "--json"]);
     expect(s.out.join("\n")).toContain("Linked nodes must run the same tau version");
-    expect(s.out.join("\n")).toContain("linked to other nodes");
+  });
+
+  it("never prunes the folder the running server started from", async () => {
+    const s = await setup();
+    mkdirSync(join(s.root, "versions", "0.9.0"));
+    writeFileSync(
+      serverRecordOf(s.home),
+      JSON.stringify({ pid: 4242, versionDir: join(s.root, "versions", "0.9.0") }),
+    );
+    expect(await runUpdateWith(s.deps, ["--yes", "--home", s.home])).toBe(0);
+    expect(existsSync(join(s.root, "versions", "0.9.0"))).toBe(true);
   });
 
   it("forwards only the flags typed", async () => {
     const s = await setup();
     await runUpdateWith(s.deps, ["--yes"]);
-    expect(restartCalls(s)[0]?.args).toEqual([`${PKG}/dist/bin.js`, "restart"]);
+    expect(restartCalls(s)[0]?.args).toEqual([...CLI.args, "restart"]);
   });
 
   it("installs the missing service for a background tau before the restart step", async () => {
@@ -188,38 +252,38 @@ describe("tau update", () => {
     mkdirSync(s.home, { recursive: true });
     writeFileSync(pidFileOf(s.home), "4242");
     const calls = (s.deps.context.runner as unknown as { calls: string[] }).calls;
-    const flipped: UpdateDeps = {
-      ...s.deps,
-      pollInstance: async () => {
-        s.instance.current = NEW;
-        return NEW;
-      },
-    };
-    expect(await runUpdateWith(flipped, ["--yes", "--home", s.home]), s.err.join("\n")).toBe(0);
-    const bootstrap = calls.findIndex((line) => line.startsWith("launchctl bootstrap"));
-    expect(bootstrap).toBeGreaterThanOrEqual(0);
+    expect(await runUpdateWith(s.deps, ["--yes", "--home", s.home]), s.err.join("\n")).toBe(0);
+    expect(calls.findIndex((line) => line.startsWith("launchctl bootstrap"))).toBeGreaterThanOrEqual(0);
     expect(existsSync(pidFileOf(s.home))).toBe(false);
     expect(restartCalls(s)).toHaveLength(1);
-    expect(s.out.join("\n")).toContain("Installing the tau service");
   });
 
-  it("fails with the skew message when the lock keeps the old version (also a stale detached restart)", async () => {
-    const s = await setup();
+  it("rolls current back and restarts when the new server never reports the target", async () => {
+    const s = await setup({ staysOld: true });
     expect(await runUpdateWith(s.deps, ["--yes"])).toBe(1);
     expect(s.err.join("\n")).toContain("still reports version 1.0.0");
+    expect(s.err.join("\n")).toContain("Rolled back to tau 1.0.0");
+    expect(currentVersionOf(s.root)).toBe("1.0.0");
+    expect(restartCalls(s)).toHaveLength(2);
+    expect(s.instance.current?.version).toBe("1.0.0");
   });
 
-  it("fails when no lock is left after the restart", async () => {
-    const s = await setup();
-    const gone: UpdateDeps = { ...s.deps, pollInstance: async () => undefined };
-    expect(await runUpdateWith(gone, ["--yes"])).toBe(1);
-    expect(s.err.join("\n")).toContain("tau status");
+  it("rolls back when `tau restart` fails", async () => {
+    const s = await setup({ restart: { code: 1, stdout: "", stderr: "no" } });
+    expect(await runUpdateWith(s.deps, ["--yes"])).toBe(1);
+    expect(currentVersionOf(s.root)).toBe("1.0.0");
+  });
+
+  it("keeps the new version and says so when there is no previous one", async () => {
+    const s = await setup({ staysOld: true, noPrevious: true });
+    expect(await runUpdateWith(s.deps, ["--yes"])).toBe(1);
+    expect(s.err.join("\n")).toContain("no previous version");
+    expect(currentVersionOf(s.root)).toBe("1.1.0");
   });
 
   it("asks only when needed", async () => {
-    expect(await runUpdateWith((await setup({ tty: false })).deps, [])).toBe(1);
     const noTty = await setup({ tty: false });
-    await runUpdateWith(noTty.deps, []);
+    expect(await runUpdateWith(noTty.deps, [])).toBe(1);
     expect(noTty.err.join()).toContain("Add --yes");
     expect(installCalls(noTty)).toEqual([]);
     const declined = await setup({ confirm: false });
@@ -227,33 +291,17 @@ describe("tau update", () => {
     expect(installCalls(declined)).toEqual([]);
   });
 
-  it("explains EACCES with the manual command and does not restart", async () => {
-    const s = await setup({ install: { code: 243, stdout: "", stderr: "npm error code EACCES" } });
-    expect(await runUpdateWith(s.deps, ["--yes"])).toBe(1);
-    expect(s.err.join()).toContain("Permission denied");
-    expect(s.err.join()).toContain("npm i -g @pablopunk/tau@1.1.0");
-    expect(restartCalls(s)).toEqual([]);
-  });
-
-  it("reports another install failure with a rollback command", async () => {
-    const s = await setup({ install: { code: 1, stdout: "", stderr: "boom" } });
-    expect(await runUpdateWith(s.deps, ["--yes"])).toBe(1);
-    expect(s.err.join()).toContain("npm i -g @pablopunk/tau@1.0.0");
-  });
-
   it.each([
-    ["wrong version on disk", { installed: "1.0.0" }],
-    ["status crashes", { statusJson: { code: 1, stdout: "", stderr: "Cannot find module" } }],
-    [
-      "status reports another version",
-      { statusJson: { code: 0, stdout: JSON.stringify({ cliVersion: "1.0.0" }), stderr: "" } },
-    ],
-    ["status is not JSON", { statusJson: { code: 0, stdout: "oops", stderr: "" } }],
-  ] as [string, Options][])("does not restart when verify fails: %s", async (_name, options) => {
+    ["a bad checksum", { badSum: true }, "does not match SHA256SUMS"],
+    ["a binary that prints another version", { badBinary: true }, "does not run"],
+    ["a release with no archive", { noRelease: true }, "no archive yet"],
+  ] as [string, Options, string][])("changes nothing on %s", async (_name, options, message) => {
     const s = await setup(options);
     expect(await runUpdateWith(s.deps, ["--yes"])).toBe(1);
+    expect(s.err.join()).toContain(message);
+    expect(currentVersionOf(s.root)).toBe("1.0.0");
+    expect(existsSync(join(s.root, "versions", "1.1.0"))).toBe(false);
     expect(restartCalls(s)).toEqual([]);
-    expect(s.err.join()).toContain("old server still runs on old in-memory code");
   });
 
   it("refuses with running threads unless --force, in a terminal or not", async () => {
@@ -262,7 +310,6 @@ describe("tau update", () => {
       const s = await setup({ conversations, tty });
       expect(await runUpdateWith(s.deps, ["--yes"])).toBe(1);
       expect(s.err.join()).toContain("Running threads: 1");
-      expect(s.err.join()).toContain("--force");
       expect(installCalls(s)).toEqual([]);
     }
     const forced = await setup({ conversations });
@@ -284,18 +331,18 @@ describe("tau update", () => {
     expect(restartCalls(r)).toHaveLength(1);
   });
 
-  it("installs but refuses to restart inside tau (env and ancestor pids)", async () => {
+  it("refuses to restart inside tau (env and ancestor pids) and puts current back", async () => {
     const env = await setup({ env: { TAU_THREAD_ID: "me" } });
     expect(await runUpdateWith(env.deps, ["--yes"])).toBe(1);
-    expect(installCalls(env)).toHaveLength(1);
     expect(restartCalls(env)).toEqual([]);
     expect(env.err.join()).toContain("running inside tau");
+    expect(currentVersionOf(env.root)).toBe("1.0.0");
     const ps = await setup({ ancestors: [1234, 4242] });
     expect(await runUpdateWith(ps.deps, ["--yes"])).toBe(1);
     expect(restartCalls(ps)).toEqual([]);
   });
 
-  it("--no-restart installs and verifies only, even inside tau with running work", async () => {
+  it("--no-restart installs only, even inside tau with running work", async () => {
     const s = await setup({
       env: { TAU_THREAD_ID: "me" },
       conversations: [summary("a", { status: "running" })],
@@ -303,7 +350,7 @@ describe("tau update", () => {
     expect(await runUpdateWith(s.deps, ["--yes", "--no-restart"])).toBe(0);
     expect(s.out.join()).toContain("tau restart");
     expect(restartCalls(s)).toEqual([]);
-    expect(s.commands.some((c) => c.args[1] === "status")).toBe(true);
+    expect(currentVersionOf(s.root)).toBe("1.1.0");
   });
 
   it("tells a foreground server to restart itself", async () => {
@@ -321,10 +368,10 @@ describe("tau update", () => {
     expect(restartCalls(s)).toEqual([]);
   });
 
-  it("prints the manual command for a layout it will not touch", async () => {
-    const s = await setup({ entry: "/h/.bun/install/global/node_modules/@pablopunk/tau/dist/bin.js" });
+  it("refuses in a dev checkout", async () => {
+    const s = await setup({ devCheckout: true });
     expect(await runUpdateWith(s.deps, ["--yes"])).toBe(1);
-    expect(s.err.join()).toContain("bun add -g @pablopunk/tau@1.1.0");
+    expect(s.err.join()).toContain("development checkout");
     expect(s.commands).toEqual([]);
   });
 });
@@ -341,13 +388,6 @@ describe("tau update --target (the detached child)", () => {
       error: null,
       ...patch,
     });
-  const flipOnPoll = (s: Awaited<ReturnType<typeof setup>>): UpdateDeps => ({
-    ...s.deps,
-    pollInstance: async () => {
-      s.instance.current = NEW;
-      return NEW;
-    },
-  });
 
   it("rejects a target that is not a plain version before anything runs", async () => {
     const s = await setup();
@@ -359,35 +399,32 @@ describe("tau update --target (the detached child)", () => {
   });
 
   it("installs exactly the target, not a fresh latest, and never prompts without a terminal", async () => {
-    const s = await setup({ latest: new Error("registry down"), tty: false });
-    expect(await runUpdateWith(s.deps, ["--target", "1.1.0", "--yes", "--force"])).toBe(1);
-    expect(installCalls(s)[0]?.args).toEqual(["i", "-g", "@pablopunk/tau@1.1.0"]);
-    expect(s.err.join()).not.toContain("registry down");
-    expect(s.err.join()).not.toContain("Add --yes");
+    const s = await setup({ latest: new Error("releases down"), tty: false });
+    expect(await runUpdateWith(s.deps, ["--target", "1.1.0", "--yes", "--force"])).toBe(0);
+    expect(s.err.join()).not.toContain("releases down");
+    expect(currentVersionOf(s.root)).toBe("1.1.0");
   });
 
   it("reports pid, restarting and idle to the job file and survives the inside-server check", async () => {
     const s = await setup({ env: { TAU_UPDATE_JOB: "abc" }, pid: 777, ancestors: [4242] });
     seed(s.home);
-    const code = await runUpdateWith(flipOnPoll(s), [
-      "--target",
-      "1.1.0",
-      "--yes",
-      "--force",
-      "--home",
-      s.home,
-    ]);
+    const code = await runUpdateWith(s.deps, ["--target", "1.1.0", "--yes", "--force", "--home", s.home]);
     expect(code).toBe(0);
     expect(readJobFile(s.home)).toMatchObject({ state: "idle", pid: 777, error: null });
     expect(restartCalls(s)).toHaveLength(1);
   });
 
+  it("writes failed with the old version as `from` after a rollback", async () => {
+    const s = await setup({ env: { TAU_UPDATE_JOB: "abc" }, pid: 777, staysOld: true });
+    seed(s.home);
+    expect(await runUpdateWith(s.deps, ["--target", "1.1.0", "--yes", "--force", "--home", s.home])).toBe(1);
+    expect(readJobFile(s.home)).toMatchObject({ state: "failed", from: "1.0.0", target: "1.1.0" });
+    expect(readJobFile(s.home)?.error).toContain("still reports version 1.0.0");
+    expect(currentVersionOf(s.root)).toBe("1.0.0");
+  });
+
   it("writes failed with the error when the install fails", async () => {
-    const s = await setup({
-      env: { TAU_UPDATE_JOB: "abc" },
-      pid: 777,
-      install: { code: 1, stdout: "", stderr: "boom" },
-    });
+    const s = await setup({ env: { TAU_UPDATE_JOB: "abc" }, pid: 777, badSum: true });
     seed(s.home);
     expect(await runUpdateWith(s.deps, ["--target", "1.1.0", "--yes", "--force", "--home", s.home])).toBe(1);
     expect(readJobFile(s.home)).toMatchObject({ state: "failed", pid: 777 });
@@ -412,7 +449,7 @@ describe("tau update --target (the detached child)", () => {
   it("does not prompt: a valid nonce with a recorded pid skips the ancestry check on a plain `tau update` too", async () => {
     const s = await setup({ env: { TAU_UPDATE_JOB: "abc" }, pid: 777, ancestors: [4242], tty: false });
     seed(s.home, { pid: 777 });
-    await runUpdateWith(flipOnPoll(s), ["--yes", "--home", s.home]);
+    await runUpdateWith(s.deps, ["--yes", "--home", s.home]);
     expect(restartCalls(s)).toHaveLength(1);
   });
 });

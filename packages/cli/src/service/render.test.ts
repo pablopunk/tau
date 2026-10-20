@@ -29,6 +29,7 @@ describe("service definitions (golden files)", () => {
     const windows = {
       ...spec,
       command: "C:\\node\\node.exe",
+      args: ["C:\\tau\\bin.js", "serve", "--service", "--no-open"],
       path: "C:\\bin;C:\\tools",
     };
     await expect(renderCmdWrapper(windows)).toMatchFileSnapshot("./golden/tau-service.cmd");

@@ -21,7 +21,8 @@ const headers = { "user-agent": "tau-updater" };
 
 async function get(deps: InstallDeps, url: string): Promise<Response> {
   const response = await deps.fetch(url, { headers, signal: AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS) });
-  if (!response.ok || response.body === null) throw new Error(`Download failed: ${url} (HTTP ${response.status}).`);
+  if (!response.ok || response.body === null)
+    throw new Error(`Download failed: ${url} (HTTP ${response.status}).`);
   return response;
 }
 
@@ -69,14 +70,16 @@ export async function stageRelease(deps: InstallDeps, release: Release, root: st
     const sums = await (await get(deps, release.sumsUrl)).text();
     const expected = expectedHashOf(sums, release.archiveName);
     if (expected === undefined) throw new Error(`SHA256SUMS has no line for ${release.archiveName}.`);
-    if (expected !== actual) throw new Error(`The download of ${release.archiveName} does not match SHA256SUMS.`);
+    if (expected !== actual)
+      throw new Error(`The download of ${release.archiveName} does not match SHA256SUMS.`);
     const extracted = join(work, "extracted");
     await mkdir(extracted);
     const untar = await deps.run("tar", ["-xzf", archive, "-C", extracted], {
       stdio: "capture",
       timeoutMs: EXTRACT_TIMEOUT_MS,
     });
-    if (untar.code !== 0) throw new Error(`Could not extract the archive: ${untar.stderr.trim().slice(0, 300)}`);
+    if (untar.code !== 0)
+      throw new Error(`Could not extract the archive: ${untar.stderr.trim().slice(0, 300)}`);
     const payload = await payloadDirOf(extracted);
     await chmod(join(payload, "tau"), 0o755);
     const target = versionDirIn(root, release.version);

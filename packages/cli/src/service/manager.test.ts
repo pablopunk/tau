@@ -1,7 +1,11 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { swapCurrent } from "../update/install-layout";
 import { createServiceManager, listServices } from "./manager";
+import { renderPlist, renderSystemdUnit } from "./render";
+import { buildSpec } from "./spec";
 import { CLI, createTestNode } from "./test-context";
 
 const plistOf = (osHome: string, label = "dev.tau.server") =>
@@ -199,5 +203,23 @@ describe("detached homes", () => {
     await manager.stop();
     expect((await manager.state()).active).toBe(false);
     expect(node.runner.calls).toEqual([]);
+  });
+
+  it("renders byte-identical files after a `current` swap, so restart never reloads", async () => {
+    const root = mkdtempSync(join(tmpdir(), "tau-root-"));
+    for (const version of ["1.0.0", "1.1.0"]) {
+      mkdirSync(join(root, "versions", version), { recursive: true });
+      writeFileSync(join(root, "versions", version, "tau"), "");
+    }
+    const node = createTestNode();
+    const cli = { command: join(root, "current", "tau"), args: [] };
+    swapCurrent(root, "1.0.0");
+    const before = buildSpec(node.context, cli, node.tauHome);
+    swapCurrent(root, "1.1.0");
+    const after = buildSpec(node.context, cli, node.tauHome);
+    expect(after).toEqual(before);
+    expect(renderPlist(after)).toBe(renderPlist(before));
+    expect(renderSystemdUnit(after)).toBe(renderSystemdUnit(before));
+    expect(before.args).toEqual(["serve", "--service", "--no-open"]);
   });
 });

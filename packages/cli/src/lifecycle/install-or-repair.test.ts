@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import type { LockInfo } from "@tau/core";
 import { afterEach, describe, expect, it } from "vitest";
-import { pidFileOf } from "../service/spec";
+import { pidFileOf, recordFileOf } from "../service/spec";
 import { CLI, createTestNode } from "../service/test-context";
 import type { LifecycleDeps } from "./deps";
 import { installOrRepairService } from "./install-or-repair";
@@ -9,7 +9,7 @@ import { runRestartWith } from "./restart";
 
 const RUNNING: LockInfo = { pid: 4242, url: "http://127.0.0.1:4317", version: "1.2.3" };
 
-function setup(options: { instance?: LockInfo; entry?: string; onBootstrap?: () => void } = {}) {
+function setup(options: { instance?: LockInfo; onBootstrap?: () => void } = {}) {
   const node = createTestNode({}, (line) => {
     if (line.startsWith("launchctl bootstrap")) options.onBootstrap?.();
     return line.startsWith("launchctl print gui/501/") ? { stdout: "pid = 4242\n" } : undefined;
@@ -17,7 +17,7 @@ function setup(options: { instance?: LockInfo; entry?: string; onBootstrap?: () 
   const output: string[] = [];
   const deps: LifecycleDeps = {
     context: node.context,
-    cli: () => ({ ...CLI, args: [options.entry ?? CLI.args[0]] }),
+    cli: () => CLI,
     version: () => "1.2.3",
     readInstance: async () => options.instance,
     waitForInstanceUrl: async () => options.instance,
@@ -54,6 +54,18 @@ describe("service gap: restart installs a missing service", () => {
       repairing: false,
     });
     expect(bootstrapped(node)).toBe(false);
+  });
+
+  it("an old { node, entry } record counts as one repair, then settles", async () => {
+    const { node, deps } = setup();
+    await installOrRepairService(deps, node.tauHome);
+    writeFileSync(recordFileOf(node.tauHome), JSON.stringify({ node: CLI.command, entry: CLI.args[0] }));
+    expect(await installOrRepairService(deps, node.tauHome)).toMatchObject({
+      kind: "ready",
+      changed: true,
+      repairing: true,
+    });
+    expect(await installOrRepairService(deps, node.tauHome)).toMatchObject({ changed: false });
   });
 
   it("refuses a foreground server and installs nothing", async () => {
