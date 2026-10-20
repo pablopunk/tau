@@ -30,6 +30,7 @@ describe("<ThreadsView> nesting", () => {
           projects={[project()]}
           conversations={[parent, child]}
           activeConversationId={activeConversationId}
+          showArchived={false}
           onProjectRemoved={() => {}}
         />
       </SidebarProvider>,
@@ -61,6 +62,7 @@ describe("<ThreadsView> nesting", () => {
           projects={[project()]}
           conversations={[parent, child, second]}
           activeConversationId={undefined}
+          showArchived={false}
           onProjectRemoved={() => {}}
         />
       </SidebarProvider>,

@@ -22,9 +22,8 @@ import {
 import { Spinner } from "@/components/ui/spinner";
 import { ChangeIconDialog } from "@/icons/ChangeIconDialog";
 import { homeRelative, newThreadPath, nodeAssetUrl } from "@/lib/paths";
-import { queryKeys } from "@/lib/queries";
+import { byActivity, queryKeys } from "@/lib/queries";
 import { useApi, useNodeId } from "@/nodes/node-context";
-import { ArchivedConversations } from "./ArchivedConversations";
 import { ChangeFolderDialog } from "./ChangeFolderDialog";
 import { CloneFailed } from "./CloneFailed";
 import { NameDialog } from "./NameDialog";
@@ -37,6 +36,7 @@ interface ProjectGroupProps {
   section: ProjectSection;
   projects: ReadonlyMap<string, Project>;
   activeConversationId: string | undefined;
+  showArchived: boolean;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onRemoved: () => void;
@@ -48,6 +48,7 @@ export function ProjectGroup({
   section,
   projects,
   activeConversationId,
+  showArchived,
   open,
   onOpenChange,
   onRemoved,
@@ -55,6 +56,7 @@ export function ProjectGroup({
   const api = useApi();
   const nodeId = useNodeId();
   const { project, active, archived } = section;
+  const listed = showArchived ? [...active, ...archived].sort(byActivity) : active;
   const [dialog, setDialog] = useState<Dialog>(null);
   const queryClient = useQueryClient();
   const navigate = useNavigate();
@@ -131,7 +133,7 @@ export function ProjectGroup({
                 {active.length === 0 && (
                   <p className="px-2 py-1 text-xs text-muted-foreground">No threads yet</p>
                 )}
-                {nestThreads(active).map((node) => (
+                {nestThreads(listed).map((node) => (
                   <ThreadTree
                     key={node.conversation.id}
                     node={node}
@@ -142,12 +144,6 @@ export function ProjectGroup({
                   />
                 ))}
               </SidebarMenu>
-              <ArchivedConversations
-                conversations={archived}
-                activeConversationId={activeConversationId}
-                projects={projects}
-                showProject={false}
-              />
             </SidebarGroupContent>
           )}
         </CollapsibleContent>

@@ -90,7 +90,7 @@ describe("sidebar rows", () => {
     expect(link.querySelector("[data-slot=status-dot]")).toBeNull();
   });
 
-  it("shows archived threads in a collapsed Archived group", async () => {
+  it("toggles archived threads inline from the footer archive icon", async () => {
     mocked.conversations.listAll.mockResolvedValue([
       conversation(),
       conversation({ id: "z", title: "Shelved", archivedAt: 5 }),
@@ -100,8 +100,38 @@ describe("sidebar rows", () => {
 
     await screen.findByRole("link", { name: /First thread/ });
     expect(screen.queryByRole("link", { name: /Shelved/ })).not.toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: /Archived \(1\)/ }));
+    await user.click(screen.getByRole("button", { name: "Show archived threads, 1" }));
     expect(await screen.findByRole("link", { name: /Shelved/ })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Hide archived threads, 1" }));
+    await waitFor(() => expect(screen.queryByRole("link", { name: /Shelved/ })).not.toBeInTheDocument());
+  });
+
+  it("unarchives an archived thread shown inline", async () => {
+    mocked.conversations.listAll.mockResolvedValue([
+      conversation({ id: "z", title: "Shelved", archivedAt: 5 }),
+    ]);
+    mocked.conversations.archive.mockResolvedValue();
+    const user = userEvent.setup();
+    renderSidebar();
+
+    await user.click(await screen.findByRole("button", { name: "Show archived threads, 1" }));
+    await user.click(await screen.findByRole("button", { name: "Unarchive Shelved" }));
+    expect(mocked.conversations.archive).toHaveBeenCalledWith("z", false);
+  });
+
+  it("deletes an archived thread shown inline", async () => {
+    mocked.conversations.listAll.mockResolvedValue([
+      conversation({ id: "z", title: "Shelved", archivedAt: 5 }),
+    ]);
+    mocked.conversations.remove.mockResolvedValue();
+    const user = userEvent.setup();
+    renderSidebar();
+
+    await user.click(await screen.findByRole("button", { name: "Show archived threads, 1" }));
+    await user.click(await screen.findByRole("button", { name: "Actions for Shelved" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Delete" }));
+    await user.click(await screen.findByRole("button", { name: "Delete thread" }));
+    expect(mocked.conversations.remove).toHaveBeenCalledWith("z", { force: false });
   });
 
   it("archives from the row menu", async () => {

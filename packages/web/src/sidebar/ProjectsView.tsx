@@ -11,6 +11,7 @@ interface ProjectsViewProps {
   projects: readonly Project[];
   conversations: readonly ConversationSummary[];
   activeConversationId: string | undefined;
+  showArchived: boolean;
   onProjectRemoved: (projectId: string) => void;
 }
 
@@ -18,6 +19,7 @@ export function ProjectsView({
   projects,
   conversations,
   activeConversationId,
+  showArchived,
   onProjectRemoved,
 }: ProjectsViewProps) {
   const listRef = useRef<HTMLDivElement>(null);
@@ -35,6 +37,7 @@ export function ProjectsView({
           section={section}
           projects={byId}
           activeConversationId={activeConversationId}
+          showArchived={showArchived}
           open={isProjectOpen(section, overrides, currentProjectId)}
           onOpenChange={(open) => setOpen(section.project.id, open)}
           onRemoved={() => onProjectRemoved(section.project.id)}

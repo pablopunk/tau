@@ -10,12 +10,18 @@ import { ThreadsView } from "./ThreadsView";
 
 interface NodeSectionProps {
   mode: SidebarMode;
+  showArchived: boolean;
   activeConversationId: string | undefined;
   onProjectRemoved: (projectId: string) => void;
 }
 
 /** One node's projects and threads, under that node's provider. A failing node shows its own error only. */
-export function NodeSection({ mode, activeConversationId, onProjectRemoved }: NodeSectionProps) {
+export function NodeSection({
+  mode,
+  showArchived,
+  activeConversationId,
+  onProjectRemoved,
+}: NodeSectionProps) {
   const nodeId = useNodeId();
   const projects = useProjects();
   const conversations = useAllConversations();
@@ -40,6 +46,7 @@ export function NodeSection({ mode, activeConversationId, onProjectRemoved }: No
       projects={projects.data}
       conversations={conversations.data ?? []}
       activeConversationId={activeConversationId}
+      showArchived={showArchived}
       onProjectRemoved={onProjectRemoved}
     />
   );
