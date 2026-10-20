@@ -297,8 +297,7 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
         workspaces,
         connectorOffering,
       },
-      connectedModels: async () =>
-        (await provider.listModels()).map(({ provider: id, modelId }) => ({ provider: id, modelId })),
+      connectedModels: async () => provider.listModels(),
     });
     const closeClaudeCliThread = async (id: string) => {
       const sessionId = await providerSessionOf(harness, id);

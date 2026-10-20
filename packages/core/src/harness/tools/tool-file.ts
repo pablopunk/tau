@@ -1,5 +1,5 @@
 import { defineTool, type Extension, type ToolRegistration } from "@earendil-works/pi-durable";
-import type { ModelRef } from "@tau/protocol";
+import type { ModelInfo } from "@tau/protocol";
 import type { TSchema } from "typebox";
 import type { ClaudeConnectorToolServices } from "../../claude-cli/connectors/connector-tool-services";
 import type { McpService } from "../../mcp/mcp-service";
@@ -13,7 +13,7 @@ import type { SubagentServices } from "../subagent-services";
 
 export interface ToolServices {
   /** Models the user has a key for; the `agent` tool lists them in its description. */
-  readonly connectedModels: () => Promise<readonly ModelRef[]>;
+  readonly connectedModels: () => Promise<readonly ModelInfo[]>;
   readonly processes: ProcessService;
   readonly mcp: McpService;
   readonly subagents: SubagentServices;

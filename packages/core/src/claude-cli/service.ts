@@ -37,6 +37,8 @@ export interface ClaudeCliService {
   closeThread(piSessionId: string): Promise<void>;
   /** Stop on a connector call: interrupts the open turn of a Pi session. */
   interruptConversation(piSessionId: string): Promise<void>;
+  /** List price behind a Claude CLI model value, for display only. */
+  priceOf(modelValue: string): { input: number; output: number } | undefined;
   close(): Promise<void>;
 }
 
@@ -74,6 +76,7 @@ const DISABLED: ClaudeCliService = {
   },
   closeThread: async () => undefined,
   interruptConversation: async () => undefined,
+  priceOf: () => undefined,
   close: async () => undefined,
 };
 
@@ -196,6 +199,7 @@ export function createClaudeCliService(deps: ClaudeCliServiceDeps): ClaudeCliSer
     installSdk,
     closeThread: (piSessionId) => streamer.closeThread(piSessionId),
     interruptConversation: (piSessionId) => streamer.interruptConversation(piSessionId),
+    priceOf: (modelValue) => models.priceOf(modelValue),
     async close() {
       detector.stop();
       await streamer.closeAll();

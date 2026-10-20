@@ -31,6 +31,8 @@ export const ModelInfoSchema = Type.Object({
   images: Type.Boolean(),
   thinkingLevels: Type.Array(ThinkingLevelSchema),
   providerName: Type.String(),
+  cost: Type.Optional(Type.Object({ input: Type.Number(), output: Type.Number() })),
+  billing: Type.Optional(Type.Union([Type.Literal("usage"), Type.Literal("subscription")])),
 });
 export type ModelInfo = Type.Static<typeof ModelInfoSchema>;
 

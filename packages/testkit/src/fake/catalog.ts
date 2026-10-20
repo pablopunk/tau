@@ -22,7 +22,13 @@ export const FAKE_PROVIDERS: readonly Omit<ProviderInfo, "connection" | "cli">[]
 const CLAUDE_CLI_NAME = "Claude CLI";
 const CLAUDE_CLI_LEVELS: ThinkingLevel[] = ["off", "low", "medium", "high", "xhigh"];
 
-const claudeModel = (modelId: string, name: string, levels: ThinkingLevel[]): ModelInfo => ({
+const claudeModel = (
+  modelId: string,
+  name: string,
+  levels: ThinkingLevel[],
+  cost: ModelInfo["cost"],
+): ModelInfo => ({
+  cost,
   provider: "claude-cli",
   modelId,
   name,
@@ -35,9 +41,9 @@ const claudeModel = (modelId: string, name: string, levels: ThinkingLevel[]): Mo
 
 /** Listed once the Claude CLI notice is accepted. */
 export const FAKE_CLAUDE_CLI_MODELS: readonly ModelInfo[] = [
-  claudeModel("opus", "Opus 5.5 (opus)", CLAUDE_CLI_LEVELS),
-  claudeModel("sonnet", "Sonnet 5.5 (sonnet)", CLAUDE_CLI_LEVELS),
-  claudeModel("haiku", "Haiku 5.5 (haiku)", ["off"]),
+  claudeModel("opus", "Opus 5.5 (opus)", CLAUDE_CLI_LEVELS, { input: 15, output: 75 }),
+  claudeModel("sonnet", "Sonnet 5.5 (sonnet)", CLAUDE_CLI_LEVELS, { input: 3, output: 15 }),
+  claudeModel("haiku", "Haiku 5.5 (haiku)", ["off"], { input: 1, output: 5 }),
 ];
 
 export const FAKE_CLAUDE_CLI_RESETS_AT = 1_800_000_000_000;
@@ -59,6 +65,7 @@ export const FAKE_MODELS: readonly ModelInfo[] = [
   {
     provider: "faux",
     modelId: "faux-1",
+    cost: { input: 1, output: 5 },
     name: "Faux One",
     contextWindow: 128000,
     reasoning: true,
@@ -69,6 +76,7 @@ export const FAKE_MODELS: readonly ModelInfo[] = [
   {
     provider: "faux",
     modelId: "faux-2",
+    cost: { input: 3, output: 15 },
     name: "Faux Two",
     contextWindow: 128000,
     reasoning: false,
@@ -79,6 +87,7 @@ export const FAKE_MODELS: readonly ModelInfo[] = [
   {
     provider: "faux",
     modelId: "faux-fast",
+    cost: { input: 0.1, output: 0.5 },
     name: "Faux Fast",
     contextWindow: 128000,
     reasoning: false,

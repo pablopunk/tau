@@ -110,6 +110,7 @@ export function createProviderService(options: ProviderServiceOptions): Provider
     entries,
     faux: options.faux,
     claudeCliModels: () => claudeCli.provider?.getModels() ?? [],
+    claudeCliPrice: (value) => claudeCli.priceOf(value),
   });
   const logins = createLoginSessions({
     models,

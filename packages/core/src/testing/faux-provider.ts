@@ -12,10 +12,12 @@ import { createFauxScript } from "./faux-script";
 
 export const FAUX_PROVIDER_ID = "faux";
 
+const fixtureCost = (input: number, output: number) => ({ input, output, cacheRead: 0, cacheWrite: 0 });
+
 export const FAUX_MODELS: FauxModelDefinition[] = [
-  { id: "faux-1", name: "Faux One", reasoning: true },
-  { id: "faux-2", name: "Faux Two", reasoning: false },
-  { id: "faux-fast", name: "Faux Fast", reasoning: false },
+  { id: "faux-1", name: "Faux One", reasoning: true, cost: fixtureCost(1, 5) },
+  { id: "faux-2", name: "Faux Two", reasoning: false, cost: fixtureCost(3, 15) },
+  { id: "faux-fast", name: "Faux Fast", reasoning: false, cost: fixtureCost(0.1, 0.5) },
   { id: "faux-text", name: "Faux Text", reasoning: false, input: ["text"] },
 ];
 

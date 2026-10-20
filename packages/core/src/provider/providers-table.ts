@@ -14,6 +14,8 @@ export interface PiProviderRef {
   readonly piId: string;
   /** Shown as `ModelInfo.providerName`. */
   readonly label: string;
+  /** `usage` is pay per token; `subscription` burns a plan's usage window. */
+  readonly billing: "usage" | "subscription";
 }
 
 export interface KeyProviderEntry {
@@ -47,7 +49,7 @@ const KEY_PROVIDERS: readonly Omit<KeyProviderEntry, "kind">[] = [
     methods: ["api_key"],
     keyUrl: "https://openrouter.ai/keys",
     envVar: "OPENROUTER_API_KEY",
-    piProviders: [{ piId: "openrouter", label: "OpenRouter" }],
+    piProviders: [{ piId: "openrouter", label: "OpenRouter", billing: "usage" }],
     validate: validateOpenRouterKey,
   },
   {
@@ -56,7 +58,7 @@ const KEY_PROVIDERS: readonly Omit<KeyProviderEntry, "kind">[] = [
     methods: ["api_key", "chatgpt"],
     keyUrl: "https://platform.openai.com/api-keys",
     envVar: "OPENAI_API_KEY",
-    piProviders: [{ piId: "openai", label: "OpenAI" }],
+    piProviders: [{ piId: "openai", label: "OpenAI", billing: "usage" }],
     validate: validateOpenAiKey,
   },
   {
@@ -65,7 +67,7 @@ const KEY_PROVIDERS: readonly Omit<KeyProviderEntry, "kind">[] = [
     methods: ["api_key"],
     keyUrl: "https://console.anthropic.com/settings/keys",
     envVar: "ANTHROPIC_API_KEY",
-    piProviders: [{ piId: "anthropic", label: "Anthropic" }],
+    piProviders: [{ piId: "anthropic", label: "Anthropic", billing: "usage" }],
     validate: validateAnthropicKey,
   },
   {
@@ -74,7 +76,7 @@ const KEY_PROVIDERS: readonly Omit<KeyProviderEntry, "kind">[] = [
     methods: ["api_key"],
     keyUrl: "https://aistudio.google.com/apikey",
     envVar: "GEMINI_API_KEY",
-    piProviders: [{ piId: "google", label: "Google" }],
+    piProviders: [{ piId: "google", label: "Google", billing: "usage" }],
     validate: validateGoogleKey,
   },
   {
@@ -84,8 +86,8 @@ const KEY_PROVIDERS: readonly Omit<KeyProviderEntry, "kind">[] = [
     keyUrl: "https://opencode.ai/auth",
     envVar: "OPENCODE_API_KEY",
     piProviders: [
-      { piId: "opencode", label: "OpenCode Zen" },
-      { piId: "opencode-go", label: "OpenCode Go" },
+      { piId: "opencode", label: "OpenCode Zen", billing: "usage" },
+      { piId: "opencode-go", label: "OpenCode Go", billing: "subscription" },
     ],
     validate: validateOpenCodeKey,
   },
@@ -97,7 +99,7 @@ const CLAUDE_CLI_ENTRY: CliProviderEntry = {
   name: "Claude CLI",
   methods: ["claude_cli"],
   keyUrl: "",
-  piProviders: [{ piId: CLAUDE_CLI_PROVIDER_ID, label: CLAUDE_CLI_PROVIDER_NAME }],
+  piProviders: [{ piId: CLAUDE_CLI_PROVIDER_ID, label: CLAUDE_CLI_PROVIDER_NAME, billing: "subscription" }],
 };
 
 export const PROVIDERS: readonly ProviderEntry[] = [

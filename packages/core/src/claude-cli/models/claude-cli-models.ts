@@ -1,5 +1,6 @@
 import type { Api, Model } from "@earendil-works/pi-ai";
 import { anthropicProvider } from "@earendil-works/pi-ai/providers/anthropic";
+import type { CatalogCost } from "../../provider/model-price";
 import type { ClaudeModelOption, ClaudeSdkLoader } from "../sdk-types";
 import { modelRowOf } from "./claude-cli-model-row";
 
@@ -17,6 +18,8 @@ export interface ClaudeCliModels {
   refresh(): Promise<void>;
   /** The last `modelUsage.contextWindow` the SDK reported, used for the next `getModels()`. */
   noteContextWindow(modelValue: string, contextWindow: number): void;
+  /** List price of the Anthropic catalog entry behind a model value; the row itself keeps cost 0. */
+  priceOf(modelValue: string): CatalogCost | undefined;
 }
 
 const NO_MODELS: readonly Model<Api>[] = [];
@@ -69,5 +72,9 @@ export function createClaudeCliModels(deps: ClaudeCliModelsDeps): ClaudeCliModel
     },
     refresh,
     noteContextWindow: (value, contextWindow) => void noted.set(value, contextWindow),
+    priceOf(modelValue) {
+      const resolved = options?.find((option) => option.value === modelValue)?.resolvedModel;
+      return resolved ? catalogLookup()(resolved)?.cost : undefined;
+    },
   };
 }
