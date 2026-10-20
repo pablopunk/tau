@@ -340,7 +340,8 @@ export function createProcessService(deps: ProcessDeps): ProcessService {
       );
       return;
     }
-    if (entry.notifyOnExit) send(entry, processExitNotification(entry.info, null, reapingTailText(entry, running, reason)));
+    if (entry.notifyOnExit)
+      send(entry, processExitNotification(entry.info, null, reapingTailText(entry, running, reason)));
   }
 
   function reapingTailText(entry: Entry, running: RunningProcess, reason: StopReason): string {
