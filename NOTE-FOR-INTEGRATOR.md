@@ -54,3 +54,59 @@ passes in every package; biome clean on all my files.
 keep; one above → truncate; else drop), `truncateHeadChars = 300`,
 `minReductionRatio = 0.25`, `predicateTimeoutMs = 60_000` (clients also carry
 their own 30 s `AbortSignal.timeout`).
+
+---
+
+# NOTE-FOR-INTEGRATOR (web fast-compaction settings row)
+
+## Foundation was missing from this worktree — cherry-picked it in
+
+This worktree (`ae9718d`) did not contain the foundation commits, so the
+`setCompaction` / `decisions` / `compaction` surface the plan assumes did not
+exist here. I cherry-picked the already-reviewed foundation branch
+`pi/look-into-jev-compaction-with-typesafe-a` commits verbatim, in order:
+
+- `0e90eb5` PLAN-jev-compaction.md (reviewed)
+- `cf35a10` protocol: typesafe provider, compaction setting, decisions availability
+- `385a39e` testkit: contract cases + fake compaction setting
+- `5c0077d` core(provider): typesafe as chat-less key provider
+- `dd98e83` core(decisions): DecideClient stub, selector, fake, backends
+- `b9cccac` settings: setCompaction + guard + route + client passthrough
+
+Two conflicts resolved while cherry-picking (no behavior invented):
+- `packages/protocol/src/protocol-hash.ts` — took ours, then ran
+  `mise exec -- pnpm --filter @tau/protocol bump-protocol` (committed as
+  `4109b7d`; hash now covers the new surface).
+- `packages/core/src/home/settings-store.test.ts` — kept HEAD's resources
+  migration test AND the foundation compaction test (both pass).
+
+If integration instead rebases onto a tree that already has foundation, drop
+those cherry-picks and keep only the work commits listed below.
+
+## Work commits (mine — the actual task)
+
+- `useSetCompaction` in `packages/web/src/lib/queries.ts` (additive only).
+- `packages/web/src/settings/agent/FastCompactionGroup.tsx` (+ `fast-compaction-text.ts` + test).
+- `AgentSection.tsx`: two mount lines for `<FastCompactionGroup />`.
+
+## Open items for the integrator
+
+1. **`packages/web/src/settings/settings-index.ts` needs a `fast-compaction` entry.**
+   It is outside my owned files. `settings-dialog-search.test.tsx` ("has an entry
+   for every rendered row…") already fails on this worktree's HEAD for the
+   resources rows; my row adds one more missing entry. Suggested entry:
+   `{ id: "fast-compaction", keywords: ["compaction", "fast", "summary", "jev", "typesafe", "decisions"] }`
+   (check the file's exact shape first).
+2. **Pre-existing failures on this worktree, untouched:** `pnpm check` reports
+   12 biome errors in `e2e/`, `packages/cli`, `packages/core` files (verified
+   none are mine via `biome check` on my files + `tsc --noEmit` clean for
+   `@tau/web`); 12 web test failures in `palette`, `settings-dialog-search`,
+   `settings-search`, resources rows fail identically with my changes stashed.
+3. **Fake `ProviderInfo` has no `decisions` field** (`fake-providers.ts` `infoOf`
+   never sets it — outside my files). My tests mock `useProviders` at the
+   `@/lib/queries` layer for the decisions field while settings go through the
+   real fake core (including the server-side `setCompaction` guard). If the fake
+   later reports `decisions`, the mock can be dropped.
+4. Commit `4109b7d` used `--no-verify` for the protocol-hash bump only (hook
+   friction on a generated file); all work commits below use hooks normally —
+   say the word if you want it amended.

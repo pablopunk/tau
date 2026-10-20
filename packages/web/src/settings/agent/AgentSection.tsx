@@ -9,6 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { queryKeys, useSettings } from "@/lib/queries";
 import { useApi } from "@/nodes/node-context";
 import { ResourcesGroup } from "@/settings/resources/ResourcesGroup";
+import { FastCompactionGroup } from "./FastCompactionGroup";
 
 const textOption = <T extends string>(value: T, label: string): SegmentedOption<T> => ({
   value,
@@ -72,6 +73,7 @@ export function AgentSection() {
         </Field>
       </SettingRow>
       <ResourcesGroup />
+      <FastCompactionGroup />
       <FormError message={error} />
     </div>
   );
