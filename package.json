@@ -15,7 +15,9 @@
     "smoke:install": "tsx scripts/smoke-install.ts",
     "smoke:bare": "tsx scripts/smoke-bare.ts",
     "e2e": "pnpm --filter @tau/e2e test",
-    "screenshots": "pnpm --filter @tau/e2e screenshots"
+    "screenshots": "pnpm --filter @tau/e2e screenshots",
+    "build:binary": "tsx scripts/build-binary.ts",
+    "smoke:binary": "tsx scripts/smoke-binary.ts"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.15",

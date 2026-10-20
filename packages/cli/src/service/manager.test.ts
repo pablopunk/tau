@@ -55,7 +55,7 @@ describe("macOS (launchd)", () => {
     );
     const warnings = await createServiceManager(node.context, CLI, node.tauHome).install();
     expect(warnings.join(" ")).toContain("detached");
-    expect(node.runner.detached).toEqual([`${CLI.node} ${CLI.entry} serve --service --no-open`]);
+    expect(node.runner.detached).toEqual([`${CLI.command} ${CLI.args[0]} serve --service --no-open`]);
     expect(existsSync(plistOf(node.osHome))).toBe(false);
   });
 
@@ -99,7 +99,7 @@ describe("macOS (launchd)", () => {
     await createServiceManager(node.context, CLI, node.tauHome).install();
     const same = createServiceManager(node.context, CLI, node.tauHome);
     expect(await same.needsRepair()).toBe(false);
-    const moved = createServiceManager(node.context, { ...CLI, node: "/new/node" }, node.tauHome);
+    const moved = createServiceManager(node.context, { ...CLI, command: "/new/node" }, node.tauHome);
     expect(await moved.needsRepair()).toBe(true);
     const untouched = createServiceManager(node.context, CLI, join(node.osHome, "no-service"));
     expect(await untouched.needsRepair()).toBe(false);
@@ -107,7 +107,7 @@ describe("macOS (launchd)", () => {
 
   it("refuses an entry inside an npx cache", async () => {
     const node = createTestNode();
-    const cache = { ...CLI, entry: "/h/.npm/_npx/1/node_modules/tau/dist/bin.js" };
+    const cache = { ...CLI, args: ["/h/.npm/_npx/1/node_modules/tau/dist/bin.js"] };
     await expect(createServiceManager(node.context, cache, node.tauHome).install()).rejects.toThrow(
       TemporaryEntryError,
     );

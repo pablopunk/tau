@@ -1,6 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { IDLE_JOB, type UpdateInstall, type UpdateJob, type UpdaterPort } from "@tau/protocol";
-import type { CliEntry } from "../cli-entry";
+import type { CliCommand } from "../cli-entry";
 import type { ServiceContext } from "../service/context";
 import { createServiceManager } from "../service/manager";
 import { hasUserSystemd } from "../service/systemd";
@@ -33,7 +33,7 @@ export interface UpdaterDeps {
   readonly version: string;
   readonly context: ServiceContext;
   /** node and entry of this tau, for the child. */
-  readonly cli: CliEntry;
+  readonly cli: CliCommand;
   /** `realpath(argv[1])`, for the install-method detection. */
   readonly entry: string;
   readonly execPath: string;

@@ -1,7 +1,7 @@
 import { accessSync, constants } from "node:fs";
 import { join } from "node:path";
 import { type LockInfo, readRunningInstance } from "@tau/core";
-import { type CliEntry, cliEntry } from "../cli-entry";
+import { type CliCommand, cliEntry } from "../cli-entry";
 import { realContext, type ServiceContext } from "../service/context";
 import { createServiceManager, type ServiceManager } from "../service/manager";
 import { readOrCreateToken } from "../token";
@@ -12,7 +12,7 @@ import { realExtras, type StatusExtras } from "./status-extras";
 
 export interface LifecycleDeps {
   readonly context: ServiceContext;
-  readonly cli: () => CliEntry;
+  readonly cli: () => CliCommand;
   readonly version: () => string;
   readonly readInstance: (home: string) => Promise<LockInfo | undefined>;
   readonly waitForInstanceUrl: (home: string) => Promise<LockInfo | undefined>;

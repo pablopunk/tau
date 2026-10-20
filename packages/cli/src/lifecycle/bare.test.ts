@@ -77,7 +77,7 @@ describe("bare output", () => {
 
   it("stale service: repairs, then prints the service line", async () => {
     const { node, deps, output } = setup();
-    await createServiceManager(node.context, { ...CLI, node: "/old/node" }, node.tauHome).install();
+    await createServiceManager(node.context, { ...CLI, command: "/old/node" }, node.tauHome).install();
     await runBareWith(deps, ["--no-open"]);
     expect(output[0]).toBe("Repairing the tau service...");
     expect(output).toContain("tau is running as a service. It starts at login and restarts if it crashes.");
@@ -108,7 +108,7 @@ describe("bare output", () => {
 
   it("service install failure: message, exit 1, no URL", async () => {
     const { deps, output } = setup();
-    const broken = { ...deps, cli: () => ({ ...CLI, entry: "/h/.npm/_npx/1/x/dist/bin.js" }) };
+    const broken = { ...deps, cli: () => ({ ...CLI, args: ["/h/.npm/_npx/1/x/dist/bin.js"] }) };
     await runBareWith(broken, []);
     expect(output.at(-1)).toBe("Run: npx @pablopunk/tau");
     expect(process.exitCode).toBe(1);

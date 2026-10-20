@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import type { CliEntry } from "../cli-entry";
+import type { CliCommand } from "../cli-entry";
 import type { ServiceContext } from "./context";
 import { type ServiceNames, serviceNames } from "./names";
 import { captureServicePath } from "./path-capture";
@@ -21,13 +21,13 @@ export const serviceArgs = (home: string, isDefaultHome: boolean): string[] => [
   ...(isDefaultHome ? [] : ["--home", home]),
 ];
 
-export function buildSpec(context: ServiceContext, cli: CliEntry, home: string): ServiceSpec {
+export function buildSpec(context: ServiceContext, cli: CliCommand, home: string): ServiceSpec {
   const names = serviceNames(home, context.defaultHome);
   return {
     names,
     home,
-    node: cli.node,
-    entry: cli.entry,
+    node: cli.command,
+    entry: cli.args[0] ?? "",
     path: captureServicePath(context.env.PATH ?? "", context.osHome),
     args: serviceArgs(home, names.launchdLabel === "dev.tau.server"),
   };

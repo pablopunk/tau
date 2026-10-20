@@ -44,7 +44,7 @@ describe("bare tau", () => {
 
   it("repairs a service whose recorded node moved, without reinstalling a healthy one", async () => {
     const { node, deps } = setup({ instance: RUNNING });
-    await createServiceManager(node.context, { ...CLI, node: "/old/node" }, node.tauHome).install();
+    await createServiceManager(node.context, { ...CLI, command: "/old/node" }, node.tauHome).install();
     node.runner.calls.length = 0;
     await runBareWith(deps, ["--no-open"]);
     expect(node.runner.calls.some((call) => call.startsWith("launchctl bootstrap"))).toBe(true);
@@ -55,7 +55,7 @@ describe("bare tau", () => {
 
   it("never serves in the foreground when tau runs from an npx cache", async () => {
     const { node, deps, output } = setup({ instance: RUNNING });
-    const cached = { ...deps, cli: () => ({ ...CLI, entry: "/h/.npm/_npx/9/tau/dist/bin.js" }) };
+    const cached = { ...deps, cli: () => ({ ...CLI, args: ["/h/.npm/_npx/9/tau/dist/bin.js"] }) };
     await runBareWith(cached, []);
     expect(process.exitCode).toBe(1);
     expect(output).toContain("Run: npx @pablopunk/tau");
@@ -81,7 +81,7 @@ describe("status", () => {
       pid: 4242,
       url: "http://127.0.0.1:4317",
       version: "1.2.3",
-      node: CLI.node,
+      node: CLI.command,
     });
   });
 

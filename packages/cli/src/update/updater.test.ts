@@ -152,9 +152,9 @@ describe("updater.spawn", () => {
     await updater.spawn({ target: "1.1.0" });
     expect(seen.detached).toHaveLength(1);
     const [spawned] = seen.detached;
-    expect(spawned?.command).toBe(CLI.node);
+    expect(spawned?.command).toBe(CLI.command);
     expect(spawned?.args).toEqual([
-      CLI.entry,
+      CLI.args[0],
       "update",
       "--target",
       "1.1.0",

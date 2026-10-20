@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
-import type { CliEntry } from "../cli-entry";
+import type { CliCommand } from "../cli-entry";
 import type { DefinitionFile, ServiceBackend, ServiceState } from "./backend";
 import type { ServiceContext } from "./context";
 import { type DetachedOptions, ForegroundHolderError } from "./detached";
@@ -60,7 +60,7 @@ function readRecord(home: string): RecordedPaths | undefined {
 
 export function createServiceManager(
   context: ServiceContext,
-  cli: CliEntry,
+  cli: CliCommand,
   home: string,
   detachedOptions: DetachedOptions = {},
 ): ServiceManager {
@@ -156,5 +156,5 @@ export async function listServices(context: ServiceContext): Promise<string[]> {
 
 /** Removes the service of one home without needing the current CLI paths. */
 export async function uninstallHome(context: ServiceContext, home: string): Promise<void> {
-  await createServiceManager(context, { node: "", entry: "" }, home).uninstall();
+  await createServiceManager(context, { command: "", args: [] }, home).uninstall();
 }

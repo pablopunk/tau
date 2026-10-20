@@ -17,7 +17,7 @@ function setup(options: { instance?: LockInfo; entry?: string; onBootstrap?: () 
   const output: string[] = [];
   const deps: LifecycleDeps = {
     context: node.context,
-    cli: () => ({ ...CLI, entry: options.entry ?? CLI.entry }),
+    cli: () => ({ ...CLI, args: [options.entry ?? CLI.args[0]] }),
     version: () => "1.2.3",
     readInstance: async () => options.instance,
     waitForInstanceUrl: async () => options.instance,

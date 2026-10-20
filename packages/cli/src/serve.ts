@@ -66,7 +66,7 @@ async function serveOnce(argv: readonly string[]): Promise<void> {
     startLinkClient,
     log: (message) => console.log(message),
     staticDir: findStaticDir(),
-    cliEntry: cliEntry().entry,
+    cliEntry: cliEntry().args[0] ?? "",
     version: versionOf(cliVersion(), options.home),
   });
   if (!app) return options.service ? process.exit(1) : undefined;

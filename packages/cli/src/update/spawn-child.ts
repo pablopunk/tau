@@ -1,4 +1,4 @@
-import type { CliEntry } from "../cli-entry";
+import type { CliCommand } from "../cli-entry";
 import type { ServiceContext } from "../service/context";
 import { buildSpec } from "../service/spec";
 import { logFileOf } from "./job-file";
@@ -11,7 +11,7 @@ export const LAUNCHD_USE_SUBMIT = false;
 
 export interface ChildRequest {
   readonly context: ServiceContext;
-  readonly cli: CliEntry;
+  readonly cli: CliCommand;
   readonly home: string;
   readonly target: string;
   readonly nonce: string;
@@ -58,8 +58,8 @@ export function systemdRunArgs(request: ChildRequest, spec: { path: string }): s
     "-p",
     "StandardError=inherit",
     "--",
-    request.cli.node,
-    ...childArgsOf(request.cli.entry, request.target, home),
+    request.cli.command,
+    ...childArgsOf(request.cli.args[0] ?? "", request.target, home),
   ];
 }
 
@@ -82,8 +82,8 @@ export function launchdSubmitArgs(request: ChildRequest, spec: { path: string })
     `TAU_HOME=${request.home}`,
     `TAU_UPDATE_JOB=${request.nonce}`,
     `TAU_UPDATE_LABEL=${label}`,
-    request.cli.node,
-    ...childArgsOf(request.cli.entry, request.target, request.home),
+    request.cli.command,
+    ...childArgsOf(request.cli.args[0] ?? "", request.target, request.home),
   ];
 }
 
@@ -106,9 +106,9 @@ export async function spawnUpdateChild(request: ChildRequest): Promise<void> {
   if (request.fakeScript === undefined && request.kind === "launchd" && LAUNCHD_USE_SUBMIT) {
     return runOrThrow(request, "launchctl", launchdSubmitArgs(request, spec));
   }
-  const entry = request.fakeScript ?? request.cli.entry;
+  const entry = request.fakeScript ?? request.cli.args[0] ?? "";
   await request.context.runner.spawnDetached(
-    request.cli.node,
+    request.cli.command,
     childArgsOf(entry, request.target, request.home),
     { env: { ...env, PATH: env.PATH ?? spec.path }, logFile: logFileOf(request.home) },
   );

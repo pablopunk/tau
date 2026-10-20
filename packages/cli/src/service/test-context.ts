@@ -39,4 +39,4 @@ export function createTestNode(
   return { context, runner, osHome, tauHome: context.defaultHome };
 }
 
-export const CLI = { node: "/opt/node/bin/node", entry: "/opt/tau/dist/bin.js" } as const;
+export const CLI = { command: "/opt/node/bin/node", args: ["/opt/tau/dist/bin.js"] } as const;
