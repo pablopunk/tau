@@ -20,9 +20,7 @@ export function openaiPredicateBody(
 }
 
 export interface OpenaiClientOptions {
-  readonly getAuth: (
-    providerId: string,
-  ) => Promise<{ auth: { apiKey?: string } } | undefined>;
+  readonly getAuth: (providerId: string) => Promise<{ auth: { apiKey?: string } } | undefined>;
   readonly fetchFn?: typeof fetch;
 }
 
@@ -37,9 +35,7 @@ function requestError(status: number, detail: string): AppError {
 
 function parseProbability(json: unknown): number {
   const value =
-    typeof json === "object" && json !== null
-      ? (json as { probability?: unknown }).probability
-      : undefined;
+    typeof json === "object" && json !== null ? (json as { probability?: unknown }).probability : undefined;
   if (typeof value !== "number" || Number.isNaN(value)) {
     throw new AppError("internal", "OpenAI decisions response had no probability.");
   }

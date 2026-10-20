@@ -207,10 +207,7 @@ export function groupFrames(entries: readonly EntryRecord[]): Frame[] {
 }
 
 /** First message plus newest N messages pin their frames; pinned frames are never scored. */
-function pinnedEntryIds(
-  entries: readonly EntryRecord[],
-  preserveRecentMessages: number,
-): Set<EntryId> {
+function pinnedEntryIds(entries: readonly EntryRecord[], preserveRecentMessages: number): Set<EntryId> {
   const owned: EntryId[] = [];
   for (const entry of entries) {
     for (const _message of entry.model ?? []) owned.push(entry.id);

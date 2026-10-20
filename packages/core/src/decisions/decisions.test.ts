@@ -38,9 +38,9 @@ describe("typesafe client", () => {
 
   it("maps probe statuses to ready/unavailable/unknown", async () => {
     const readCredential = async () => "sk-test";
-    expect(await createTypesafeClient({ readCredential, env: {}, fetchFn: async () => jsonResponse({}) }).check()).toBe(
-      "ready",
-    );
+    expect(
+      await createTypesafeClient({ readCredential, env: {}, fetchFn: async () => jsonResponse({}) }).check(),
+    ).toBe("ready");
     for (const status of [401, 403, 404]) {
       const client = createTypesafeClient({
         readCredential,
@@ -124,7 +124,8 @@ describe("openai client", () => {
     }
     const missing = createOpenaiClient({
       getAuth,
-      fetchFn: async () => new Response(JSON.stringify({ error: { code: "model_not_found" } }), { status: 400 }),
+      fetchFn: async () =>
+        new Response(JSON.stringify({ error: { code: "model_not_found" } }), { status: 400 }),
     });
     expect(await missing.check()).toBe("unavailable");
     const ready = createOpenaiClient({ getAuth, fetchFn: async () => jsonResponse({ probability: 1 }) });

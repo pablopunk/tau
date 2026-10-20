@@ -14,13 +14,13 @@ import type { ChangeEmitter } from "../change-emitter";
 import type { ObservedResultStore } from "../claude-cli/connectors/observed-results";
 import { bundledSdkHomeOf, type ClaudeSdkInstaller, sdkHomeOf } from "../claude-cli/sdk-install";
 import { claudeCliDisabled, createClaudeCliService } from "../claude-cli/service";
+import { createOpenaiClient } from "../decisions/openai";
+import { createTypesafeClient } from "../decisions/typesafe";
 import type { SettingsStore } from "../home/settings-store";
 import { createFauxSetup } from "../testing/faux-provider";
 import { loadFauxReplies } from "../testing/faux-replies";
 import { createConnectionReader } from "./connections";
 import { createDecisionsStatus } from "./decisions-status";
-import { createOpenaiClient } from "../decisions/openai";
-import { createTypesafeClient } from "../decisions/typesafe";
 import { createLoginSessions, type LoginSessions } from "./login-sessions";
 import { createModelLister } from "./model-list";
 import {

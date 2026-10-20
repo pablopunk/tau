@@ -4,11 +4,7 @@ import type { CompactionHooks, EntryRecord, HookApi } from "@earendil-works/pi-d
 import type { Settings } from "@tau/protocol";
 import { describe, expect, it } from "vitest";
 import { createFakeDecideClient } from "../decisions/fake";
-import {
-  type FastCompactionDeps,
-  groupFrames,
-  makeFastCompactionExtension,
-} from "./fast-compaction";
+import { type FastCompactionDeps, groupFrames, makeFastCompactionExtension } from "./fast-compaction";
 
 const api = { models: { getAuth: async () => undefined } } as unknown as HookApi;
 const context = { abortSignal: undefined } as unknown as Context;
@@ -60,7 +56,11 @@ function settings(backend: "auto" | "typesafe" | "openai" = "auto", mode = "fast
 
 function depsFor(
   backendClients: FastCompactionDeps["decideClients"],
-  options?: { backend?: "auto" | "typesafe" | "openai"; mode?: string; thresholds?: FastCompactionDeps["thresholds"] },
+  options?: {
+    backend?: "auto" | "typesafe" | "openai";
+    mode?: string;
+    thresholds?: FastCompactionDeps["thresholds"];
+  },
 ): FastCompactionDeps {
   const mode = options?.mode ?? "fast";
   const backend = options?.backend ?? "auto";
@@ -104,7 +104,13 @@ describe("beforeCompact", () => {
     const fake = createFakeDecideClient({ id: "typesafe", probabilities: [0.1, 0.1] });
     const beforeCompact = hookOf(depsFor([fake]));
     const outcome = await beforeCompact(
-      { reason: "manual", entries: entries(), messages: [], firstKept: "e9" as unknown as EntryRecord["id"], instructions: "focus" },
+      {
+        reason: "manual",
+        entries: entries(),
+        messages: [],
+        firstKept: "e9" as unknown as EntryRecord["id"],
+        instructions: "focus",
+      },
       api,
       context,
     );
@@ -117,7 +123,12 @@ describe("beforeCompact", () => {
     const beforeCompact = hookOf(depsFor([fake], { mode: "summary" }));
     expect(
       await beforeCompact(
-        { reason: "threshold", entries: entries(), messages: [], firstKept: "e9" as unknown as EntryRecord["id"] },
+        {
+          reason: "threshold",
+          entries: entries(),
+          messages: [],
+          firstKept: "e9" as unknown as EntryRecord["id"],
+        },
         api,
         context,
       ),
@@ -131,7 +142,12 @@ describe("beforeCompact", () => {
     const fake = createFakeDecideClient({ id: "typesafe", probabilities: [0.05, 0.05] });
     const beforeCompact = hookOf(depsFor([fake], { thresholds: { preserveRecentMessages: 1 } }));
     const outcome = await beforeCompact(
-      { reason: "threshold", entries: entries(), messages: [], firstKept: "e9" as unknown as EntryRecord["id"] },
+      {
+        reason: "threshold",
+        entries: entries(),
+        messages: [],
+        firstKept: "e9" as unknown as EntryRecord["id"],
+      },
       api,
       context,
     );
@@ -151,7 +167,12 @@ describe("beforeCompact", () => {
       depsFor([fake], { thresholds: { preserveRecentMessages: 1, truncateHeadChars: 10 } }),
     );
     const outcome = await beforeCompact(
-      { reason: "threshold", entries: entries(), messages: [], firstKept: "e9" as unknown as EntryRecord["id"] },
+      {
+        reason: "threshold",
+        entries: entries(),
+        messages: [],
+        firstKept: "e9" as unknown as EntryRecord["id"],
+      },
       api,
       context,
     );
@@ -184,7 +205,12 @@ describe("beforeCompact", () => {
     } as const;
     const beforeCompact = hookOf(depsFor([failing], { thresholds: { preserveRecentMessages: 1 } }));
     const outcome = await beforeCompact(
-      { reason: "overflow", entries: entries(), messages: [], firstKept: "e9" as unknown as EntryRecord["id"] },
+      {
+        reason: "overflow",
+        entries: entries(),
+        messages: [],
+        firstKept: "e9" as unknown as EntryRecord["id"],
+      },
       api,
       context,
     );
@@ -195,9 +221,16 @@ describe("beforeCompact", () => {
       check: async () => "ready" as const,
       predicate: () => new Promise<number>(() => undefined),
     } as const;
-    const slow = hookOf(depsFor([hanging], { thresholds: { preserveRecentMessages: 1, predicateTimeoutMs: 5 } }));
+    const slow = hookOf(
+      depsFor([hanging], { thresholds: { preserveRecentMessages: 1, predicateTimeoutMs: 5 } }),
+    );
     const timedOut = await slow(
-      { reason: "overflow", entries: entries(), messages: [], firstKept: "e9" as unknown as EntryRecord["id"] },
+      {
+        reason: "overflow",
+        entries: entries(),
+        messages: [],
+        firstKept: "e9" as unknown as EntryRecord["id"],
+      },
       api,
       context,
     );
@@ -207,9 +240,16 @@ describe("beforeCompact", () => {
   it("pins an explicit backend and tries the other only as fallback", async () => {
     const typesafe = createFakeDecideClient({ id: "typesafe", probabilities: [0.05, 0.05] });
     const openai = createFakeDecideClient({ id: "openai", probabilities: [0.05, 0.05] });
-    const beforeCompact = hookOf(depsFor([typesafe, openai], { backend: "openai", thresholds: { preserveRecentMessages: 1 } }));
+    const beforeCompact = hookOf(
+      depsFor([typesafe, openai], { backend: "openai", thresholds: { preserveRecentMessages: 1 } }),
+    );
     const outcome = await beforeCompact(
-      { reason: "threshold", entries: entries(), messages: [], firstKept: "e9" as unknown as EntryRecord["id"] },
+      {
+        reason: "threshold",
+        entries: entries(),
+        messages: [],
+        firstKept: "e9" as unknown as EntryRecord["id"],
+      },
       api,
       context,
     );
