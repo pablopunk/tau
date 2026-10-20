@@ -1,0 +1,12 @@
+{
+  "source": "CI run 39455101661 on main (92df33d): vitest Tests lines; e2e = Running 101 tests in the same log",
+  "unit": {
+    "packages/protocol": 87,
+    "packages/testkit": 223,
+    "packages/server": 367,
+    "packages/cli": 303,
+    "packages/core": 1283,
+    "packages/web": 732
+  },
+  "e2e": 101
+}

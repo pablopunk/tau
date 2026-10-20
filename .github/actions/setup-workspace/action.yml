@@ -1,0 +1,20 @@
+name: Set up workspace
+description: mise, Bun and a pnpm install with the pnpm store cached. Run after actions/checkout.
+
+runs:
+  using: composite
+  steps:
+    - uses: jdx/mise-action@7a4e45a543138629540c9a1616d08632b893e492 # v5.0.1
+    - uses: oven-sh/setup-bun@v2
+      with:
+        bun-version-file: .bun-version
+    - id: pnpm-store
+      shell: bash
+      run: echo "path=$(mise exec -- pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+    - uses: actions/cache@v4
+      with:
+        path: ${{ steps.pnpm-store.outputs.path }}
+        key: pnpm-store-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('pnpm-lock.yaml') }}
+        restore-keys: pnpm-store-${{ runner.os }}-${{ runner.arch }}-
+    - shell: bash
+      run: mise exec -- pnpm install --frozen-lockfile

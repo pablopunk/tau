@@ -5,10 +5,10 @@ const heavy = (marker: string, seconds: number) =>
   `cargo test --${marker} 2>/dev/null; sleep ${seconds}; echo ${marker}-done`;
 const MARKERS = ["h1", "h2", "h3", "h4"];
 const replies = Object.fromEntries([
-  ...MARKERS.map((marker) => [`live ${marker}`, bashThread(heavy(marker, 10))] as const),
+  ...MARKERS.map((marker) => [`live ${marker}`, bashThread(heavy(marker, 5))] as const),
   ["live bg a", bashThread(heavy("bga", 40))] as const,
   ["live bg b", bashThread(heavy("bgb", 3))] as const,
-  ["live timeout", bashThread(heavy("tmo", 3), 5)] as const,
+  ["live timeout", bashThread(heavy("tmo", 2), 3)] as const,
 ]);
 
 let remote: ResourceServer;
@@ -81,7 +81,7 @@ test("a queued command's timeout does not count the queue time; a running one st
   await remote.waitActivity((value) => value.waiting.length === 1);
   await remote.waitIdle(queued, 60);
   const output = (await remote.toolOutputs(queued)).join("\n");
-  console.log(`LIVE queued ~10 s with timeout 5 s, then ran 3 s: ${output}`);
+  console.log(`LIVE queued ~5 s with timeout 3 s, then ran 2 s: ${output}`);
   expect(output).toContain("tmo-done");
   await idle();
 });
