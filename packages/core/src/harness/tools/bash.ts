@@ -9,8 +9,9 @@ import { stopMessage } from "../../processes/governor/governor-text";
 import type { ForegroundOutcome, ForegroundRun } from "../../processes/process-types";
 import type { ToolServicesRef } from "./tool-file";
 
-const DEFAULT_TIMEOUT_SECONDS = 120;
-const MAX_TIMEOUT_SECONDS = 600;
+/** The tool default; bang commands reuse it as their fixed kill timeout. */
+export const DEFAULT_TIMEOUT_SECONDS = 120;
+export const MAX_TIMEOUT_SECONDS = 600;
 const MAX_LINES = 2000;
 const MAX_KB = 50;
 
@@ -47,7 +48,7 @@ function findBash(): string {
 }
 
 /** `/bin/bash` where there is one, else the first `bash` on the PATH, else `sh`. */
-function bashPath(): string {
+export function bashPath(): string {
   resolvedBash ??= findBash();
   return resolvedBash;
 }
