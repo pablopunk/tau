@@ -47,7 +47,7 @@ async function acceptTheNoticeIfNeeded(page: Page) {
 
 async function turnOnLinear(page: Page) {
   await openSettingsSection(page, "Tools");
-  const linear = page.getByRole("switch", { name: "claude.ai Linear" });
+  const linear = page.getByRole("switch", { name: "Linear" });
   await expect(linear).toBeVisible();
   await linear.click();
   await expect(linear).toBeChecked();

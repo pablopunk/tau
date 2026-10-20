@@ -86,7 +86,7 @@ test.describe("MVP5", () => {
     const chip = page.getByRole("button", { name: "Workspace" });
     await expect(chip).toContainText("pi/");
     await sendAndWaitForDone(page, COMMIT, 2);
-    await expect(page.getByRole("img", { name: "1 ahead" })).toBeVisible();
+    await expect(chip.getByRole("img", { name: "1 ahead" })).toBeVisible();
     await chip.click();
     await page.getByRole("menuitem", { name: /Merge into main/ }).click();
     await expect(chip).toContainText("merged");

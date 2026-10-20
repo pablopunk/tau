@@ -112,15 +112,14 @@ const recordOf = async (conversation: string, id: string) => {
   return processes.find((entry) => entry.id === id);
 };
 
-test("a persisted queued record becomes killed with the 'not started' note after a crash", async () => {
+test("a persisted queued record is pruned after a crash, with no row and no log left", async () => {
   const { queued, id } = await queueBackgrounded("live bg a", "live bg b");
   await remote.crash();
   const record = await recordOf(queued, id);
   console.log(`LIVE after crash: ${JSON.stringify(record)}`);
-  expect(record?.state).toBe("killed");
-  const logs = await (await remote.api.get(`/api/processes/${id}/logs`)).text();
-  console.log(`LIVE logs: ${logs}`);
-  expect(logs).toContain("not started: tau restarted");
+  expect(record).toBeUndefined();
+  const logs = await remote.api.get(`/api/processes/${id}/logs`);
+  expect(logs.status()).toBe(404);
 });
 
 test("a graceful restart never leaves a queued record behind", async () => {
