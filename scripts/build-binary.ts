@@ -115,7 +115,7 @@ function compile(platform: Platform, version: string, out: string): void {
     join(dist, "watchdog.js"),
     "--outfile",
     join(out, "tau"),
-    ];
+  ];
   retry(() => execFileSync("bun", args, { stdio: "inherit" }));
 }
 
