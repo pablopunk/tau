@@ -10,7 +10,7 @@ import { createClaudeCliDetector } from "./detect/claude-cli-detector";
 import { createClaudeCliModels } from "./models/claude-cli-models";
 import { createPlanUsage } from "./plan-usage";
 import { createClaudeCliProvider } from "./provider";
-import { type ClaudeSdkInstaller, createNpmSdkInstaller, noopSdkInstaller } from "./sdk-install";
+import { type ClaudeSdkInstaller, noopSdkInstaller } from "./sdk-install";
 import type { ClaudeSdkLoader } from "./sdk-types";
 import { isClaudeCliReady } from "./status";
 import { createClaudeCliStream } from "./stream/claude-cli-stream";
@@ -109,16 +109,11 @@ export function defaultSdkLoader(env: Environment, faux: boolean, sdkHome?: stri
   return memoizedUntilItFails(async () => (await import("./sdk-port")).loadClaudeSdkPort(sdkHome));
 }
 
-function defaultInstaller(env: Environment, faux: boolean, sdkHome?: string): ClaudeSdkInstaller {
-  if (usesFakeSdk(env, faux) || !sdkHome) return noopSdkInstaller;
-  return createNpmSdkInstaller(sdkHome);
-}
-
 export function createClaudeCliService(deps: ClaudeCliServiceDeps): ClaudeCliService {
   if (claudeCliDisabled(deps.env)) return DISABLED;
   const clock = deps.clock ?? systemClaudeCliClock;
   const sdk = deps.sdk ?? defaultSdkLoader(deps.env, deps.faux, deps.sdkHome);
-  const installer = deps.installer ?? defaultInstaller(deps.env, deps.faux, deps.sdkHome);
+  const installer = deps.installer ?? noopSdkInstaller;
   let installing: Promise<void> | null = null;
   const installSdk = async (): Promise<ClaudeCliStatus> => {
     installing ??= installer.install().finally(() => {

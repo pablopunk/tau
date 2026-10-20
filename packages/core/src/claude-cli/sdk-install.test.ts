@@ -4,7 +4,7 @@ import { createChangeEmitter } from "../change-emitter";
 import { createSettingsStore } from "../home/settings-store";
 import { createProviderService } from "../provider/provider-service";
 import { useTempDir } from "../test-support/temp-dir";
-import { type ClaudeSdkInstaller, sdkHomeOf, sdkInstallArguments } from "./sdk-install";
+import { bundledSdkHomeOf, type ClaudeSdkInstaller, sdkHomeOf } from "./sdk-install";
 import { ClaudeSdkMissingError } from "./sdk-missing";
 import { createClaudeCliService } from "./service";
 import { createFakeClaudeSdk } from "./testing/fake-claude-sdk";
@@ -49,15 +49,9 @@ function serviceWithMissingSdk(
 }
 
 describe("Claude Agent SDK install", () => {
-  it("runs npm with an exact pin under the tau home", async () => {
-    const home = sdkHomeOf("/tau-home");
-    expect(home).toBe("/tau-home/claude-sdk");
-    expect(sdkInstallArguments(home)).toEqual([
-      "install",
-      "--prefix",
-      "/tau-home/claude-sdk",
-      "@anthropic-ai/claude-agent-sdk@0.3.302",
-    ]);
+  it("looks in the tau home for dev and in the version folder for a compiled install", () => {
+    expect(sdkHomeOf("/tau-home")).toBe("/tau-home/claude-sdk");
+    expect(bundledSdkHomeOf("/tau/versions/1.0.0")).toBe("/tau/versions/1.0.0/claude-sdk");
   });
 
   it("reports sdk_missing, installs once for two clicks, then refreshes", async () => {

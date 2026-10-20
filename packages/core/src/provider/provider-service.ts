@@ -12,7 +12,7 @@ import type { Approvals } from "../approvals/approvals-port";
 import { FileCredentialStore } from "../auth/file-credential-store";
 import type { ChangeEmitter } from "../change-emitter";
 import type { ObservedResultStore } from "../claude-cli/connectors/observed-results";
-import { type ClaudeSdkInstaller, sdkHomeOf } from "../claude-cli/sdk-install";
+import { bundledSdkHomeOf, type ClaudeSdkInstaller, sdkHomeOf } from "../claude-cli/sdk-install";
 import { claudeCliDisabled, createClaudeCliService } from "../claude-cli/service";
 import type { SettingsStore } from "../home/settings-store";
 import { createFauxSetup } from "../testing/faux-provider";
@@ -37,7 +37,9 @@ export interface ProviderServiceOptions {
   readonly env: Environment;
   readonly changes: ChangeEmitter;
   readonly settings: SettingsStore;
-  /** Tests inject a fake installer; production runs npm. */
+  /** The release folder with the bundled `claude-sdk`; absent in a dev checkout. */
+  readonly versionDir?: string;
+  /** Tests inject a fake installer; production installs nothing (the SDK ships in the archive). */
   readonly claudeSdkInstaller?: ClaudeSdkInstaller;
   readonly approvals?: Approvals;
   readonly observed?: ObservedResultStore;
@@ -85,7 +87,9 @@ export function createProviderService(options: ProviderServiceOptions): Provider
     onChange: () => options.changes.emit({ resource: "providers" }),
     noticeAt: async () => (await options.settings.get()).claudeCliNoticeAt,
     recordNotice: () => options.settings.setClaudeCliNoticeAt(Date.now()),
-    sdkHome: sdkHomeOf(dirname(options.credentialsFile)),
+    sdkHome: options.versionDir
+      ? bundledSdkHomeOf(options.versionDir)
+      : sdkHomeOf(dirname(options.credentialsFile)),
     installer: options.claudeSdkInstaller,
     connectorSettings: async () => (await options.settings.get()).claudeConnectors,
     ...(options.approvals && { approvals: options.approvals }),

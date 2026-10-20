@@ -445,8 +445,10 @@ export interface Core {
 export interface CreateCoreOptions {
   readonly home: string;
   readonly faux?: boolean;
-  /** The CLI entry file; core writes the `<home>/bin/tau` shim from it. */
-  readonly cliEntry?: string;
+  /** How to start tau again; core writes the `<home>/bin/tau` shim (`exec command args "$@"`) from it. */
+  readonly cliCommand?: { readonly command: string; readonly args: readonly string[] };
+  /** The release folder of a compiled install (`pi-env`, `skills/`, `claude-sdk/` live in it). Absent in a dev checkout. */
+  readonly assets?: { readonly versionDir: string };
   /** `127.0.0.1:<port>` of the server's tunnel listener; resolves once the server is up. Absent: remote cannot start. */
   readonly tunnelTarget?: () => Promise<string>;
   /** This tau's own version (`updates.status().current`). */

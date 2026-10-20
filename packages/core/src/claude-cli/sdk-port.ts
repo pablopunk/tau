@@ -1,9 +1,11 @@
+import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { runAuthStatus } from "./auth-status";
+import { bundledClaudeBinary } from "./bundled-claude";
 import { TOOL_SEARCH_CLI_NAME } from "./connectors/names";
 import { ClaudeSdkMissingError } from "./sdk-missing";
 import type {
@@ -241,9 +243,9 @@ const toAccountInfo = (info: Awaited<ReturnType<SdkQuery["accountInfo"]>>): Clau
   subscriptionType: info.subscriptionType ?? null,
 });
 
-function portOf(sdk: SdkModule, entry: string, exposeToggle: boolean): ClaudeSdkPort {
+function portOf(sdk: SdkModule, entry: string, exposeToggle: boolean, sdkHome?: string): ClaudeSdkPort {
   return {
-    authStatus: () => runAuthStatus(process.env),
+    authStatus: () => runAuthStatus(process.env, sdkHome && bundledClaudeBinary(sdkHome)),
     accountInfo: () => withIdleQuery(sdk, async (query) => toAccountInfo(await query.accountInfo())),
     supportedModels: () =>
       withIdleQuery(sdk, async (query) => (await query.supportedModels()).map(toModelOption)),
@@ -259,7 +261,12 @@ function portOf(sdk: SdkModule, entry: string, exposeToggle: boolean): ClaudeSdk
   };
 }
 
+/** `createRequire().resolve` fails in a compiled binary (P3), so a bundled SDK is found by its file path. */
+export const sdkEntryIn = (sdkHome: string): string => join(sdkHome, "node_modules", SDK_PACKAGE, "sdk.mjs");
+
 const resolveInSdkHome = (sdkHome: string): string | null => {
+  const direct = sdkEntryIn(sdkHome);
+  if (existsSync(direct)) return direct;
   try {
     return createRequire(join(sdkHome, "package.json")).resolve(SDK_PACKAGE);
   } catch {
@@ -287,5 +294,5 @@ export async function loadClaudeSdkPort(
   options: { readonly exposeToggleForPins?: boolean } = {},
 ): Promise<ClaudeSdkPort> {
   const { sdk, entry } = await importSdk(sdkHome);
-  return portOf(sdk, entry, options.exposeToggleForPins ?? false);
+  return portOf(sdk, entry, options.exposeToggleForPins ?? false, sdkHome);
 }

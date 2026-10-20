@@ -18,14 +18,20 @@ export function parseAuthStatus(stdout: string): ClaudeAuthStatus {
   };
 }
 
-const claudeBinary = (env: Readonly<Record<string, string | undefined>>): string =>
-  env.TAU_CLAUDE_PATH ?? "claude";
+/** `TAU_CLAUDE_PATH`, else the SDK's own native `claude`, else the one on the `PATH`. */
+const claudeBinary = (
+  env: Readonly<Record<string, string | undefined>>,
+  bundled: string | undefined,
+): string => env.TAU_CLAUDE_PATH ?? bundled ?? "claude";
 
 /** A logged-out CLI exits 1 but still prints the JSON, so a non-zero exit with output is an answer. */
-export function runAuthStatus(env: Readonly<Record<string, string | undefined>>): Promise<ClaudeAuthStatus> {
+export function runAuthStatus(
+  env: Readonly<Record<string, string | undefined>>,
+  bundled?: string,
+): Promise<ClaudeAuthStatus> {
   return new Promise((resolve, reject) => {
     execFile(
-      claudeBinary(env),
+      claudeBinary(env, bundled),
       ["auth", "status", "--json"],
       { timeout: AUTH_STATUS_TIMEOUT_MS, env: { ...env } },
       (error, stdout) => {

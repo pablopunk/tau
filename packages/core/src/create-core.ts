@@ -67,6 +67,7 @@ import type { RemoteAdapter, RemoteAdapterDeps } from "./remote/ports";
 import { createRemoteService } from "./remote/remote-service";
 import type { RemovalHooks } from "./removal-hooks";
 import { createSettingsApi } from "./settings-api";
+import { useBundledSkills } from "./skills/discover-skills";
 import { createSkillsApi } from "./skills/skills-api";
 import { createStatusTracker } from "./status/status-tracker";
 import {
@@ -115,7 +116,7 @@ async function hasInterruptedWork(harness: Harness): Promise<boolean> {
   return tasks.length > 0 || submissions.length > 0;
 }
 
-export const defaultCoreDependencies = (): CoreDependencies => {
+export const defaultCoreDependencies = (versionDir?: string): CoreDependencies => {
   const ghPath = resolveGhPath(process.env);
   return {
     env: process.env,
@@ -123,7 +124,7 @@ export const defaultCoreDependencies = (): CoreDependencies => {
     runGh: createRunGh(ghPath, process.env),
     ghPath,
     onFatal: exitAfterLogging,
-    terminalDaemon: createLocalTerminalDaemon(process.env),
+    terminalDaemon: createLocalTerminalDaemon(process.env, versionDir),
     ...(process.env.TAU_FAKE_REMOTE === "1" && { remoteAdapter: () => createFakeRemoteAdapter() }),
   };
 };
@@ -132,7 +133,8 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
   const home = await openDataHome(options.home);
   const lock = await acquireHomeLock(home.lockFile);
   try {
-    if (options.cliEntry !== undefined) await writeTauShim(home.root, process.execPath, options.cliEntry);
+    useBundledSkills(options.assets?.versionDir);
+    if (options.cliCommand !== undefined) await writeTauShim(home.root, options.cliCommand);
     const changes = createChangeEmitter();
     const defaultProjectsFolder = join(home.root, "projects");
     const settings = createSettingsStore(home.settingsFile, defaultProjectsFolder);
@@ -147,6 +149,7 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
       credentialsFile: home.credentialsFile,
       faux: options.faux ?? false,
       env: deps.env,
+      ...(options.assets && { versionDir: options.assets.versionDir }),
       changes,
       settings,
       approvals,
@@ -534,4 +537,5 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
   }
 }
 
-export const createCore: CreateCore = (options) => createCoreWith(options, defaultCoreDependencies());
+export const createCore: CreateCore = (options) =>
+  createCoreWith(options, defaultCoreDependencies(options.assets?.versionDir));

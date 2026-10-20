@@ -84,8 +84,21 @@ const BUILTIN_SKILL_LOCATIONS = [
   join(hereDirectory, "skills", "builtin", "tau", "SKILL.md"),
 ];
 
+let bundledVersionDir: string | undefined;
+
+/** A compiled install keeps the builtin skill in `<versionDir>/skills/tau/SKILL.md`; there is no source tree beside the code. */
+export function useBundledSkills(versionDir: string | undefined): void {
+  bundledVersionDir = versionDir;
+  cache.clear();
+}
+
+const builtinLocations = (): string[] => [
+  ...(bundledVersionDir === undefined ? [] : [join(bundledVersionDir, "skills", "tau", "SKILL.md")]),
+  ...BUILTIN_SKILL_LOCATIONS,
+];
+
 async function builtinSkills(): Promise<Skill[]> {
-  const path = BUILTIN_SKILL_LOCATIONS.find((file) => existsSync(file));
+  const path = builtinLocations().find((file) => existsSync(file));
   const meta = path === undefined ? undefined : parseSkillFrontmatter(await readFile(path, "utf8"));
   if (path === undefined || !meta) return [];
   return [
@@ -101,7 +114,7 @@ async function scan(projectFolder: string | null, home: string): Promise<Skill[]
 const cache = new Map<string, { at: number; skills: Promise<Skill[]> }>();
 
 export function discoverSkills(projectFolder: string | null, home: string = homedir()): Promise<Skill[]> {
-  const key = `${home}\0${projectFolder ?? ""}`;
+  const key = `${home}\0${projectFolder ?? ""}\0${bundledVersionDir ?? ""}`;
   const hit = cache.get(key);
   if (hit && Date.now() - hit.at < SKILLS_CACHE_MS) return hit.skills;
   const skills = scan(projectFolder, home);

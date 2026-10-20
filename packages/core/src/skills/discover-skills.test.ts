@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, realpath, rm, symlink, writeFile } from "node:fs/promis
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { clearSkillsCache, discoverSkills, MAX_SKILL_FILE_BYTES } from "./discover-skills";
+import { clearSkillsCache, discoverSkills, MAX_SKILL_FILE_BYTES, useBundledSkills } from "./discover-skills";
 
 let root: string;
 let project: string;
@@ -92,5 +92,20 @@ describe("discoverSkills", () => {
     expect(await discoverUserAndProject(null, home)).toHaveLength(1);
     clearSkillsCache();
     expect(await discoverUserAndProject(null, home)).toHaveLength(2);
+  });
+});
+
+describe("bundled builtin skill", () => {
+  afterEach(() => useBundledSkills(undefined));
+
+  it("is read from <versionDir>/skills/tau/SKILL.md when a compiled install sets it", async () => {
+    const versionDir = join(root, "version");
+    await addSkill(versionDir, "skills", "tau", skillText("tau", "From the archive"));
+    useBundledSkills(versionDir);
+    const skills = await discoverSkills(null, home);
+    expect(skills.find((skill) => skill.scope === "app")).toMatchObject({
+      name: "tau",
+      path: join(versionDir, "skills", "tau", "SKILL.md"),
+    });
   });
 });

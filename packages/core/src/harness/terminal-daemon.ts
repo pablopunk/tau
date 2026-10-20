@@ -1,4 +1,5 @@
 import { accessSync, constants, existsSync } from "node:fs";
+import { join } from "node:path";
 
 /** The port the terminal service uses. It exposes no `@earendil-works/pi-env` type. This is the only file that imports pi-env. */
 export interface TerminalPortOptions {
@@ -37,7 +38,13 @@ export interface TerminalDaemon {
 
 type PiEnv = typeof import("@earendil-works/pi-env");
 
-export function createLocalTerminalDaemon(env: NodeJS.ProcessEnv = process.env): TerminalDaemon {
+/** The `pi-env` daemon a release carries next to the binary (`localDaemon()` cannot find it in a compiled one, P5). */
+export const bundledDaemonPath = (versionDir: string): string => join(versionDir, "pi-env");
+
+export function createLocalTerminalDaemon(
+  env: NodeJS.ProcessEnv = process.env,
+  versionDir?: string,
+): TerminalDaemon {
   let module: Promise<PiEnv> | undefined;
   let connection: InstanceType<PiEnv["Connection"]> | undefined;
   const load = () => {
@@ -45,10 +52,13 @@ export function createLocalTerminalDaemon(env: NodeJS.ProcessEnv = process.env):
     return module;
   };
 
+  const daemonPath = async (): Promise<string> =>
+    versionDir === undefined ? (await load()).localDaemon() : bundledDaemonPath(versionDir);
+
   async function binaryUsable(): Promise<boolean> {
     if (env.TAU_DISABLE_TERMINALS === "1") return false;
     try {
-      const path = (await load()).localDaemon();
+      const path = await daemonPath();
       if (!existsSync(path)) return false;
       accessSync(path, constants.X_OK);
       return true;
@@ -59,7 +69,7 @@ export function createLocalTerminalDaemon(env: NodeJS.ProcessEnv = process.env):
 
   async function open(options: TerminalPortOptions): Promise<TerminalPort> {
     const piEnv = await load();
-    connection ??= new piEnv.Connection({ command: [piEnv.localDaemon()] });
+    connection ??= new piEnv.Connection({ command: [await daemonPath()] });
     const terminal = await piEnv.openTerminal(connection, {
       cwd: options.cwd,
       env: { ...options.env },
