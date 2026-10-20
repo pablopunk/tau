@@ -8,6 +8,8 @@ import { type LogFile, openLogFile } from "./log-file";
 import { createLogTail, type LogTail, lastLines } from "./log-tail";
 import type { ExitDetails, StopReason } from "./process-types";
 
+export type SpawnFn = typeof spawn;
+
 export interface RunningProcess {
   info: ProcessInfo;
   readonly pid: number;
@@ -32,6 +34,15 @@ export interface SpawnRequest {
   readonly shell?: string;
   /** Added to the environment of this process. */
   readonly env?: Readonly<Record<string, string>>;
+  /** Replaces `shell -c command` with a governed wrapper that execs the shell. */
+  readonly wrapped?: { readonly file: string; readonly args: readonly string[] };
+  /** Injectable for tests; defaults to `node:child_process` `spawn`. */
+  readonly spawn?: SpawnFn;
+  /** Awaited before the exit settles; a reason it returns becomes the stop reason (the Linux `systemctl show` read-back). */
+  readonly classifyExit?: (exit: {
+    readonly code: number | null;
+    readonly signal: NodeJS.Signals | null;
+  }) => Promise<StopReason | undefined>;
 }
 
 export type { ExitDetails };
@@ -41,7 +52,11 @@ export const EXIT_TAIL_LINES = 20;
 const PIPE_DRAIN_MS = 250;
 
 export function spawnRunning(request: SpawnRequest): RunningProcess {
-  const child = spawn(request.shell ?? "/bin/sh", ["-c", request.info.command], {
+  const launch = request.wrapped ?? {
+    file: request.shell ?? "/bin/sh",
+    args: ["-c", request.info.command],
+  };
+  const child = (request.spawn ?? spawn)(launch.file, [...launch.args], {
     cwd: request.cwd,
     ...(request.env === undefined ? {} : { env: { ...process.env, ...request.env } }),
     detached: true,
@@ -64,6 +79,7 @@ export function spawnRunning(request: SpawnRequest): RunningProcess {
     return {
       exitCode: code,
       stopRequested: running.stopRequested,
+      ...(running.stopReason && { stopReason: running.stopReason }),
       logTail: lastLines(running.tail.text(), EXIT_TAIL_LINES),
     };
   };
@@ -80,10 +96,17 @@ export function spawnRunning(request: SpawnRequest): RunningProcess {
     // `exit` can come before the last output is read from the pipes: finish on `close`, which comes after them.
     // A background child of the command can keep the pipes open, so finish at most PIPE_DRAIN_MS after `exit`.
     let exit: { code: number | null; signal: NodeJS.Signals | null } | undefined;
+    let settling: Promise<void> | undefined;
+    const classify = async (found: NonNullable<typeof exit>) => {
+      const reason = await request.classifyExit?.(found).catch(() => undefined);
+      if (reason && !running.stopReason) running.stopReason = reason;
+      details ??= finish(found.code, found.signal);
+      resolve();
+    };
     const done = () => {
       if (exit === undefined) return;
-      details ??= finish(exit.code, exit.signal);
-      resolve();
+      if (details) return resolve();
+      settling ??= classify(exit);
     };
     child.once("exit", (code, signal) => {
       exit = { code, signal };
@@ -128,6 +151,6 @@ function addUrls(running: RunningProcess, text: string): boolean {
 }
 
 function settle(running: RunningProcess, code: number | null) {
-  const killed = running.stopRequested || code === null;
+  const killed = running.stopRequested || running.stopReason === "memory" || code === null;
   running.info = { ...running.info, state: killed ? "killed" : "exited", exitCode: killed ? null : code };
 }

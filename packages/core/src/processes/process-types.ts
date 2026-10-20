@@ -26,8 +26,8 @@ export interface ForegroundRun {
   readonly outcome: Promise<ForegroundOutcome>;
   /** Settles at spawn attempt or cancel; already settled when the command was not queued. */
   readonly admitted: Promise<void>;
-  /** SIGTERM, SIGKILL after the grace period. */
-  stop(): Promise<void>;
+  /** SIGTERM, SIGKILL after the grace period. Default reason `user`. */
+  stop(reason?: StopReason): Promise<void>;
   /** After `exited`: forgets the run. The log stays when `keepLog`. */
   release(keepLog: boolean): Promise<void>;
 }
