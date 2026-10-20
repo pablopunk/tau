@@ -15,6 +15,7 @@ import { DropZone } from "@/components/ui/drop-zone";
 import { Input } from "@/components/ui/input";
 import { type MentionItem, MentionMenu } from "@/components/ui/mention-menu";
 import { Textarea } from "@/components/ui/textarea";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { scopeTarget } from "@/lib/node-keys";
 import { useNodeId } from "@/nodes/node-context";
 import { AttachmentRow } from "./composer/AttachmentRow";
@@ -286,15 +287,20 @@ function ComposerForm({
                 className="hidden"
                 onChange={(event) => onPicked(event.target.files)}
               />
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                aria-label="Attach images"
-                onClick={() => picker.current?.click()}
-              >
-                <Paperclip />
-              </Button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    aria-label="Attach images"
+                    onClick={() => picker.current?.click()}
+                  >
+                    <Paperclip />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="top">Attach images</TooltipContent>
+              </Tooltip>
             </>
           ) : null}
           <div className="order-last flex w-full min-w-0 flex-wrap items-center gap-x-2 gap-y-1 sm:order-none sm:w-auto sm:flex-1">
@@ -305,25 +311,35 @@ function ComposerForm({
           ) : null}
           <div className="flex shrink-0 gap-1 max-sm:ml-1">
             {busy && onStop ? (
-              <Button
-                type="button"
-                variant="outline"
-                size="icon"
-                aria-label="Stop"
-                disabled={stopping}
-                onClick={stop}
-              >
-                <Square className="fill-current" />
-              </Button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    aria-label="Stop"
+                    disabled={stopping}
+                    onClick={stop}
+                  >
+                    <Square className="fill-current" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="top">Stop</TooltipContent>
+              </Tooltip>
             ) : null}
-            <Button
-              type="submit"
-              size="icon"
-              aria-label={busy ? "Send as steer" : "Send"}
-              disabled={!canSend}
-            >
-              <ArrowUp />
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="submit"
+                  size="icon"
+                  aria-label={busy ? "Send as steer" : "Send"}
+                  disabled={!canSend}
+                >
+                  <ArrowUp />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="top">{busy ? "Send as steer" : "Send"}</TooltipContent>
+            </Tooltip>
           </div>
         </div>
       </div>

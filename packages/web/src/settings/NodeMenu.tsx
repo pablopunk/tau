@@ -7,6 +7,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 /** The destructive actions of a node: Disconnect (both ends told) and Forget (this node only). */
 export function NodeMenu({
@@ -22,11 +23,16 @@ export function NodeMenu({
 }) {
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon-xs" aria-label={`More actions for ${node.name}`}>
-          <MoreHorizontalIcon />
-        </Button>
-      </DropdownMenuTrigger>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon-xs" aria-label={`More actions for ${node.name}`}>
+              <MoreHorizontalIcon />
+            </Button>
+          </DropdownMenuTrigger>
+        </TooltipTrigger>
+        <TooltipContent side="top">More actions for {node.name}</TooltipContent>
+      </Tooltip>
       <DropdownMenuContent align="end">
         {node.direct ? (
           <>

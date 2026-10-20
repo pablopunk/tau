@@ -2,6 +2,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { RefreshCwIcon } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { queryKeys } from "@/lib/queries";
 import { useApi } from "@/nodes/node-context";
 
@@ -22,15 +23,20 @@ export function RefreshReposButton() {
   };
 
   return (
-    <Button
-      type="button"
-      variant="ghost"
-      size="icon-xs"
-      aria-label="Refresh GitHub repos"
-      disabled={pending}
-      onClick={() => void refresh()}
-    >
-      <RefreshCwIcon className={pending ? "animate-spin" : undefined} />
-    </Button>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-xs"
+          aria-label="Refresh GitHub repos"
+          disabled={pending}
+          onClick={() => void refresh()}
+        >
+          <RefreshCwIcon className={pending ? "animate-spin" : undefined} />
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent side="top">Refresh GitHub repos</TooltipContent>
+    </Tooltip>
   );
 }
