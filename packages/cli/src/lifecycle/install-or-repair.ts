@@ -41,7 +41,7 @@ export async function installOrRepairService(
   const recorded = manager.recorded();
   const stale = (manager.native ? installed : recorded !== undefined) && (await manager.needsRepair());
   const needsInstall = manager.native ? !installed || stale : recorded === undefined || stale;
-  if (options.keepDetached && manager.native && !installed && !stale) {
+  if (options.keepDetached && manager.native && !installed && recorded !== undefined && !stale) {
     if ((await gatherStatus(deps, home)).running === "background") {
       return { kind: "ready", changed: false, repairing: false };
     }

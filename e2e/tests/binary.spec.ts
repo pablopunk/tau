@@ -69,8 +69,6 @@ test("a broken release rolls back to the previous version", async ({ request }) 
   test.setTimeout(180_000);
   github.latest = BROKEN_VERSION;
   await server.tau("restart");
-    throw new Error(`restart: ${e.stdout} ${e.stderr}`);
-  });
   await expect
     .poll(
       async () =>
