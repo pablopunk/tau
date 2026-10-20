@@ -107,3 +107,26 @@ Result: the link works but the node's status is `update-required` (the protocol 
 `Old node needs a tau update before its settings can load. Its settings will load once it's back online.` with no Resources controls and no page error.
 The Resources-specific "This node needs an update" (online node, `settings.resources === undefined`) is unreachable with real releases because the
 protocol hash gate stops them first; it stays covered by `ResourcesGroup.test.tsx:150`. The spec accepts either text.
+
+## 8. Real-world comparison — PROVEN (numbers), with a finding about Balanced
+
+`e2e/tests/resources-compare.spec.ts` (opt in: `TAU_E2E_COMPARE=1 TAU_COMPARE_REPO=<copy of this repo with node_modules>`; the copy was `cp -cR` of this worktree).
+Four scripted threads (checkout mode, all three Apply-to boxes ticked) each run `mise exec -- pnpm --filter @tau/core test` (1240 tests; alone on this machine: 127 s wall, 187 CPU-s).
+Every 2 s: `ps` count of processes whose command line contains the copy's path ("test processes"), `vitest.mjs run` count ("suites"), 1-min load average.
+CPU = `times` of each command's shell (children included). "Lone job" = a single-process fixed CPU job (6M iterations, 0.35 s idle) started from outside tau at normal priority every 0.5 s while the agents run, a proxy for UI responsiveness.
+The Mac was not otherwise idle (browser, Slack, MDM agent, WindowServer ~ 1-3 cores), so load numbers include that baseline of roughly 8-17.
+
+| mode | wall | suites at once (peak) | test procs (peak) | load1m peak / mean | total CPU | lone job median / p95 / max | suites that failed tests |
+|---|---|---|---|---|---|---|---|
+| Off | 243 s | 4 | 52 | 90.4 / 57.7 | 871 s | 0.54 / **10.3** / **15.7** s | 3 of 4 (1 test each, timing under load) |
+| slots 2 | 465 s | 2 | 26 | 81.4 / 51.5 | 1001 s | 0.80 / 7.7 / 11.7 s | 0 of 4 |
+| Balanced + slots 2 | 527 s | 2 | 26 | 77.0 / 48.8 | 1051 s | 0.82 / 8.1 / 9.1 s | 2 of 4 (1 test each) |
+| Background + slots 2 | 1124 s | 2 | 27 | 46.3 / 27.3 | 1739 s | **0.35 / 0.44 / 1.3 s** (idle 0.35-0.45) | 4 of 4 (13, 13, 3, 7 tests: timeouts) |
+
+Per-suite run time once admitted: Off 238 s (all four together), slots 2 261 s / 200 s, Balanced 260 s / 264 s, Background 580 s / 539 s; queued suites waited ~260 s (slots 2, Balanced) and ~581 s (Background).
+
+Findings:
+- Concurrency works as designed: peak test processes 52 -> 26, never more than 2 suites. But with this suite (which does not scale to 12 cores: 3.6 cores average with 4 suites) queueing 2 of 4 costs ~2x wall (243 -> 465 s) and does not remove the stutter: the lone job is still 20-30x slower at p95 with 26 processes.
+- **Balanced is not a UI-smoothness tool on macOS**: it behaves like slots-only (p95 8.1 s vs 7.7 s; section 1 shows utility ≈ normal when nothing else competes). Its label "lower priority" is accurate, but expect little.
+- **Background is the only mode that keeps the machine usable**: the lone job stays at idle speed (p95 0.44 s) and load halves. Cost: 4.6x the wall time, 2x CPU seconds (cores/E-core cache), and timing-sensitive tests fail (3-13 per suite timed out). Good for unattended runs only, as the UI says.
+- Off is itself flaky under 4 parallel suites (3 suites with a failing test); gating to 2 removed that.

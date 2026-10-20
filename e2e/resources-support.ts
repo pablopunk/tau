@@ -101,10 +101,12 @@ function demoRepo(root: string): string {
 export async function startResourceServer(options: {
   replies: Record<string, ReplyStep[]>;
   command?: { file: string; args: string[] };
+  /** An existing git folder to add as the project instead of a fresh demo repo. */
+  repo?: string;
   env?: Record<string, string>;
 }): Promise<ResourceServer> {
   const root = realpathSync(mkdtempSync(join(tmpdir(), "tau-resv-")));
-  const repo = demoRepo(root);
+  const repo = options.repo ?? demoRepo(root);
   writeFileSync(join(root, "replies.json"), JSON.stringify(options.replies));
   const port = await freePort();
   const home = join(root, "tau-home");
@@ -222,7 +224,14 @@ export async function startResourceServer(options: {
         });
     },
     async waitIdle(id, seconds = 120) {
-      await server.tau("threads", "wait", id, "--timeout", String(seconds)).catch(() => undefined);
+      const end = Date.now() + seconds * 1000;
+      await sleep(500);
+      while (Date.now() < end) {
+        const all = (await (await api.get("/api/conversations")).json()) as { id: string; status: string }[];
+        const status = all.find((thread) => thread.id === id)?.status;
+        if (status !== undefined && status !== "running") break;
+        await sleep(1000);
+      }
       return server.tau("threads", "read", id);
     },
     async restart() {
