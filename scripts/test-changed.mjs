@@ -7,7 +7,9 @@ const ref = process.argv[2] ?? "origin/main";
 const changed = execFileSync("git", ["diff", "--name-only", `${ref}...HEAD`], { encoding: "utf8" })
   .split("\n")
   .filter(Boolean);
-const uncommitted = execFileSync("git", ["diff", "--name-only", "HEAD"], { encoding: "utf8" }).split("\n").filter(Boolean);
+const uncommitted = execFileSync("git", ["diff", "--name-only", "HEAD"], { encoding: "utf8" })
+  .split("\n")
+  .filter(Boolean);
 const files = [...new Set([...changed, ...uncommitted])];
 
 const byPackage = new Map();
@@ -31,9 +33,13 @@ for (const [dir, rel] of byPackage) {
   const sources = rel.filter((path) => path.startsWith("src/"));
   if (sources.length === 0) continue;
   console.log(`\n== ${packageDir}: ${sources.length} changed source file(s)`);
-  const result = spawnSync("mise", ["exec", "--", "pnpm", "--dir", packageDir, "exec", "vitest", "related", "--run", ...sources], {
-    stdio: "inherit",
-  });
+  const result = spawnSync(
+    "mise",
+    ["exec", "--", "pnpm", "--dir", packageDir, "exec", "vitest", "related", "--run", ...sources],
+    {
+      stdio: "inherit",
+    },
+  );
   if (result.status !== 0) failed = true;
 }
 process.exit(failed ? 1 : 0);
