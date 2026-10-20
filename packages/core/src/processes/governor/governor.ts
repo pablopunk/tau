@@ -1,5 +1,6 @@
 import type { ResourceSettings } from "@tau/protocol";
 import { type Exec, execCommand } from "./exec";
+import { createFootprint, type Footprint } from "./footprint";
 import { isHeavyCommand } from "./heavy-command";
 import { createMemoryWatch, type MemoryWatch } from "./memory-watch";
 import { createPsSweep, type Sweep } from "./ps-sweep";
@@ -16,6 +17,7 @@ export interface GovernorDeps {
   readonly graceMs: number;
   readonly exec?: Exec;
   readonly sweep?: Sweep;
+  readonly footprint?: Footprint;
   readonly support?: ResourceSupportProbe;
 }
 
@@ -54,7 +56,11 @@ export function createGovernor(deps: GovernorDeps): Governor {
     queue,
     support: supportOf,
     watch() {
-      watch ??= createMemoryWatch({ sweep: deps.sweep ?? createPsSweep(exec), graceMs: deps.graceMs });
+      watch ??= createMemoryWatch({
+        sweep: deps.sweep ?? createPsSweep(exec),
+        graceMs: deps.graceMs,
+        footprint: deps.footprint ?? (supportOf().platform === "macos" ? createFootprint(exec) : undefined),
+      });
       return watch;
     },
     plan(command, foreground) {

@@ -137,7 +137,7 @@ describe("process service", () => {
     expect(info.state).toBe("running");
     // No hang (the R1.2 bound settles it) and no suicide via kill(-0).
     await pidless.stop(info.id);
-    expect(groupIsAlive(process.pid)).toBe(true);
+    expect(() => process.kill(process.pid, 0)).not.toThrow();
     // Reaping entries stay listed with their pid until the real exit prunes them.
     expect(await pidless.list("c1")).toHaveLength(1);
     await pidless.stop(info.id);
