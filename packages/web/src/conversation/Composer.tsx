@@ -267,7 +267,7 @@ function ComposerForm({
         className={cn(
           "relative rounded-2xl border bg-card p-2 shadow-xs focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50",
           bangMode &&
-            "border-[var(--terminal-green)] focus-within:border-[var(--terminal-green)] focus-within:ring-[var(--terminal-green)]",
+            "border-destructive/50 focus-within:border-destructive focus-within:ring-destructive/20",
         )}
       >
         <AttachmentRow attachments={attachments} onRemove={remove} />
@@ -275,7 +275,7 @@ function ComposerForm({
           <span
             aria-hidden="true"
             data-testid="bang-prompt"
-            className="pointer-events-none absolute top-2 left-3 py-1.5 font-mono text-sm text-[var(--terminal-green)] select-none"
+            className="pointer-events-none absolute top-2 left-3 py-1.5 font-mono text-sm text-destructive select-none"
           >
             $
           </span>

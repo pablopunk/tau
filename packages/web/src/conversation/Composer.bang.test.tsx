@@ -31,7 +31,7 @@ describe("<Composer> bang mode", () => {
     const { input } = setup();
     await userEvent.type(input, "! ls");
     expect(input).toHaveClass("font-mono");
-    expect(input.parentElement).toHaveClass("border-[var(--terminal-green)]");
+    expect(input.parentElement).toHaveClass("border-destructive/50");
     expect(screen.getByTestId("bang-prompt")).toBeInTheDocument();
     expect(screen.queryByText("tool")).not.toBeInTheDocument();
     expect(screen.queryByText("start")).not.toBeInTheDocument();
@@ -45,7 +45,7 @@ describe("<Composer> bang mode", () => {
     await userEvent.keyboard("{Backspace}{Backspace}{Backspace}");
     expect(input).toHaveValue("!");
     expect(input).not.toHaveClass("font-mono");
-    expect(input.parentElement).not.toHaveClass("border-[var(--terminal-green)]");
+    expect(input.parentElement).not.toHaveClass("border-destructive/50");
     expect(screen.queryByTestId("bang-prompt")).not.toBeInTheDocument();
     expect(screen.getByText("tool")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Attach images" })).toBeInTheDocument();
