@@ -7,33 +7,29 @@ export const ResourcePrioritySchema = Type.Union([
 ]);
 export type ResourcePriority = Static<typeof ResourcePrioritySchema>;
 
-export const ResourceAppliesToSchema = Type.Object({
-  main: Type.Boolean(),
-  worktrees: Type.Boolean(),
-  subagents: Type.Boolean(),
+/** Which threads a command belongs to: its own power level picks the CPU priority. */
+export const ResourceScopeSchema = Type.Union([
+  Type.Literal("main"),
+  Type.Literal("worktree"),
+  Type.Literal("subagent"),
+]);
+export type ResourceScope = Static<typeof ResourceScopeSchema>;
+
+export const ResourceLevelsSchema = Type.Object({
+  main: ResourcePrioritySchema,
+  worktree: ResourcePrioritySchema,
+  subagent: ResourcePrioritySchema,
 });
-export type ResourceAppliesTo = Static<typeof ResourceAppliesToSchema>;
+export type ResourceLevels = Static<typeof ResourceLevelsSchema>;
 
-export const HEAVY_SLOTS_MIN = 1;
-export const HEAVY_SLOTS_MAX = 64;
-export const MEMORY_LIMIT_MIN_MB = 64;
-
-/** Per node. "Off" is `priority: "off"`, `heavySlots: null` and `memoryLimitMb: null`; each control works alone. */
+/** Per node. A scope set to `"off"` runs at full speed; any other scope gets its CPU priority plus the memory cap. */
 export const ResourceSettingsSchema = Type.Object({
-  priority: ResourcePrioritySchema,
-  /** `null` = unlimited. */
-  heavySlots: Type.Union([Type.Integer({ minimum: HEAVY_SLOTS_MIN, maximum: HEAVY_SLOTS_MAX }), Type.Null()]),
-  /** `null` = no limit. Per command process tree. */
-  memoryLimitMb: Type.Union([Type.Integer({ minimum: MEMORY_LIMIT_MIN_MB }), Type.Null()]),
-  appliesTo: ResourceAppliesToSchema,
+  levels: ResourceLevelsSchema,
 });
 export type ResourceSettings = Static<typeof ResourceSettingsSchema>;
 
 export const DEFAULT_RESOURCE_SETTINGS: ResourceSettings = {
-  priority: "off",
-  heavySlots: null,
-  memoryLimitMb: null,
-  appliesTo: { main: false, worktrees: false, subagents: true },
+  levels: { main: "off", worktree: "off", subagent: "off" },
 };
 
 export const ResourceMemoryEnforcementSchema = Type.Union([

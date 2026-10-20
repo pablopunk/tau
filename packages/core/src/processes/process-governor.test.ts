@@ -16,8 +16,10 @@ let resourceChanges: number;
 let spawnCalls: Array<{ file: string; args: readonly string[] }>;
 const services: ProcessService[] = [];
 
+const ON = { main: "balanced", worktree: "balanced", subagent: "balanced" } as const;
 const settings = (patch: Partial<ResourceSettings>): ResourceSettings => ({
   ...DEFAULT_RESOURCE_SETTINGS,
+  levels: { ...ON },
   ...patch,
 });
 const recordingSpawn: SpawnFn = ((file: string, args: string[], options: never) => {
@@ -40,14 +42,20 @@ function make(initial: ResourceSettings, extra: Partial<Parameters<typeof create
   return service;
 }
 
-const foreground = (service: ProcessService, command: string, callId: string, governed = true) =>
+const foreground = (
+  service: ProcessService,
+  command: string,
+  callId: string,
+  governed = true,
+  scope: "main" | "worktree" | "subagent" = "main",
+) =>
   service.runForeground({
     conversationId: "c1",
     callId,
     cwd,
     command,
     onOutput: () => {},
-    ...(governed && { governed }),
+    ...(governed && { governed, scope }),
   });
 
 async function waitFor(check: () => boolean) {
@@ -69,7 +77,7 @@ afterEach(async () => {
 });
 
 describe("Off path", () => {
-  it("spawns today's argv, takes no slot, emits nothing", async () => {
+  it("spawns today's argv, wraps nothing, emits nothing", async () => {
     const service = make(DEFAULT_RESOURCE_SETTINGS);
     const run = await foreground(service, "echo hi", "a");
     await run.admitted;
@@ -80,114 +88,96 @@ describe("Off path", () => {
     await run.release(false);
   });
 
-  it("an ungoverned command ignores heavy slots", async () => {
-    const service = make(settings({ heavySlots: 1 }));
-    const run = await foreground(service, "pnpm test --help >/dev/null 2>&1; true", "a", false);
-    expect(spawnCalls).toHaveLength(1);
+  it("an ungoverned command runs at full speed while other scopes are on", async () => {
+    const service = make(settings({}));
+    const run = await foreground(service, "echo hi", "a", false);
     await run.outcome;
+    expect(spawnCalls).toEqual([{ file: "/bin/sh", args: ["-c", "echo hi"] }]);
     await run.release(false);
   });
 });
 
-describe("heavy slots", () => {
-  it("queues the second heavy command until the first exits", async () => {
-    const service = make(settings({ heavySlots: 1 }));
-    const first = await foreground(service, "cargo test --version 2>/dev/null; sleep 1", "a");
-    const second = await foreground(service, "cargo test --version 2>/dev/null; true", "b");
-    expect(service.resourceActivity().waiting).toHaveLength(1);
-    await waitFor(() => spawnCalls.length === 1);
-    await first.outcome;
-    await second.admitted;
-    await second.outcome;
-    expect(spawnCalls).toHaveLength(2);
-    await first.release(false);
-    await second.release(false);
-    expect(resourceChanges).toBeGreaterThan(0);
+describe("per-scope power", () => {
+  const macSupport = (): ResourceSupportProbe => ({
+    platform: "macos",
+    binaries: () => ({ taskpolicy: "/usr/sbin/taskpolicy" }),
+    prepareMemory: async () => ({ cgroupMemory: false }),
+    describe: async () => ({
+      platform: "macos",
+      memoryEnforcement: "polled",
+      prioritySupported: true,
+      sameCgroupOnly: false,
+      note: null,
+    }),
+    unitFor: (id) => `tau-x-${id}`,
+    scopeVerdict: async () => undefined,
+    stop: () => {},
   });
 
-  it("stopping a queued command cancels it without spawning", async () => {
-    const service = make(settings({ heavySlots: 1 }));
-    const first = await foreground(service, "cargo test --x 2>/dev/null; sleep 2", "a");
-    const second = await foreground(service, "cargo test --y 2>/dev/null; true", "b");
-    await second.stop("resources");
-    expect(await second.outcome).toEqual({
-      kind: "exited",
-      exitCode: null,
-      stopRequested: true,
-      stopReason: "resources",
+  it("wraps with the calling scope's level", async () => {
+    const service = make(settings({ levels: { main: "background", worktree: "off", subagent: "off" } }), {
+      support: macSupport(),
     });
-    await second.stop("user");
-    await waitFor(() => spawnCalls.length === 1);
-    await first.stop();
-    await first.outcome;
-    expect(service.resourceActivity()).toEqual({ holders: [], waiting: [] });
+    const run = await foreground(service, "echo hi", "a", true, "main");
+    await run.outcome.catch(() => {});
+    expect(spawnCalls[0]?.file).toBe("/usr/sbin/taskpolicy");
+    expect(spawnCalls[0]?.args[0]).toBe("-b");
+    await run.release(false);
   });
 
-  it("stopResourceCommand only accepts listed ids", async () => {
-    const service = make(settings({ heavySlots: 1 }));
+  it("an Off scope wraps nothing while another scope is on", async () => {
+    const service = make(settings({ levels: { main: "off", worktree: "off", subagent: "balanced" } }), {
+      support: macSupport(),
+    });
+    const run = await foreground(service, "echo hi", "a", true, "main");
+    await run.outcome;
+    expect(spawnCalls).toEqual([{ file: "/bin/sh", args: ["-c", "echo hi"] }]);
+    await run.release(false);
+  });
+
+  it("stopResourceCommand always rejects: there is no queue", async () => {
+    const service = make(settings({}));
     await expect(service.stopResourceCommand("nope")).rejects.toThrow();
-    const run = await foreground(service, "cargo test --z 2>/dev/null; sleep 5", "a");
-    await service.stopResourceCommand(run.id);
-    expect((await run.outcome).kind).toBe("exited");
+    const run = await foreground(service, "echo hi; sleep 5", "a");
+    await expect(service.stopResourceCommand(run.id)).rejects.toThrow();
+    await run.stop();
+    await run.outcome;
   });
 
-  it("a queued call can be moved to the background and counts as running", async () => {
-    const service = make(settings({ heavySlots: 1 }));
-    const first = await foreground(service, "cargo test --a 2>/dev/null; sleep 1", "a");
-    const second = await foreground(service, "cargo test --b 2>/dev/null; true", "b");
-    const info = await service.background("c1", "b");
-    expect(info.state).toBe("queued");
-    expect(service.hasRunning("c1")).toBe(true);
-    await first.outcome;
-    await waitFor(() => spawnCalls.length === 2);
-    expect((await second.outcome).kind).toBe("background");
-  });
-
-  it("a spawn failure rejects the outcome and frees the slot", async () => {
-    const service = make(settings({ heavySlots: 1 }), {
+  it("a spawn failure rejects the outcome", async () => {
+    const service = make(settings({}), {
       spawn: (() => {
         throw new Error("spawn exploded");
       }) as unknown as SpawnFn,
     });
-    const run = await foreground(service, "cargo test --c 2>/dev/null", "a");
+    const run = await foreground(service, "echo hi", "a");
     await expect(run.outcome).rejects.toThrow("spawn exploded");
     await run.admitted;
     expect(service.resourceActivity()).toEqual({ holders: [], waiting: [] });
   });
 
-  it("a prepare failure rejects and frees the slot", async () => {
-    const service = make(settings({ heavySlots: 1 }), {
+  it("a prepare failure rejects the outcome", async () => {
+    const service = make(settings({}), {
       prepare: async () => {
         throw new Error("no disk");
       },
     });
-    const run = await foreground(service, "cargo test --d 2>/dev/null", "a");
+    const run = await foreground(service, "echo hi", "a");
     await expect(run.outcome).rejects.toThrow("no disk");
-    expect(service.resourceActivity().holders).toEqual([]);
   });
 
-  it("stop during a slow prepare never spawns and releases the slot", async () => {
+  it("stop during a slow prepare never spawns", async () => {
     let release: () => void = () => {};
     const gate = new Promise<void>((resolve) => {
       release = resolve;
     });
-    const service = make(settings({ heavySlots: 1 }), { prepare: () => gate });
-    const run = await foreground(service, "cargo test --e 2>/dev/null", "a");
+    const service = make(settings({}), { prepare: () => gate });
+    const run = await foreground(service, "echo hi", "a");
     await run.stop("user");
     release();
     await run.admitted;
     expect(spawnCalls).toHaveLength(0);
     expect(service.resourceActivity().holders).toEqual([]);
-  });
-
-  it("raising the limit drains waiters", async () => {
-    const service = make(settings({ heavySlots: 1 }));
-    const first = await foreground(service, "cargo test --f 2>/dev/null; sleep 2", "a");
-    const second = await foreground(service, "cargo test --g 2>/dev/null; true", "b");
-    service.setResources(settings({ heavySlots: null }));
-    await second.admitted;
-    await waitFor(() => spawnCalls.length === 2);
-    await first.stop();
   });
 });
 
@@ -202,7 +192,7 @@ describe("memory limit probe", () => {
         first = false;
         return {
           cgroupMemory: false,
-          failure: "Resource limits unavailable: no bus. Fix or turn them off in Settings → Resources.",
+          failure: "Resource limits unavailable: no bus. Fix or turn them off in Settings → Agent.",
         };
       };
     })(),
@@ -219,7 +209,7 @@ describe("memory limit probe", () => {
   });
 
   it("fails exactly one command on the degraded transition, then uses the basic wrapper", async () => {
-    const service = make(settings({ memoryLimitMb: 512 }), { support: failingSupport() });
+    const service = make(settings({}), { support: failingSupport() });
     const first = await foreground(service, "echo one", "a");
     await expect(first.outcome).rejects.toThrow("Resource limits unavailable");
     const second = await foreground(service, "echo two", "b");

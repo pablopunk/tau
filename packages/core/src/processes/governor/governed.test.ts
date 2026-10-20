@@ -1,16 +1,22 @@
 import { DEFAULT_RESOURCE_SETTINGS, type ResourceSettings } from "@tau/protocol";
 import { describe, expect, it, vi } from "vitest";
 import type { IndexedConversation } from "../../harness/conversation-docs";
-import { classifyThread, isGoverned } from "./governed";
+import { classifyThread, governedScope, isGoverned } from "./governed";
 
 const settings = (patch: Partial<ResourceSettings> = {}): ResourceSettings => ({
   ...DEFAULT_RESOURCE_SETTINGS,
-  heavySlots: 1,
+  levels: { main: "balanced", worktree: "balanced", subagent: "balanced" },
   ...patch,
 });
-const ticked = (main: boolean, worktrees: boolean, subagents: boolean) => ({
-  appliesTo: { main, worktrees, subagents },
+const levels = (
+  main: "off" | "balanced" | "background",
+  worktree: "off" | "balanced" | "background",
+  subagent: "off" | "balanced" | "background",
+) => ({
+  levels: { main, worktree, subagent },
 });
+const on = (main: boolean, worktree: boolean, subagent: boolean) =>
+  levels(main ? "balanced" : "off", worktree ? "balanced" : "off", subagent ? "balanced" : "off");
 const entry = (patch: Partial<IndexedConversation>): IndexedConversation => ({
   conversationId: 1,
   title: "t",
@@ -42,7 +48,7 @@ describe("isGoverned", () => {
   const governed = (patch: Partial<ResourceSettings>, found: IndexedConversation | undefined) =>
     isGoverned(settings(patch), async () => found);
 
-  it("is governed exactly when the box of its class is ticked", async () => {
+  it("is governed exactly when its own scope is not off", async () => {
     const cases: Array<[string, IndexedConversation, [boolean, boolean, boolean]]> = [
       ["main", entry({ workspace: checkout }), [true, false, false]],
       ["worktree", entry({ workspace: worktree }), [false, true, false]],
@@ -54,33 +60,30 @@ describe("isGoverned", () => {
         const boxes = [false, false, false] as [boolean, boolean, boolean];
         boxes[index] = true;
         const expected = own[index] === true;
-        expect(await governed(ticked(...boxes), thread)).toBe(expected);
+        expect(await governed(on(...boxes), thread)).toBe(expected);
       }
     }
   });
 
   it("an unknown or deleted thread is ungoverned", async () => {
-    expect(await governed(ticked(true, true, true), undefined)).toBe(false);
-    expect(await governed(ticked(true, true, true), entry({ deletedAt: 5 }))).toBe(false);
+    expect(await governed(on(true, true, true), undefined)).toBe(false);
+    expect(await governed(on(true, true, true), entry({ deletedAt: 5 }))).toBe(false);
   });
 
   it("a lookup that throws is ungoverned", async () => {
     const find = vi.fn(async () => {
       throw new Error("index unavailable");
     });
-    expect(await isGoverned(settings(ticked(true, true, true)), find)).toBe(false);
+    expect(await isGoverned(settings(on(true, true, true)), find)).toBe(false);
   });
 
-  it("never looks the thread up while every control is Off or no box is ticked", async () => {
+  it("never looks the thread up while every control is Off", async () => {
     const find = vi.fn(async () => entry({}));
     expect(await isGoverned(DEFAULT_RESOURCE_SETTINGS, find)).toBe(false);
-    expect(await isGoverned(settings(ticked(false, false, false)), find)).toBe(false);
+    expect(await isGoverned(settings(on(false, false, false)), find)).toBe(false);
     expect(find).not.toHaveBeenCalled();
     expect(
-      await isGoverned(
-        settings({ heavySlots: null, priority: "balanced", ...ticked(true, true, true) }),
-        find,
-      ),
+      await isGoverned(settings({ levels: { main: "balanced", worktree: "off", subagent: "off" } }), find),
     ).toBe(true);
     expect(find).toHaveBeenCalledTimes(1);
   });

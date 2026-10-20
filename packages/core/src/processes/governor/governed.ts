@@ -1,10 +1,10 @@
 import type { Context } from "@earendil-works/chord";
 import type { ToolExecutionApi } from "@earendil-works/pi-durable";
-import type { ResourceSettings } from "@tau/protocol";
+import type { ResourcePriority, ResourceScope, ResourceSettings } from "@tau/protocol";
 import { ConversationDoc, type IndexedConversation, ProjectIndexDoc } from "../../harness/conversation-docs";
 import { anyControlOn } from "./resource-state";
 
-export type ThreadClass = "main" | "worktree" | "subagent";
+export type ThreadClass = ResourceScope;
 
 /** Subagent by `parentId`, else worktree by workspace mode, else main. */
 export function classifyThread(entry: Pick<IndexedConversation, "parentId" | "workspace">): ThreadClass {
@@ -12,25 +12,33 @@ export function classifyThread(entry: Pick<IndexedConversation, "parentId" | "wo
   return (entry.workspace?.mode ?? "checkout") === "worktree" ? "worktree" : "main";
 }
 
-const boxOf = (settings: ResourceSettings, thread: ThreadClass) =>
-  thread === "subagent"
-    ? settings.appliesTo.subagents
-    : thread === "worktree"
-      ? settings.appliesTo.worktrees
-      : settings.appliesTo.main;
+export const levelOf = (settings: ResourceSettings, thread: ThreadClass): ResourcePriority =>
+  settings.levels[thread];
 
-export const anyBoxTicked = (settings: ResourceSettings) =>
-  settings.appliesTo.main || settings.appliesTo.worktrees || settings.appliesTo.subagents;
+export const anyScopeOn = (settings: ResourceSettings) =>
+  settings.levels.main !== "off" || settings.levels.worktree !== "off" || settings.levels.subagent !== "off";
 
-/** `find` is not called unless a control is on and at least one box is ticked. Unknown or deleted is ungoverned. */
+/**
+ * The calling thread's scope when resource control applies to it, else `undefined`.
+ * `find` is not called unless a control is on for at least one scope. Unknown or deleted is ungoverned.
+ */
+export async function governedScope(
+  settings: ResourceSettings,
+  find: () => Promise<IndexedConversation | undefined>,
+): Promise<ThreadClass | undefined> {
+  if (!anyControlOn(settings) || !anyScopeOn(settings)) return undefined;
+  const entry = await find().catch(() => undefined);
+  if (!entry || entry.deletedAt !== undefined) return undefined;
+  const thread = classifyThread(entry);
+  return levelOf(settings, thread) === "off" ? undefined : thread;
+}
+
+/** `find` is not called unless a control is on for at least one scope. Unknown or deleted is ungoverned. */
 export async function isGoverned(
   settings: ResourceSettings,
   find: () => Promise<IndexedConversation | undefined>,
 ): Promise<boolean> {
-  if (!anyControlOn(settings) || !anyBoxTicked(settings)) return false;
-  const entry = await find().catch(() => undefined);
-  if (!entry || entry.deletedAt !== undefined) return false;
-  return boxOf(settings, classifyThread(entry));
+  return (await governedScope(settings, find)) !== undefined;
 }
 
 /** The calling thread's entry in its project index. */
