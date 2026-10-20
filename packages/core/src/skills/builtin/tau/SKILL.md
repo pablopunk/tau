@@ -44,6 +44,10 @@ tau settings set-default-model openrouter/anthropic/claude-sonnet-5-5
 tau settings set-default-thinking none
 ```
 
+## Update tau
+
+`tau update --check` says whether a newer release exists; `tau update` installs it and restarts tau. Only do it when the user asks.
+
 ## Rules
 
 - Destructive commands (`threads delete`, `projects remove`, `workspaces remove`) need `--yes`. Ask the user first.

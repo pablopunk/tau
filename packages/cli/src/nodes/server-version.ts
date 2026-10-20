@@ -11,7 +11,7 @@ export function isOlderVersion(a: string, b: string): boolean {
   return false;
 }
 
-export const UPDATE_COMMAND = "npm i -g @pablopunk/tau@latest && tau restart";
+export const UPDATE_COMMAND = "tau update";
 
 /** An older running server cannot read what a newer `tau connect` writes: refuse before anything changes. */
 export function olderServerRefusal(running: string | undefined, cli: string): string | undefined {

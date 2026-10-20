@@ -1,4 +1,4 @@
-/** Copy of bare `tau` (BARE-INSTALL.md section 1). `<...>` pieces are filled by the caller. */
+/** Copy of bare `tau`. `<...>` pieces are filled by the caller. */
 export const installingService = (backend: "launchd" | "systemd" | string) =>
   `Installing the tau service (${backend})...`;
 export const SERVICE_RUNNING = "tau is running as a service. It starts at login and restarts if it crashes.";

@@ -13,6 +13,6 @@ describe("server version", () => {
     expect(olderServerRefusal(undefined, "0.2.2")).toBeUndefined();
     expect(olderServerRefusal("0.2.2", "0.2.2")).toBeUndefined();
     expect(olderServerRefusal("0.3.0", "0.2.2")).toBeUndefined();
-    expect(olderServerRefusal("0.1.2", "0.2.2")).toContain("npm i -g @pablopunk/tau@latest && tau restart");
+    expect(olderServerRefusal("0.1.2", "0.2.2")).toContain("tau update");
   });
 });

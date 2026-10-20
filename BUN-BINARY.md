@@ -341,6 +341,14 @@ Files: `.github/workflows/**`, `scripts/**` except `build-binary.ts`, `install.s
 - The temporary pin patches are not in the branch; the exact diff of the three kinds is described in the P5, P3 and section 4 rows. The faux driver scripts lived in `/tmp` and are not kept; `binary.spec.ts` and `smoke-binary.ts` replace them.
 - Open for the owner of the machine: P2 (needs the Apple secrets), P6 systemd, the older-macOS entitlement check (all "first CI run").
 
+## Integration
+
+Applied: the four integrator notes (deleted). `claude --version` falls back to the SDK's bundled native `claude` (before `PATH`, like `authStatus`); `smoke:binary` no longer skips the SDK import step and passes. The updater and `install.sh` agree on `tau-<v>-<os>-<arch>.tar.gz` (one top folder, `SHA256SUMS` lines `<sha256>  <archive>`, `linux-x64-baseline` shipped as `linux-x64`). The e2e `update-button.spec.ts` and the new `binary.spec.ts` compile real binaries (`e2e/binary-support.ts`, cached per CLI build), install them with `install.sh` into a scratch `TAU_INSTALL_DIR`, serve two fake releases plus a broken one through `TAU_RELEASES_API`, and run detached with stub `launchctl`/`systemctl` so no real unit is ever registered. They cover Update, the confirm dialog, a real update, 403 for a paired device, no button in a dev checkout, and rollback from a release whose `tau` only answers `--version`. The "Update" copy and `tau connect` refusal say `tau update`. README, the release skill, the builtin tau skill and `UPDATE-BUTTON.md` are updated; `BARE-INSTALL.md` and `scripts/fake-service-manager.mjs` are deleted.
+
+Bug found by the rollback e2e and fixed: on a node where the service manager refuses the install (launchd without a GUI session), `tau restart` and the updater installed and restarted, which started two servers. They now keep a running detached tau (`installOrRepairService(..., { keepDetached: true })`).
+
+Still unverified (first CI run): notarization, the systemd swap, `ubuntu-24.04-arm`, and a darwin-x64 smoke. No unit test covers `keepDetached` (the e2e does).
+
 ## Review history
 
 - Round 3 (24302): APPROVE. Minor items applied: `server.json` instead of `service.pid`, P3 on a signed copy, wording of the risks, rollback timeout as a constant.

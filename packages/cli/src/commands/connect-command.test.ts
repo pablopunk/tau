@@ -57,9 +57,7 @@ describe("tau connect", () => {
     const questions = io();
     const { env } = envFor(home, fetchImpl);
     const refused = executeConnect([LINK], env, questions, "0.2.2");
-    await expect(refused).rejects.toThrow(
-      /running here is 0\.1\.2.*\n.*\n.*npm i -g @pablopunk\/tau@latest && tau restart/s,
-    );
+    await expect(refused).rejects.toThrow(/running here is 0\.1\.2.*\n.*\n.*tau update/s);
     expect(questions.confirm).not.toHaveBeenCalled();
     expect(fetchImpl).not.toHaveBeenCalled();
     expect(await peersOf(home).read()).toEqual([]);

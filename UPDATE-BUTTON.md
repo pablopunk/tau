@@ -1,5 +1,7 @@
 # Update button in the sidebar
 
+> Superseded for install methods by BUN-BINARY.md (tau ships as a binary from GitHub Releases; no npm).
+
 Status: integrated on the detached backend; systemd and launchd restart-survival still unverified (see Integration).
 
 Fixed decisions: check every 15 min; npx-cache installs show a copy command and run nothing; owner only (403 for paired devices and linked nodes); after success the page reloads by itself, then a short toast with the new version; the detached updater must survive the service restart on systemd and launchd in v1.

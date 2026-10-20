@@ -23,12 +23,12 @@
 
 ## Run
 
-Let `tau` take care of everything:
+Install the signed binary (macOS and Linux, no Node or npm needed) and let `tau` take care of everything:
 
 ```sh
-npx @pablopunk/tau
+curl -fsSL https://github.com/pablopunk/tau/releases/latest/download/install.sh | sh
 ```
 
 ## Update
 
-When a newer version is published, an **Update** button appears next to Settings (owner only). It installs the new version, restarts tau and reloads the page. From a terminal: `tau update` (`--check` only looks). An npx run shows the command to copy instead (`npm i -g @pablopunk/tau@latest && tau restart`), and a tau that was not started as a service must be restarted by hand. On a systemd or launchd service the button shows the command until the automatic restart is verified on that platform.
+When a newer version is released, an **Update** button appears next to Settings (owner only). It downloads the release, verifies its SHA-256, swaps the install, restarts tau and reloads the page, and it rolls back if the new version does not come up. From a terminal: `tau update` (`--check` only looks). A tau that was not started as a service must be restarted by hand.
