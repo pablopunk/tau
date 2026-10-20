@@ -16,7 +16,14 @@ export async function registerStaticAssets(
   app: FastifyInstance,
   staticDir: string | undefined,
 ): Promise<void> {
-  if (staticDir) await app.register(fastifyStatic, { root: staticDir });
+  if (staticDir)
+    await app.register(fastifyStatic, {
+      root: staticDir,
+      // Some mime databases serve the PWA manifest as generic JSON.
+      setHeaders: (reply, path) => {
+        if (path.endsWith(".webmanifest")) reply.header("content-type", "application/manifest+json");
+      },
+    });
   app.setNotFoundHandler((request: FastifyRequest, reply: FastifyReply) => {
     if (isApiRequest(request)) return sendApiNotFound(reply);
     if (staticDir && acceptsHtml(request)) return reply.sendFile("index.html");
