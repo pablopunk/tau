@@ -24,6 +24,7 @@ const DEFAULTS = {
     memoryLimitMb: null,
     appliesTo: { main: false, worktrees: false, subagents: true },
   },
+  compaction: { mode: "summary", backend: "auto" },
 };
 const ref = { provider: "openrouter", modelId: "x/y" };
 
@@ -225,5 +226,19 @@ describe("resources", () => {
     };
     await createSettingsStore(path, PROJECTS).setResources(value);
     expect((await createSettingsStore(path, PROJECTS).get()).resources).toEqual(value);
+  });
+
+  it("defaults compaction to summary/auto and stores the value whole", async () => {
+    const path = join(await tempDir(), "settings.json");
+    await writeFile(path, JSON.stringify({}));
+    expect((await createSettingsStore(path, PROJECTS).get()).compaction).toEqual({
+      mode: "summary",
+      backend: "auto",
+    });
+    await createSettingsStore(path, PROJECTS).setCompaction({ mode: "fast", backend: "typesafe" });
+    expect((await createSettingsStore(path, PROJECTS).get()).compaction).toEqual({
+      mode: "fast",
+      backend: "typesafe",
+    });
   });
 });

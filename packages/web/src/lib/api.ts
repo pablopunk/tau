@@ -4,6 +4,7 @@ import type {
   Checkpoint,
   ClaudeConnectorSettings,
   CompactInput,
+  CompactionSettings,
   ConfigureConversationInput,
   ConversationSummary,
   DeleteArchivedInput,
@@ -80,6 +81,7 @@ export interface Api {
     setWorkspaceDefault(mode: WorkspaceDefault): Promise<void>;
     setClaudeConnectors(value: ClaudeConnectorSettings): Promise<void>;
     setResources(value: ResourceSettings): Promise<void>;
+    setCompaction(value: CompactionSettings): Promise<void>;
     /** `null`: this node is older than resource control (404), so the controls are not supported there. */
     resourceSupport(): Promise<ResourceSupport | null>;
     /** `null` on a node without resource control, as for `resourceSupport`. */
@@ -275,6 +277,7 @@ export function createApi(transport: Transport): Api {
       setClaudeConnectors: (value) => request("setClaudeConnectors", { body: value }),
       setSetupSkipped: (skipped) => request("setSetupSkipped", { body: { skipped } }),
       setResources: (value) => request("setResources", { body: value }),
+      setCompaction: (value) => request("setCompaction", { body: value }),
       resourceSupport: () => nullWhenMissing(request("getResourceSupport", {})),
       resourceActivity: () => nullWhenMissing(request("getResourceActivity", {})),
       stopResourceCommand: (entryId) => request("stopResourceCommand", { params: { id: entryId } }),

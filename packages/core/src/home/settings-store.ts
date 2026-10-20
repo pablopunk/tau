@@ -1,6 +1,8 @@
 import {
   type ClaudeConnectorSettings,
   ClaudeConnectorSettingsSchema,
+  type CompactionSettings,
+  CompactionSettingsSchema,
   DEFAULT_RESOURCE_SETTINGS,
   HEAVY_SLOTS_MAX,
   HEAVY_SLOTS_MIN,
@@ -42,6 +44,7 @@ type StoredSettings = {
   mcpServers?: McpServerConfig[];
   remote?: RemoteSettings;
   resources?: ResourceSettings;
+  compaction?: CompactionSettings;
   setupSkipped?: boolean;
 };
 
@@ -169,6 +172,8 @@ function parseStored(text: string | undefined): StoredSettings {
   if (raw.lastWorkspaceModes !== undefined)
     stored.lastWorkspaceModes = validLastWorkspaceModes(raw.lastWorkspaceModes);
   if (Value.Check(RemoteSettingsSchema, raw.remote)) stored.remote = { enabled: raw.remote.enabled };
+  if (Value.Check(CompactionSettingsSchema, raw.compaction))
+    stored.compaction = { mode: raw.compaction.mode, backend: raw.compaction.backend };
   if (raw.mcpServers !== undefined) stored.mcpServers = validMcpServers(raw.mcpServers);
   const resources = parseResourceSettings(raw.resources);
   if (resources) stored.resources = resources;
@@ -188,6 +193,7 @@ const withDefaults = (stored: StoredSettings, defaultProjectsFolder: string): Se
   claudeConnectors: stored.claudeConnectors ?? { disabled: [], alwaysAllow: [], askBeforeWrites: false },
   remote: stored.remote ?? { enabled: false },
   resources: stored.resources ? copyResources(stored.resources) : copyResources(DEFAULT_RESOURCE_SETTINGS),
+  compaction: stored.compaction ?? { mode: "summary", backend: "auto" },
   setupSkipped: stored.setupSkipped ?? false,
 });
 
@@ -208,6 +214,8 @@ export interface SettingsStore {
   setClaudeConnectors(value: ClaudeConnectorSettings): Promise<void>;
   /** The caller has already validated the value. */
   setResources(value: ResourceSettings): Promise<void>;
+  /** The caller has already validated the value. */
+  setCompaction(value: CompactionSettings): Promise<void>;
   setRemoteEnabled(enabled: boolean): Promise<void>;
   lastWorkspaceMode(projectId: string): Promise<WorkspaceMode | undefined>;
   setLastWorkspaceMode(projectId: string, mode: WorkspaceMode): Promise<void>;
@@ -262,6 +270,8 @@ export function createSettingsStore(settingsFile: string, defaultProjectsFolder:
         claudeConnectors: copyConnectorSettings(value),
       })),
     setResources: (value) => update((stored) => ({ ...stored, resources: copyResources(value) })),
+    setCompaction: (value) =>
+      update((stored) => ({ ...stored, compaction: { mode: value.mode, backend: value.backend } })),
     setRemoteEnabled: (enabled) => update((stored) => ({ ...stored, remote: { enabled } })),
     lastWorkspaceMode: async (projectId) => (await readStored()).lastWorkspaceModes?.[projectId],
     setLastWorkspaceMode: (projectId, mode) =>

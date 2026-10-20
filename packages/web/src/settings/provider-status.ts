@@ -25,6 +25,7 @@ export const CHATGPT_COPY = "Uses your ChatGPT plan. Personal use.";
 const KEY_COPY = "Uses an API key.";
 
 export function providerDescription(provider: ProviderInfo): string {
+  if (provider.id === "typesafe") return "Fast compaction only. Never used for chats.";
   if (isFromEnvironment(provider)) return ENV_HELP;
   return canSignInWithChatGpt(provider) ? CHATGPT_COPY : KEY_COPY;
 }
