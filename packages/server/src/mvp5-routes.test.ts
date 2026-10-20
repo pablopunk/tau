@@ -251,9 +251,8 @@ describe("process routes", () => {
     expect((await ctx.request({ url: `/api/processes/${info.id}/logs` })).statusCode).toBe(200);
     const stop = await ctx.request({ method: "DELETE", url: `/api/processes/${info.id}` });
     expect(stop.statusCode).toBe(204);
-    expect((await ctx.request({ url: `/api/conversations/${thread.id}/processes` })).json()[0].state).toBe(
-      "killed",
-    );
+    // A stopped process is pruned from the list, not kept as a `killed` row.
+    expect((await ctx.request({ url: `/api/conversations/${thread.id}/processes` })).json()).toEqual([]);
   });
 
   it("answers not_found for an unknown process and rejects a bad tail", async () => {

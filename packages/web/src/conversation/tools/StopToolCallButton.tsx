@@ -16,7 +16,13 @@ export function StopToolCallButton({ conversationId, callId }: { conversationId:
     onError: (error) => void toast.error(errorMessage(error)),
   });
   return (
-    <Button size="xs" variant="outline" disabled={stop.isPending} onClick={() => stop.mutate()}>
+    <Button
+      size="xs"
+      variant="outline"
+      aria-label="Stop command"
+      disabled={stop.isPending}
+      onClick={() => stop.mutate()}
+    >
       <Square />
       Stop
     </Button>
