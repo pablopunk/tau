@@ -71,21 +71,32 @@ for (const [mode, patch] of Object.entries(MODES)) {
         [{ tools: [{ name: "bash", arguments: { command: command(index) } }] }, { text: "done" }],
       ]),
     );
-    const remote: ResourceServer = await startResourceServer({ replies, repo: REPO, env: { HOME: process.env.HOME ?? "" } });
+    const remote: ResourceServer = await startResourceServer({
+      replies,
+      repo: REPO,
+      env: { HOME: process.env.HOME ?? "" },
+    });
     try {
       await remote.setResources({ ...patch });
       const baseline = [];
       for (let index = 0; index < 5; index++) baseline.push(await probeOnce());
       const began = now();
       const ids: string[] = [];
-      for (let index = 0; index < THREADS; index++) ids.push(await remote.start(`compare ${index}`, { mode: "checkout" }));
+      for (let index = 0; index < THREADS; index++)
+        ids.push(await remote.start(`compare ${index}`, { mode: "checkout" }));
       const samples: { t: number; load: number; procs: number; suites: number; cpu: number }[] = [];
       const probe: number[] = [];
       let finished = false;
       const sampler = (async () => {
         while (!finished) {
           const sample = await sampleProcesses();
-          samples.push({ t: now() - began, load: loadavg()[0] ?? 0, procs: sample.testProcesses, suites: sample.suites, cpu: sample.cpu });
+          samples.push({
+            t: now() - began,
+            load: loadavg()[0] ?? 0,
+            procs: sample.testProcesses,
+            suites: sample.suites,
+            cpu: sample.cpu,
+          });
           await sleep(2000);
         }
       })();
@@ -121,7 +132,8 @@ for (const [mode, patch] of Object.entries(MODES)) {
         peakSuitesAtOnce: Math.max(...samples.map((sample) => sample.suites)),
         peakTestProcesses: Math.max(...samples.map((sample) => sample.procs)),
         peakLoad1m: Math.round(Math.max(...samples.map((sample) => sample.load)) * 10) / 10,
-        meanLoad1m: Math.round((samples.reduce((sum, sample) => sum + sample.load, 0) / samples.length) * 10) / 10,
+        meanLoad1m:
+          Math.round((samples.reduce((sum, sample) => sum + sample.load, 0) / samples.length) * 10) / 10,
         totalCpuSeconds: perThread.reduce((sum, thread) => sum + thread.cpu, 0),
         perThread,
         probeIdleMedian: median(baseline),

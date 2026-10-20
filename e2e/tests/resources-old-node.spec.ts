@@ -1,16 +1,8 @@
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
-import { homedir } from "node:os";
 import { expect, type Page, test } from "@playwright/test";
-import {
-  connect,
-  freePort,
-  listNodes,
-  type Served,
-  served,
-  setUpWithThread,
-} from "../nodes-support";
+import { connect, freePort, listNodes, type Served, served, setUpWithThread } from "../nodes-support";
 import { createRestartableServer, type RestartableServer } from "../restartable-server";
 
 const OLD_TAU = process.env.TAU_OLD_NODE ?? join(homedir(), ".local/share/tau/versions/0.5.3/tau");
@@ -67,7 +59,9 @@ test("an older node's Resources never crash the new web: it says the node needs 
   const notice = dialog.getByText(/needs a tau update|This node needs an update/).first();
   await expect(notice).toBeVisible({ timeout: 30_000 });
   console.log(`OLD NODE settings notice: ${await notice.innerText()}`);
-  console.log(`OLD NODE nodes: ${JSON.stringify((await listNodes(current.server)).map((node) => node.status))}`);
+  console.log(
+    `OLD NODE nodes: ${JSON.stringify((await listNodes(current.server)).map((node) => node.status))}`,
+  );
   await expect(dialog.getByText("Command priority")).toHaveCount(0);
   await page.screenshot({ path: "/tmp/old-node-settings.png" });
   expect(errors).toEqual([]);
