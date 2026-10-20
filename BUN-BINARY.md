@@ -87,8 +87,8 @@ The foundation runs `grep -rn "argv\[1\]\|import.meta.url\|process.execPath\|cre
 - Availability: `GET https://api.github.com/repos/pablopunk/tau/releases/latest` with a `User-Agent`. A version counts only when its archive for this platform and `SHA256SUMS` are both assets. 403/429: honour `retry-after` and keep the previous `latest` (`update-service.ts:51`). Tests: 404, 403 with `retry-after`, partial assets, timeout, TLS/proxy error; each leaves a good `latest` intact **[R#11]**. The repo is public, so no auth; 4 checks/h per node is under the 60/h-per-IP limit.
 - Install step (the child): download, verify, extract into `versions/<v>`, run `versions/<v>/tau --version` and require `<v>`, swap `current`.
 - Restart step: `tau restart` as today.
-- **Rollback is done by the child** **[R#10]**: if `GET /api/update` does not report `current === target` within 60 s (`/api/health` cannot tell the old server from the new one [R2-N4]), the child swaps `current` back to the previous dir, restarts, and writes the job `failed` with the log tail and `from` = the old version (so the "`current !== from` → idle" rule does not fire; tested).
-- Retention: keep the new `current` and the dir that was `current` before the swap (not semver order). Never delete the dir the running server started from: the server writes `{ pid, versionDir }` into `<home>/service.pid` at start, and retention reads it [R2-N5]. Delete others only after a successful update.
+- **Rollback is done by the child** **[R#10]**: if `GET /api/update` does not report `current === target` within `ROLLBACK_TIMEOUT_MS` (a named constant, 60 s to start; P6 measures a signed first run on a slow host) (`/api/health` cannot tell the old server from the new one [R2-N4]), the child swaps `current` back to the previous dir, restarts, and writes the job `failed` with the log tail and `from` = the old version (so the "`current !== from` → idle" rule does not fire; tested).
+- Retention: keep the new `current` and the dir that was `current` before the swap (not semver order). Never delete the dir the running server started from: the server writes `{ pid, versionDir }` into a new `<home>/server.json` at start on every backend (written from `serve.ts`), and retention reads it. `service.pid` keeps its bare-pid format (`detached.ts:60,71,134`) [R2-N5, R3]. Delete others only after a successful update.
 - `install.mode`: `run` for a binary install, `none` for a dev checkout.
 - The `TAU_FAKE_LATEST`, `TAU_FAKE_UPDATE` and `TAU_FAKE_VERSION` hooks stay (same under-tmpdir rule) and are rewired to the release source **[R#6]**.
 
@@ -139,7 +139,7 @@ The data home is untouched. If step 1 fails on a node, the old install still run
 
 - **P1** Locally, if `security find-identity -p codesigning -v` shows the owner's Developer ID: sign a compiled tau with the hardened runtime and the four entitlements; it runs `serve`, a faux thread and a terminal. Then try the two-entitlement set and record the result. Must pass before `release.yml` is written **[R#2]**. If no local identity, the owner runs the script once.
 - **P2** Pass criterion: a quarantined (`xattr -w com.apple.quarantine …`), notarized copy runs on a Mac with no dialog. `spctl` is not the criterion **[R#3]**.
-- **P3** The Claude SDK from `versionDir/claude-sdk` loads in the compiled server and starts its native CLI (no login). Record the size.
+- **P3** On a hardened-runtime, Developer-ID-signed copy (section 5), the Claude SDK from `versionDir/claude-sdk` loads in the compiled server and starts its native CLI (no login). Record the size.
 - **P4** Table of every runtime-loaded file (path in source, bundled or sidecar, tested): photon wasm and image-resize worker, codemode worker and `quickjs.wasm`, pdfjs fonts and cmaps, readability, glimpse. Each works, becomes a sidecar, or is listed unsupported. Owners get it in the hand-off **[R#8]**.
 - **P5** A terminal through the compiled server with the explicit pi-env path.
 - **P6** Swap while the service runs, on launchd and systemd (scratch label and home): the old binary keeps running until restart; `restart` uses `kickstart -k` (no reload); rollback restores the old `current`.
@@ -157,12 +157,14 @@ The data home is untouched. If step 1 fails on a node, the old install still run
 
 ## 12. Risks
 
-- **Bun runtime gaps** found only at runtime (P4). Mitigation: e2e and CI smoke on the packaged binary.
+- **Bun runtime gaps** found only at runtime (P4). Mitigation: `binary.spec` and `smoke:binary` on the packaged binary (other e2e stays on the Node build).
 - **Signing**: entitlements (P1) and the SDK natives inside notarization (P3). Secrets must exist before the first tag.
 - **darwin-x64** ships without a smoke run unless Rosetta works.
 - **100+ MB per platform** per release; fine for GitHub Releases.
 
 ## Review history
+
+- Round 3 (24302): APPROVE. Minor items applied: `server.json` instead of `service.pid`, P3 on a signed copy, wording of the risks, rollback timeout as a constant.
 
 - Round 2 (24302): CHANGES REQUIRED. Fixed: SDK natives pruned per platform, every Mach-O found and signed (Bun-based ones with the JIT entitlements), P3 on a signed copy, ownership of `run.ts`, `static-dir.ts`, the builtin skill and `smoke:binary`. Also: rollback checks `current === target`, the server records its `versionDir`, `$bunfs` detection, e2e stays on the Node build, `contents: write`, `TAU_INSTALL_DIR` scope, old `service.json` record, two wrong paths.
 
