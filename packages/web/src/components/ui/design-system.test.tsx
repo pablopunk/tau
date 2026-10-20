@@ -63,7 +63,7 @@ describe("MorphText", () => {
   it("accepts numbers and passes span props through", () => {
     render(<MorphText data-testid="count" className="text-xs">{3}</MorphText>);
     expect(screen.getByTestId("count")).toHaveClass("inline-flex", "text-xs");
-    expect(screen.getByText("3")).toBeInTheDocument();
+    expect(screen.getByTestId("count")).toHaveTextContent("3");
   });
 });
 
