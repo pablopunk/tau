@@ -105,9 +105,7 @@ function rmForeignNatives(modules: string, keep: string): void {
 function compile(platform: Platform, version: string, out: string): void {
   const dist = join(cli, "dist");
   if (!existsSync(join(dist, "bin.js"))) fail("packages/cli/dist is missing: run `pnpm build` first");
-  execFileSync(
-    "bun",
-    [
+  const args = [
       "build",
       "--compile",
       `--target=bun-${platform}`,
@@ -117,9 +115,21 @@ function compile(platform: Platform, version: string, out: string): void {
       join(dist, "watchdog.js"),
       "--outfile",
       join(out, "tau"),
-    ],
-    { stdio: "inherit" },
-  );
+    ];
+  retry(() => execFileSync("bun", args, { stdio: "inherit" }));
+}
+
+/** Bun downloads the target runtime on first use; a flaky network fails the compile once. */
+function retry(action: () => void, attempts = 3): void {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return action();
+    } catch (error) {
+      if (attempt >= attempts) throw error;
+      console.warn(`compile failed (attempt ${attempt}/${attempts}), retrying`);
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 5000 * attempt);
+    }
+  }
 }
 
 function main(): void {

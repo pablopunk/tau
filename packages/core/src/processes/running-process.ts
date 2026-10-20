@@ -94,8 +94,7 @@ export function spawnRunning(request: SpawnRequest): RunningProcess {
     });
     child.once("close", (code, signal) => {
       exit ??= { code, signal };
-      done();
-      void log.close();
+      void log.close().then(done);
     });
   });
   return Object.assign(running, {
