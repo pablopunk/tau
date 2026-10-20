@@ -46,7 +46,7 @@ export function ArchiveButton({ show, onToggle }: ArchiveButtonProps) {
         <Button
           variant="ghost"
           size="icon-sm"
-          className="relative shrink-0 aria-pressed:bg-sidebar-accent aria-pressed:text-foreground"
+          className="relative shrink-0 opacity-40 aria-pressed:bg-sidebar-accent aria-pressed:text-foreground aria-pressed:opacity-100"
           aria-label={label}
           aria-pressed={show}
           onClick={onToggle}
