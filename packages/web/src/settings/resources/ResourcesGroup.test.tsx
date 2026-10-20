@@ -34,6 +34,10 @@ function setup(resources: unknown = DEFAULT_RESOURCE_SETTINGS) {
 
 const group = async (name: string) => within(await screen.findByRole("group", { name: name }));
 
+async function expand() {
+  await userEvent.click(await screen.findByRole("button", { name: "Resource control" }));
+}
+
 beforeEach(() => {
   vi.resetAllMocks();
   mocks.setResources.mockResolvedValue(undefined);
@@ -42,6 +46,7 @@ beforeEach(() => {
 describe("<ResourcesGroup>", () => {
   it("renders one power row per scope", async () => {
     setup();
+    await expand();
     for (const name of ["Main threads power", "Worktree threads power", "Subagents power"]) {
       expect(await screen.findByRole("group", { name })).toBeInTheDocument();
     }
@@ -52,6 +57,7 @@ describe("<ResourcesGroup>", () => {
 
   it("saves a scope's level", async () => {
     setup();
+    await expand();
     await userEvent.click((await group("Subagents power")).getByRole("radio", { name: "Background" }));
     expect(mocks.setResources).toHaveBeenCalledWith({
       ...DEFAULT_RESOURCE_SETTINGS,
@@ -61,9 +67,11 @@ describe("<ResourcesGroup>", () => {
 
   it("shows the current levels as pressed", async () => {
     setup({
+
       ...DEFAULT_RESOURCE_SETTINGS,
       levels: { main: "balanced", worktree: "off", subagent: "background" },
     });
+    await expand();
     expect((await group("Main threads power")).getByRole("radio", { name: "Balanced" })).toHaveAttribute(
       "aria-pressed",
       "true",
