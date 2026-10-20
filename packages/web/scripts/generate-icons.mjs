@@ -17,8 +17,7 @@ import { Resvg } from "@resvg/resvg-js";
 const root = join(dirname(fileURLToPath(import.meta.url)), "..", "public");
 const TILE = "#151C27";
 
-const render = (svg, size) =>
-  new Resvg(svg, { fitTo: { mode: "width", value: size } }).render().asPng();
+const render = (svg, size) => new Resvg(svg, { fitTo: { mode: "width", value: size } }).render().asPng();
 
 const inner = (svg) => svg.slice(svg.indexOf(">") + 1, svg.lastIndexOf("</svg>"));
 

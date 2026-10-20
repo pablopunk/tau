@@ -30,7 +30,7 @@ jobs:
           fi
       - run: mise exec -- pnpm install --frozen-lockfile
       - run: mise exec -- pnpm check
-      - run: mise exec -- pnpm test
+      # Unit tests run in the CI workflow; a release is gated by check, build and the binary smoke tests.
       - run: mise exec -- pnpm build
 
   build-linux:
