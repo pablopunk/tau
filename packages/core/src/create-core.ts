@@ -494,6 +494,7 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
         archivedCleanup,
         closeClaudeCliThread,
         closeTerminalsOf: (conversationId) => terminals.closeAllOf(conversationId),
+        bang: { processes, home: home.root, notifications },
       }),
       workspaces: {
         status: (id) => workspaces.status(id),

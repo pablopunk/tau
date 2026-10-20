@@ -26,6 +26,15 @@ export const ProcessExitDataSchema = Type.Object({
   command: Type.String(),
   exitCode: Type.Union([Type.Number(), Type.Null()]),
   logTail: Type.String(),
+  /** Why tau stopped the command; absent for a natural exit. */
+  stopReason: Type.Optional(
+    Type.Union([
+      Type.Literal("user"),
+      Type.Literal("timeout"),
+      Type.Literal("resources"),
+      Type.Literal("memory"),
+    ]),
+  ),
 });
 export type ProcessExitData = Type.Static<typeof ProcessExitDataSchema>;
 

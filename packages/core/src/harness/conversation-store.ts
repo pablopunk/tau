@@ -17,6 +17,7 @@ import {
   type ThreadWorkspace,
   type WhenBusy,
 } from "@tau/protocol";
+import { stripBangPrefix } from "../bang-command";
 import { toUserInput } from "../conversation-input";
 import { titleFromFirstMessage } from "../conversation-title";
 import { RETRY_PROMPT } from "../retry-prompt";
@@ -63,6 +64,8 @@ export type SendResult = {
   readonly projectId: string;
   /** Set when this send gave an untitled legacy thread its provisional title: the title job should run. */
   readonly titleText?: string;
+  /** False when another send with the same `requestId` won: nothing was admitted. */
+  readonly admitted: boolean;
 };
 
 export interface ConversationStore
@@ -241,19 +244,21 @@ export function createConversationStore(
         requestId: input.requestId,
         whenBusy,
       });
-      if (!admitted) return { projectId };
+      if (!admitted) return { projectId, admitted };
       let provisionalFor: string | undefined;
+      // A bang command titles from `ls`, but the stored entry keeps its verbatim `! ls` text.
+      const titleSource = stripBangPrefix(input.text);
       await updateLiveConversation(harness, conversationId, projectId, (meta, entry) => {
         if (meta.title === "") {
-          meta.title = titleFromFirstMessage(input.text);
-          provisionalFor = input.text.trim() === "" ? undefined : input.text;
+          meta.title = titleFromFirstMessage(titleSource);
+          provisionalFor = titleSource.trim() === "" ? undefined : titleSource;
         }
         entry.title = meta.title;
         entry.updatedAt = now;
         delete entry.archivedAt;
         return true;
       });
-      return { projectId, titleText: provisionalFor };
+      return { projectId, titleText: provisionalFor, admitted };
     },
 
     async retry(id, input, now) {
