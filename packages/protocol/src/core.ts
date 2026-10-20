@@ -11,6 +11,7 @@ import type {
   Change,
   ClaudeConnectorSettings,
   CompactInput,
+  CompactionSettings,
   ConfigureConversationInput,
   ConversationSummary,
   FileSuggestion,
@@ -58,6 +59,7 @@ import type { Op } from "./view";
 export type {
   Change,
   CompactInput,
+  CompactionSettings,
   ConfigureConversationInput,
   ConversationSummary,
   FileSuggestion,
@@ -139,6 +141,8 @@ export interface Core {
     setSetupSkipped(skipped: boolean): Promise<void>;
     /** Replaces the node's resource settings. Priority and memory apply to the next spawned command; slots apply at once. */
     setResources(value: ResourceSettings): Promise<void>;
+    /** Replaces the node's compaction preference. Enabling `fast` with no available backend rejects `invalid_request`. */
+    setCompaction(value: CompactionSettings): Promise<void>;
     /** What this node can enforce. Lazy: may probe the host. */
     resourceSupport(): Promise<ResourceSupport>;
     /** Heavy commands running or waiting, node-wide. */

@@ -64,6 +64,12 @@ export const ClaudeConnectorSettingsSchema = Type.Object({
 });
 export type ClaudeConnectorSettings = Type.Static<typeof ClaudeConnectorSettingsSchema>;
 
+export const CompactionSettingsSchema = Type.Object({
+  mode: Type.Union([Type.Literal("summary"), Type.Literal("fast")]),
+  backend: Type.Union([Type.Literal("auto"), Type.Literal("typesafe"), Type.Literal("openai")]),
+});
+export type CompactionSettings = Type.Static<typeof CompactionSettingsSchema>;
+
 export const SettingsSchema = Type.Object({
   defaultModel: Type.Union([ModelRefSchema, Type.Null()]),
   defaultThinkingLevel: Type.Union([ThinkingLevelSchema, Type.Null()]),
@@ -77,6 +83,8 @@ export const SettingsSchema = Type.Object({
   remote: RemoteSettingsSchema,
   /** Optional only so a web can read an older node (the response is validated): absent means "not supported there". A current node always sends it. */
   resources: Type.Optional(ResourceSettingsSchema),
+  /** Fast-compaction preference. Optional so an older node still validates; a current node always sends it. */
+  compaction: Type.Optional(CompactionSettingsSchema),
   /** "Use my other nodes": the user skipped first-run setup here because a peer can run threads. Server-side so a fresh browser does not see setup again. */
   setupSkipped: Type.Boolean(),
 });
@@ -89,6 +97,7 @@ export const ProviderIdSchema = Type.Union([
   Type.Literal("google"),
   Type.Literal("opencode"),
   Type.Literal("claude-cli"),
+  Type.Literal("typesafe"),
 ]);
 export type ProviderId = Type.Static<typeof ProviderIdSchema>;
 
@@ -160,6 +169,14 @@ export const ClaudeCliStatusSchema = Type.Object({
 });
 export type ClaudeCliStatus = Type.Static<typeof ClaudeCliStatusSchema>;
 
+export const DecisionsAvailabilitySchema = Type.Union([
+  Type.Literal("ready"),
+  Type.Literal("unavailable"),
+  Type.Literal("checking"),
+  Type.Literal("unknown"),
+]);
+export type DecisionsAvailability = Type.Static<typeof DecisionsAvailabilitySchema>;
+
 export const ProviderInfoSchema = Type.Object({
   id: ProviderIdSchema,
   name: Type.String(),
@@ -167,6 +184,7 @@ export const ProviderInfoSchema = Type.Object({
   keyUrl: Type.String(),
   connection: Type.Union([ProviderConnectionSchema, Type.Null()]),
   cli: Type.Union([ClaudeCliStatusSchema, Type.Null()]),
+  decisions: Type.Optional(DecisionsAvailabilitySchema),
 });
 export type ProviderInfo = Type.Static<typeof ProviderInfoSchema>;
 

@@ -128,6 +128,14 @@ export const commands: readonly CommandDef[] = [
     destructive: false,
   },
   {
+    command: "settings set-compaction",
+    route: "setCompaction",
+    summary: "Set the compaction preference: summary or fast with a backend (the body goes in --json)",
+    positionals: [],
+    json: true,
+    destructive: false,
+  },
+  {
     command: "settings resource-support",
     route: "getResourceSupport",
     summary: "Show what resource limits this node can enforce",

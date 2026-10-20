@@ -13,6 +13,7 @@ import { DeleteArchivedInputSchema, DeleteArchivedResultSchema } from "./archive
 import {
   ClaudeConnectorSettingsSchema,
   CompactInputSchema,
+  CompactionSettingsSchema,
   ConfigureConversationInputSchema,
   ConversationSummarySchema,
   FileSuggestionSchema,
@@ -281,6 +282,12 @@ export const routes = {
     path: `${API_PREFIX}/settings/resources`,
     status: 204,
     body: ResourceSettingsSchema,
+  },
+  setCompaction: {
+    method: "PUT",
+    path: `${API_PREFIX}/settings/compaction`,
+    status: 204,
+    body: CompactionSettingsSchema,
   },
   getResourceSupport: {
     method: "GET",
