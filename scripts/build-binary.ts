@@ -106,15 +106,15 @@ function compile(platform: Platform, version: string, out: string): void {
   const dist = join(cli, "dist");
   if (!existsSync(join(dist, "bin.js"))) fail("packages/cli/dist is missing: run `pnpm build` first");
   const args = [
-      "build",
-      "--compile",
-      `--target=bun-${platform}`,
-      "--define",
-      `TAU_VERSION=${JSON.stringify(version)}`,
-      join(dist, "bin.js"),
-      join(dist, "watchdog.js"),
-      "--outfile",
-      join(out, "tau"),
+    "build",
+    "--compile",
+    `--target=bun-${platform}`,
+    "--define",
+    `TAU_VERSION=${JSON.stringify(version)}`,
+    join(dist, "bin.js"),
+    join(dist, "watchdog.js"),
+    "--outfile",
+    join(out, "tau"),
     ];
   retry(() => execFileSync("bun", args, { stdio: "inherit" }));
 }
