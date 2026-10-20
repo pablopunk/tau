@@ -7,6 +7,9 @@ import * as text from "./update-text";
 /** How long the new server has to report `current === target` before the child swaps `current` back. */
 export const ROLLBACK_TIMEOUT_MS = 60_000;
 
+/** A service manager may bring the new server up a few seconds after the swap. */
+export const NOT_RUNNING_WAIT_MS = 30_000;
+
 interface RestartRequest {
   readonly target: string;
   readonly home: string;
@@ -39,7 +42,15 @@ export const restartCommandOf = (deps: UpdateDeps, forwarded: readonly string[])
 
 /** Restarts the managed server with the NEW binary and waits until `GET /api/update` reports the target. */
 export async function restartInNewBinary(deps: UpdateDeps, request: RestartRequest): Promise<RestartOutcome> {
-  const running = (await gatherStatus(deps, request.home)).running;
+  let running = (await gatherStatus(deps, request.home)).running;
+  if (running === false) {
+    const seen = await deps.pollRunningVersion(request.home, request.target, NOT_RUNNING_WAIT_MS);
+    if (seen === request.target) {
+      deps.out(`tau ${request.target} is running.`);
+      return notRestarted(0);
+    }
+    if (seen !== undefined) running = (await gatherStatus(deps, request.home)).running;
+  }
   if (running === "foreground") return note(deps, text.FOREGROUND_NOTE);
   if (running === false) return note(deps, text.NOT_RUNNING_NOTE);
   if (await isInsideServer(deps, request.home)) {
