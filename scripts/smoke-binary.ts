@@ -13,8 +13,7 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { parseArgs } from "node:util";
-import { promisify } from "node:util";
+import { parseArgs, promisify } from "node:util";
 
 const run = promisify(execFile);
 const root = resolve(import.meta.dirname, "..");
