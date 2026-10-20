@@ -130,7 +130,10 @@ test.describe("MVP4", () => {
 
   test("the theme survives a reload", async () => {
     await openSettings(page);
-    await page.getByRole("navigation", { name: "Settings sections" }).getByRole("button", { name: "General" }).click();
+    await page
+      .getByRole("navigation", { name: "Settings sections" })
+      .getByRole("button", { name: "General" })
+      .click();
     await page.getByRole("radio", { name: "Dark" }).click();
     await expect(page.locator("html")).toHaveClass(/dark/);
     await page.reload();
