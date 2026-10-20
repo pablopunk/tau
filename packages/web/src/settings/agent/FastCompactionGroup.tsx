@@ -21,7 +21,10 @@ const BACKENDS: readonly DecisionBackend[] = ["typesafe", "openai"];
 
 const FALLBACK_NAMES: Record<DecisionBackend, string> = { typesafe: "TypeSafe", openai: "OpenAI" };
 
-const backendOption = (value: CompactionSettings["backend"], label: string): SegmentedOption<CompactionSettings["backend"]> => ({
+const backendOption = (
+  value: CompactionSettings["backend"],
+  label: string,
+): SegmentedOption<CompactionSettings["backend"]> => ({
   value,
   label,
   icon: <span className="px-1">{label}</span>,
@@ -74,7 +77,9 @@ export function FastCompactionGroup() {
       aria-label={FAST_COMPACTION_LABEL}
       checked={on}
       disabled={controlsDisabled}
-      onCheckedChange={(checked) => !controlsDisabled && update({ ...value, mode: checked ? "fast" : "summary" })}
+      onCheckedChange={(checked) =>
+        !controlsDisabled && update({ ...value, mode: checked ? "fast" : "summary" })
+      }
     />
   );
 
@@ -94,7 +99,9 @@ export function FastCompactionGroup() {
             toggle
           )}
         </div>
-        <FieldDescription>{available ? FAST_COMPACTION_BLURB : FAST_COMPACTION_CONNECT_HINT}</FieldDescription>
+        <FieldDescription>
+          {available ? FAST_COMPACTION_BLURB : FAST_COMPACTION_CONNECT_HINT}
+        </FieldDescription>
         <div className="flex items-center justify-between gap-3">
           <FieldLabel>{FAST_COMPACTION_BACKEND_LABEL}</FieldLabel>
           <div className={locked ? "pointer-events-none opacity-50" : undefined}>
@@ -107,11 +114,11 @@ export function FastCompactionGroup() {
           </div>
         </div>
         <FieldDescription>
-          {BACKENDS.map((id) => `${infos.get(id)?.name ?? FALLBACK_NAMES[id]}: ${statusOf(infos.get(id))}`).join(" · ")}
+          {BACKENDS.map(
+            (id) => `${infos.get(id)?.name ?? FALLBACK_NAMES[id]}: ${statusOf(infos.get(id))}`,
+          ).join(" · ")}
         </FieldDescription>
-        {offlineWhileOn && (
-          <FieldDescription role="status">{FAST_COMPACTION_OFFLINE_NOTE}</FieldDescription>
-        )}
+        {offlineWhileOn && <FieldDescription role="status">{FAST_COMPACTION_OFFLINE_NOTE}</FieldDescription>}
         <FormError message={save.error ? errorMessage(save.error) : null} />
       </Field>
     </SettingRow>

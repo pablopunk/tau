@@ -8,10 +8,7 @@ import { createApi } from "@/lib/api";
 import { createFakeTransport } from "@/lib/transport/fake";
 import { NodeApiProvider } from "@/nodes/node-context";
 import { FastCompactionGroup } from "./FastCompactionGroup";
-import {
-  FAST_COMPACTION_CONNECT_HINT,
-  FAST_COMPACTION_OFFLINE_NOTE,
-} from "./fast-compaction-text";
+import { FAST_COMPACTION_CONNECT_HINT, FAST_COMPACTION_OFFLINE_NOTE } from "./fast-compaction-text";
 
 const mocks = vi.hoisted(() => ({
   api: null as unknown,
@@ -85,7 +82,9 @@ describe("<FastCompactionGroup>", () => {
     expect(toggle).not.toBeDisabled();
     expect(screen.getByText("TypeSafe: Ready · OpenAI: Not connected")).toBeTruthy();
     await user.click(toggle);
-    await waitFor(async () => expect((await core.settings.get()).compaction).toEqual({ mode: "fast", backend: "auto" }));
+    await waitFor(async () =>
+      expect((await core.settings.get()).compaction).toEqual({ mode: "fast", backend: "auto" }),
+    );
     expect(toggle.getAttribute("aria-checked")).toBe("true");
   });
 
