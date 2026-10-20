@@ -1,4 +1,4 @@
-import { createServer, type Server, type Socket } from "node:net";
+import { connect, createServer, type Server, type Socket } from "node:net";
 import type { FastifyInstance } from "fastify";
 import { parseProxyV2 } from "./proxy-v2";
 import type { TunnelTagWriter } from "./tunnel-tags";
@@ -20,7 +20,16 @@ export interface TunnelListener {
   close(): Promise<void>;
 }
 
-/** Tag first, then hand the socket to the HTTP server: unshift the rest, emit `connection`, resume. */
+const listeningPort = (app: FastifyInstance): number | undefined => {
+  const address = app.server.address();
+  return typeof address === "object" && address ? address.port : undefined;
+};
+
+/**
+ * Forwards the visitor over a new loopback connection to the HTTP server, tagged by its source port before any byte
+ * goes through. Not `server.emit("connection", socket)`: under Bun a WebSocket upgrade on a socket handed over that
+ * way never completes (node links and /api/live hung behind the tunnel).
+ */
 function admit(
   options: TunnelListenerOptions,
   socket: Socket,
@@ -28,10 +37,26 @@ function admit(
   sni: string,
   rest: Buffer,
 ): void {
-  options.tags.tag(socket, { peer, sni });
-  if (rest.length > 0) socket.unshift(rest);
-  options.app.server.emit("connection", socket);
-  socket.resume();
+  const port = listeningPort(options.app);
+  if (port === undefined) return void socket.destroy();
+  const upstream = connect({ port, host: "127.0.0.1" });
+  let untag = () => {};
+  const end = () => {
+    untag();
+    socket.destroy();
+    upstream.destroy();
+  };
+  upstream.once("connect", () => {
+    if (upstream.localPort === undefined) return end();
+    untag = options.tags.tagLoopbackPort(upstream.localPort, { peer, sni });
+    if (rest.length > 0) upstream.write(rest);
+    socket.pipe(upstream);
+    upstream.pipe(socket);
+    socket.resume();
+  });
+  upstream.on("error", end);
+  upstream.on("close", end);
+  socket.on("close", end);
 }
 
 function handleConnection(options: TunnelListenerOptions, socket: Socket): void {
