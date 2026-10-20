@@ -18,6 +18,9 @@ import type { SettingsStore } from "../home/settings-store";
 import { createFauxSetup } from "../testing/faux-provider";
 import { loadFauxReplies } from "../testing/faux-replies";
 import { createConnectionReader } from "./connections";
+import { createDecisionsStatus } from "./decisions-status";
+import { createOpenaiClient } from "../decisions/openai";
+import { createTypesafeClient } from "../decisions/typesafe";
 import { createLoginSessions, type LoginSessions } from "./login-sessions";
 import { createModelLister } from "./model-list";
 import {
@@ -141,6 +144,21 @@ export function createProviderService(options: ProviderServiceOptions): Provider
     return connections.read(entry);
   }
 
+  const decisions = createDecisionsStatus({
+    check: (id) => {
+      // Faux nodes never touch the network; status stays unknown there.
+      if (options.faux) return Promise.resolve("unknown" as const);
+      if (id === "typesafe") {
+        return createTypesafeClient({
+          readCredential: () => connections.keyOf(requireKeyProvider("typesafe")),
+          env: options.env,
+        }).check();
+      }
+      return createOpenaiClient({ getAuth: (providerId) => models.getAuth(providerId) }).check();
+    },
+    onRefreshed: () => options.changes.emit({ resource: "providers" }),
+  });
+
   const infoOf = async (entry: ProviderEntry): Promise<ProviderInfo> => ({
     id: entry.id,
     name: entry.name,
@@ -148,6 +166,9 @@ export function createProviderService(options: ProviderServiceOptions): Provider
     keyUrl: entry.keyUrl,
     connection: await readAfterFirstCheck(entry),
     cli: entry.kind === "cli" ? claudeCli.status() : null,
+    ...(decisions.decisionsFor(entry.id) === undefined
+      ? {}
+      : { decisions: decisions.decisionsFor(entry.id) }),
   });
 
   async function validated(entry: KeyProviderEntry, key: string): Promise<boolean | null> {

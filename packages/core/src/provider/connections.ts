@@ -10,6 +10,8 @@ export type Connection = ProviderInfo["connection"];
 export interface ConnectionReader {
   /** The stored credential first; only without one, the environment key. Faux mode ignores the environment. */
   read(entry: ProviderEntry): Promise<Connection>;
+  /** Raw key for a key provider, stored first then env; `undefined` in faux mode without a stored key. */
+  keyOf(entry: KeyProviderEntry): Promise<string | undefined>;
   /** The saved key could not be checked (offline); reported as `valid: null` until the process restarts. */
   markUnchecked(entry: ProviderEntry): void;
   markChecked(entry: ProviderEntry): void;
@@ -57,6 +59,12 @@ export function createConnectionReader(deps: {
   }
 
   return {
+    async keyOf(entry) {
+      const stored = await deps.credentials.read(primaryPiId(entry));
+      if (stored?.type === "api_key" && stored.key) return stored.key;
+      if (deps.faux) return undefined;
+      return readEnvKey(entry);
+    },
     async read(entry) {
       if (entry.kind === "cli") return readCliConnection();
       const stored = await deps.credentials.read(primaryPiId(entry));

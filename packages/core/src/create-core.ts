@@ -18,6 +18,7 @@ import { createApprovalsApi } from "./approvals-api";
 import { createArchivedCleanup } from "./archived-cleanup";
 import { createChangeEmitter } from "./change-emitter";
 import { createCheckpointService } from "./checkpoints/checkpoint-service";
+import { FileCredentialStore } from "./auth/file-credential-store";
 import { createConnectorToolServices } from "./claude-cli/connectors/connector-tool-services";
 import { writeTauShim } from "./cli-shim/write-shim";
 import { createConversationRecovery } from "./conversation-recovery";
@@ -33,6 +34,7 @@ import { createGoalsApi } from "./goals-api";
 import { createConnectorOffering } from "./harness/connector-offering";
 import { resyncWhenConnectorsChange } from "./harness/connector-resync";
 import { createConversationForker } from "./harness/conversation-fork";
+import { makeFastCompactionExtension } from "./harness/fast-compaction";
 import { type ConversationOfSession, createConversationOfSession } from "./harness/conversation-of-session";
 import { createConversationStore } from "./harness/conversation-store";
 import { createLiveWork } from "./harness/live-work";
@@ -160,8 +162,13 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
     });
     const status = createStatusTracker({ changes, now: deps.now });
     const toolServices = createToolServicesRef();
+    const fastCompaction = makeFastCompactionExtension({
+      settingsStore: settings,
+      credentials: new FileCredentialStore(home.credentialsFile),
+      env: deps.env,
+    });
     const harness = await openAgentHarness({
-      registry: createAgentRegistry(toolServices, undefined, home.root),
+      registry: createAgentRegistry(toolServices, undefined, home.root, [fastCompaction]),
       storage: await openSqliteStorage(home.agentDatabase),
       models: provider.models,
       onReport: (error) => console.error("tau: agent report", error),
