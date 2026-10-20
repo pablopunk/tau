@@ -1,0 +1,15 @@
+version: 2
+updates:
+  # @earendil-works/* move in lockstep with pi releases and carry our model
+  # catalogs: a stale pi-ai means retired model ids (410 ModelDeprecated).
+  # Weekly grouped bump, verified by CI like any other PR.
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    groups:
+      earendil:
+        patterns:
+          - "@earendil-works/*"
+    commit-message:
+      prefix: "chore"

@@ -1,5 +1,14 @@
 packages:
   - packages/*
   - e2e
+# @earendil-works/* releases move in lockstep: one version here, `catalog:` in each package.json.
+# Dependabot bumps this weekly (see .github/dependabot.yml) so we never lag pi-ai.
+catalog:
+  "@earendil-works/chord": 1.3.0
+  "@earendil-works/pi-ai": 1.3.0
+  "@earendil-works/pi-coding-agent": 1.3.0
+  "@earendil-works/pi-durable": 1.3.0
+  "@earendil-works/pi-env": 1.3.0
+  "@earendil-works/pi-tui": 1.3.0
 allowBuilds:
   esbuild: true
