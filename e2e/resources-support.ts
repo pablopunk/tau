@@ -161,7 +161,7 @@ export async function startResourceServer(options: {
         text: prompt,
         requestId: `r-${counter++}-${Date.now()}`,
       };
-      if (startOptions?.mode) data.workspace = { mode: startOptions.mode };
+      if (startOptions?.mode) data.workspace = startOptions.mode;
       const response = await api.post("/api/conversations", { data });
       if (!response.ok()) throw new Error(`start ${response.status()} ${await response.text()}`);
       return ((await response.json()) as { id: string }).id;

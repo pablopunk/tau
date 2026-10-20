@@ -37,3 +37,13 @@ Tool output is read over the live WebSocket (`toolOutputs()` in `e2e/resources-s
 ### Bug: RSS false kill (fixed, see section 6)
 The sampler summed `ps rss`, which counts shared pages once per process. Fixed by confirming with macOS `footprint` before any signal
 (`governor/footprint.ts`, `memory-watch.ts`; unit tests in `memory-watch.test.ts`).
+
+## 3. Subagent classification and other tools — PROVEN
+
+`e2e/tests/resources-classify.spec.ts` (real `agent` tool in a scripted parent, `heavySlots: 1`, activity polled every 150 ms):
+- Only Subagents ticked: parent runs `cargo test --parent-marker …; sleep 9` and starts two subagents running heavy commands. Activity only ever lists the two
+  children (peak 1 holder + 1 waiting); the parent command never appears and its tool output has no "Waiting for a free slot".
+- Only Main ticked (thread started in `checkout`): the parent's command is the holder; subagent commands never appear.
+- Only Worktrees ticked: a `checkout` thread is never listed; a `worktree` thread is the holder.
+- `process_start` + `monitor` with priority background, 1 slot, memory 200 MB, all boxes ticked, next to a bash holder: both `ps -o pri` print `4`
+  (background band), both are killed by the 600 MB hog (state `killed`), none is ever queued or listed in activity although the process_start command matches the heavy matcher.
