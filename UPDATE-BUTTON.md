@@ -190,3 +190,9 @@ None. macOS default is decided (detached spawn, `launchctl submit` only if verif
 **Still unverified**
 - The real systemd (`systemd-run` transient unit surviving `systemctl --user restart`) and launchd (`kickstart -k` and `bootout`/`bootstrap`) restart-survival runs. `BACKEND_VERIFIED` stays `{ systemd: false, launchd: false, detached: true }`, so those services show the copy command. `LAUNCHD_USE_SUBMIT` stays false; stale `tau-update-*` label cleanup is not implemented.
 - The real registry availability check (`TAU_FAKE_LATEST` bypasses it); a real `npm i -g`.
+
+## Verification (2026-10-20)
+
+- **systemd** (vibemachine, systemd 257, Debian 13): a `systemd-run --user --collect` child with the plan's argv ran `tau restart` and kept running after the service restarted (new pid, `running (service)`). `TAU_UPDATE_JOB` reached the child through `--setenv` without a value.
+- **launchd** (the Mac): a detached (setsid) child survived `kickstart -k` and a bootout/bootstrap reload. The test found a real bug: `bootout` returns before launchd removes the job, so an immediate `bootstrap` failed ("the job could not be loaded") and tau stayed down. That was also the "bootstrap failed" seen by bare `tau` on the Mac. Fix: `bootout` waits until `launchctl print` no longer finds the job (up to 10 s), and `bootstrap` retries 5 times. Rechecked on a scratch label: 5 reloads with a changed PATH in a row, all back as a service.
+- `BACKEND_VERIFIED` is now true for systemd and launchd. The launchd `submit` fallback stays off.

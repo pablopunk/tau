@@ -21,6 +21,25 @@ describe("macOS (launchd)", () => {
     expect(readFileSync(plistOf(node.osHome), "utf8")).toContain("<key>KeepAlive</key>");
   });
 
+  it("waits for bootout to finish and retries a refused bootstrap (launchd tears jobs down async)", async () => {
+    let printsLeft = 3;
+    let refusals = 1;
+    const node = createTestNode({}, (line) => {
+      if (line === "launchctl print gui/501/dev.tau.server")
+        return printsLeft-- > 0 ? { code: 0 } : { code: 113, stderr: "not found" };
+      if (line.startsWith("launchctl bootstrap gui/501") && refusals-- > 0)
+        return { code: 5, stderr: "Input/output error" };
+      return undefined;
+    });
+    const warnings = await createServiceManager(node.context, CLI, node.tauHome).install();
+    expect(warnings.join(" ")).not.toContain("detached");
+    const calls = node.runner.calls;
+    const lastPrint = calls.lastIndexOf("launchctl print gui/501/dev.tau.server");
+    expect(lastPrint).toBeGreaterThan(calls.indexOf("launchctl bootout gui/501/dev.tau.server"));
+    expect(calls.findIndex((line) => line.startsWith("launchctl bootstrap"))).toBeGreaterThan(lastPrint);
+    expect(node.runner.detached).toEqual([]);
+  });
+
   it("uses user/<uid> when there is no GUI session", async () => {
     const node = createTestNode({}, (line) =>
       line.includes(" gui/501") ? { code: 1, stderr: "no gui" } : undefined,

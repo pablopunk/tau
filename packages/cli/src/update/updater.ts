@@ -15,7 +15,9 @@ import { spawnUpdateChild } from "./spawn-child";
  * (UPDATE-BUTTON.md section 5). Flip a value only in the commit that records the passing run.
  * The detached backend and foreground runs have no supervisor, so they are `run` from the start.
  */
-export const BACKEND_VERIFIED = { systemd: false, launchd: false, detached: true } as const;
+// Verified 2026-10-20: systemd 257 on Debian 13 (systemd-run child survived `systemctl --user restart`); launchd on
+// macOS (detached child survived kickstart -k and bootout/bootstrap; bootstrap now waits for bootout).
+export const BACKEND_VERIFIED = { systemd: true, launchd: true, detached: true } as const;
 
 /** `--collect` of systemd-run needs systemd 236. */
 export const MIN_SYSTEMD_VERSION = 236;

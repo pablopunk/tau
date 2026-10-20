@@ -144,7 +144,7 @@ describe("start, stop, restart, open", () => {
     const { node, deps, output } = setup({ instance: RUNNING });
     await createServiceManager(node.context, CLI, node.tauHome).install();
     await runStopWith(deps, []);
-    expect(node.runner.calls.at(-1)).toBe("launchctl bootout gui/501/dev.tau.server");
+    expect(node.runner.calls).toContain("launchctl bootout gui/501/dev.tau.server");
     expect(output.at(-1)).toBe("tau stopped.");
   });
 

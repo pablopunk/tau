@@ -85,23 +85,29 @@ describe("updater.plan", () => {
     expect((await setup({ entry: mise })).updater.plan("1.1.0").mode).toBe("run");
   });
 
-  it("is manual on an unverified launchd service, with the latest command", async () => {
+  it("runs on a verified launchd service", async () => {
     const { updater } = await setup({ installService: true });
-    expect(updater.plan("1.1.0")).toMatchObject({
-      mode: "manual",
-      command: "npm i -g @pablopunk/tau@latest && tau restart",
-    });
+    expect(updater.plan("1.1.0").mode).toBe("run");
     const pnpm = await setup({ installService: true, entry: PNPM_ENTRY });
-    expect(pnpm.updater.plan("1.1.0").command).toBe("pnpm add -g @pablopunk/tau@latest && tau restart");
+    expect(pnpm.updater.plan("1.1.0").mode).toBe("run");
   });
 
-  it("is manual on an unverified systemd service and probes systemctl once", async () => {
+  it("is manual on systemd older than 236 (no --collect)", async () => {
+    const { updater } = await setup({
+      platform: "linux",
+      installService: true,
+      respond: (line) => (line === "systemctl --version" ? { stdout: "systemd 235 (235)\n" } : undefined),
+    });
+    expect(updater.plan("1.1.0").mode).toBe("manual");
+  });
+
+  it("runs on a verified systemd service and probes systemctl once", async () => {
     const { updater, seen } = await setup({
       platform: "linux",
       installService: true,
       respond: (line) => (line === "systemctl --version" ? { stdout: "systemd 255 (255)\n" } : undefined),
     });
-    expect(updater.plan("1.1.0").mode).toBe("manual");
+    expect(updater.plan("1.1.0").mode).toBe("run");
     updater.plan("1.1.0");
     expect(seen.runs.filter((r) => r.command === "systemctl" && r.args[0] === "--version")).toHaveLength(1);
   });
