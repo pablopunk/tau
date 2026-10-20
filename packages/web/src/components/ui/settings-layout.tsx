@@ -108,7 +108,7 @@ function DesktopSettings({ sections, active, onActiveChange, title, search, resu
         <SidebarContent>
           {search}
           <SidebarGroup className="p-0">
-            {nav ?? <SectionNav sections={sections} active={active} onPick={onActiveChange} />}
+            {nav ? <nav aria-label="Settings sections">{nav}</nav> : <SectionNav sections={sections} active={active} onPick={onActiveChange} />}
           </SidebarGroup>
         </SidebarContent>
       </Sidebar>
@@ -148,7 +148,7 @@ function MobileSettings({ sections, active, onActiveChange, title, search, resul
           {results ? (
             <SectionScroller>{results}</SectionScroller>
           ) : (
-            <div className="p-2">{nav ?? <SectionNav sections={sections} active={active} onPick={pick} />}</div>
+            <div className="p-2">{nav ? <nav aria-label="Settings sections">{nav}</nav> : <SectionNav sections={sections} active={active} onPick={pick} />}</div>
           )}
         </>
       )}

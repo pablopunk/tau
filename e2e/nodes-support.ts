@@ -108,7 +108,10 @@ export const nodeDevices = async (server: RestartableServer) =>
 export async function openNodesPage(page: Page) {
   await page.getByRole("button", { name: "Settings" }).click();
   const settings = page.getByRole("dialog", { name: "Settings" });
-  await settings.getByRole("navigation", { name: "Settings sections" }).getByText("Nodes").click();
+  await settings
+    .getByRole("navigation", { name: "Settings sections" })
+    .getByRole("button", { name: "Nodes", exact: true })
+    .click();
   return settings;
 }
 
