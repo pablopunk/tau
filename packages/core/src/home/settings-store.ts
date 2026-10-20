@@ -1,14 +1,20 @@
 import {
   type ClaudeConnectorSettings,
   ClaudeConnectorSettingsSchema,
+  DEFAULT_RESOURCE_SETTINGS,
+  HEAVY_SLOTS_MAX,
+  HEAVY_SLOTS_MIN,
   type McpServerConfig,
   McpServerConfigSchema,
+  MEMORY_LIMIT_MIN_MB,
   type MessageMode,
   MessageModeSchema,
   type ModelRef,
   ModelRefSchema,
   type RemoteSettings,
   RemoteSettingsSchema,
+  ResourcePrioritySchema,
+  type ResourceSettings,
   type Settings,
   type ThinkingLevel,
   ThinkingLevelSchema,
@@ -35,6 +41,7 @@ type StoredSettings = {
   lastWorkspaceModes?: Record<string, WorkspaceMode>;
   mcpServers?: McpServerConfig[];
   remote?: RemoteSettings;
+  resources?: ResourceSettings;
   setupSkipped?: boolean;
 };
 
@@ -101,6 +108,38 @@ const validClaudeConnectors = (value: unknown): ClaudeConnectorSettings | undefi
     : undefined;
 };
 
+const validSlots = (value: unknown): number | null =>
+  Number.isInteger(value) && (value as number) >= HEAVY_SLOTS_MIN && (value as number) <= HEAVY_SLOTS_MAX
+    ? (value as number)
+    : null;
+
+const validMemoryMb = (value: unknown): number | null =>
+  Number.isInteger(value) && (value as number) >= MEMORY_LIMIT_MIN_MB ? (value as number) : null;
+
+const validAppliesTo = (value: unknown): ResourceSettings["appliesTo"] => {
+  const raw = typeof value === "object" && value !== null ? (value as Record<string, unknown>) : {};
+  const defaults = DEFAULT_RESOURCE_SETTINGS.appliesTo;
+  const flag = (key: keyof typeof defaults) => (typeof raw[key] === "boolean" ? raw[key] : defaults[key]);
+  return { main: flag("main"), worktrees: flag("worktrees"), subagents: flag("subagents") };
+};
+
+/** Each field on its own: a missing or invalid one falls back to its default (Off). */
+export function parseResourceSettings(value: unknown): ResourceSettings | undefined {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return undefined;
+  const raw = value as Record<string, unknown>;
+  return {
+    priority: Value.Check(ResourcePrioritySchema, raw.priority) ? raw.priority : "off",
+    heavySlots: validSlots(raw.heavySlots),
+    memoryLimitMb: validMemoryMb(raw.memoryLimitMb),
+    appliesTo: validAppliesTo(raw.appliesTo),
+  };
+}
+
+const copyResources = (value: ResourceSettings): ResourceSettings => ({
+  ...value,
+  appliesTo: { ...value.appliesTo },
+});
+
 const validMcpServers = (value: unknown): McpServerConfig[] =>
   Array.isArray(value)
     ? value.filter((item): item is McpServerConfig => Value.Check(McpServerConfigSchema, item))
@@ -131,6 +170,8 @@ function parseStored(text: string | undefined): StoredSettings {
     stored.lastWorkspaceModes = validLastWorkspaceModes(raw.lastWorkspaceModes);
   if (Value.Check(RemoteSettingsSchema, raw.remote)) stored.remote = { enabled: raw.remote.enabled };
   if (raw.mcpServers !== undefined) stored.mcpServers = validMcpServers(raw.mcpServers);
+  const resources = parseResourceSettings(raw.resources);
+  if (resources) stored.resources = resources;
   if (raw.setupSkipped === true) stored.setupSkipped = true;
   return stored;
 }
@@ -146,6 +187,7 @@ const withDefaults = (stored: StoredSettings, defaultProjectsFolder: string): Se
   claudeCliNoticeAt: stored.claudeCliNoticeAt ?? null,
   claudeConnectors: stored.claudeConnectors ?? { disabled: [], alwaysAllow: [], askBeforeWrites: false },
   remote: stored.remote ?? { enabled: false },
+  resources: stored.resources ? copyResources(stored.resources) : copyResources(DEFAULT_RESOURCE_SETTINGS),
   setupSkipped: stored.setupSkipped ?? false,
 });
 
@@ -164,6 +206,8 @@ export interface SettingsStore {
   setClaudeCliNoticeAt(at: number): Promise<void>;
   setSetupSkipped(skipped: boolean): Promise<void>;
   setClaudeConnectors(value: ClaudeConnectorSettings): Promise<void>;
+  /** The caller has already validated the value. */
+  setResources(value: ResourceSettings): Promise<void>;
   setRemoteEnabled(enabled: boolean): Promise<void>;
   lastWorkspaceMode(projectId: string): Promise<WorkspaceMode | undefined>;
   setLastWorkspaceMode(projectId: string, mode: WorkspaceMode): Promise<void>;
@@ -217,6 +261,7 @@ export function createSettingsStore(settingsFile: string, defaultProjectsFolder:
         ...stored,
         claudeConnectors: copyConnectorSettings(value),
       })),
+    setResources: (value) => update((stored) => ({ ...stored, resources: copyResources(value) })),
     setRemoteEnabled: (enabled) => update((stored) => ({ ...stored, remote: { enabled } })),
     lastWorkspaceMode: async (projectId) => (await readStored()).lastWorkspaceModes?.[projectId],
     setLastWorkspaceMode: (projectId, mode) =>

@@ -1,12 +1,30 @@
 import { mkdir } from "node:fs/promises";
 import { isAbsolute } from "node:path";
 import { clampThinkingLevel } from "@earendil-works/pi-ai/models";
-import { AppError, type Core, type ModelRef, type ThinkingLevel } from "@tau/protocol";
+import {
+  AppError,
+  type Core,
+  type ModelRef,
+  type ResourceSettings,
+  ResourceSettingsSchema,
+  type ResourceSupport,
+  type ThinkingLevel,
+} from "@tau/protocol";
+import { Value } from "typebox/value";
 import { expandHome } from "./fs/expand-home";
 import { type CodeFolderDeps, suggestCodeFolder } from "./github/code-folder";
 import type { SettingsStore } from "./home/settings-store";
 import type { ProviderService } from "./provider/provider-service";
 import { resolveProjectFolder } from "./resolve-project-folder";
+
+/** Stub until the governor probes the host. */
+const UNSUPPORTED_RESOURCES: ResourceSupport = {
+  platform: "other",
+  memoryEnforcement: "none",
+  prioritySupported: false,
+  sameCgroupOnly: false,
+  note: "Resource control is not available yet.",
+};
 
 const NOT_A_FOLDER = new AppError("not_a_directory", "This path is not a folder.");
 
@@ -25,8 +43,17 @@ export function createSettingsApi(deps: {
   codeFolder: CodeFolderDeps;
   onProjectsFolderChanged: () => void;
   onClaudeConnectorsChanged?: () => Promise<void>;
+  /** Receives the stored value after `setResources`; the core wires it to the governor. */
+  onResourcesChanged?: (value: ResourceSettings) => void;
 }): Core["settings"] {
-  const { settings, provider, codeFolder, onProjectsFolderChanged, onClaudeConnectorsChanged } = deps;
+  const {
+    settings,
+    provider,
+    codeFolder,
+    onProjectsFolderChanged,
+    onClaudeConnectorsChanged,
+    onResourcesChanged,
+  } = deps;
   const requireListedModel = async (ref: ModelRef) => {
     if (!(await provider.isConfigured())) throw new AppError("no_provider", "Connect a provider first.");
     if (!(await provider.lists(ref))) {
@@ -46,6 +73,21 @@ export function createSettingsApi(deps: {
     async setClaudeConnectors(value) {
       await settings.setClaudeConnectors(value);
       await onClaudeConnectorsChanged?.();
+    },
+    async setResources(value) {
+      if (!Value.Check(ResourceSettingsSchema, value)) {
+        throw new AppError(
+          "invalid_request",
+          "Heavy slots must be 1 to 64 and the memory limit at least 64 MB.",
+        );
+      }
+      await settings.setResources(value);
+      onResourcesChanged?.(value);
+    },
+    resourceSupport: async () => UNSUPPORTED_RESOURCES,
+    resourceActivity: async () => ({ holders: [], waiting: [] }),
+    async stopResourceCommand(entryId) {
+      throw new AppError("not_found", `No resource command ${entryId}`);
     },
     async setDefaultModel(ref) {
       await requireListedModel(ref);
