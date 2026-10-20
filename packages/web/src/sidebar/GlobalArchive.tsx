@@ -101,9 +101,7 @@ function DeleteAllConfirm({ onClose }: { onClose: () => void }) {
     } finally {
       setPending(false);
       onClose();
-      const remoteIds = withArchived
-        .map(({ node }) => node.nodeId)
-        .filter((id) => id !== undefined);
+      const remoteIds = withArchived.map(({ node }) => node.nodeId).filter((id) => id !== undefined);
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["conversations"] }),
         queryClient.invalidateQueries({ queryKey: queryKeys.projects }),
