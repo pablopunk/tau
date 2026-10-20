@@ -131,7 +131,7 @@ test.describe("resource control in the browser", () => {
     await page.getByRole("button", { name: "Settings" }).click();
     const dialog = page.getByRole("dialog", { name: "Settings" });
     await dialog.getByRole("navigation", { name: "Settings sections" }).getByText("Agent").click();
-    await dialog.getByRole("button", { name: "Resource control" }).click();
+    await dialog.getByRole("switch", { name: "Resource control" }).click();
     for (const name of ["Main threads power", "Worktree threads power", "Subagents power"]) {
       await expect(dialog.getByRole("group", { name })).toBeVisible();
     }

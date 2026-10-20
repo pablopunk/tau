@@ -34,8 +34,8 @@ function setup(resources: unknown = DEFAULT_RESOURCE_SETTINGS) {
 
 const group = async (name: string) => within(await screen.findByRole("group", { name: name }));
 
-async function expand() {
-  await userEvent.click(await screen.findByRole("button", { name: "Resource control" }));
+async function turnOn() {
+  await userEvent.click(await screen.findByRole("switch", { name: "Resource control" }));
 }
 
 beforeEach(() => {
@@ -46,7 +46,7 @@ beforeEach(() => {
 describe("<ResourcesGroup>", () => {
   it("renders one power row per scope", async () => {
     setup();
-    await expand();
+    await turnOn();
     for (const name of ["Main threads power", "Worktree threads power", "Subagents power"]) {
       expect(await screen.findByRole("group", { name })).toBeInTheDocument();
     }
@@ -55,9 +55,20 @@ describe("<ResourcesGroup>", () => {
     }
   });
 
-  it("saves a scope's level", async () => {
+  it("toggles on with subagents balanced, off again to all off", async () => {
     setup();
-    await expand();
+    await turnOn();
+    expect(mocks.setResources).toHaveBeenCalledWith({
+      ...DEFAULT_RESOURCE_SETTINGS,
+      levels: { main: "off", worktree: "off", subagent: "balanced" },
+    });
+  });
+
+  it("saves a scope's level", async () => {
+    setup({
+      ...DEFAULT_RESOURCE_SETTINGS,
+      levels: { main: "off", worktree: "off", subagent: "balanced" },
+    });
     await userEvent.click((await group("Subagents power")).getByRole("radio", { name: "Background" }));
     expect(mocks.setResources).toHaveBeenCalledWith({
       ...DEFAULT_RESOURCE_SETTINGS,
@@ -71,7 +82,6 @@ describe("<ResourcesGroup>", () => {
       ...DEFAULT_RESOURCE_SETTINGS,
       levels: { main: "balanced", worktree: "off", subagent: "background" },
     });
-    await expand();
     expect((await group("Main threads power")).getByRole("radio", { name: "Balanced" })).toHaveAttribute(
       "aria-pressed",
       "true",
