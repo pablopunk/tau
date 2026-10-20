@@ -5,7 +5,7 @@ import { type CommandEnv, processEnv } from "./command-env";
 import { helpText } from "./help";
 import { NODE_GROUP_COMMANDS, runNodeGroupCommand } from "./node-group-commands";
 import { assertNotOwnLineage, GUARDED_COMMANDS } from "./own-thread";
-import { findCommand, type ParsedCommand, parseCommand } from "./parse";
+import { findCommandIn, type ParsedCommand, parseCommand } from "./parse";
 import { EXTRA_THREAD_VERBS, runThreadExtra } from "./thread-extras";
 import { runEndedAtOf, waitForThread } from "./wait";
 
@@ -48,9 +48,10 @@ export async function executeApiCommand(
   if (verb === undefined || wantsHelp(argv)) return env.stdout(helpText(noun, verb));
   if (noun === "threads" && EXTRA_THREAD_VERBS.includes(verb))
     return runThreadExtra(verb, argv.slice(1), env);
-  const def = findCommand(noun, verb);
-  if (NODE_GROUP_COMMANDS.includes(def.command)) return runNodeGroupCommand(def.command, argv.slice(1), env);
-  const parsed = parseCommand(def, argv.slice(1));
+  const { def, words } = findCommandIn(noun, argv);
+  if (NODE_GROUP_COMMANDS.includes(def.command))
+    return runNodeGroupCommand(def.command, argv.slice(words), env);
+  const parsed = parseCommand(def, argv.slice(words));
   if (parsed.def.destructive && !parsed.yes) {
     throw usageError(`tau ${parsed.def.command} is destructive. Add --yes to confirm.`);
   }

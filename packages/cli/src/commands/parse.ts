@@ -200,6 +200,14 @@ export function usageOf(def: CommandDef): string {
   return def.positionals.map((path) => `<${path === "body" ? "model" : path.split(".").pop()}>`).join(" ");
 }
 
+/** The command and how many argv words it used: `noun verb` or, for a group like `providers claude-cli refresh`, three. */
+export function findCommandIn(noun: string, argv: readonly string[]): { def: CommandDef; words: number } {
+  const [verb, sub] = argv;
+  const three = verb !== undefined && sub !== undefined ? commandOf(`${noun} ${verb} ${sub}`) : undefined;
+  if (three) return { def: three, words: 2 };
+  return { def: findCommand(noun, verb), words: 1 };
+}
+
 export function findCommand(noun: string, verb: string | undefined): CommandDef {
   const def = verb === undefined ? undefined : commandOf(`${noun} ${verb}`);
   if (def) return def;

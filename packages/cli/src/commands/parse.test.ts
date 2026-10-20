@@ -1,6 +1,6 @@
 import { commandOf } from "@tau/protocol";
 import { describe, expect, it } from "vitest";
-import { parseCommand } from "./parse";
+import { findCommandIn, parseCommand } from "./parse";
 
 const parse = (command: string, ...argv: string[]) => {
   const def = commandOf(command);
@@ -102,6 +102,22 @@ describe("parseCommand", () => {
   it("treats everything after -- as positionals", () => {
     expect(parse("threads send", "t1", "--", "--not-a-flag").input.body).toMatchObject({
       text: "--not-a-flag",
+    });
+  });
+});
+
+describe("findCommandIn", () => {
+  it("finds a three-word command such as providers claude-cli refresh", () => {
+    expect(findCommandIn("providers", ["claude-cli", "refresh"])).toMatchObject({
+      def: { command: "providers claude-cli refresh" },
+      words: 2,
+    });
+  });
+
+  it("keeps two-word commands and their first positional", () => {
+    expect(findCommandIn("threads", ["list", "p1"])).toMatchObject({
+      def: { command: "threads list" },
+      words: 1,
     });
   });
 });
