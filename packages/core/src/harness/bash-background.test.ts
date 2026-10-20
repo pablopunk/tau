@@ -64,12 +64,11 @@ describe("bash", () => {
     expect(outputs).not.toContain("after\\n");
     const [info] = await rig.processes.list(thread.id);
     expect(info).toMatchObject({ command: "echo before; sleep 1; echo after" });
-    await rig.until(async () => (await rig.processes.list(thread.id))[0]?.state === "exited");
-    const [finished] = await rig.processes.list(thread.id);
-    expect(finished).toMatchObject({ state: "exited", exitCode: 0 });
-    // The call can be backgrounded before "before" prints, so the full output is checked in the log.
-    const logs = await rig.processes.logs(finished?.id ?? "", 5);
-    expect(logs).toContain("before");
-    expect(logs).toContain("after");
+    const id = info?.id as string;
+    // The natural exit notifies the thread, then prunes the row: the list drains.
+    await rig.until(async () => (await rig.processes.list(thread.id)).length === 0);
+    // Pruned: no log to read, and stop stays idempotent.
+    await expect(rig.processes.logs(id, 5)).rejects.toMatchObject({ code: "not_found" });
+    await rig.processes.stop(id);
   });
 });

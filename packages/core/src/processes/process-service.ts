@@ -11,7 +11,7 @@ import type { Notification, NotificationSubmitter } from "../harness/notificatio
 import { createDeferred, type Deferred } from "./deferred";
 import { type Exec, systemdEnv } from "./governor/exec";
 import { createGovernor, type Governor, type Plan } from "./governor/governor";
-import { memoryStopText, notStartedText, waitingForSlotText } from "./governor/governor-text";
+import { memoryStopText, waitingForSlotText } from "./governor/governor-text";
 import type { WatchHandle } from "./governor/memory-watch";
 import type { Sweep } from "./governor/ps-sweep";
 import type { ResourceState } from "./governor/resource-state";
@@ -21,7 +21,7 @@ import { usesScope, type Wrapped, wrapCommand } from "./governor/wrap-command";
 import { lastLines } from "./log-tail";
 import { createMonitorBatcher, type MonitorBatcher } from "./monitor-batcher";
 import { createProcessFiles } from "./process-files";
-import { groupIsAlive, terminateGroup } from "./process-group";
+import { groupIsAlive, sleep, terminateGroup } from "./process-group";
 import {
   monitorEventNotification,
   noisyNoticeText,
@@ -140,6 +140,8 @@ interface Entry {
   /** Pid-file writes go out in order; a removed entry writes nothing more. */
   writes: Promise<void>;
   removed?: boolean;
+  /** Set on exit; resolves once the entry is pruned (deleted, files removed, change emitted). */
+  prune?: Promise<void>;
   /** Default true; a plain process tells the thread when it exits by itself. */
   notifyOnExit: boolean;
   /** Set while a tool call waits for the process; such a process is not listed. */
@@ -189,6 +191,16 @@ export function createProcessService(deps: ProcessDeps): ProcessService {
   });
   const prepareFiles = deps.prepare ?? (() => files.prepare());
   const entries = new Map<string, Entry>();
+  /** Finished ids: `stop()` on one is a no-op (idempotent), unknown ids still 404. Bounded. */
+  const pruned = new Map<string, string>();
+  const rememberPruned = (id: string, conversationId: string) => {
+    pruned.delete(id);
+    pruned.set(id, conversationId);
+    if (pruned.size > 500) {
+      const oldest = pruned.keys().next();
+      if (!oldest.done) pruned.delete(oldest.value);
+    }
+  };
   const foregroundKey = (conversationId: string, callId: string) => `${conversationId}\0${callId}`;
   const foregroundEntries = new Map<string, Entry>();
   const visible = (entry: Entry) => entry.foreground === undefined;
@@ -237,8 +249,20 @@ export function createProcessService(deps: ProcessDeps): ProcessService {
     }, timeoutMs);
   };
 
-  const announceRestart = (entry: Entry) =>
-    send(entry, noticeNotification(restartNoticeText(entry.info.name), `notice:${entry.info.id}:restart`));
+  const announceRestartText = (name: string, id: string) =>
+    noticeNotification(restartNoticeText(name), `notice:${id}:restart`);
+
+  /** Deletes the entry and its files after the queued notifications go out. Finished processes leave no rows. */
+  async function pruneEntry(entry: Entry) {
+    entry.removed = true;
+    // Bounded: a hung notifier must not hang `stop()`/`stopAll()`/shutdown forever.
+    await Promise.race([entry.delivery, sleep(grace)]);
+    await entry.writes;
+    entries.delete(entry.info.id);
+    rememberPruned(entry.info.id, entry.info.conversationId);
+    await files.remove(entry.info.id).catch(() => undefined);
+    deps.emitChange(entry.info.conversationId);
+  }
 
   function finishEntry(entry: Entry, details: ExitDetails) {
     if (entry.timeout) clearTimeout(entry.timeout);
@@ -288,18 +312,23 @@ export function createProcessService(deps: ProcessDeps): ProcessService {
     }
     const running = entry.running;
     if (!running) {
-      if (entry.info.state !== "queued") return;
+      if (entry.info.state !== "queued") {
+        await entry.prune;
+        return;
+      }
       cancelQueued(entry, reason);
       await entry.writes;
       return;
     }
-    if (running.info.state !== "running") return;
+    if (running.info.state !== "running") {
+      await entry.prune;
+      return;
+    }
     running.stopRequested = true;
     running.stopReason ??= reason;
     await terminateGroup(running.pid, grace);
     await running.exited;
-    // onExit saves the final state in the background: a stop is done only once it is on disk.
-    await entry.writes;
+    await entry.prune;
   }
 
   function createEntry(
@@ -365,8 +394,13 @@ export function createProcessService(deps: ProcessDeps): ProcessService {
       onExit: (exited, details) => {
         entry.info = exited;
         finishEntry(entry, details);
-        void persist(entry);
-        announce(entry);
+        if (entry.foreground) {
+          void persist(entry);
+          announce(entry);
+          return;
+        }
+        // A command a tool call still waits for is invisible and owned by `release()`; prune only background rows.
+        entry.prune ??= pruneEntry(entry);
       },
     });
     entry.running = running;
@@ -579,38 +613,35 @@ export function createProcessService(deps: ProcessDeps): ProcessService {
         return visible(entry) && info.conversationId === conversationId && ACTIVE.has(info.state);
       });
     },
+    /** Finished processes are pruned, so only running ones are listed. */
     async logs(id, tail) {
       const entry = require(id);
       const text = entry.running ? entry.running.tail.text() : await files.readLog(id);
       return lastLines(text, tail);
     },
     async stop(id) {
-      await stopEntry(require(id), "user");
+      const entry = entries.get(id);
+      if (entry) {
+        await stopEntry(entry, "user");
+        return;
+      }
+      if (pruned.has(id)) return;
+      throw notFound(id);
     },
     async reapStaleAtStartup() {
+      const notify = deps.notifications?.notify.bind(deps.notifications);
       for (const record of await files.loadAll()) {
-        const entry: Entry = {
-          info: record.info,
-          pid: record.pid,
-          delivery: Promise.resolve(),
-          writes: Promise.resolve(),
-          sequence: 0,
-          notifyOnExit: true,
-          spawned: createDeferred<void>(),
-          governed: false,
-          wasForeground: false,
-        };
-        if (record.info.state === "queued") {
-          entry.info = { ...record.info, state: "killed", exitCode: null };
-          await appendFile(files.logFile(record.info.id), notStartedText).catch(noop);
-          await persist(entry);
-        } else if (record.info.state === "running") {
+        if (record.info.state === "running") {
           if (record.pid > 0 && groupIsAlive(record.pid)) await terminateGroup(record.pid, grace);
-          entry.info = { ...record.info, state: "killed", exitCode: null };
-          await persist(entry);
-          if (record.info.kind === "monitor") announceRestart(entry);
+          if (notify && record.info.kind === "monitor") {
+            await notify(
+              record.info.conversationId,
+              announceRestartText(record.info.name, record.info.id),
+            ).catch(() => undefined);
+          }
         }
-        entries.set(record.info.id, entry);
+        rememberPruned(record.info.id, record.info.conversationId);
+        await files.remove(record.info.id).catch(() => undefined);
       }
     },
     async stopAll() {
@@ -624,6 +655,9 @@ export function createProcessService(deps: ProcessDeps): ProcessService {
         entry.removed = true;
         await entry.writes;
         await files.remove(entry.info.id);
+      }
+      for (const [id, cid] of [...pruned]) {
+        if (cid === conversation.id) pruned.delete(id);
       }
     },
     resourceSettings: () => governor.state.get(),

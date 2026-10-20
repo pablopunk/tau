@@ -20,6 +20,15 @@ export function createFakeProcesses(deps: {
   now: () => number;
 }): FakeProcesses {
   const entries = new Map<string, Entry>();
+  const pruned = new Map<string, string>();
+  const rememberPruned = (id: string, conversationId: string) => {
+    pruned.delete(id);
+    pruned.set(id, conversationId);
+    if (pruned.size > 500) {
+      const oldest = pruned.keys().next();
+      if (!oldest.done) pruned.delete(oldest.value);
+    }
+  };
   let nextId = 1;
 
   const entryOf = (id: string): Entry => {
@@ -35,7 +44,8 @@ export function createFakeProcesses(deps: {
       return;
     }
     if (entry.info.state !== "running") return;
-    entry.info = { ...entry.info, state: "killed" };
+    entries.delete(entry.info.id);
+    rememberPruned(entry.info.id, entry.info.conversationId);
     deps.emit({ resource: "processes", conversationId: entry.info.conversationId });
   };
 
@@ -67,7 +77,13 @@ export function createFakeProcesses(deps: {
         return entryOf(id).logs.split("\n").slice(-tail).join("\n");
       },
       async stop(id) {
-        kill(entryOf(id));
+        const entry = entries.get(id);
+        if (entry) {
+          kill(entry);
+          return;
+        }
+        if (pruned.has(id)) return;
+        throw new AppError("not_found", `Unknown process: ${id}`);
       },
       async background(_conversationId, callId) {
         throw new AppError("not_found", `No running bash call ${callId}`);
