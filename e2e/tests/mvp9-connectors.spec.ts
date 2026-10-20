@@ -45,12 +45,15 @@ async function acceptTheNoticeIfNeeded(page: Page) {
   await page.keyboard.press("Escape");
 }
 
+/** The save answers after every thread of the shared server re-syncs its connectors. */
+const SAVE_RESYNCS_EVERY_THREAD_MS = 20_000;
+
 async function turnOnLinear(page: Page) {
   await openSettingsSection(page, "Tools");
   const linear = page.getByRole("switch", { name: "Linear" });
   await expect(linear).toBeVisible();
-  await linear.click();
-  await expect(linear).toBeChecked();
+  if ((await linear.getAttribute("aria-checked")) !== "true") await linear.click();
+  await expect(linear).toBeChecked({ timeout: SAVE_RESYNCS_EVERY_THREAD_MS });
   await page.keyboard.press("Escape");
 }
 

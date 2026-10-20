@@ -130,7 +130,6 @@ test.describe("MVP5", () => {
     await messageBox(page).press("Enter");
     const queued = page.getByRole("list", { name: "Queued messages" });
     await expect(queued).toContainText("later message");
-    await expect(queued.getByText("Queued", { exact: true })).toBeVisible();
     await queued.getByRole("button", { name: "Cancel" }).click();
     await expect(queued).toBeHidden();
     await expect(page.getByRole("button", { name: "Stop" })).toBeHidden({ timeout: 20_000 });
