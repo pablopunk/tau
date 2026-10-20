@@ -29,7 +29,7 @@ export interface FakeResources {
   seed(activity: { holders?: ResourceCommand[]; waiting?: ResourceCommand[] }): void;
 }
 
-const copy = (value: ResourceSettings): ResourceSettings => ({ ...value, appliesTo: { ...value.appliesTo } });
+const copy = (value: ResourceSettings): ResourceSettings => ({ ...value, levels: { ...value.levels } });
 
 export function createFakeResources(ctx: { emit: (change: Change) => void }): FakeResources {
   let settings = copy(DEFAULT_RESOURCE_SETTINGS);
@@ -41,10 +41,7 @@ export function createFakeResources(ctx: { emit: (change: Change) => void }): Fa
     api: {
       async setResources(value) {
         if (!Value.Check(ResourceSettingsSchema, value)) {
-          throw new AppError(
-            "invalid_request",
-            "Heavy slots must be 1 to 64 and the memory limit at least 64 MB.",
-          );
+          throw new AppError("invalid_request", "Each scope runs Off, Balanced or Background.");
         }
         settings = copy(value);
         announce();

@@ -4,7 +4,7 @@ import { stat } from "node:fs/promises";
 import { defineTool } from "@earendil-works/pi-durable";
 import type { BashExecution } from "@earendil-works/pi-durable/tools";
 import { Type } from "typebox";
-import { indexEntryOfCall, isGoverned } from "../../processes/governor/governed";
+import { governedScope, indexEntryOfCall } from "../../processes/governor/governed";
 import { stopMessage } from "../../processes/governor/governor-text";
 import type { ForegroundOutcome, ForegroundRun } from "../../processes/process-types";
 import type { ToolServicesRef } from "./tool-file";
@@ -120,7 +120,7 @@ export const createTauBashTool = ({ services, prepare }: TauBashOptions) =>
       const processes = services.current().processes;
       let waiting = true;
       const settings = processes.resourceSettings();
-      const governed = await isGoverned(settings, indexEntryOfCall(api, context));
+      const scope = await governedScope(settings, indexEntryOfCall(api, context));
       const run = await processes.runForeground({
         conversationId,
         callId: api.callId,
@@ -128,7 +128,7 @@ export const createTauBashTool = ({ services, prepare }: TauBashOptions) =>
         command: execution.command,
         env: execution.env,
         shell: bashPath(),
-        ...(governed && { governed }),
+        ...(scope && { governed: true, scope }),
         // A command's stragglers can write after the call settled; the call no longer takes output then.
         onOutput: (text) => {
           if (!waiting) return;
@@ -165,13 +165,15 @@ export const createTauBashTool = ({ services, prepare }: TauBashOptions) =>
             details: { processId: outcome.info.id, backgrounded: true },
           };
         }
+        const level = scope ? settings.levels[scope] : "off";
+        const capMb = processes.resourceMemoryLimitMb();
         const timeoutText = `Command timed out after ${effectiveTimeout} seconds`;
         if (outcome.stopReason === "memory") {
-          throw new Error(stopMessage("memory", settings.memoryLimitMb, timeoutText));
+          throw new Error(stopMessage("memory", capMb, timeoutText, scope, level));
         }
-        if (watch.timedOut()) throw new Error(timeoutText);
+        if (watch.timedOut()) throw new Error(stopMessage("timeout", capMb, timeoutText, scope, level));
         if (outcome.stopRequested) {
-          throw new Error(stopMessage(outcome.stopReason ?? "user", settings.memoryLimitMb, timeoutText));
+          throw new Error(stopMessage(outcome.stopReason ?? "user", capMb, timeoutText, scope, level));
         }
         const exitCode = outcome.exitCode ?? 1;
         const structuredOutput = {

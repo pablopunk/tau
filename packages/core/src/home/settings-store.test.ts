@@ -19,10 +19,9 @@ const DEFAULTS = {
   claudeConnectors: { disabled: [], alwaysAllow: [], askBeforeWrites: false },
   remote: { enabled: false },
   resources: {
-    priority: "off",
+    levels: { main: "off", worktree: "off", subagent: "off" },
     heavySlots: null,
     memoryLimitMb: null,
-    appliesTo: { main: false, worktrees: false, subagents: true },
   },
 };
 const ref = { provider: "openrouter", modelId: "x/y" };
@@ -199,16 +198,13 @@ describe("resources", () => {
   });
 
   it("keeps valid fields and defaults each invalid or missing one on its own", async () => {
-    expect(
-      await read({ priority: "balanced", heavySlots: 99, memoryLimitMb: 10, appliesTo: { main: true } }),
-    ).toEqual({
-      priority: "balanced",
+    expect(await read({ levels: { main: "balanced" }, heavySlots: 99, memoryLimitMb: 10 })).toEqual({
+      levels: { main: "balanced", worktree: "off", subagent: "off" },
       heavySlots: null,
       memoryLimitMb: null,
-      appliesTo: { main: true, worktrees: false, subagents: true },
     });
-    expect(await read({ heavySlots: 3, memoryLimitMb: 2048, priority: "nope" })).toMatchObject({
-      priority: "off",
+    expect(await read({ heavySlots: 3, memoryLimitMb: 2048, levels: { main: "nope" } })).toMatchObject({
+      levels: { main: "off", worktree: "off", subagent: "off" },
       heavySlots: 3,
       memoryLimitMb: 2048,
     });
@@ -218,12 +214,28 @@ describe("resources", () => {
   it("stores the value whole and reads it back", async () => {
     const path = join(await tempDir(), "settings.json");
     const value = {
-      priority: "background" as const,
+      levels: { main: "background", worktree: "balanced", subagent: "off" } as const,
       heavySlots: 2,
       memoryLimitMb: 4096,
-      appliesTo: { main: true, worktrees: true, subagents: false },
     };
     await createSettingsStore(path, PROJECTS).setResources(value);
     expect((await createSettingsStore(path, PROJECTS).get()).resources).toEqual(value);
+  });
+
+  it("migrates a legacy {priority, appliesTo} setting to per-scope levels", async () => {
+    expect(
+      await read({
+        priority: "balanced",
+        heavySlots: 2,
+        appliesTo: { main: true, worktrees: false, subagents: false },
+      }),
+    ).toEqual({
+      levels: { main: "balanced", worktree: "off", subagent: "off" },
+      heavySlots: 2,
+      memoryLimitMb: null,
+    });
+    expect(await read({ priority: "background" })).toMatchObject({
+      levels: { main: "off", worktree: "off", subagent: "background" },
+    });
   });
 });

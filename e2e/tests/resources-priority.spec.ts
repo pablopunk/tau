@@ -40,7 +40,7 @@ const results: Record<string, { time: number; pri: number; bands: Record<string,
 
 for (const mode of MODES) {
   test(`priority ${mode}: the command's own state`, async () => {
-    await remote.setResources({ priority: mode });
+    await remote.setResources({ levels: { main: mode, worktree: "off", subagent: "off" } });
     const id = await remote.start(`prio ${mode}`);
     await remote.waitIdle(id, 180);
     const [, pri] = read(mode, "ps").split(/\s+/);

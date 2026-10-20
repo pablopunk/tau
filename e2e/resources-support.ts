@@ -31,19 +31,19 @@ export async function freePort(): Promise<number> {
   return port;
 }
 
+export type Power = "off" | "balanced" | "background";
+
 export interface ResourceValues {
-  priority: "off" | "balanced" | "background";
-  heavySlots: number | null;
-  memoryLimitMb: number | null;
-  appliesTo: { main: boolean; worktrees: boolean; subagents: boolean };
+  levels: { main: Power; worktree: Power; subagent: Power };
 }
 
 export const OFF: ResourceValues = {
-  priority: "off",
-  heavySlots: null,
-  memoryLimitMb: null,
-  appliesTo: { main: true, worktrees: true, subagents: true },
+  levels: { main: "off", worktree: "off", subagent: "off" },
 };
+
+export const ALL = (level: Power): ResourceValues => ({
+  levels: { main: level, worktree: level, subagent: level },
+});
 
 export interface ActivityEntry {
   entryId: string;

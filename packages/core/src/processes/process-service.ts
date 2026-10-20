@@ -4,19 +4,21 @@ import {
   AppError,
   type ConversationSummary,
   type ProcessInfo,
+  type ResourceCommand,
+  type ResourcePriority,
   type ResourceSettings,
   type ResourceSupport,
 } from "@tau/protocol";
 import type { Notification, NotificationSubmitter } from "../harness/notification-submitter";
 import { createDeferred, type Deferred } from "./deferred";
 import { type Exec, systemdEnv } from "./governor/exec";
+import type { ThreadClass } from "./governor/governed";
 import { createGovernor, type Governor, type Plan } from "./governor/governor";
-import { memoryStopText, probingResourcesText, waitingForSlotText } from "./governor/governor-text";
+import { memoryStopText } from "./governor/governor-text";
 import type { WatchHandle } from "./governor/memory-watch";
 import type { Sweep } from "./governor/ps-sweep";
 import type { ResourceState } from "./governor/resource-state";
 import type { ResourceSupportProbe } from "./governor/resource-support";
-import type { SlotHandle, SlotInfo } from "./governor/slot-queue";
 import { usesScope, type Wrapped, wrapCommand } from "./governor/wrap-command";
 import { lastLines } from "./log-tail";
 import { createMonitorBatcher, type MonitorBatcher } from "./monitor-batcher";
@@ -33,7 +35,7 @@ import {
 import type { ExitDetails, ForegroundOutcome, ForegroundRun, StopReason } from "./process-types";
 import { EXIT_TAIL_LINES, type RunningProcess, type SpawnFn, spawnRunning } from "./running-process";
 
-export type { ExitDetails, ForegroundOutcome, ForegroundRun, SlotInfo };
+export type { ExitDetails, ForegroundOutcome, ForegroundRun };
 
 export interface StartProcessRequest {
   readonly conversationId: string;
@@ -50,6 +52,8 @@ export interface StartProcessRequest {
   readonly shell?: string;
   /** Set by the tool when resource control applies to this command. Unset means ungoverned. */
   readonly governed?: boolean;
+  /** The calling thread's scope; picks the command's power level. Set with `governed`. */
+  readonly scope?: ThreadClass;
   /** Added to the environment of the process. */
   readonly env?: Readonly<Record<string, string>>;
 }
@@ -65,6 +69,8 @@ export interface ForegroundRequest {
   readonly env?: Readonly<Record<string, string>>;
   /** Set by the tool when resource control applies to this command. Unset means ungoverned. */
   readonly governed?: boolean;
+  /** The calling thread's scope; picks the command's power level. Set with `governed`. */
+  readonly scope?: ThreadClass;
   /** Every chunk of output while the call still waits. */
   readonly onOutput: (text: string) => void;
 }
@@ -90,14 +96,16 @@ export interface ProcessService {
   onConversationRemoved(conversation: ConversationSummary): Promise<void>;
   /** The node's resource settings, read synchronously. */
   resourceSettings(): ResourceSettings;
-  /** Applies new settings: the heavy-slot limit at once, priority and memory to the next command. */
+  /** Applies new settings: each scope's level to the next command. */
   setResources(next: ResourceSettings): void;
   /** What the host can enforce; probes the cgroup lazily on Linux. */
   resourceSupport(): Promise<ResourceSupport>;
-  /** Heavy commands running and waiting, node-wide. */
-  resourceActivity(): { holders: SlotInfo[]; waiting: SlotInfo[] };
-  /** Stops a listed heavy command; `not_found` for anything not in `resourceActivity`. */
+  /** No queue: always empty. Kept so the API shape stays stable. */
+  resourceActivity(): { holders: ResourceCommand[]; waiting: ResourceCommand[] };
+  /** No queue: always `not_found`. Stop running commands with `stop` or `stopToolCall`. */
   stopResourceCommand(entryId: string): Promise<void>;
+  /** The memory cap every governed command runs under. */
+  resourceMemoryLimitMb(): number;
   /** Stops the foreground call a tool waits for; `not_found` when absent or already settled. Bounded: never hangs. */
   stopToolCall(conversationId: string, callId: string): Promise<void>;
 }
@@ -114,6 +122,8 @@ export interface ProcessDeps {
   /** The node's resource settings; absent means Off. */
   readonly resources?: ResourceState;
   readonly nodeId?: () => string;
+  /** Test seam: shrinks the memory cap so a small allocation trips it. */
+  readonly memoryLimitMb?: number;
   /** Test seams: spawn, shell commands, the `ps` sweep and the support probe. */
   readonly spawn?: SpawnFn;
   readonly exec?: Exec;
@@ -127,7 +137,6 @@ const DEFAULT_STOP_GRACE_MS = 5000;
 /** Extra wait past the SIGTERM grace for a signalled child to reap before force-settling. */
 const STOP_SETTLE_BUFFER_MS = 2000;
 const NAME_LIMIT = 40;
-const COMMAND_LIMIT = 120;
 const ACTIVE = new Set<ProcessInfo["state"]>(["running", "queued"]);
 
 const notFound = (id: string) => new AppError("not_found", `No process ${id}`);
@@ -164,7 +173,9 @@ interface Entry {
   /** The group survived the post-SIGKILL verify poll; named in the force-settle notice. */
   groupSurvived?: boolean;
   stopReason?: StopReason;
-  slot?: SlotHandle;
+  /** The calling thread's scope and level, for the stop message. */
+  scope?: ThreadClass;
+  level?: ResourcePriority;
   /** The memory limit the command runs under, for the stop message. */
   memoryLimitMb?: number | null;
   watch?: WatchHandle;
@@ -181,11 +192,10 @@ interface Attachment {
 interface SpawnOptions {
   readonly wrapped?: Wrapped;
   readonly scopeUnit?: string;
-  readonly settings?: ResourceSettings;
+  readonly memoryLimitMb?: number | null;
 }
 
 const noop = () => undefined;
-const truncate = (command: string) => command.replace(/\s+/g, " ").trim().slice(0, COMMAND_LIMIT);
 
 export function createProcessService(deps: ProcessDeps): ProcessService {
   const files = createProcessFiles(deps.home);
@@ -193,7 +203,7 @@ export function createProcessService(deps: ProcessDeps): ProcessService {
   const emitResources = () => deps.emitResourcesChange?.();
   const governor: Governor = createGovernor({
     graceMs: grace,
-    onActivity: emitResources,
+    ...(deps.memoryLimitMb !== undefined && { memoryLimitMb: deps.memoryLimitMb }),
     ...(deps.resources && { state: deps.resources }),
     ...(deps.nodeId && { nodeId: deps.nodeId }),
     ...(deps.exec && { exec: deps.exec }),
@@ -284,7 +294,7 @@ export function createProcessService(deps: ProcessDeps): ProcessService {
     const timeoutStop = details.stopReason === "timeout";
     if (entry.notifyOnExit && (!details.stopRequested || memoryStop || timeoutStop)) {
       const tail = memoryStop
-        ? `${memoryStopText(entry.memoryLimitMb ?? null)}\n${details.logTail}`
+        ? `${memoryStopText(entry.memoryLimitMb ?? null, entry.scope, entry.level)}\n${details.logTail}`
         : timeoutStop
           ? `${BANG_TIMEOUT_LINE}\n${details.logTail}`
           : details.logTail;
@@ -311,7 +321,6 @@ export function createProcessService(deps: ProcessDeps): ProcessService {
   function cancelQueued(entry: Entry, reason: StopReason) {
     entry.cancelled = true;
     entry.stopReason = reason;
-    entry.slot?.cancel();
     if (entry.timeout) clearTimeout(entry.timeout);
     entry.info = { ...entry.info, state: "exited", exitCode: null };
     entry.outcome?.resolve({ kind: "exited", exitCode: null, stopRequested: true, stopReason: reason });
@@ -326,7 +335,6 @@ export function createProcessService(deps: ProcessDeps): ProcessService {
     entry.reaping = true;
     entry.watch?.stop();
     entry.watch = undefined;
-    entry.slot?.release();
     entry.outcome?.resolve({ kind: "exited", exitCode: null, stopRequested: true, stopReason: reason });
     if (entry.governed) emitResources();
     // The entry stays listed with its pid; files go only on the real exit, which notifies nothing more.
@@ -355,11 +363,11 @@ export function createProcessService(deps: ProcessDeps): ProcessService {
         : reason === "resources"
           ? "Stopped from Resources settings"
           : reason === "memory"
-            ? memoryStopText(entry.memoryLimitMb ?? null)
+            ? memoryStopText(entry.memoryLimitMb ?? null, entry.scope, entry.level)
             : "Command aborted";
     const risk = entry.groupSurvived
       ? "The process group survived SIGKILL and may still hold resources (e.g. its port)."
-      : "The process did not exit in time; its slot was released and it stays listed until it exits.";
+      : "The process did not exit in time; it stays listed until it exits.";
     return `${base}.\n${risk}\n${lastLines(running.tail.text(), EXIT_TAIL_LINES)}`;
   }
 
@@ -480,14 +488,13 @@ export function createProcessService(deps: ProcessDeps): ProcessService {
     watchMemory(entry, running, options);
     void running.exited.then(() => {
       entry.watch?.rootExited();
-      entry.slot?.release();
       entry.outcome?.resolve(exitedOutcome(entry, running));
       if (entry.governed) emitResources();
     });
   }
 
   function watchMemory(entry: Entry, running: RunningProcess, options: SpawnOptions) {
-    const limitMb = options.settings?.memoryLimitMb ?? null;
+    const limitMb = entry.governed ? (options.memoryLimitMb ?? null) : null;
     entry.memoryLimitMb = limitMb;
     if (limitMb === null || options.scopeUnit !== undefined || running.pid <= 0) return;
     if (governor.support().platform === "other") return;
@@ -501,22 +508,36 @@ export function createProcessService(deps: ProcessDeps): ProcessService {
     });
   }
 
+  /** The command's power level: its own scope's, falling back to off. */
+  function noteScope(entry: Entry, request: StartProcessRequest, plan: Plan): void {
+    const scope = request.scope ?? "main";
+    entry.scope = scope;
+    entry.level = plan.settings.levels[scope];
+  }
+
+  function scopePriority(request: StartProcessRequest, plan: Plan): ResourcePriority {
+    const scope: ThreadClass = request.scope ?? "main";
+    return plan.settings.levels[scope];
+  }
+
   function syncWrap(request: StartProcessRequest, plan: Plan | undefined): SpawnOptions {
     if (!plan) return {};
     const wrapped = wrapCommand({
-      settings: plan.settings,
+      priority: scopePriority(request, plan),
+      memoryLimitMb: governor.memoryLimitMb(),
       support: governor.wrapSupport(false),
       shell: request.shell ?? "/bin/sh",
       command: request.command,
     });
-    return { settings: plan.settings, ...(wrapped && { wrapped }) };
+    return { memoryLimitMb: governor.memoryLimitMb(), ...(wrapped && { wrapped }) };
   }
 
   async function launch(request: StartProcessRequest, foreground?: Attachment): Promise<Entry> {
-    const plan = request.governed ? governor.plan(request.command, foreground !== undefined) : undefined;
-    if (plan && (plan.slot || plan.probe)) return launchQueued(request, foreground, plan);
+    const plan = request.governed ? governor.plan() : undefined;
+    if (plan?.probe) return launchAsync(request, foreground, plan);
     await prepareFiles();
     const entry = createEntry(request, foreground, "running", plan !== undefined);
+    if (plan) noteScope(entry, request, plan);
     spawnEntry(entry, request, syncWrap(request, plan));
     entry.spawned.resolve();
     entries.set(entry.info.id, entry);
@@ -526,21 +547,12 @@ export function createProcessService(deps: ProcessDeps): ProcessService {
     return entry;
   }
 
-  /** The async path: register and take the slot synchronously, spawn once everything awaited is done. */
-  function launchQueued(request: StartProcessRequest, foreground: Attachment | undefined, plan: Plan): Entry {
+  /** The async path: the Linux cgroup probe runs before the spawn. */
+  function launchAsync(request: StartProcessRequest, foreground: Attachment | undefined, plan: Plan): Entry {
     const entry = createEntry(request, foreground, "queued", true);
-    const id = entry.info.id;
-    entries.set(id, entry);
+    noteScope(entry, request, plan);
+    entries.set(entry.info.id, entry);
     if (foreground) foregroundEntries.set(foregroundKey(request.conversationId, foreground.callId), entry);
-    if (plan.slot) {
-      entry.slot = governor.queue.acquire({
-        entryId: id,
-        conversationId: request.conversationId,
-        command: truncate(request.command),
-        since: Date.now(),
-      });
-      tellWaiting(entry, plan);
-    }
     void persist(entry);
     announce(entry);
     emitResources();
@@ -548,26 +560,13 @@ export function createProcessService(deps: ProcessDeps): ProcessService {
     return entry;
   }
 
-  function tellWaiting(entry: Entry, plan: Plan) {
-    const snapshot = governor.queue.snapshot();
-    const position = snapshot.waiting.findIndex((waiter) => waiter.entryId === entry.info.id);
-    if (position >= 0) {
-      entry.foreground?.onOutput(
-        waitingForSlotText(snapshot.holders.length, plan.settings.heavySlots ?? 0, position + 1),
-      );
-      return;
-    }
-    if (!snapshot.holders.some((holder) => holder.entryId === entry.info.id)) return;
-    entry.foreground?.onOutput(probingResourcesText());
-  }
-
   async function spawnNow(entry: Entry, request: StartProcessRequest, plan: Plan) {
-    if (entry.slot && !(await entry.slot.promise)) return;
     await prepareFiles();
     const memory = plan.probe ? await governor.support().prepareMemory() : undefined;
     if (memory?.failure) throw new Error(memory.failure);
     const input = {
-      settings: plan.settings,
+      priority: scopePriority(request, plan),
+      memoryLimitMb: governor.memoryLimitMb(),
       support: governor.wrapSupport(memory?.cgroupMemory ?? false),
       shell: request.shell ?? "/bin/sh",
       command: request.command,
@@ -575,12 +574,11 @@ export function createProcessService(deps: ProcessDeps): ProcessService {
     };
     const wrapped = wrapCommand(input);
     if (entry.cancelled) {
-      entry.slot?.release();
       entry.spawned.resolve();
       return;
     }
     spawnEntry(entry, request, {
-      settings: plan.settings,
+      memoryLimitMb: governor.memoryLimitMb(),
       ...(wrapped && { wrapped }),
       ...(usesScope(input) && { scopeUnit: input.unit }),
     });
@@ -592,7 +590,6 @@ export function createProcessService(deps: ProcessDeps): ProcessService {
   }
 
   function fail(entry: Entry, error: unknown, request: StartProcessRequest) {
-    entry.slot?.release();
     const message = error instanceof Error ? error.message : String(error);
     if (entry.cancelled) {
       entry.spawned.resolve();
@@ -743,13 +740,12 @@ export function createProcessService(deps: ProcessDeps): ProcessService {
     resourceSupport: () => governor.support().describe(),
     setResources: (next) => governor.setResources(next),
     resourceActivity() {
-      const { holders, waiting } = governor.queue.snapshot();
-      return { holders: [...holders], waiting: [...waiting] };
+      return { holders: [], waiting: [] };
     },
     async stopResourceCommand(entryId) {
-      if (!governor.queue.has(entryId)) throw new AppError("not_found", `No resource command ${entryId}`);
-      await stopEntry(require(entryId), "resources");
+      throw new AppError("not_found", `No resource command ${entryId}`);
     },
+    resourceMemoryLimitMb: () => governor.memoryLimitMb(),
     async stopToolCall(conversationId, callId) {
       const key = foregroundKey(conversationId, callId);
       const entry = foregroundEntries.get(key);

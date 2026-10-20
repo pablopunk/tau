@@ -16,5 +16,6 @@ export function createResourceState(initial: ResourceSettings = DEFAULT_RESOURCE
   };
 }
 
+/** Any scope above Off: slots and the memory cap cover every governed scope. */
 export const anyControlOn = (settings: ResourceSettings) =>
-  settings.priority !== "off" || settings.heavySlots !== null || settings.memoryLimitMb !== null;
+  settings.levels.main !== "off" || settings.levels.worktree !== "off" || settings.levels.subagent !== "off";

@@ -1,6 +1,6 @@
 import { defineExtension, defineTool } from "@earendil-works/pi-durable";
 import { Type } from "typebox";
-import { indexEntryOfCall, isGoverned } from "../../processes/governor/governed";
+import { governedScope, indexEntryOfCall } from "../../processes/governor/governed";
 import type { ToolFileFactory } from "./tool-file";
 
 export const ProcessStartParameters = Type.Object({
@@ -22,12 +22,12 @@ export const processStartToolFile: ToolFileFactory = (services) => ({
         replay: "unsafe",
         execute: async ({ command, name, notify_on_exit }, api, context) => {
           const processes = services.current().processes;
-          const governed = await isGoverned(processes.resourceSettings(), indexEntryOfCall(api, context));
+          const scope = await governedScope(processes.resourceSettings(), indexEntryOfCall(api, context));
           const info = await processes.start({
             conversationId: String(api.conversationId),
             cwd: api.env?.cwd ?? process.cwd(),
             command,
-            ...(governed && { governed }),
+            ...(scope && { governed: true, scope }),
             ...(name === undefined ? {} : { name }),
             notifyOnExit: notify_on_exit ?? true,
           });

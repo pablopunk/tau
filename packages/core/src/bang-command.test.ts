@@ -156,12 +156,11 @@ describe("runBangCommand", () => {
     const processes = fakeProcesses();
     processes.resourceSettings = () => ({
       ...DEFAULT_RESOURCE_SETTINGS,
-      priority: "balanced" as const,
-      appliesTo: { main: true, worktrees: false, subagents: false },
+      levels: { main: "balanced", worktree: "off", subagent: "off" },
     });
     const deps = depsFor({ entryOf: async () => entry, processes });
     await runBangCommand(deps, "c1", "echo hi");
-    expect(processes.start.mock.calls[0]?.[0]).toMatchObject({ governed: true });
+    expect(processes.start.mock.calls[0]?.[0]).toMatchObject({ governed: true, scope: "main" });
   });
 
   it("submits an app.notice and resolves when the spawn throws", async () => {

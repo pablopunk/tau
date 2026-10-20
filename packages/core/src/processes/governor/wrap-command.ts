@@ -1,6 +1,6 @@
 import { accessSync, constants } from "node:fs";
 import { delimiter, join } from "node:path";
-import type { ResourceSettings } from "@tau/protocol";
+import type { ResourcePriority } from "@tau/protocol";
 
 export type HostPlatform = "macos" | "linux" | "other";
 
@@ -28,7 +28,10 @@ export interface Wrapped {
 }
 
 export interface WrapInput {
-  readonly settings: ResourceSettings;
+  /** This command's scope level: the one knob that differs per thread. */
+  readonly priority: ResourcePriority;
+  /** Every governed command gets the same cap; tests shrink it. */
+  readonly memoryLimitMb: number;
   readonly support: WrapSupport;
   readonly shell: string;
   readonly command: string;
@@ -71,8 +74,7 @@ export function resolveBinaries(platform: HostPlatform, path?: string): Binaries
   return Object.fromEntries(Object.entries(found).filter(([, value]) => value !== undefined)) as Binaries;
 }
 
-function priorityPrefix(settings: ResourceSettings, support: WrapSupport): string[] {
-  const { priority } = settings;
+function priorityPrefix(priority: ResourcePriority, support: WrapSupport): string[] {
   const { binaries, platform } = support;
   if (priority === "off") return [];
   if (platform === "macos") {
@@ -93,9 +95,8 @@ function priorityPrefix(settings: ResourceSettings, support: WrapSupport): strin
   ];
 }
 
-function scopePrefix({ settings, support, unit }: WrapInput): string[] {
-  const limit = settings.memoryLimitMb;
-  if (limit === null || unit === undefined) return [];
+function scopePrefix({ memoryLimitMb, support, unit }: WrapInput): string[] {
+  if (unit === undefined) return [];
   if (support.platform !== "linux" || !support.cgroupMemory || !support.binaries.systemdRun) return [];
   return [
     support.binaries.systemdRun,
@@ -104,7 +105,7 @@ function scopePrefix({ settings, support, unit }: WrapInput): string[] {
     "--quiet",
     `--unit=${unit}`,
     "-p",
-    `MemoryMax=${limit}M`,
+    `MemoryMax=${memoryLimitMb}M`,
     "-p",
     "MemorySwapMax=0",
     "--",
@@ -115,7 +116,7 @@ export const usesScope = (input: WrapInput) => scopePrefix(input).length > 0;
 
 /** `null` when no control that needs wrapping is on; the shell is exec'd so the spawned pid leads the group. */
 export function wrapCommand(input: WrapInput): Wrapped | null {
-  const prefix = [...scopePrefix(input), ...priorityPrefix(input.settings, input.support)];
+  const prefix = [...scopePrefix(input), ...priorityPrefix(input.priority, input.support)];
   const [file, ...rest] = prefix;
   if (file === undefined) return null;
   return { file, args: [...rest, input.shell, "-c", input.command] };
