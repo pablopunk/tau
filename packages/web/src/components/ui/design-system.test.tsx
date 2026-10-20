@@ -8,6 +8,7 @@ import { CopyButton } from "./copy-button";
 import { DropZone } from "./drop-zone";
 import { Field, FieldError, FieldLabel } from "./field";
 import { ImageThumbnail } from "./image-thumbnail";
+import { MorphText } from "./morph-text";
 import { Spinner } from "./spinner";
 import { StatusDot } from "./status-dot";
 import { Switch } from "./switch";
@@ -47,6 +48,22 @@ describe("Combobox", () => {
     expect(disabled).toHaveTextContent("Cloning");
     await userEvent.click(disabled);
     expect(onChange).not.toHaveBeenCalled();
+  });
+});
+
+describe("MorphText", () => {
+  it("shows its text as one readable string and follows changes", () => {
+    const { container, rerender } = render(<MorphText>Running</MorphText>);
+    expect(screen.getByText("Running")).toBeInTheDocument();
+    expect(container.querySelector("[data-slot=morph-text]")).not.toBeNull();
+    rerender(<MorphText>Failed</MorphText>);
+    expect(screen.getByText("Failed")).toBeInTheDocument();
+  });
+
+  it("accepts numbers and passes span props through", () => {
+    render(<MorphText data-testid="count" className="text-xs">{3}</MorphText>);
+    expect(screen.getByTestId("count")).toHaveClass("inline-flex", "text-xs");
+    expect(screen.getByText("3")).toBeInTheDocument();
   });
 });
 

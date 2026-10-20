@@ -395,7 +395,6 @@ let hub: Promise<FakeCore> | undefined;
  * `?fake=ready` starts past setup with remote on (`&remote=off` starts with it off), and `&nodes=2`
  * (or `&nodes`) links the two fake nodes (`Homelab` online, `Work laptop` offline), with or without
  * `fake=ready`: `?fake=setup&nodes` is an unconfigured local node that knows peers.
- * `&speed=0.1` plays scripted replies ten times slower, to watch a tool go from running to done.
  */
 function fakeHub(): Promise<FakeCore> {
   hub ??= (async () => {
@@ -404,8 +403,7 @@ function fakeHub(): Promise<FakeCore> {
     const ready = params.get("fake") === "ready" || scenario !== undefined;
     const remote = ready && params.get("remote") !== "off";
     const nodes = params.has("nodes");
-    const speed = Number(params.get("speed")) || undefined;
-    const core = createFakeCore({ configured: ready, remote, nodes, speed, ...scenario });
+    const core = createFakeCore({ configured: ready, remote, nodes, ...scenario });
     if (ready) await seedReadyState(core);
     if (ready && params.get("seed") === "rich") await seedRichState(core);
     for (const [nodeId, node] of core.nodeCores) {
