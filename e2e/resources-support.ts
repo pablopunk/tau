@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -110,11 +110,21 @@ export async function startResourceServer(options: {
   const home = join(root, "tau-home");
   mkdirSync(home);
   mkdirSync(join(root, "os-home"));
+  const binary = process.env.TAU_E2E_BINARY;
+  const stubs = join(root, "stubs");
+  if (binary) {
+    mkdirSync(stubs);
+    for (const name of ["launchctl", "systemctl"]) {
+      writeFileSync(join(stubs, name), "#!/bin/sh\nexit 1\n");
+      chmodSync(join(stubs, name), 0o755);
+    }
+  }
   const server = createRestartableServer({
     port,
     home,
-    command: options.command,
+    command: options.command ?? (binary ? { file: binary, args: [] } : undefined),
     env: {
+      ...(binary && { PATH: `${stubs}:${process.env.PATH ?? ""}` }),
       HOME: join(root, "os-home"),
       TAU_FAUX_REPLIES: join(root, "replies.json"),
       TAU_FAKE_CLAUDE_CLI: "1",

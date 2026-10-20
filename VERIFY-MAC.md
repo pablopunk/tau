@@ -65,3 +65,12 @@ The background factor depends strongly on load: 17-22x for the 4M-iteration job,
 New core tests (vitest): `processes/governor/governed.test.ts` (Apply-to classification table, forks, subagent of a worktree thread, unknown/deleted/throwing lookup,
 lookup never called while Off or no box ticked), `harness/tools/bash-resources.test.ts` (abort while queued never spawns; timeout starts at spawn;
 real macOS memory kill of a command plus its `setsid` escapee, platform-gated).
+
+## 5. Compiled binary — PROVEN
+
+`pnpm build:binary --out /tmp/taubin/tau-9.9.9 --version 9.9.9` (3.4 s), then the same specs with `TAU_E2E_BINARY=/tmp/taubin/tau-9.9.9/tau`
+(`resources-support.ts` starts it through `tau start --faux` with stubbed `launchctl`/`systemctl`; `ps` during the run showed
+`/private/tmp/taubin/tau-9.9.9/tau serve --service --no-open --home …`). All pass against the compiled CLI:
+priority (4 tests: background PRI 4 / band background, 6.67 s vs 0.37 s), memory (5 tests: 2.7 s kill, setsid escapee dead, daemon tail kill, no false kill incl. the shared-memory case, so `footprint` works from the compiled binary),
+Apply-to classification + process_start/monitor (4), live settings/Stop/timeout/crash-restart (6). 19/19.
+`ps`, `taskpolicy` and `footprint` are spawned by absolute path (`/usr/sbin/taskpolicy`, `/bin/ps`-via-PATH, `/usr/bin/footprint`), which Bun's `child_process` handles like Node.
