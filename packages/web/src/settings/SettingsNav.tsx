@@ -48,7 +48,7 @@ function NodeTab({
         aria-current={active ? "page" : undefined}
         onClick={() => onPickNode(id)}
       >
-        <NodeAvatar os={os} status={status} />
+        <NodeAvatar os={os} status={status} aria-hidden />
         <span className="truncate">{name}</span>
       </SidebarMenuButton>
       {active ? (
