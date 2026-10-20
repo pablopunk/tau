@@ -36,8 +36,7 @@ export interface WrapInput {
 }
 
 export const TASKPOLICY = "/usr/sbin/taskpolicy";
-const BACKGROUND_CHRT =
-  'chrt -i 0 true 2>/dev/null && exec chrt -i 0 "$@" || exec nice -n 19 "$@"';
+const BACKGROUND_CHRT = 'chrt -i 0 true 2>/dev/null && exec chrt -i 0 "$@" || exec nice -n 19 "$@"';
 
 const isExecutable = (path: string) => {
   try {

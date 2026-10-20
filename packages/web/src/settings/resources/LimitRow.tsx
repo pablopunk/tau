@@ -21,7 +21,18 @@ const inRange = (n: number, min: number, max?: number) =>
   Number.isInteger(n) && n >= min && (max === undefined || n <= max);
 
 /** A number field with a switch: off is `null`, on is the number. */
-export function LimitRow({ id, label, description, unit, value, min, max, fallback, disabled, onChange }: LimitRowProps) {
+export function LimitRow({
+  id,
+  label,
+  description,
+  unit,
+  value,
+  min,
+  max,
+  fallback,
+  disabled,
+  onChange,
+}: LimitRowProps) {
   const [draft, setDraft] = useState<string | null>(null);
   const text = draft ?? (value === null ? "" : String(value));
   const commit = () => {

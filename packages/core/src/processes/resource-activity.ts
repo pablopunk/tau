@@ -18,5 +18,8 @@ export async function resourceActivityOf(
     command: slot.command,
     since: slot.since,
   });
-  return { holders: await Promise.all(holders.map(describe)), waiting: await Promise.all(waiting.map(describe)) };
+  return {
+    holders: await Promise.all(holders.map(describe)),
+    waiting: await Promise.all(waiting.map(describe)),
+  };
 }

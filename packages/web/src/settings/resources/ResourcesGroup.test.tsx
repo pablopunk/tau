@@ -4,7 +4,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NodeApiProvider } from "@/nodes/node-context";
-import { searchSettings, SETTINGS_INDEX } from "../settings-index";
+import { SETTINGS_INDEX, searchSettings } from "../settings-index";
 import { ResourcesGroup } from "./ResourcesGroup";
 
 const mocks = vi.hoisted(() => ({
@@ -34,10 +34,21 @@ const linux: ResourceSupport = {
   sameCgroupOnly: true,
   note: null,
 };
-const mac: ResourceSupport = { ...linux, platform: "macos", memoryEnforcement: "polled", sameCgroupOnly: false };
+const mac: ResourceSupport = {
+  ...linux,
+  platform: "macos",
+  memoryEnforcement: "polled",
+  sameCgroupOnly: false,
+};
 const other: ResourceSupport = { ...mac, platform: "other", memoryEnforcement: "none" };
 
-const command = { entryId: "e1", conversationId: "c1", conversationTitle: "Fix tests", command: "pnpm test", since: 0 };
+const command = {
+  entryId: "e1",
+  conversationId: "c1",
+  conversationTitle: "Fix tests",
+  command: "pnpm test",
+  since: 0,
+};
 
 function setup(resources: unknown = DEFAULT_RESOURCE_SETTINGS, support: unknown = linux) {
   mocks.settings = { resources };

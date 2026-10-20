@@ -1,17 +1,23 @@
 import { randomUUID } from "node:crypto";
 import { appendFile } from "node:fs/promises";
-import { AppError, type ConversationSummary, type ProcessInfo, type ResourceSettings, type ResourceSupport } from "@tau/protocol";
+import {
+  AppError,
+  type ConversationSummary,
+  type ProcessInfo,
+  type ResourceSettings,
+  type ResourceSupport,
+} from "@tau/protocol";
 import type { Notification, NotificationSubmitter } from "../harness/notification-submitter";
 import { createDeferred, type Deferred } from "./deferred";
+import { type Exec, systemdEnv } from "./governor/exec";
 import { createGovernor, type Governor, type Plan } from "./governor/governor";
 import { memoryStopText, notStartedText, waitingForSlotText } from "./governor/governor-text";
+import type { WatchHandle } from "./governor/memory-watch";
+import type { Sweep } from "./governor/ps-sweep";
 import type { ResourceState } from "./governor/resource-state";
 import type { ResourceSupportProbe } from "./governor/resource-support";
 import type { SlotHandle, SlotInfo } from "./governor/slot-queue";
-import type { WatchHandle } from "./governor/memory-watch";
-import { type Wrapped, usesScope, wrapCommand } from "./governor/wrap-command";
-import { systemdEnv, type Exec } from "./governor/exec";
-import type { Sweep } from "./governor/ps-sweep";
+import { usesScope, type Wrapped, wrapCommand } from "./governor/wrap-command";
 import { lastLines } from "./log-tail";
 import { createMonitorBatcher, type MonitorBatcher } from "./monitor-batcher";
 import { createProcessFiles } from "./process-files";
@@ -26,8 +32,7 @@ import {
 import type { ExitDetails, ForegroundOutcome, ForegroundRun, StopReason } from "./process-types";
 import { type RunningProcess, type SpawnFn, spawnRunning } from "./running-process";
 
-export type { ExitDetails, ForegroundOutcome, ForegroundRun };
-export type { SlotInfo };
+export type { ExitDetails, ForegroundOutcome, ForegroundRun, SlotInfo };
 
 export interface StartProcessRequest {
   readonly conversationId: string;

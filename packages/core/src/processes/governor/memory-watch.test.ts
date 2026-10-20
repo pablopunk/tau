@@ -1,15 +1,29 @@
 import { describe, expect, it } from "vitest";
 import { createMemoryWatch } from "./memory-watch";
-import { membersOf, parsePsLine, parsePsOutput, type ProcRow } from "./ps-sweep";
+import { membersOf, type ProcRow, parsePsLine, parsePsOutput } from "./ps-sweep";
 
-const row = (pid: number, ppid: number, pgid: number, rssKb: number, start = "Thu Oct 15 10:25:50 2026"): ProcRow => ({
-  pid, ppid, pgid, rssKb, start,
+const row = (
+  pid: number,
+  ppid: number,
+  pgid: number,
+  rssKb: number,
+  start = "Thu Oct 15 10:25:50 2026",
+): ProcRow => ({
+  pid,
+  ppid,
+  pgid,
+  rssKb,
+  start,
 });
 
 describe("ps parsing", () => {
   it("reads lstart as the last five tokens", () => {
     expect(parsePsLine("  123   1  123  2048 Thu Oct  5 10:25:50 2026")).toEqual({
-      pid: 123, ppid: 1, pgid: 123, rssKb: 2048, start: "Thu Oct 5 10:25:50 2026",
+      pid: 123,
+      ppid: 1,
+      pgid: 123,
+      rssKb: 2048,
+      start: "Thu Oct 5 10:25:50 2026",
     });
     expect(parsePsOutput("garbage\n1 0 1 10 Thu Oct 15 10:25:50 2026\n")).toHaveLength(1);
   });
@@ -17,7 +31,13 @@ describe("ps parsing", () => {
 
 describe("membersOf", () => {
   it("collects descendants, the process group and sticky escapees", () => {
-    const rows = [row(10, 1, 10, 1), row(11, 10, 10, 1), row(12, 11, 12, 1), row(20, 1, 10, 1), row(30, 1, 30, 1)];
+    const rows = [
+      row(10, 1, 10, 1),
+      row(11, 10, 10, 1),
+      row(12, 11, 12, 1),
+      row(20, 1, 10, 1),
+      row(30, 1, 30, 1),
+    ];
     const pids = (found: ProcRow[]) => found.map((member) => member.pid).sort();
     expect(pids(membersOf(rows, 10, new Map()))).toEqual([10, 11, 12, 20]);
     expect(pids(membersOf(rows, 10, new Map([[30, row(30, 1, 30, 1).start]])))).toEqual([10, 11, 12, 20, 30]);

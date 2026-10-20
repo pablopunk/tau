@@ -1,7 +1,7 @@
 import { createHash, randomBytes } from "node:crypto";
 import type { ResourceSupport } from "@tau/protocol";
-import { CGROUP_NOTE, POLLED_NOTE, probeFailedText, UNSUPPORTED_NOTE } from "./governor-text";
 import { type Exec, execCommand, systemdEnv } from "./exec";
+import { CGROUP_NOTE, POLLED_NOTE, probeFailedText, UNSUPPORTED_NOTE } from "./governor-text";
 import { type Binaries, type HostPlatform, hostPlatform, resolveBinaries } from "./wrap-command";
 
 export const PROBE_TTL_MS = 5000;
@@ -75,12 +75,22 @@ export function createResourceSupport(deps: SupportDeps): ResourceSupportProbe {
     const unit = `tau-probe-${unitNodeId(deps.nodeId())}-${randomBytes(6).toString("hex")}`;
     const command = verified
       ? ["--", "true"]
-      : ["-p", `MemoryMax=${MEMORY_MAX_BYTES / 1024 / 1024}M`, "--", sh ?? "/bin/sh", "-c", FIRST_PROBE_SCRIPT];
+      : [
+          "-p",
+          `MemoryMax=${MEMORY_MAX_BYTES / 1024 / 1024}M`,
+          "--",
+          sh ?? "/bin/sh",
+          "-c",
+          FIRST_PROBE_SCRIPT,
+        ];
     const args = ["--user", "--scope", "--quiet", "--collect", `--unit=${unit}`, ...command];
     const result = await exec(systemdRun, args, { env: env(), timeoutMs: PROBE_TIMEOUT_MS });
     if (result.timedOut) return { ok: false, reason: "the cgroup probe timed out" };
     if (result.code !== 0) {
-      return { ok: false, reason: result.stderr.trim().split("\n")[0] || "systemd-run --user --scope failed" };
+      return {
+        ok: false,
+        reason: result.stderr.trim().split("\n")[0] || "systemd-run --user --scope failed",
+      };
     }
     if (!verified && Number(result.stdout.trim()) !== MEMORY_MAX_BYTES) {
       return { ok: false, reason: "the kernel did not apply a memory limit" };
@@ -151,7 +161,13 @@ export function createResourceSupport(deps: SupportDeps): ResourceSupportProbe {
         };
       }
       if (platform !== "linux") {
-        return { platform, memoryEnforcement: "none", prioritySupported: false, sameCgroupOnly: false, note: UNSUPPORTED_NOTE };
+        return {
+          platform,
+          memoryEnforcement: "none",
+          prioritySupported: false,
+          sameCgroupOnly: false,
+          note: UNSUPPORTED_NOTE,
+        };
       }
       const outcome = await probe();
       return {
@@ -167,7 +183,9 @@ export function createResourceSupport(deps: SupportDeps): ResourceSupportProbe {
       const scope = `${unit}.scope`;
       let verdict: "memory" | undefined;
       for (let waited = 0; waited <= 200; waited += 50) {
-        const shown = await exec("systemctl", ["--user", "show", scope, "-p", "Result,ActiveState"], { env: env() });
+        const shown = await exec("systemctl", ["--user", "show", scope, "-p", "Result,ActiveState"], {
+          env: env(),
+        });
         const values = new Map(shown.stdout.split("\n").map((line) => line.split("=") as [string, string]));
         const state = values.get("ActiveState");
         verdict = values.get("Result") === "oom-kill" ? "memory" : undefined;

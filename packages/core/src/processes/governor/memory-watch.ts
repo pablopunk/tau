@@ -94,7 +94,9 @@ export function createMemoryWatch(deps: WatchDeps): MemoryWatch {
   };
 
   async function sweepNow() {
-    const eligible = [...items].filter((item) => !item.killing && now() - item.startedAt >= FIRST_SWEEP_AFTER_MS);
+    const eligible = [...items].filter(
+      (item) => !item.killing && now() - item.startedAt >= FIRST_SWEEP_AFTER_MS,
+    );
     if (eligible.length === 0) return;
     fast = false;
     const rows = await deps.sweep();

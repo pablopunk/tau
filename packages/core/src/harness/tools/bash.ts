@@ -4,7 +4,7 @@ import { stat } from "node:fs/promises";
 import { defineTool } from "@earendil-works/pi-durable";
 import type { BashExecution } from "@earendil-works/pi-durable/tools";
 import { Type } from "typebox";
-import { isGoverned, indexEntryOfCall } from "../../processes/governor/governed";
+import { indexEntryOfCall, isGoverned } from "../../processes/governor/governed";
 import { stopMessage } from "../../processes/governor/governor-text";
 import type { ForegroundOutcome, ForegroundRun } from "../../processes/process-types";
 import type { ToolServicesRef } from "./tool-file";

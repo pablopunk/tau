@@ -80,7 +80,17 @@ export const SETTINGS_INDEX: readonly SettingEntry[] = [
     section: "agent",
     label: "Command priority",
     description: "Run agent commands at a lower CPU priority so the computer stays usable.",
-    keywords: ["resources", "cpu", "nice", "priority", "background", "balanced", "slow", "stutter", "taskpolicy"],
+    keywords: [
+      "resources",
+      "cpu",
+      "nice",
+      "priority",
+      "background",
+      "balanced",
+      "slow",
+      "stutter",
+      "taskpolicy",
+    ],
   },
   {
     id: "resources-heavy-slots",

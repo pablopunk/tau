@@ -36,7 +36,11 @@ export function createPsSweep(exec: Exec = execCommand): Sweep {
 }
 
 /** Descendants of the root by ppid, the root's process group, and every sticky pid that still has its start time. */
-export function membersOf(rows: readonly ProcRow[], rootPid: number, sticky: ReadonlyMap<number, string>): ProcRow[] {
+export function membersOf(
+  rows: readonly ProcRow[],
+  rootPid: number,
+  sticky: ReadonlyMap<number, string>,
+): ProcRow[] {
   const byParent = new Map<number, ProcRow[]>();
   for (const row of rows) byParent.set(row.ppid, [...(byParent.get(row.ppid) ?? []), row]);
   const chosen = new Map<number, ProcRow>();

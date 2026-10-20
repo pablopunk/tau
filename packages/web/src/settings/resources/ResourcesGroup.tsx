@@ -1,4 +1,10 @@
-import { HEAVY_SLOTS_MAX, HEAVY_SLOTS_MIN, MEMORY_LIMIT_MIN_MB, type ResourcePriority, type ResourceSettings } from "@tau/protocol";
+import {
+  HEAVY_SLOTS_MAX,
+  HEAVY_SLOTS_MIN,
+  MEMORY_LIMIT_MIN_MB,
+  type ResourcePriority,
+  type ResourceSettings,
+} from "@tau/protocol";
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { SegmentedControl, type SegmentedOption } from "@/components/ui/segmented-control";
 import { SettingRow } from "@/components/ui/settings-layout";
@@ -6,7 +12,13 @@ import { useResourceActivity, useResourceSupport, useSetResources, useSettings }
 import { AppliesToRow } from "./AppliesToRow";
 import { HoldersList } from "./HoldersList";
 import { LimitRow } from "./LimitRow";
-import { DEFAULT_MEMORY_MB, DEFAULT_SLOTS, NEEDS_UPDATE, NEW_COMMANDS_ONLY, supportLines } from "./resources-text";
+import {
+  DEFAULT_MEMORY_MB,
+  DEFAULT_SLOTS,
+  NEEDS_UPDATE,
+  NEW_COMMANDS_ONLY,
+  supportLines,
+} from "./resources-text";
 
 const option = (value: ResourcePriority, label: string): SegmentedOption<ResourcePriority> => ({
   value,
@@ -37,7 +49,11 @@ export function ResourcesGroup() {
 
   return (
     <div className="flex flex-col gap-4" data-testid="resources-group">
-      {!supported && <p role="status" className="text-sm text-muted-foreground">{NEEDS_UPDATE}</p>}
+      {!supported && (
+        <p role="status" className="text-sm text-muted-foreground">
+          {NEEDS_UPDATE}
+        </p>
+      )}
       <SettingRow id="resources-priority">
         <Field>
           <div className="flex items-center justify-between gap-3">

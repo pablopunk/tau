@@ -16,7 +16,10 @@ let resourceChanges: number;
 let spawnCalls: Array<{ file: string; args: readonly string[] }>;
 const services: ProcessService[] = [];
 
-const settings = (patch: Partial<ResourceSettings>): ResourceSettings => ({ ...DEFAULT_RESOURCE_SETTINGS, ...patch });
+const settings = (patch: Partial<ResourceSettings>): ResourceSettings => ({
+  ...DEFAULT_RESOURCE_SETTINGS,
+  ...patch,
+});
 const recordingSpawn: SpawnFn = ((file: string, args: string[], options: never) => {
   spawnCalls.push({ file, args });
   return spawn(file, args, options);
@@ -107,7 +110,12 @@ describe("heavy slots", () => {
     const first = await foreground(service, "cargo test --x 2>/dev/null; sleep 2", "a");
     const second = await foreground(service, "cargo test --y 2>/dev/null; true", "b");
     await second.stop("resources");
-    expect(await second.outcome).toEqual({ kind: "exited", exitCode: null, stopRequested: true, stopReason: "resources" });
+    expect(await second.outcome).toEqual({
+      kind: "exited",
+      exitCode: null,
+      stopRequested: true,
+      stopReason: "resources",
+    });
     await second.stop("user");
     expect(spawnCalls).toHaveLength(1);
     await first.stop();
@@ -192,10 +200,19 @@ describe("memory limit probe", () => {
       return async () => {
         if (!first) return { cgroupMemory: false };
         first = false;
-        return { cgroupMemory: false, failure: "Resource limits unavailable: no bus. Fix or turn them off in Settings → Resources." };
+        return {
+          cgroupMemory: false,
+          failure: "Resource limits unavailable: no bus. Fix or turn them off in Settings → Resources.",
+        };
       };
     })(),
-    describe: async () => ({ platform: "linux", memoryEnforcement: "polled", prioritySupported: true, sameCgroupOnly: true, note: null }),
+    describe: async () => ({
+      platform: "linux",
+      memoryEnforcement: "polled",
+      prioritySupported: true,
+      sameCgroupOnly: true,
+      note: null,
+    }),
     unitFor: (id) => `tau-x-${id}`,
     scopeVerdict: async () => undefined,
     stop: () => {},

@@ -37,8 +37,8 @@ export function AppliesToRow({ value, disabled, onChange }: AppliesToRowProps) {
           ))}
         </div>
         <FieldDescription>
-          Subagents only is the default. A main thread in its own worktree stays at full speed unless Worktree threads is
-          ticked.
+          Subagents only is the default. A main thread in its own worktree stays at full speed unless Worktree
+          threads is ticked.
         </FieldDescription>
         {controlOn && !isAnyBoxTicked(value.appliesTo) && (
           <FieldDescription role="status">Nothing is governed</FieldDescription>
