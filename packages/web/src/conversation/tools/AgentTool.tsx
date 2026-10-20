@@ -30,13 +30,13 @@ export function AgentTool({ state }: ToolRendererProps) {
       subtitle={argText(state, "description")}
       status={cardStatusOf(child, state.status)}
       badge={<Badge variant="secondary">{agentTypeLabel(type)}</Badge>}
+      actions={childId && isRunningChild(child) ? <StopAgentButton childId={childId} /> : undefined}
     >
       <div className="flex flex-wrap items-center gap-2">
         {model ? <Badge variant="outline">{model}</Badge> : null}
         <AgentStatusBadge status={child?.agentStatus} />
         {childId ? <PendingApprovalBadge conversationId={childId} enabled={isRunningChild(child)} /> : null}
         {child ? <AgentOpenLink child={child} /> : null}
-        {childId && isRunningChild(child) ? <StopAgentButton childId={childId} /> : null}
       </div>
       {answer ? <OutputBlock text={answer} label={state.status === "error" ? "Error" : "Answer"} /> : null}
     </ToolCard>
