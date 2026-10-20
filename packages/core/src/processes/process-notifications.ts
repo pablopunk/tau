@@ -3,9 +3,11 @@ import {
   type MonitorEventData,
   NOTICE_KIND,
   PROCESS_EXIT_KIND,
+  type ProcessExitData,
   type ProcessInfo,
 } from "@tau/protocol";
 import type { Notification } from "../harness/notification-submitter";
+import type { StopReason } from "./process-types";
 
 const quote = (value: string) => value.replaceAll('"', "'").replaceAll("\n", " ");
 
@@ -31,14 +33,29 @@ function endText(ended: NonNullable<MonitorEventData["ended"]>): string {
   return `Monitor ended: exit code ${ended.exitCode ?? "none"}.`;
 }
 
+/**
+ * Names a timed-out bang so it reads differently from a plain exit. The timeout is the fixed 120 s kill in
+ * `bang-command`; other reasons keep the text their call sites compose (memory names its limit, reaping its risk).
+ */
+export const BANG_TIMEOUT_LINE = "Timed out after 120 s.";
+
 export function processExitNotification(
   info: ProcessInfo,
   exitCode: number | null,
   logTail: string,
+  stopReason?: StopReason,
 ): Notification {
+  const data: ProcessExitData = {
+    processId: info.id,
+    name: info.name,
+    command: info.command,
+    exitCode,
+    logTail,
+    ...(stopReason === undefined ? {} : { stopReason }),
+  };
   return {
     kind: PROCESS_EXIT_KIND,
-    data: { processId: info.id, name: info.name, command: info.command, exitCode, logTail },
+    data,
     text: `<process-exit id="${info.id}" name="${quote(info.name)}" exit_code="${exitCode ?? "none"}">\n${logTail}\n</process-exit>`,
     requestId: `process-exit:${info.id}`,
   };

@@ -23,6 +23,7 @@ import { createMonitorBatcher, type MonitorBatcher } from "./monitor-batcher";
 import { createProcessFiles } from "./process-files";
 import { groupIsAlive, sleep, terminateGroup } from "./process-group";
 import {
+  BANG_TIMEOUT_LINE,
   monitorEventNotification,
   noisyNoticeText,
   noticeNotification,
@@ -79,8 +80,8 @@ export interface ProcessService {
   /** True while a process or monitor of the thread runs. */
   hasRunning(conversationId: string): boolean;
   logs(id: string, tail: number): Promise<string>;
-  /** SIGTERM, SIGKILL after 5 s. */
-  stop(id: string): Promise<void>;
+  /** SIGTERM, SIGKILL after 5 s. A bang command's kill timer stops with `timeout`. */
+  stop(id: string, reason?: StopReason): Promise<void>;
   /** Hub start: kills groups left by an earlier run and marks them `killed`. */
   reapStaleAtStartup(): Promise<void>;
   /** Hub shutdown. */
@@ -280,11 +281,14 @@ export function createProcessService(deps: ProcessDeps): ProcessService {
     entry.exitNotified = true;
     if (entry.batcher) return finishMonitor(entry, details);
     const memoryStop = details.stopReason === "memory";
-    if (entry.notifyOnExit && (!details.stopRequested || memoryStop)) {
+    const timeoutStop = details.stopReason === "timeout";
+    if (entry.notifyOnExit && (!details.stopRequested || memoryStop || timeoutStop)) {
       const tail = memoryStop
         ? `${memoryStopText(entry.memoryLimitMb ?? null)}\n${details.logTail}`
-        : details.logTail;
-      send(entry, processExitNotification(entry.info, details.exitCode, tail));
+        : timeoutStop
+          ? `${BANG_TIMEOUT_LINE}\n${details.logTail}`
+          : details.logTail;
+      send(entry, processExitNotification(entry.info, details.exitCode, tail, details.stopReason));
     }
   }
 
@@ -341,7 +345,7 @@ export function createProcessService(deps: ProcessDeps): ProcessService {
       return;
     }
     if (entry.notifyOnExit)
-      send(entry, processExitNotification(entry.info, null, reapingTailText(entry, running, reason)));
+      send(entry, processExitNotification(entry.info, null, reapingTailText(entry, running, reason), reason));
   }
 
   function reapingTailText(entry: Entry, running: RunningProcess, reason: StopReason): string {
@@ -694,10 +698,10 @@ export function createProcessService(deps: ProcessDeps): ProcessService {
       const text = entry.running ? entry.running.tail.text() : await files.readLog(id);
       return lastLines(text, tail);
     },
-    async stop(id) {
+    async stop(id, reason: StopReason = "user") {
       const entry = entries.get(id);
       if (entry) {
-        await stopEntry(entry, "user");
+        await stopEntry(entry, reason);
         return;
       }
       if (pruned.has(id)) return;
