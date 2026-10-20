@@ -30,6 +30,9 @@ function CommandLine({ command, label }: { command: string; label: string }) {
   );
 }
 
+const INSTALL_COMMAND =
+  "curl -fsSL https://github.com/pablopunk/tau/releases/latest/download/install.sh | sh";
+
 function NodeCode({ state }: { state: PairingState }) {
   const { pairing, expired, msLeft } = state;
   if (!pairing) return <Spinner className="mx-auto my-12" />;
@@ -41,18 +44,15 @@ function NodeCode({ state }: { state: PairingState }) {
       ) : null}
       <CodeDisplay code={pairing.shortCode} />
       <div className="flex w-full min-w-0 flex-col gap-2 text-sm">
-        <p className="text-muted-foreground">On the other node, run:</p>
-        {link ? (
-          <CommandLine
-            command={`npx -y @pablopunk/tau@latest connect '${link}'`}
-            label="Copy command with link"
-          />
-        ) : null}
+        <p className="text-muted-foreground">Without tau on the other node, install it first:</p>
+        <CommandLine command={INSTALL_COMMAND} label="Copy install command" />
+        <p className="text-muted-foreground">Then run:</p>
+        {link ? <CommandLine command={`tau connect '${link}'`} label="Copy command with link" /> : null}
         {link ? (
           <>
             <p className="text-muted-foreground">Or with the code:</p>
             <CommandLine
-              command={`npx -y @pablopunk/tau@latest connect ${pairing.shortCode} --node '${new URL(link).origin}'`}
+              command={`tau connect ${pairing.shortCode} --node '${new URL(link).origin}'`}
               label="Copy command with code"
             />
           </>

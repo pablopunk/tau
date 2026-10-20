@@ -175,7 +175,7 @@ describe("Settings → Nodes", () => {
     renderSection();
     const home = (await screen.findByText("Homelab")).closest("li") as HTMLElement;
     expect(within(home).getByText(/Update tau on Homelab/, { selector: "p" })).toBeInTheDocument();
-    expect(within(home).getByText("npm i -g @pablopunk/tau@latest")).toBeInTheDocument();
+    expect(within(home).getAllByText("tau update").length).toBeGreaterThan(0);
     expect(within(home).getByRole("button", { name: "Copy update command" })).toBeInTheDocument();
   });
 
@@ -278,12 +278,8 @@ describe("Settings → Nodes", () => {
     const user = userEvent.setup();
     renderSection();
     await user.click(await screen.findByRole("button", { name: "Connect a node to this node" }));
-    expect(
-      await screen.findByText("npx -y @pablopunk/tau@latest connect 'https://node.example/pair#ABCD2345'"),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText("npx -y @pablopunk/tau@latest connect ABCD2345 --node 'https://node.example'"),
-    ).toBeInTheDocument();
+    expect(await screen.findByText("tau connect 'https://node.example/pair#ABCD2345'")).toBeInTheDocument();
+    expect(screen.getByText("tau connect ABCD2345 --node 'https://node.example'")).toBeInTheDocument();
     expect(calls).toContainEqual({ method: "POST", url: "/api/pair?kind=node" });
     expect(screen.getByRole("note")).toHaveTextContent(
       /Every node in the group gets full power over every other node/,

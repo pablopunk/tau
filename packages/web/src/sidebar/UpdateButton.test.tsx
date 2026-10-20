@@ -14,8 +14,8 @@ import { UpdateButton } from "./UpdateButton";
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 const RUN: UpdateInstall = { mode: "run", command: null, reason: null };
-const NPM_I = "npm i -g @pablopunk/tau@latest && tau restart";
-const manual = (reason: string, command: string | null = NPM_I): UpdateInstall => ({
+const UPDATE_CMD = "tau update";
+const manual = (reason: string, command: string | null = UPDATE_CMD): UpdateInstall => ({
   mode: "manual",
   command,
   reason,
@@ -73,9 +73,7 @@ const button = () => screen.findByRole("button", { name: /update/i });
 
 describe("install matrix", () => {
   it.each([
-    ["npm global", RUN],
-    ["pnpm global", RUN],
-    ["mise/asdf npm", RUN],
+    ["binary install", RUN],
     [
       "foreground (not a service)",
       {
@@ -94,9 +92,9 @@ describe("install matrix", () => {
   });
 
   it.each([
-    ["npx / dlx cache", manual("it runs from the npx cache")],
+    ["custom path", manual("it runs from a custom path")],
     ["Windows", manual("Windows cannot replace a running tau")],
-    ["bun / volta", manual("it was installed with bun", "bun add -g @pablopunk/tau@latest && tau restart")],
+    ["custom command", manual("it was installed by hand", "sh ./my-update.sh")],
   ])("%s: shows the command and runs nothing", async (_name, install) => {
     setup(status({ install }));
     await userEvent.click(await button());
@@ -126,10 +124,14 @@ describe("jobs", () => {
 
   it("failed shows even when not behind, with the log tail and no Retry for manual", async () => {
     setup(
-      status({ behind: false, install: manual("npx"), job: job("failed", { logTail: "npm error E404" }) }),
+      status({
+        behind: false,
+        install: manual("custom"),
+        job: job("failed", { logTail: "download failed: 404" }),
+      }),
     );
     await userEvent.click(await screen.findByRole("button", { name: "Update failed" }));
-    expect(await screen.findByText("npm error E404")).toBeInTheDocument();
+    expect(await screen.findByText("download failed: 404")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Retry" })).toBeNull();
   });
 

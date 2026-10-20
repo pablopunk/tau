@@ -290,13 +290,13 @@ async function cacheOfflineSummaries(hub: FakeCore): Promise<void> {
   }
 }
 
-/** `?fake=update` (behind, runs), `update-fail`, `update-manual` (npx): ready, 0.9.0 with 0.10.12 published. */
+/** `?fake=update` (behind, runs), `update-fail`, `update-manual` (manual command): ready, 0.9.0 with 0.10.12 published. */
 function updateScenarioOf(name: string | null): Parameters<typeof createFakeCore>[0] | undefined {
   const base = { currentVersion: "0.9.0", latestVersion: "0.10.12" };
   const manual = {
     mode: "manual",
-    command: "npm i -g @pablopunk/tau@latest && tau restart",
-    reason: "it runs from the npx cache",
+    command: "tau update",
+    reason: "it was started from a custom path",
   } as const;
   if (name === "update") return base;
   if (name === "update-fail") return { ...base, updates: { failUpdate: true } };

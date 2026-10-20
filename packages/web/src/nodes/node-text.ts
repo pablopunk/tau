@@ -22,7 +22,7 @@ export function stateLine(node: Node, now: number): string {
   return `Offline, last seen ${agoText(node.lastSeenAt, now)}`;
 }
 
-export const updateCommand = "npm i -g @pablopunk/tau@latest";
+export const updateCommand = "tau update";
 
 export const CONNECT_POWER_TITLE = "Every node in the group gets full power over every other node";
 
