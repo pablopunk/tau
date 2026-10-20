@@ -490,6 +490,7 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
         checkpoints,
         forker,
         harness,
+        notifications,
         removal,
         archivedCleanup,
         closeClaudeCliThread,

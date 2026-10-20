@@ -5,6 +5,7 @@ import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { MemoryRouter } from "react-router";
 import { describe, expect, it, vi } from "vitest";
+import type { Api } from "@/lib/api";
 import { queryKeys } from "@/lib/queries";
 import { NodeApiProvider } from "@/nodes/node-context";
 import { conversation } from "@/sidebar/test-support";
@@ -13,7 +14,7 @@ import { TaskTool } from "../tools/TaskTool";
 import { TodoTool } from "../tools/TodoTool";
 import { LatestTodoCallProvider } from "./latest-todo-call";
 import { TodoPanel } from "./TodoPanel";
-import { latestTodoCallId } from "./todo-items";
+import { latestTodoSource, latestTodos } from "./todo-items";
 
 vi.mock("@/lib/api", () => ({ api: { conversations: { listAll: vi.fn(async () => []) } } }));
 
@@ -73,6 +74,64 @@ describe("<TodoPanel>", () => {
   });
 });
 
+describe("<TodoPanel> editing", () => {
+  const renderPanel = (api: Api, view: ConversationView) =>
+    render(
+      <MemoryRouter>
+        <NodeApiProvider api={api}>
+          <TodoPanel conversationId="1" view={view} />
+        </NodeApiProvider>
+      </MemoryRouter>,
+    );
+
+  it("cycles status and saves the edited list with a requestId", async () => {
+    const updateTodos = vi.fn(async () => undefined);
+    const api = { conversations: { updateTodos } } as unknown as Api;
+    renderPanel(api, viewWith(TODOS));
+    await userEvent.click(screen.getByRole("button", { name: "Edit todos" }));
+    await userEvent.click(screen.getByRole("button", { name: "Mark completed" }));
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(updateTodos).toHaveBeenCalledOnce();
+    const [id, input] = updateTodos.mock.calls[0] as unknown as [
+      string,
+      { todos: unknown; requestId: unknown },
+    ];
+    expect(id).toBe("1");
+    expect(input.todos).toEqual([
+      { content: "Write tests", status: "completed" },
+      { content: "Ship it", status: "pending" },
+    ]);
+    expect(input.requestId).toEqual(expect.any(String));
+  });
+
+  it("adds, deletes and drops empty items on save", async () => {
+    const updateTodos = vi.fn(async () => undefined);
+    const api = { conversations: { updateTodos } } as unknown as Api;
+    renderPanel(api, viewWith(TODOS));
+    await userEvent.click(screen.getByRole("button", { name: "Edit todos" }));
+    await userEvent.click(screen.getByRole("button", { name: "Delete todo 2" }));
+    await userEvent.click(screen.getByRole("button", { name: "Add" }));
+    await userEvent.type(screen.getByLabelText("Todo 2"), "New item");
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    const [, input] = updateTodos.mock.calls[0] as unknown as [string, { todos: unknown }];
+    expect(input.todos).toEqual([
+      { content: "Write tests", status: "in_progress" },
+      { content: "New item", status: "pending" },
+    ]);
+  });
+
+  it("refuses an overlong todo without calling the api", async () => {
+    const updateTodos = vi.fn(async () => undefined);
+    const api = { conversations: { updateTodos } } as unknown as Api;
+    renderPanel(api, viewWith(TODOS));
+    await userEvent.click(screen.getByRole("button", { name: "Edit todos" }));
+    await userEvent.type(screen.getByLabelText("Todo 1"), "x".repeat(500));
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+    expect(updateTodos).not.toHaveBeenCalled();
+  });
+});
+
 describe("<TodoTool>", () => {
   it("renders a one-line summary instead of the full checklist", () => {
     render(<TodoTool state={callState("todo_write", { todos: TODOS })} />);
@@ -84,7 +143,7 @@ describe("<TodoTool>", () => {
 describe("<TodoTool> history", () => {
   it("labels an earlier todo_write as an Updated todos row", () => {
     render(
-      <LatestTodoCallProvider value="newer">
+      <LatestTodoCallProvider value="call:newer">
         <TodoTool state={callState("todo_write", { todos: TODOS })} />
       </LatestTodoCallProvider>,
     );
@@ -92,9 +151,27 @@ describe("<TodoTool> history", () => {
     expect(screen.getByText("0/2 done \u2192 Write tests")).toBeInTheDocument();
   });
 
-  it("finds the newest todo_write call id", () => {
-    expect(latestTodoCallId(viewWith(TODOS))).toBe("t");
-    expect(latestTodoCallId(viewWith(undefined))).toBeUndefined();
+  it("marks the agent list superseded after a newer user edit", () => {
+    render(
+      <LatestTodoCallProvider value="edit:9">
+        <TodoTool state={callState("todo_write", { todos: TODOS })} />
+      </LatestTodoCallProvider>,
+    );
+    expect(screen.getByText("Updated todos")).toBeInTheDocument();
+  });
+
+  it("namespaces the newest todo event, newest entry wins", () => {
+    expect(latestTodoSource(viewWith(TODOS))).toBe("call:t");
+    expect(latestTodoSource(viewWith(undefined))).toBeUndefined();
+  });
+
+  it("prefers a newer user edit over the agent list", () => {
+    const user = [{ content: "user version", status: "completed" }];
+    const view = {
+      entries: [todoEntry(1, TODOS), { id: 2, kind: "app.todos_updated", data: { todos: user } }],
+    } as unknown as ConversationView;
+    expect(latestTodoSource(view)).toBe("edit:2");
+    expect(latestTodos(view)).toEqual(user);
   });
 });
 

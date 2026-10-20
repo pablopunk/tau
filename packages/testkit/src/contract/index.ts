@@ -36,6 +36,7 @@ import { subagentCases } from "./subagents";
 import { terminalCases } from "./terminals";
 import { timerCases } from "./timers";
 import { titleAndStatusCases } from "./titles-status";
+import { todoCases } from "./todos";
 import type { MakeContractTarget } from "./types";
 import { updatesCases } from "./updates";
 import { workspaceCases } from "./workspaces";
@@ -76,6 +77,7 @@ export const CONTRACT_MODULES = {
   terminals: terminalCases,
   mcp: mcpCases,
   timers: timerCases,
+  todos: todoCases,
   monitors: monitorCases,
   goals: goalCases,
   "claude-cli": claudeCliCases,

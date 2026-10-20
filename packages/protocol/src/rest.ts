@@ -54,6 +54,7 @@ import { NodeSchema, NodeSelfSchema, NodeSummarySchema, RenameNodeBodySchema } f
 import { HealthSchema, RemoteStatusSchema } from "./remote";
 import { ResourceActivitySchema, ResourceSettingsSchema, ResourceSupportSchema } from "./resources";
 import { OpenTerminalInputSchema, TerminalAvailabilitySchema, TerminalInfoSchema } from "./terminals";
+import { UpdateTodosInputSchema } from "./todos";
 import { UpdateStartBodySchema, UpdateStatusSchema } from "./updates";
 
 export const API_PREFIX = "/api";
@@ -546,6 +547,13 @@ export const routes = {
     params: IdParams,
     body: SendMessageInputSchema,
     bodyLimit: MESSAGE_BODY_LIMIT,
+  },
+  updateTodos: {
+    method: "PUT",
+    path: `${API_PREFIX}/conversations/:id/todos`,
+    status: 204,
+    params: IdParams,
+    body: UpdateTodosInputSchema,
   },
   archiveConversation: {
     method: "PUT",
