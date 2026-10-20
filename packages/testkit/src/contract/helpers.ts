@@ -63,6 +63,21 @@ export function entryKinds(view: ConversationView | null): string[] {
   return view?.entries.map((entry) => entry.kind) ?? [];
 }
 
+/** The verbatim text of every user entry, for tests that assert exactly what was stored. */
+export function userTexts(view: ConversationView | null): string[] {
+  return (view?.entries ?? []).flatMap((entry) => {
+    if (entry.kind !== "pi.user") return [];
+    const content = (entry.model?.[0] as { content?: unknown } | undefined)?.content;
+    if (typeof content === "string") return [content];
+    if (!Array.isArray(content)) return [];
+    return content.flatMap((part) =>
+      typeof part === "object" && part !== null && (part as { type?: unknown }).type === "text"
+        ? [(part as { text?: unknown }).text].flatMap((text) => (typeof text === "string" ? [text] : []))
+        : [],
+    );
+  });
+}
+
 export function userEntryIds(view: ConversationView | null): string[] {
   const entries = view?.entries ?? [];
   return entries.filter((entry) => entry.model?.[0]?.role === "user").map((entry) => String(entry.id));
