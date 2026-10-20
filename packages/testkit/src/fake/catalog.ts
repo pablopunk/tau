@@ -16,6 +16,12 @@ export const FAKE_PROVIDERS: readonly Omit<ProviderInfo, "connection" | "cli">[]
   },
   { id: "google", name: "Google", methods: ["api_key"], keyUrl: "https://aistudio.google.com/apikey" },
   { id: "opencode", name: "OpenCode", methods: ["api_key"], keyUrl: "https://opencode.ai/auth" },
+  {
+    id: "typesafe",
+    name: "TypeSafe",
+    methods: ["api_key"],
+    keyUrl: "https://console.typesafe.ai/settings/keys",
+  },
   { id: "claude-cli", name: "Claude CLI", methods: ["claude_cli"], keyUrl: "" },
 ];
 

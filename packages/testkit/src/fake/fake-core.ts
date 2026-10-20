@@ -1,12 +1,15 @@
 import {
   AppError,
   type Change,
+  type CompactionSettings,
+  CompactionSettingsSchema,
   type ConversationSummary,
   type Core,
   type MessageMode,
   type ModelRef,
   type NodeLinkDirection,
   type Project,
+  type ProviderId,
   type Settings,
   type Skill,
   type StartConversationInput,
@@ -15,6 +18,7 @@ import {
   type WorkspaceDefault,
   type WorkspaceMode,
 } from "@tau/protocol";
+import { Value } from "typebox/value";
 import { clampFakeThinkingLevel, FAKE_MODELS, findFakeModel } from "./catalog";
 import { createFakeAccess } from "./fake-access";
 import { createFakeConnectors, type FakeConnectors } from "./fake-connectors";
@@ -141,6 +145,7 @@ export function createFakeCore(options: FakeCoreOptions = {}): FakeCore {
   };
   let messageMode: MessageMode = "steer";
   let workspaceDefault: WorkspaceDefault = "per-project";
+  let compaction: CompactionSettings = { mode: "summary", backend: "auto" };
   let setupSkipped = false;
   const lastWorkspaceModes = new Map<string, WorkspaceMode>();
   let projectsFolder = FAKE_PROJECTS_FOLDER;
@@ -487,6 +492,7 @@ export function createFakeCore(options: FakeCoreOptions = {}): FakeCore {
           claudeConnectors: connectors.settings(),
           remote: { enabled: remote.status().state !== "off" },
           resources: resources.settings(),
+          compaction: { ...compaction },
           setupSkipped,
         };
       },
@@ -527,6 +533,27 @@ export function createFakeCore(options: FakeCoreOptions = {}): FakeCore {
       },
       async setClaudeConnectors(value) {
         connectors.setSettings(value);
+      },
+      async setCompaction(value: CompactionSettings) {
+        if (!Value.Check(CompactionSettingsSchema, value)) {
+          throw new AppError("invalid_request", "Compaction mode must be summary or fast.");
+        }
+        if (value.mode === "fast") {
+          const wanted: readonly ProviderId[] =
+            value.backend === "auto" ? ["typesafe", "openai"] : [value.backend];
+          const connected = new Set(
+            (await connections.providers.list())
+              .filter((info) => info.connection !== null)
+              .map((info) => info.id),
+          );
+          if (!wanted.some((id) => connected.has(id))) {
+            throw new AppError(
+              "invalid_request",
+              "Connect TypeSafe, or OpenAI with decisions access, to enable fast compaction.",
+            );
+          }
+        }
+        compaction = { ...value };
       },
       async setProjectsFolder(typedPath) {
         const path = expandFakeHome(typedPath);

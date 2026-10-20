@@ -192,7 +192,8 @@ export function createFakeProviders(deps: {
     models: {
       async list() {
         const claudeModels = connections.has("claude-cli") ? FAKE_CLAUDE_CLI_MODELS.map(copyModel) : [];
-        return connections.size > 0 ? [...FAKE_MODELS.map(copyModel), ...claudeModels] : [];
+        const keyed = [...connections.keys()].some((id) => id !== "typesafe" && id !== "claude-cli");
+        return keyed ? [...FAKE_MODELS.map(copyModel), ...claudeModels] : claudeModels;
       },
     },
   };

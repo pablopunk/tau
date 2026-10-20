@@ -3,7 +3,7 @@ import type { CaseRunner } from "./case-runner";
 import { collectChanges, rejectsWithCode } from "./helpers";
 import type { ContractTarget, MakeContractTarget } from "./types";
 
-const PROVIDER_IDS = ["openrouter", "openai", "anthropic", "google", "opencode", "claude-cli"];
+const PROVIDER_IDS = ["openrouter", "openai", "anthropic", "google", "opencode", "typesafe", "claude-cli"];
 
 export function providerCases(make: MakeContractTarget, test: CaseRunner): void {
   describe("providers", () => {
@@ -55,6 +55,21 @@ export function providerCases(make: MakeContractTarget, test: CaseRunner): void 
       stop();
       expect(info).toMatchObject({ id: "google", connection: null });
       expect(changes).toContainEqual({ resource: "providers" });
+      expect(await core.models.list()).toEqual([]);
+    });
+
+    test("[providers] stores a typesafe key under the typesafe credential without adding chat models", async () => {
+      const { core } = target;
+      const info = await core.providers.setApiKey("typesafe", "sk-contract-test");
+      expect(info).toMatchObject({ id: "typesafe", connection: { method: "api_key", source: "file" } });
+      expect(await core.models.list()).toEqual([]);
+      const disconnected = await core.providers.disconnect("typesafe");
+      expect(disconnected).toMatchObject({ id: "typesafe", connection: null });
+    });
+
+    test("[providers] isConfigured is false with only typesafe connected", async () => {
+      const { core } = target;
+      await core.providers.setApiKey("typesafe", "sk-contract-test");
       expect(await core.models.list()).toEqual([]);
     });
 
