@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react"
+import { MorphText } from "@/components/ui/morph-text"
 
 const MINUTE = 60_000
 const HOUR = 60 * MINUTE
@@ -21,18 +22,21 @@ interface RelativeTimeProps extends Omit<React.ComponentProps<"time">, "children
   at: number
   /** Fixed clock for tests and stories; by default the time follows the real clock. */
   now?: number
+  /** Morph the text when it changes. Off by default: lists can have many rows. */
+  animate?: boolean
 }
 
-function RelativeTime({ at, now, ...props }: RelativeTimeProps) {
+function RelativeTime({ at, now, animate, ...props }: RelativeTimeProps) {
   const [tick, setTick] = useState(() => Date.now())
   useEffect(() => {
     if (now !== undefined) return
     const timer = setInterval(() => setTick(Date.now()), REFRESH_MS)
     return () => clearInterval(timer)
   }, [now])
+  const text = formatRelativeTime(at, now ?? tick)
   return (
     <time data-slot="relative-time" dateTime={new Date(at).toISOString()} {...props}>
-      {formatRelativeTime(at, now ?? tick)}
+      {animate ? <MorphText>{text}</MorphText> : text}
     </time>
   )
 }

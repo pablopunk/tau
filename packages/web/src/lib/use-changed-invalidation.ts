@@ -50,6 +50,10 @@ function invalidateChange(queryClient: QueryClient, change: Change) {
     void queryClient.invalidateQueries({ queryKey: queryKeys.allMcpServers });
     return;
   }
+  if (change.resource === "resources") {
+    void queryClient.invalidateQueries({ queryKey: queryKeys.resourceActivity });
+    return;
+  }
   if (change.resource !== "conversations") return;
   void queryClient.invalidateQueries({ queryKey: queryKeys.conversations(change.projectId) });
   void queryClient.invalidateQueries({ queryKey: queryKeys.allConversations });

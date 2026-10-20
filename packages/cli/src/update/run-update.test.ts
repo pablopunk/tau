@@ -368,6 +368,22 @@ describe("tau update", () => {
     expect(restartCalls(s)).toEqual([]);
   });
 
+  it("waits for a server that comes up after the update instead of saying it is not running", async () => {
+    const s = await setup({ instance: undefined, active: false });
+    const waits: number[] = [];
+    const deps = {
+      ...s.deps,
+      pollRunningVersion: async (_home: string, version: string, timeoutMs: number) => {
+        waits.push(timeoutMs);
+        return version;
+      },
+    };
+    expect(await runUpdateWith(deps, ["--yes"])).toBe(0);
+    expect(waits).toEqual([30_000]);
+    expect(s.out.join()).not.toContain("tau start");
+    expect(s.out.join()).toContain("is running");
+  });
+
   it("refuses in a dev checkout", async () => {
     const s = await setup({ devCheckout: true });
     expect(await runUpdateWith(s.deps, ["--yes"])).toBe(1);

@@ -18,6 +18,12 @@ const DEFAULTS = {
   setupSkipped: false,
   claudeConnectors: { disabled: [], alwaysAllow: [], askBeforeWrites: false },
   remote: { enabled: false },
+  resources: {
+    priority: "off",
+    heavySlots: null,
+    memoryLimitMb: null,
+    appliesTo: { main: false, worktrees: false, subagents: true },
+  },
 };
 const ref = { provider: "openrouter", modelId: "x/y" };
 
@@ -176,5 +182,48 @@ describe("setupSkipped", () => {
     const path = join(await tempDir(), "settings.json");
     await writeFile(path, JSON.stringify({ setupSkipped: "yes" }));
     expect((await createSettingsStore(path, PROJECTS).get()).setupSkipped).toBe(false);
+  });
+});
+
+describe("resources", () => {
+  const read = async (stored: unknown) => {
+    const path = join(await tempDir(), "settings.json");
+    await writeFile(path, JSON.stringify({ resources: stored }));
+    return (await createSettingsStore(path, PROJECTS).get()).resources;
+  };
+
+  it("is Off when the field is missing", async () => {
+    const path = join(await tempDir(), "settings.json");
+    await writeFile(path, JSON.stringify({}));
+    expect((await createSettingsStore(path, PROJECTS).get()).resources).toEqual(DEFAULTS.resources);
+  });
+
+  it("keeps valid fields and defaults each invalid or missing one on its own", async () => {
+    expect(
+      await read({ priority: "balanced", heavySlots: 99, memoryLimitMb: 10, appliesTo: { main: true } }),
+    ).toEqual({
+      priority: "balanced",
+      heavySlots: null,
+      memoryLimitMb: null,
+      appliesTo: { main: true, worktrees: false, subagents: true },
+    });
+    expect(await read({ heavySlots: 3, memoryLimitMb: 2048, priority: "nope" })).toMatchObject({
+      priority: "off",
+      heavySlots: 3,
+      memoryLimitMb: 2048,
+    });
+    expect(await read("garbage")).toEqual(DEFAULTS.resources);
+  });
+
+  it("stores the value whole and reads it back", async () => {
+    const path = join(await tempDir(), "settings.json");
+    const value = {
+      priority: "background" as const,
+      heavySlots: 2,
+      memoryLimitMb: 4096,
+      appliesTo: { main: true, worktrees: true, subagents: false },
+    };
+    await createSettingsStore(path, PROJECTS).setResources(value);
+    expect((await createSettingsStore(path, PROJECTS).get()).resources).toEqual(value);
   });
 });

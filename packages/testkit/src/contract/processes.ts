@@ -47,7 +47,8 @@ export function processCases(make: MakeContractTarget, test: CaseRunner): void {
       await core.processes.stop(info.id);
       await core.processes.stop(info.id);
       stop();
-      expect((await core.processes.list(conversation.id))[0]?.state).toBe("killed");
+      // Finished processes are pruned from the list; the stop still announces the change.
+      expect(await core.processes.list(conversation.id)).toEqual([]);
       expect(changes).toContainEqual({ resource: "processes", conversationId: conversation.id });
       await rejectsWithCode(core.processes.stop("nope"), "not_found");
     });

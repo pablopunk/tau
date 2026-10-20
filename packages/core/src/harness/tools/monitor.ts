@@ -1,5 +1,6 @@
 import { defineExtension, defineTool } from "@earendil-works/pi-durable";
 import { Type } from "typebox";
+import { indexEntryOfCall, isGoverned } from "../../processes/governor/governed";
 import type { ToolFileFactory } from "./tool-file";
 
 export const DEFAULT_MONITOR_TIMEOUT_MS = 300_000;
@@ -28,11 +29,14 @@ export const monitorToolFile: ToolFileFactory = (services) => ({
         description: DESCRIPTION,
         parameters: MonitorParameters,
         replay: "unsafe",
-        execute: async ({ command, description, timeout_ms }, api) => {
-          const info = await services.current().processes.start({
+        execute: async ({ command, description, timeout_ms }, api, context) => {
+          const processes = services.current().processes;
+          const governed = await isGoverned(processes.resourceSettings(), indexEntryOfCall(api, context));
+          const info = await processes.start({
             conversationId: String(api.conversationId),
             cwd: api.env?.cwd ?? process.cwd(),
             command,
+            ...(governed && { governed }),
             name: description,
             kind: "monitor",
             timeoutMs: timeout_ms ?? DEFAULT_MONITOR_TIMEOUT_MS,

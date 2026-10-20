@@ -34,6 +34,8 @@ window.ResizeObserver ??= class {
 
 Element.prototype.scrollIntoView ??= () => {};
 
+Element.prototype.getAnimations ??= () => [];
+
 Element.prototype.animate ??= (() => ({
   cancel() {},
   finish() {},

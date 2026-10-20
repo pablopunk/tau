@@ -3,6 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { argText, exitCodeOf, isActive, resultDetails, resultText, wasAborted } from "../model/tool-state";
 import { BackgroundButton } from "./BackgroundButton";
 import { OutputBlock } from "./OutputBlock";
+import { StopToolCallButton } from "./StopToolCallButton";
 import { ToolCard } from "./ToolCard";
 import { useToolConversationId } from "./tool-conversation";
 import type { ToolRendererProps } from "./types";
@@ -42,7 +43,10 @@ export function BashTool({ state }: ToolRendererProps) {
       badge={<ExitBadge state={state} />}
       actions={
         conversationId && state.status === "running" ? (
-          <BackgroundButton conversationId={conversationId} callId={state.call.id} />
+          <div className="flex gap-1.5">
+            <StopToolCallButton conversationId={conversationId} callId={state.call.id} />
+            <BackgroundButton conversationId={conversationId} callId={state.call.id} />
+          </div>
         ) : null
       }
     >

@@ -4,16 +4,19 @@ import { stat } from "node:fs/promises";
 import { defineTool } from "@earendil-works/pi-durable";
 import type { BashExecution } from "@earendil-works/pi-durable/tools";
 import { Type } from "typebox";
-import type { ForegroundOutcome, ForegroundRun } from "../../processes/process-service";
+import { indexEntryOfCall, isGoverned } from "../../processes/governor/governed";
+import { stopMessage } from "../../processes/governor/governor-text";
+import type { ForegroundOutcome, ForegroundRun } from "../../processes/process-types";
 import type { ToolServicesRef } from "./tool-file";
 
-const MAX_TIMEOUT_SECONDS = 2_147_483_647 / 1000;
+const DEFAULT_TIMEOUT_SECONDS = 120;
+const MAX_TIMEOUT_SECONDS = 600;
 const MAX_LINES = 2000;
 const MAX_KB = 50;
 
 const BashParameters = Type.Object({
   command: Type.String({ description: "Bash command to execute" }),
-  timeout: Type.Optional(Type.Number({ description: "Timeout in seconds (optional, no default timeout)" })),
+  timeout: Type.Optional(Type.Number({ description: "Timeout in seconds (default 120, maximum 600)" })),
 });
 
 const BashStructuredOutput = Type.Object({
@@ -67,24 +70,29 @@ export const backgroundedText = (processId: string) =>
   `The user moved this command to the background; it keeps running as process ${processId}. ` +
   "You will be told when it exits. Read its output with process_logs, or end it with process_stop.";
 
-/** What a caller does to the wait: end it by a time limit or by an abort. */
+/** What a caller does to the wait: end it by a time limit or by an abort. The time limit starts at spawn. */
 function guard(run: ForegroundRun, timeout: number | undefined, abortSignal: AbortSignal | undefined) {
   let timedOut = false;
-  const stop = () => void run.stop();
-  const timer =
-    timeout === undefined
-      ? undefined
-      : setTimeout(() => {
-          timedOut = true;
-          stop();
-        }, timeout * 1000);
-  if (abortSignal?.aborted) stop();
-  abortSignal?.addEventListener("abort", stop, { once: true });
+  let released = false;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const stopForAbort = () => void run.stop("user");
+  if (timeout !== undefined) {
+    void run.admitted.then(() => {
+      if (released) return;
+      timer = setTimeout(() => {
+        timedOut = true;
+        void run.stop("timeout");
+      }, timeout * 1000);
+    });
+  }
+  if (abortSignal?.aborted) stopForAbort();
+  abortSignal?.addEventListener("abort", stopForAbort, { once: true });
   return {
     timedOut: () => timedOut,
     release() {
+      released = true;
       if (timer) clearTimeout(timer);
-      abortSignal?.removeEventListener("abort", stop);
+      abortSignal?.removeEventListener("abort", stopForAbort);
     },
   };
 }
@@ -102,6 +110,7 @@ export const createTauBashTool = ({ services, prepare }: TauBashOptions) =>
     outputLimits: { retain: "tail" },
     async execute({ command, timeout }, api, context) {
       validateTimeout(timeout);
+      const effectiveTimeout = timeout ?? DEFAULT_TIMEOUT_SECONDS;
       const cwd = api.env?.cwd ?? process.cwd();
       await requireDirectory(cwd);
       const execution: BashExecution = { command, cwd, env: {}, inheritEnv: true };
@@ -109,6 +118,8 @@ export const createTauBashTool = ({ services, prepare }: TauBashOptions) =>
       prepare(execution, conversationId);
       const processes = services.current().processes;
       let waiting = true;
+      const settings = processes.resourceSettings();
+      const governed = await isGoverned(settings, indexEntryOfCall(api, context));
       const run = await processes.runForeground({
         conversationId,
         callId: api.callId,
@@ -116,6 +127,7 @@ export const createTauBashTool = ({ services, prepare }: TauBashOptions) =>
         command: execution.command,
         env: execution.env,
         shell: bashPath(),
+        ...(governed && { governed }),
         // A command's stragglers can write after the call settled; the call no longer takes output then.
         onOutput: (text) => {
           if (!waiting) return;
@@ -126,7 +138,7 @@ export const createTauBashTool = ({ services, prepare }: TauBashOptions) =>
           }
         },
       });
-      const watch = guard(run, timeout, context.abortSignal);
+      const watch = guard(run, effectiveTimeout, context.abortSignal);
       let handedOver = false;
       let keepLog = false;
       try {
@@ -152,8 +164,14 @@ export const createTauBashTool = ({ services, prepare }: TauBashOptions) =>
             details: { processId: outcome.info.id, backgrounded: true },
           };
         }
-        if (watch.timedOut()) throw new Error(`Command timed out after ${timeout} seconds`);
-        if (outcome.stopRequested) throw new Error("Command aborted");
+        const timeoutText = `Command timed out after ${effectiveTimeout} seconds`;
+        if (outcome.stopReason === "memory") {
+          throw new Error(stopMessage("memory", settings.memoryLimitMb, timeoutText));
+        }
+        if (watch.timedOut()) throw new Error(timeoutText);
+        if (outcome.stopRequested) {
+          throw new Error(stopMessage(outcome.stopReason ?? "user", settings.memoryLimitMb, timeoutText));
+        }
         const exitCode = outcome.exitCode ?? 1;
         const structuredOutput = {
           output: retained.text,

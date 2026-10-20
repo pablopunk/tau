@@ -12,6 +12,7 @@ import { OWNER_DEVICE_ID } from "../security/guard";
 import { requireCandidateName } from "./candidate-name";
 import { defineImageRoute } from "./define-image-route";
 import { defineRoute } from "./define-route";
+import { registerResourceRoutes } from "./register-resource-routes";
 import { registerTerminalRoutes } from "./register-terminal-routes";
 import { registerWorkspaceRoutes } from "./register-workspace-routes";
 
@@ -126,5 +127,6 @@ export function registerRoutes(app: FastifyInstance, core: Core, sockets: Device
   );
   defineRoute(app, routes.retryConversation, ({ params, body }) => core.conversations.retry(params.id, body));
   registerWorkspaceRoutes(app, core);
+  registerResourceRoutes(app, core);
   registerTerminalRoutes(app, core, sockets);
 }

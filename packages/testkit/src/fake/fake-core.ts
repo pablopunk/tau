@@ -39,6 +39,7 @@ import { createFakeMvp8 } from "./fake-mvp8";
 import { createFakeNodes, FAKE_NODE_SEEDS, type FakeNodes } from "./fake-nodes";
 import { createFakeProviders } from "./fake-providers";
 import { createFakeRemote, type FakeRemote } from "./fake-remote";
+import { createFakeResources, type FakeResources } from "./fake-resources";
 import { suggestFakeDirectories } from "./fake-suggest";
 import { createFakeTerminals } from "./fake-terminals";
 import type { SpawnParams } from "./fake-thread-ops";
@@ -88,6 +89,8 @@ const firstWords = (text: string) => text.trim().split(/\s+/).slice(0, TITLE_WOR
 
 export type FakeCore = Core & {
   readonly seedApproval: FakeConnectors["seedApproval"];
+  /** Puts commands into `settings.resourceActivity()`. */
+  readonly seedResourceActivity: FakeResources["seed"];
   /** Plays tunnel behaviour (`reconnecting`, errors) over the fake remote. */
   readonly remoteControl: Pick<FakeRemote, "push">;
   /** Plays link behaviour over the fake nodes registry; `attach` makes `peer` one of this fake's nodes (see `linkFakeCores`). */
@@ -300,6 +303,7 @@ export function createFakeCore(options: FakeCoreOptions = {}): FakeCore {
   });
   const mvp8 = createFakeMvp8({ emit, now, requireConversation });
   const connectors = createFakeConnectors({ emit, now, requireConversation });
+  const resources = createFakeResources({ emit });
 
   function workspaceModeFor(projectId: string, requested: WorkspaceMode | undefined): WorkspaceMode {
     if (requested) {
@@ -482,9 +486,11 @@ export function createFakeCore(options: FakeCoreOptions = {}): FakeCore {
           claudeCliNoticeAt: connections.claudeCliNoticeAt(),
           claudeConnectors: connectors.settings(),
           remote: { enabled: remote.status().state !== "off" },
+          resources: resources.settings(),
           setupSkipped,
         };
       },
+      ...resources.api,
       async setSetupSkipped(skipped) {
         setupSkipped = skipped;
       },
@@ -688,6 +694,7 @@ export function createFakeCore(options: FakeCoreOptions = {}): FakeCore {
     terminals: terminals.api,
     approvals: connectors.approvals,
     seedApproval: connectors.seedApproval,
+    seedResourceActivity: resources.seed,
     timers: mvp8.timers,
     goals: mvp8.goals,
     mcp: mvp5.mcp,

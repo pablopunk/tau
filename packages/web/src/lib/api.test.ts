@@ -50,6 +50,14 @@ describe("http transport", () => {
     expect(await api.settings.get()).toEqual(settings);
   });
 
+  it("reads a node older than resource control: no settings.resources, and 404 on the new calls is null", async () => {
+    stubFetch(respond(404));
+    expect(await api.settings.resourceSupport()).toBeNull();
+    expect(await api.settings.resourceActivity()).toBeNull();
+    stubFetch(respond(500));
+    await expect(api.settings.resourceActivity()).rejects.toBeInstanceOf(AppError);
+  });
+
   it("calls the MVP2 routes with their paths, methods and bodies", async () => {
     const fetchMock = stubFetch(respond(204));
     await api.conversations.archive("c 1", true);

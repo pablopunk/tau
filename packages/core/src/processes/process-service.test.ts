@@ -1,3 +1,4 @@
+import { EventEmitter } from "node:events";
 import { mkdtemp, readFile, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -7,6 +8,7 @@ import { extractLocalUrls } from "./local-urls";
 import { createLogTail, lastLines } from "./log-tail";
 import { groupIsAlive, sleep } from "./process-group";
 import { createProcessService, type ProcessService } from "./process-service";
+import type { SpawnFn } from "./running-process";
 
 let home: string;
 let cwd: string;
@@ -51,15 +53,18 @@ describe("process service", () => {
     await waitFor(async () => (await service.logs(info.id, 5)).includes("pi-proc-cwd-"));
     await service.stop(info.id);
     await service.stop(info.id);
-    expect((await service.list("c1"))[0]).toMatchObject({ state: "killed", exitCode: null });
+    expect(await service.list("c1")).toEqual([]);
+    await expect(service.logs(info.id, 5)).rejects.toMatchObject({ code: "not_found" });
     expect(changes.length).toBeGreaterThan(1);
   });
 
-  it("marks a finished process exited with its code", async () => {
+  it("removes a finished process from the list", async () => {
     const info = await service.start({ conversationId: "c1", cwd, command: "echo hi; exit 3" });
-    await waitFor(async () => (await service.list("c1"))[0]?.state === "exited");
-    expect((await service.list("c1"))[0]?.exitCode).toBe(3);
-    expect(await service.logs(info.id, 5)).toBe("hi");
+    await waitFor(async () => (await service.list("c1")).length === 0);
+    // The exit code and tail already went to the thread in a process-exit notification.
+    await expect(service.logs(info.id, 5)).rejects.toMatchObject({ code: "not_found" });
+    // Stop stays idempotent after the prune.
+    await service.stop(info.id);
   });
 
   it("kills the whole group, including a child of a child", async () => {
@@ -98,14 +103,16 @@ describe("process service", () => {
     expect(extractLocalUrls(text)).toEqual(["http://127.0.0.1:1", "https://0.0.0.0:2/x", "http://[::1]:3"]);
   });
 
-  it("reaps a live group left by an earlier run and marks it killed", async () => {
+  it("reaps a live group left by an earlier run and prunes it", async () => {
     const info = await service.start({ conversationId: "c1", cwd, command: "sleep 60" });
     const pidFile = join(home, "processes", `${info.id}.json`);
     const { pid } = JSON.parse(await readFile(pidFile, "utf8")) as { pid: number };
     const later = makeService();
     await later.reapStaleAtStartup();
     await waitFor(() => !groupIsAlive(pid));
-    expect((await later.list("c1"))[0]).toMatchObject({ id: info.id, state: "killed" });
+    // Reaped processes are pruned, not resurrected as `killed` rows.
+    expect(await later.list("c1")).toEqual([]);
+    await later.stop(info.id);
     await service.stopAll();
   });
 
@@ -116,6 +123,52 @@ describe("process service", () => {
     expect(await service.list("c1")).toEqual([]);
     expect(await exists(join(home, "processes", `${info.id}.json`))).toBe(false);
     expect(await exists(join(home, "processes", `${info.id}.log`))).toBe(false);
+  });
+
+  it("force-settles a spawn that never started without touching the own process group", async () => {
+    const child = new EventEmitter();
+    const pidless = createProcessService({
+      home,
+      emitChange: (id) => changes.push(id),
+      stopGraceMs: 50,
+      spawn: (() => child) as unknown as SpawnFn,
+    });
+    const info = await pidless.start({ conversationId: "c1", cwd, command: "never" });
+    expect(info.state).toBe("running");
+    // No hang (the R1.2 bound settles it) and no suicide via kill(-0).
+    await pidless.stop(info.id);
+    expect(groupIsAlive(process.pid)).toBe(true);
+    // Reaping entries stay listed with their pid until the real exit prunes them.
+    expect(await pidless.list("c1")).toHaveLength(1);
+    await pidless.stop(info.id);
+    await pidless.stopAll();
+  });
+
+  it("stops a foreground call by id", async () => {
+    const run = await service.runForeground({
+      conversationId: "c1",
+      callId: "call-9",
+      cwd,
+      command: "sleep 30",
+      onOutput: () => {},
+    });
+    await service.stopToolCall("c1", "call-9");
+    expect(await run.outcome).toMatchObject({ kind: "exited", stopRequested: true });
+    await run.release(false);
+  });
+
+  it("rejects stopToolCall for calls that are not running", async () => {
+    await expect(service.stopToolCall("c1", "nope")).rejects.toMatchObject({ code: "not_found" });
+    const run = await service.runForeground({
+      conversationId: "c1",
+      callId: "call-9",
+      cwd,
+      command: "true",
+      onOutput: () => {},
+    });
+    await run.outcome;
+    await expect(service.stopToolCall("c1", "call-9")).rejects.toMatchObject({ code: "not_found" });
+    await run.release(false);
   });
 
   it("rejects unknown ids with not_found", async () => {
@@ -198,9 +251,9 @@ describe("foreground runs", () => {
     expect(await service.list("c1")).toEqual([expect.objectContaining({ id: run.id, state: "running" })]);
     expect(service.hasRunning("c1")).toBe(true);
     expect(changes).toContain("c1");
-    await waitFor(async () => (await service.list("c1"))[0]?.state === "exited");
-    expect((await service.list("c1"))[0]?.exitCode).toBe(0);
-    expect(await service.logs(run.id, 5)).toContain("after");
+    // The natural exit notifies the thread, then prunes the row.
+    await waitFor(async () => (await service.list("c1")).length === 0);
+    await service.stop(run.id);
     expect(output.join("")).not.toContain("after");
     await waitFor(() => notified.length === 1);
     expect(notified).toEqual([PROCESS_EXIT_KIND]);

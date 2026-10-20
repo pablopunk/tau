@@ -1,5 +1,5 @@
 import { BotAvatar as BotAvatarCanvas, botAvatarTypes } from "bot-avatars"
-import type * as React from "react"
+import * as React from "react"
 import { usePrefersReducedMotion } from "@/hooks/use-prefers-reduced-motion"
 import { cn } from "@/lib/utils"
 
@@ -13,6 +13,23 @@ export function botAvatarLook(index: number) {
     color: `hsl(${(index * GOLDEN_ANGLE) % 360}, 72%, 58%)`,
     seed: (index * GOLDEN_RATIO) % 1,
   }
+}
+
+/** Long enough for a hop in flight to land and the sprite to settle in its resting pose. */
+const TIME_FOR_A_HOP_TO_LAND_MS = 2000
+
+/** Keeps the animation running briefly after work stops, so the avatar never freezes mid-hop. */
+function usePauseAfterLanding(working: boolean) {
+  const [paused, setPaused] = React.useState(!working)
+  React.useEffect(() => {
+    if (working) {
+      setPaused(false)
+      return
+    }
+    const timer = setTimeout(() => setPaused(true), TIME_FOR_A_HOP_TO_LAND_MS)
+    return () => clearTimeout(timer)
+  }, [working])
+  return paused
 }
 
 /** bot-avatars draws the resting bot above its box center (it keeps headroom for the hop); measured at about a fifth of the size. */
@@ -45,6 +62,7 @@ function BotAvatar({
   ...props
 }: BotAvatarProps) {
   const reducedMotion = usePrefersReducedMotion()
+  const landed = usePauseAfterLanding(working)
   return (
     <span
       data-slot="bot-avatar"
@@ -59,7 +77,7 @@ function BotAvatar({
           size={size}
           state={working ? "working" : "default"}
           turn={working ? undefined : 0}
-          paused={!working || reducedMotion}
+          paused={landed || reducedMotion}
           interactive={false}
           aria-hidden
         />

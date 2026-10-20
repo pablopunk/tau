@@ -50,6 +50,7 @@ import type { Approval, ApprovalDecision } from "./mvp10";
 import type { DirectoryNode, Expulsion, NodeGroup } from "./node-group";
 import type { Node, NodeLinkDirection, NodeLinkReport, NodePeerInfo, NodeSelf, NodeSummary } from "./nodes";
 import type { RemoteStatus } from "./remote";
+import type { ResourceActivity, ResourceSettings, ResourceSupport } from "./resources";
 import type { OpenTerminalInput, TerminalInfo } from "./terminals";
 import type { UpdaterPort, UpdateStartBody, UpdateStatus } from "./updates";
 import type { Op } from "./view";
@@ -136,6 +137,14 @@ export interface Core {
     setClaudeConnectors(value: ClaudeConnectorSettings): Promise<void>;
     /** `Settings.setupSkipped`: "Use my other nodes". The gate in `App.tsx` also needs a known peer, so it is harmless alone. */
     setSetupSkipped(skipped: boolean): Promise<void>;
+    /** Replaces the node's resource settings. Priority and memory apply to the next spawned command; slots apply at once. */
+    setResources(value: ResourceSettings): Promise<void>;
+    /** What this node can enforce. Lazy: may probe the host. */
+    resourceSupport(): Promise<ResourceSupport>;
+    /** Heavy commands running or waiting, node-wide. */
+    resourceActivity(): Promise<ResourceActivity>;
+    /** Stops a command listed by `resourceActivity`. Rejects `not_found` otherwise. Not owner-only, like `setClaudeConnectors`. */
+    stopResourceCommand(entryId: string): Promise<void>;
   };
   github: {
     /** Cached for a minute. Never rejects for a missing or logged-out `gh`: that is a state. */
@@ -304,6 +313,10 @@ export interface Core {
      * now as a background process that tells the thread when it exits. Rejects `not_found` when no such call is running.
      */
     background(conversationId: string, callId: string): Promise<ProcessInfo>;
+    /**
+     * Stops the running `bash` call `callId` of the thread. Rejects `not_found` when no such call is running.
+     */
+    stopToolCall(conversationId: string, callId: string): Promise<void>;
   };
   terminals: {
     /** False when this node cannot run terminals (unsupported platform, missing daemon, `TAU_DISABLE_TERMINALS=1`). Never rejects. */

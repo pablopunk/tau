@@ -7,6 +7,7 @@ import { pipeline } from "node:stream/promises";
 import type { RunCommand } from "./command-runner";
 import { swapCurrent, versionDirIn, versionsDirOf } from "./install-layout";
 import type { FetchLike, Release } from "./latest-version";
+import { HttpStatusError, type Sleep, withRetries } from "./retry";
 
 const DOWNLOAD_TIMEOUT_MS = 10 * 60_000;
 const VERSION_TIMEOUT_MS = 30_000;
@@ -15,6 +16,8 @@ const EXTRACT_TIMEOUT_MS = 5 * 60_000;
 export interface InstallDeps {
   readonly fetch: FetchLike;
   readonly run: RunCommand;
+  /** Backoff between download attempts; default real timers. */
+  readonly sleep?: Sleep;
 }
 
 const headers = { "user-agent": "tau-updater" };
@@ -22,7 +25,7 @@ const headers = { "user-agent": "tau-updater" };
 async function get(deps: InstallDeps, url: string): Promise<Response> {
   const response = await deps.fetch(url, { headers, signal: AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS) });
   if (!response.ok || response.body === null)
-    throw new Error(`Download failed: ${url} (HTTP ${response.status}).`);
+    throw new HttpStatusError(response.status, `Download failed: ${url} (HTTP ${response.status}).`);
   return response;
 }
 
@@ -31,7 +34,12 @@ async function download(deps: InstallDeps, url: string, file: string): Promise<s
   const hash = createHash("sha256");
   const body = Readable.fromWeb((await get(deps, url)).body as Parameters<typeof Readable.fromWeb>[0]);
   body.on("data", (chunk: Buffer) => hash.update(chunk));
-  await pipeline(body, createWriteStream(file));
+  try {
+    await pipeline(body, createWriteStream(file));
+  } catch (error) {
+    await rm(file, { force: true });
+    throw error;
+  }
   return hash.digest("hex");
 }
 
@@ -66,12 +74,14 @@ export async function stageRelease(deps: InstallDeps, release: Release, root: st
   const work = await mkdtemp(join(root, ".update-"));
   try {
     const archive = join(work, release.archiveName);
-    const actual = await download(deps, release.archiveUrl, archive);
-    const sums = await (await get(deps, release.sumsUrl)).text();
+    const actual = await withRetries(() => download(deps, release.archiveUrl, archive), deps.sleep);
+    const sums = await withRetries(async () => (await get(deps, release.sumsUrl)).text(), deps.sleep);
     const expected = expectedHashOf(sums, release.archiveName);
     if (expected === undefined) throw new Error(`SHA256SUMS has no line for ${release.archiveName}.`);
-    if (expected !== actual)
+    if (expected !== actual) {
+      await rm(archive, { force: true });
       throw new Error(`The download of ${release.archiveName} does not match SHA256SUMS.`);
+    }
     const extracted = join(work, "extracted");
     await mkdir(extracted);
     const untar = await deps.run("tar", ["-xzf", archive, "-C", extracted], {

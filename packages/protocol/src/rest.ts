@@ -52,6 +52,7 @@ import { ApprovalDecisionSchema, ApprovalSchema } from "./mvp10";
 import { DirectoryNodeSchema, ExpulsionSchema, RemoveNodeBodySchema } from "./node-group";
 import { NodeSchema, NodeSelfSchema, NodeSummarySchema, RenameNodeBodySchema } from "./nodes";
 import { HealthSchema, RemoteStatusSchema } from "./remote";
+import { ResourceActivitySchema, ResourceSettingsSchema, ResourceSupportSchema } from "./resources";
 import { OpenTerminalInputSchema, TerminalAvailabilitySchema, TerminalInfoSchema } from "./terminals";
 import { UpdateStartBodySchema, UpdateStatusSchema } from "./updates";
 
@@ -274,6 +275,30 @@ export const routes = {
     path: `${API_PREFIX}/settings/claude-connectors`,
     status: 204,
     body: ClaudeConnectorSettingsSchema,
+  },
+  setResources: {
+    method: "PUT",
+    path: `${API_PREFIX}/settings/resources`,
+    status: 204,
+    body: ResourceSettingsSchema,
+  },
+  getResourceSupport: {
+    method: "GET",
+    path: `${API_PREFIX}/settings/resources/support`,
+    status: 200,
+    response: ResourceSupportSchema,
+  },
+  getResourceActivity: {
+    method: "GET",
+    path: `${API_PREFIX}/settings/resources/activity`,
+    status: 200,
+    response: ResourceActivitySchema,
+  },
+  stopResourceCommand: {
+    method: "DELETE",
+    path: `${API_PREFIX}/settings/resources/activity/:id`,
+    status: 204,
+    params: IdParams,
   },
   setProjectsFolder: {
     method: "PUT",
@@ -673,6 +698,12 @@ export const routes = {
     status: 200,
     params: ToolCallParams,
     response: ProcessInfoSchema,
+  },
+  stopToolCall: {
+    method: "POST",
+    path: `${API_PREFIX}/conversations/:id/tool-calls/:callId/stop`,
+    status: 204,
+    params: ToolCallParams,
   },
   getTerminalsAvailable: {
     method: "GET",

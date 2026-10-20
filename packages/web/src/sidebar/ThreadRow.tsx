@@ -163,7 +163,7 @@ export function ThreadRow({
                     enabled={conversation.status === "running"}
                   />
                 ) : null}
-                <RelativeTime at={conversation.lastActivityAt} />
+                <RelativeTime at={conversation.lastActivityAt} animate />
               </>
             }
             actions={

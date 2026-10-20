@@ -10,8 +10,18 @@ dir="${1:?usage: sign-macos.sh <version-dir>}"
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 entitlements="$root/packaging/tau.entitlements"
 
-identity="$(security find-identity -v -p codesigning | sed -nE 's/^ *[0-9]+\) ([0-9A-F]{40}) "Developer ID Application:.*/\1/p' | head -n 1)"
-[[ -n "$identity" ]] || { echo "no Developer ID Application identity in the keychain" >&2; exit 1; }
+identity_of() {
+  security find-identity "$@" -p codesigning | sed -nE 's/^ *[0-9]+\) ([0-9A-F]{40}) "Developer ID Application:.*/\1/p' | head -n 1
+}
+# A valid identity first; else any Developer ID identity (as spotifin signs by name). codesign then reports the
+# real problem (missing key, untrusted chain) instead of this script guessing.
+identity="$(identity_of -v)"
+[[ -n "$identity" ]] || identity="$(identity_of)"
+if [[ -z "$identity" ]]; then
+  echo "no Developer ID Application identity in the keychain. Codesigning identities seen:" >&2
+  security find-identity -p codesigning | sed -E 's/[0-9A-F]{40}/<hash>/' >&2
+  exit 1
+fi
 
 machos() {
   find "$1" -type f -print0 | while IFS= read -r -d '' file; do

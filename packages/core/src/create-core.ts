@@ -56,7 +56,9 @@ import { createNodes } from "./nodes/create-nodes";
 import { createDirectory } from "./nodes/directory";
 import { createSelfThreadCount } from "./nodes/self-thread-count";
 import { createFilePeersStore, migrateHubFile, migrateSummaryDirectory } from "./peers/peers-store";
+import { createResourceState } from "./processes/governor/resource-state";
 import { createProcessService } from "./processes/process-service";
+import { resourceActivityOf } from "./processes/resource-activity";
 import { createPresentProject } from "./project-view";
 import { createProjectsApi } from "./projects-api";
 import { createProviderService, type Environment } from "./provider/provider-service";
@@ -138,6 +140,7 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
     const changes = createChangeEmitter();
     const defaultProjectsFolder = join(home.root, "projects");
     const settings = createSettingsStore(home.settingsFile, defaultProjectsFolder);
+    const resourceState = createResourceState((await settings.get()).resources);
     const sessionLookup: { current: ConversationOfSession } = { current: async () => undefined };
     const approvals = createApprovals({
       settings,
@@ -251,6 +254,9 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
       home: home.root,
       notifications,
       emitChange: (conversationId) => changes.emit({ resource: "processes", conversationId }),
+      emitResourcesChange: () => changes.emit({ resource: "resources" }),
+      resources: resourceState,
+      nodeId: () => identity.nodeId,
     });
     const liveWork = createLiveWork({ harness, processes, approvals });
     const goals = createGoalService({
@@ -459,6 +465,12 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
         codeFolder: { settings, defaultProjectsFolder, homeDirectory: homedir() },
         onProjectsFolderChanged: () => github.invalidateScan(),
         onClaudeConnectorsChanged: () => connectorOffering.resyncAll(),
+        onResourcesChanged: (value) => processes.setResources(value),
+        resources: {
+          support: () => processes.resourceSupport(),
+          activity: () => resourceActivityOf(processes, conversations),
+          stop: (entryId) => processes.stopResourceCommand(entryId),
+        },
       }),
       github: {
         status: () => github.status(),
@@ -495,6 +507,7 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
         logs: (id, tail) => processes.logs(id, tail),
         stop: (id) => processes.stop(id),
         background: (id, callId) => processes.background(id, callId),
+        stopToolCall: (id, callId) => processes.stopToolCall(id, callId),
       },
       terminals: terminals.api,
       approvals: createApprovalsApi(approvals, conversations),

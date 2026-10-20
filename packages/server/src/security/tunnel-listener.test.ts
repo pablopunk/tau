@@ -20,7 +20,7 @@ async function start(headerTimeoutMs = 5000) {
   app.get("/", async (request: { raw: { socket: import("node:net").Socket } }) => ({
     tagged: tags.tagOf(request.raw.socket) ?? null,
   }));
-  await app.ready();
+  await app.listen({ port: 0, host: "127.0.0.1" });
   listener = createTunnelListener({ app, tags, hostname: () => HOSTNAME, headerTimeoutMs });
   return (await listener.start()).port;
 }
@@ -77,5 +77,46 @@ describe("tunnel listener", () => {
     const keepAlive = `GET / HTTP/1.1\r\nHost: ${HOSTNAME}\r\n\r\n`;
     const response = await talk(port, [buildProxyV2("203.0.113.9", HOSTNAME), keepAlive, 100, GET]);
     expect(response.match(/HTTP\/1.1 200/g)).toHaveLength(2);
+  });
+});
+
+describe("tunnel listener and WebSockets", () => {
+  it("completes a WebSocket upgrade through the tunnel, tagged with the visitor", async () => {
+    const { default: websocket } = await import("@fastify/websocket");
+    app = Fastify();
+    const tags = createTunnelTags();
+    await app.register(websocket);
+    app.get("/ws", { websocket: true }, (socket, request) => {
+      socket.send(JSON.stringify(tags.tagOf(request.raw.socket) ?? null));
+    });
+    await app.listen({ port: 0, host: "127.0.0.1" });
+    listener = createTunnelListener({ app, tags, hostname: () => HOSTNAME });
+    const { port } = await listener.start();
+    const upgrade = [
+      "GET /ws HTTP/1.1",
+      `Host: ${HOSTNAME}`,
+      "Connection: Upgrade",
+      "Upgrade: websocket",
+      "Sec-WebSocket-Version: 13",
+      "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==",
+      "",
+      "",
+    ].join("\r\n");
+    const received = await new Promise<string>((resolve) => {
+      const socket = connect(port, "127.0.0.1", () => {
+        socket.write(Buffer.concat([buildProxyV2("203.0.113.9", HOSTNAME), Buffer.from(upgrade)]));
+      });
+      let text = "";
+      socket.on("data", (chunk) => {
+        text += chunk.toString("latin1");
+        if (text.includes("peer")) {
+          socket.destroy();
+          resolve(text);
+        }
+      });
+      socket.on("error", () => resolve(text));
+    });
+    expect(received).toContain("101 Switching Protocols");
+    expect(received).toContain('"peer":"203.0.113.9"');
   });
 });

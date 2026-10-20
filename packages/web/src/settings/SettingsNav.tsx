@@ -1,4 +1,5 @@
 import type { DirectoryNode } from "@tau/protocol";
+import { NodeAvatar } from "@/components/ui/node-avatar";
 import {
   SidebarGroup,
   SidebarGroupLabel,
@@ -9,6 +10,7 @@ import {
   SidebarMenuSubItem,
 } from "@/components/ui/sidebar";
 import { useNodes } from "@/nodes";
+import { useNodeAvatar } from "@/nodes/use-node-avatar";
 import {
   APP_SECTIONS,
   DEFAULT_NODE_SECTION,
@@ -38,6 +40,7 @@ function NodeTab({
   onPickSection: (id: SettingsSectionId) => void;
   activeSection: SettingsSectionId;
 }) {
+  const { os, status } = useNodeAvatar(id);
   return (
     <SidebarMenuItem>
       <SidebarMenuButton
@@ -45,6 +48,7 @@ function NodeTab({
         aria-current={active ? "page" : undefined}
         onClick={() => onPickNode(id)}
       >
+        <NodeAvatar os={os} status={status} aria-hidden />
         <span className="truncate">{name}</span>
       </SidebarMenuButton>
       {active ? (

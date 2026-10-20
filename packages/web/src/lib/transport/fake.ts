@@ -127,6 +127,7 @@ const handlers: Handlers = {
   }),
   stopProcess: (core, { params }) => core.processes.stop(params.id),
   backgroundToolCall: (core, { params }) => core.processes.background(params.id, params.callId),
+  stopToolCall: (core, { params }) => core.processes.stopToolCall(params.id, params.callId),
   getTerminalsAvailable: async (core) => ({ available: await core.terminals.available() }),
   listTerminals: (core, { params }) => core.terminals.list(params.id),
   openTerminal: (core, { params, body }) => core.terminals.open(params.id, body as never),
@@ -144,6 +145,10 @@ const handlers: Handlers = {
   setMessageMode: (core, { body }) => core.settings.setMessageMode(body.mode as never),
   setWorkspaceDefault: (core, { body }) => core.settings.setWorkspaceDefault(body.mode as never),
   setClaudeConnectors: (core, { body }) => core.settings.setClaudeConnectors(body as never),
+  setResources: (core, { body }) => core.settings.setResources(body as never),
+  getResourceSupport: (core) => core.settings.resourceSupport(),
+  getResourceActivity: (core) => core.settings.resourceActivity(),
+  stopResourceCommand: (core, { params }) => core.settings.stopResourceCommand(params.id),
   listApprovals: (core, { params }) => core.approvals.list(params.id),
   getHealth: async () => ({ ok: true }),
   getRemoteStatus: (core) => core.remote.status(),
@@ -264,6 +269,86 @@ async function seedReadyState(core: Core): Promise<void> {
   await core.projects.add({ path: READY_PROJECT });
 }
 
+/** `?fake=ready&seed=rich`: a crowded sidebar — many projects, threads, subagents, a goal, a loop and archived threads. */
+const RICH_THREADS: { name: string; path: string; threads: string[] }[] = [
+  {
+    name: "tau",
+    path: "/Users/demo/src/tau",
+    threads: [
+      "Fix sidebar selected color",
+      "Release 0.10 checklist",
+      "Flaky e2e on CI",
+      "Refactor node sync",
+      "Onboarding empty states",
+      "Dark mode contrast pass",
+    ],
+  },
+  {
+    name: "website",
+    path: "/Users/demo/other",
+    threads: ["New landing hero", "Docs IA rework", "Blog: 0.9 launch notes", "Fix mobile nav overlap"],
+  },
+  {
+    name: "api",
+    path: "/Users/demo/src/sandbox",
+    threads: [
+      "Rate limit tuning",
+      "Webhook retries",
+      "Add request id tracing",
+      "Cache invalidation bug",
+      "Postgres index review",
+    ],
+  },
+  {
+    name: "docs",
+    path: "/Users/demo/Documents",
+    threads: ["Settings reference", "CLI install guide", "Old pricing draft"],
+  },
+  {
+    name: "infra",
+    path: "/Users/demo/src/scratch",
+    threads: ["Spike: CRDT sync", "Backup retention policy", "Staging env drift", "Log volume alert"],
+  },
+  {
+    name: "playground",
+    path: "/Users/demo/src",
+    threads: ["Try agentic loops", "Prompt scratchpad", "Model comparison", "Icon experiments"],
+  },
+];
+
+async function seedRichState(core: Core): Promise<void> {
+  const byTitle = new Map<string, string>();
+  for (const { name, path, threads } of RICH_THREADS) {
+    const project = await core.projects.add({ path, name });
+    for (const [index, title] of threads.entries()) {
+      const thread = await core.conversations.start({
+        projectId: project.id,
+        text: title,
+        requestId: `rich-${project.id}-${index}`,
+      });
+      await core.conversations.rename(thread.id, title);
+      byTitle.set(title, thread.id);
+    }
+  }
+  const send = (title: string, text: string, n: number) => {
+    const id = byTitle.get(title);
+    if (!id) return Promise.resolve();
+    return core.conversations.send(id, { text, requestId: `rich-send-${n}` });
+  };
+  await send("Fix sidebar selected color", "agent explore the accent tokens", 1);
+  await send("Fix sidebar selected color", "agent probe the hover states", 2);
+  await send("Rate limit tuning", "agent benchmark the limiter", 3);
+  await send("New landing hero", "agent draft three hero variants", 4);
+  const goal = byTitle.get("Release 0.10 checklist");
+  if (goal) await core.goals.set(goal, "Ship the 0.10 release");
+  const loop = byTitle.get("Flaky e2e on CI");
+  if (loop) await core.timers.loop(loop, { every: "1h", prompt: "Check CI status and report" });
+  for (const title of ["Spike: CRDT sync", "Old pricing draft"]) {
+    const id = byTitle.get(title);
+    if (id) await core.conversations.archive(id, true);
+  }
+}
+
 /** A fake node gets a thread of its own, so its sidebar group and its offline cache have something to show. */
 async function seedNodeThread(core: Core, title: string): Promise<void> {
   const [project] = await core.projects.list();
@@ -321,6 +406,7 @@ function fakeHub(): Promise<FakeCore> {
     const nodes = params.has("nodes");
     const core = createFakeCore({ configured: ready, remote, nodes, ...scenario });
     if (ready) await seedReadyState(core);
+    if (ready && params.get("seed") === "rich") await seedRichState(core);
     for (const [nodeId, node] of core.nodeCores) {
       await seedReadyState(node);
       const name = (await core.nodes.list()).find((listed) => listed.id === nodeId)?.name ?? "Node";

@@ -8,6 +8,7 @@ import { SettingRow } from "@/components/ui/settings-layout";
 import { Skeleton } from "@/components/ui/skeleton";
 import { queryKeys, useSettings } from "@/lib/queries";
 import { useApi } from "@/nodes/node-context";
+import { ResourcesGroup } from "@/settings/resources/ResourcesGroup";
 
 const textOption = <T extends string>(value: T, label: string): SegmentedOption<T> => ({
   value,
@@ -70,6 +71,7 @@ export function AgentSection() {
           </div>
         </Field>
       </SettingRow>
+      <ResourcesGroup />
       <FormError message={error} />
     </div>
   );
