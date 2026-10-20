@@ -1,6 +1,7 @@
 import type { ConversationView } from "@tau/protocol";
 import { ChevronRight, ListChecks } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { MorphText } from "@/components/ui/morph-text";
 import { TodoList } from "./TodoList";
 import { doneCount, isFinished, latestTodos } from "./todo-items";
 
@@ -20,9 +21,7 @@ export function TodoPanel({ view }: { conversationId: string; view: Conversation
         />
         <ListChecks aria-hidden className="size-3.5" />
         <span className="font-medium">Todos</span>
-        <span>
-          {doneCount(todos)}/{todos.length}
-        </span>
+        <MorphText>{`${doneCount(todos)}/${todos.length}`}</MorphText>
       </CollapsibleTrigger>
       <CollapsibleContent className="border-t px-3 py-2">
         <TodoList todos={todos} />

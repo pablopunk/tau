@@ -3,6 +3,7 @@ import type { ProcessInfo } from "@tau/protocol";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { MorphText } from "@/components/ui/morph-text";
 import { errorMessage } from "@/lib/error-message";
 import { queryKeys } from "@/lib/queries";
 import { useApi } from "@/nodes/node-context";
@@ -28,7 +29,9 @@ export function ProcessRow({ process }: { process: ProcessInfo }) {
       <div className="flex items-center gap-2">
         <span className="min-w-0 flex-1 truncate text-sm font-medium">{process.name}</span>
         {process.kind === "monitor" ? <Badge variant="outline">monitor</Badge> : null}
-        <Badge variant={stoppable ? "default" : "secondary"}>{stateLabel(process)}</Badge>
+        <Badge variant={stoppable ? "default" : "secondary"}>
+          <MorphText>{stateLabel(process)}</MorphText>
+        </Badge>
         {stoppable ? (
           <Button size="sm" variant="outline" onClick={() => void stop()}>
             Stop

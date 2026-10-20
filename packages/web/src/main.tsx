@@ -8,8 +8,9 @@ applyTheme();
 
 const root = document.getElementById("root");
 if (!root) throw new Error("Missing #root");
-createRoot(root).render(
-  <StrictMode>
-    <App />
-  </StrictMode>,
-);
+const morphDemo = import.meta.env.VITE_FAKE && new URLSearchParams(location.search).get("fake") === "morph";
+
+const render = (element: React.ReactNode) => createRoot(root).render(<StrictMode>{element}</StrictMode>);
+
+if (morphDemo) void import("./dev/MorphDemo").then(({ MorphDemo }) => render(<MorphDemo />));
+else render(<App />);

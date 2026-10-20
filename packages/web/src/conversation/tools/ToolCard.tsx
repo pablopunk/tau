@@ -1,6 +1,7 @@
 import { Check, ChevronRight, CircleSlash, Loader2, X } from "lucide-react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { MorphText } from "@/components/ui/morph-text";
 import { cn } from "@/lib/utils";
 import { isActive, type ToolStatus } from "../model/tool-state";
 
@@ -106,7 +107,7 @@ export function ToolCard({
           {badge}
           <span className="flex shrink-0 items-center" role="status">
             <StatusIcon status={status} />
-            <span className="sr-only">{STATUS_LABELS[status]}</span>
+            <MorphText className="ml-1.5 text-xs text-muted-foreground">{STATUS_LABELS[status]}</MorphText>
           </span>
         </CollapsibleTrigger>
         {actions ? <div className="shrink-0 self-start pt-1.5 pr-2">{actions}</div> : null}

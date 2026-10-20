@@ -1,5 +1,6 @@
 import type { AgentStatus } from "@tau/protocol";
 import { Badge } from "@/components/ui/badge";
+import { MorphText } from "@/components/ui/morph-text";
 
 const VARIANTS = {
   running: "secondary",
@@ -12,7 +13,7 @@ export function AgentStatusBadge({ status }: { status: AgentStatus | null | unde
   if (!status) return null;
   return (
     <Badge variant={VARIANTS[status]} data-agent-status={status}>
-      {status}
+      <MorphText>{status}</MorphText>
     </Badge>
   );
 }
