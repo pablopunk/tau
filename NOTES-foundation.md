@@ -33,3 +33,47 @@ Also the transport maps a plain 404 to `AppError("internal", "Request failed (40
 - `settings-index.ts` ids: `resources-priority`, `resources-heavy-slots`, `resources-memory-limit`, `resources-applies-to`
   (section `agent`); use them as `SettingRow id`.
 - Testkit: `createFakeCore().seedResourceActivity({holders, waiting})`; `fakeProcesses.queue()` makes a `queued` entry.
+
+## Deviations found at the end
+- `settings-index.ts` has NO `resources-*` entries yet: `settings-dialog-search.test.tsx` requires a rendered row for every entry and the placeholder renders null. Web agent: add these entries together with the rows (avoid the word "machine": `vocabulary.test.ts`):
+```ts
+  {
+    id: "resources-priority",
+    section: "agent",
+    label: "Command priority",
+    description: "Run agent commands at a lower CPU priority so the computer stays usable.",
+    keywords: [
+      "resources",
+      "cpu",
+      "nice",
+      "priority",
+      "background",
+      "balanced",
+      "slow",
+      "stutter",
+      "taskpolicy",
+    ],
+  },
+  {
+    id: "resources-heavy-slots",
+    section: "agent",
+    label: "Heavy command slots",
+    description: "Only this many heavy commands (tests, builds, typechecks) run at once; the rest wait.",
+    keywords: ["resources", "concurrency", "queue", "slots", "parallel", "tests", "build", "limit", "heavy"],
+  },
+  {
+    id: "resources-memory-limit",
+    section: "agent",
+    label: "Memory limit per command",
+    description: "Stop a command that uses more memory than this.",
+    keywords: ["resources", "memory", "ram", "oom", "limit", "kill", "runaway"],
+  },
+  {
+    id: "resources-applies-to",
+    section: "agent",
+    label: "Apply resource control to",
+    description: "Main checkout threads, worktree threads and subagents.",
+    keywords: ["resources", "apply", "subagents", "worktree", "main checkout", "threads"],
+  },
+```
+- `App.test.tsx` "This node" (2 tests) fails on this base (cdb4338); main 08bca9c fixes it (`aria-hidden` on `NodeAvatar` in `SettingsNav.tsx`). Not related to this work; resolved by merging main.
