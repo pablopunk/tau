@@ -16,8 +16,10 @@ import { Input } from "@/components/ui/input";
 import { type MentionItem, MentionMenu } from "@/components/ui/mention-menu";
 import { Textarea } from "@/components/ui/textarea";
 import { scopeTarget } from "@/lib/node-keys";
+import { cn } from "@/lib/utils";
 import { useNodeId } from "@/nodes/node-context";
 import { AttachmentRow } from "./composer/AttachmentRow";
+import { BANG_EMPTY_ERROR, isBangMode, isBareBang } from "./composer/bang-mode";
 import { loadDraft, saveDraft } from "./composer/drafts";
 import { applyMention } from "./composer/mentions";
 import { menuKeyAction } from "./composer/menu-keys";
@@ -105,6 +107,7 @@ function ComposerForm({
   const pasting = useRef(false);
   const textarea = useRef<HTMLTextAreaElement>(null);
   const menu = useComposerMenu({ text, caret, commands, projectId, pastedText });
+  const bangMode = isBangMode(text);
   const canSend = (text.trim().length > 0 || attachments.length > 0) && !preparing && !disabled;
 
   useEffect(() => {
@@ -153,6 +156,10 @@ function ComposerForm({
   const submit = (mode: WhenBusy | undefined = whenBusy) => {
     const command = parseSlashCommand(text);
     if (command && commands[command.name]) return runCommand(command.name, command.args);
+    if (isBareBang(text)) {
+      setError(BANG_EMPTY_ERROR);
+      return;
+    }
     const message = text.trim();
     const sent = attachments;
     if (!canSend) return;
@@ -257,9 +264,22 @@ function ComposerForm({
       />
       <div
         ref={setAnchor}
-        className="rounded-2xl border bg-card p-2 shadow-xs focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50"
+        className={cn(
+          "relative rounded-2xl border bg-card p-2 shadow-xs focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50",
+          bangMode &&
+            "border-[var(--terminal-green)] focus-within:border-[var(--terminal-green)] focus-within:ring-[var(--terminal-green)]",
+        )}
       >
         <AttachmentRow attachments={attachments} onRemove={remove} />
+        {bangMode ? (
+          <span
+            aria-hidden="true"
+            data-testid="bang-prompt"
+            className="pointer-events-none absolute top-2 left-3 py-1.5 font-mono text-sm text-[var(--terminal-green)] select-none"
+          >
+            $
+          </span>
+        ) : null}
         <Textarea
           ref={textarea}
           aria-label="Message"
@@ -268,13 +288,16 @@ function ComposerForm({
           onSelect={(event) => setCaret(event.currentTarget.selectionStart)}
           onKeyDown={onKeyDown}
           onPaste={onPaste}
-          placeholder={placeholderOf(busy, whenBusy)}
+          placeholder={bangMode && !busy ? "Run a shell command…" : placeholderOf(busy, whenBusy)}
           rows={1}
-          className="max-h-48 min-h-9 resize-none border-0 bg-transparent px-2 py-1.5 shadow-none focus-visible:ring-0 dark:bg-transparent"
+          className={cn(
+            "max-h-48 min-h-9 resize-none border-0 bg-transparent px-2 py-1.5 shadow-none focus-visible:ring-0 dark:bg-transparent",
+            bangMode && "pl-7 font-mono",
+          )}
         />
         <div className="flex flex-wrap items-start gap-1 sm:flex-nowrap">
-          {toolbarStart}
-          {imagesAllowed ? (
+          {bangMode ? null : toolbarStart}
+          {imagesAllowed && !bangMode ? (
             <>
               <Input
                 ref={picker}
@@ -297,9 +320,11 @@ function ComposerForm({
               </Button>
             </>
           ) : null}
-          <div className="order-last flex w-full min-w-0 flex-wrap items-center gap-x-2 gap-y-1 sm:order-none sm:w-auto sm:flex-1">
-            {toolbar}
-          </div>
+          {bangMode ? null : (
+            <div className="order-last flex w-full min-w-0 flex-wrap items-center gap-x-2 gap-y-1 sm:order-none sm:w-auto sm:flex-1">
+              {toolbar}
+            </div>
+          )}
           {hint ? (
             <div className="ml-auto min-w-0 self-center truncate sm:ml-0 sm:shrink-0">{hint}</div>
           ) : null}
