@@ -47,3 +47,21 @@ The sampler summed `ps rss`, which counts shared pages once per process. Fixed b
 - Only Worktrees ticked: a `checkout` thread is never listed; a `worktree` thread is the holder.
 - `process_start` + `monitor` with priority background, 1 slot, memory 200 MB, all boxes ticked, next to a bash holder: both `ps -o pri` print `4`
   (background band), both are killed by the 600 MB hog (state `killed`), none is ever queued or listed in activity although the process_start command matches the heavy matcher.
+
+(Extra data point for 1: 12 procs x 20M iterations on a loaded machine: normal 4.89 s, `-c utility` 5.94 s, `-b` 27.4 s = 5.6x.
+The background factor depends strongly on load: 17-22x for the 4M-iteration job, 5.6x here.)
+
+## 4. Settings change live, Stop, restart — PROVEN
+
+`e2e/tests/resources-live.spec.ts` (4 scripted heavy threads, polled `GET /api/settings/resources/activity`):
+- slots 1 -> 4 threads: 1 holder + 3 waiting. Raise to 3: 3 holders + 1 waiting within 5 s. Lower to 1 then 2: nothing killed, still 3 holders + 1 waiting
+  until they finish (lowering never kills, as designed); all four end with their output.
+- everything Off with 3 waiting: waiters drained 2-4 ms later (they become holders and run together).
+- Stop on a queued entry (`DELETE /api/settings/resources/activity/:id`): the thread's tool output is `Waiting for a free slot (1 of 1 busy)...` then `Stopped from Resources settings`; the holder keeps going.
+- timeout 5 s on a command queued ~10 s: ran and finished (`tmo-done`), queue time not counted.
+- a queued call moved to the background (`POST .../tool-calls/:callId/background`) is persisted `queued`; after `kill -9` of the server and a start,
+  the record is `killed` and its log is `not started: tau restarted`. After a graceful stop/start the record is `exited` (stopAll cancelled it first), never `queued`.
+
+New core tests (vitest): `processes/governor/governed.test.ts` (Apply-to classification table, forks, subagent of a worktree thread, unknown/deleted/throwing lookup,
+lookup never called while Off or no box ticked), `harness/tools/bash-resources.test.ts` (abort while queued never spawns; timeout starts at spawn;
+real macOS memory kill of a command plus its `setsid` escapee, platform-gated).

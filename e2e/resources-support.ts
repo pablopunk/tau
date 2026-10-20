@@ -69,10 +69,13 @@ export interface ResourceServer {
   waitActivity(check: (value: Activity) => boolean, ms?: number): Promise<Activity>;
   start(prompt: string, options?: { mode?: "worktree" | "checkout" }): Promise<string>;
   read(id: string): Promise<string>;
+  toolCallIds(id: string): Promise<string[]>;
   /** The text of every tool result in the thread, in order (the model-visible output). */
   toolOutputs(id: string): Promise<string[]>;
   waitIdle(id: string, seconds?: number): Promise<string>;
   restart(): Promise<void>;
+  /** SIGKILL the server (no shutdown hooks), then start it again on the same home. */
+  crash(): Promise<void>;
   stop(): Promise<void>;
 }
 
@@ -133,6 +136,27 @@ export async function startResourceServer(options: {
   ).id;
   let counter = 0;
   const activity = async () => (await (await api.get("/api/settings/resources/activity")).json()) as Activity;
+  const viewEntries = async (id: string) => {
+    const token = readFileSync(join(home, "token"), "utf8").trim();
+    const socket = new (WebSocket as unknown as new (url: string, options: object) => WebSocket)(
+      `${baseURL.replace(/^http/, "ws")}${LIVE_PATH}`,
+      { headers: { authorization: `Bearer ${token}` } },
+    );
+    let view: ViewState;
+    const done = new Promise<void>((resolve, reject) => {
+      socket.onopen = () => socket.send(encodeFrame({ type: "subscribe", conversationId: id }));
+      socket.onerror = () => reject(new Error("socket error"));
+      socket.onmessage = (event) => {
+        const frame = decodeServerFrame(String(event.data));
+        if (frame?.type !== "ops") return;
+        view = nextViewState(view, frame.ops);
+        resolve();
+      };
+    });
+    await done;
+    socket.close();
+    return view?.entries;
+  };
   const result: ResourceServer = {
     root,
     repo,
@@ -167,26 +191,18 @@ export async function startResourceServer(options: {
       return ((await response.json()) as { id: string }).id;
     },
     read: (id) => server.tau("threads", "read", id),
-    async toolOutputs(id) {
-      const token = readFileSync(join(home, "token"), "utf8").trim();
-      const socket = new (WebSocket as unknown as new (url: string, options: object) => WebSocket)(
-        `${baseURL.replace(/^http/, "ws")}${LIVE_PATH}`,
-        { headers: { authorization: `Bearer ${token}` } },
-      );
-      let view: ViewState;
-      const done = new Promise<void>((resolve, reject) => {
-        socket.onopen = () => socket.send(encodeFrame({ type: "subscribe", conversationId: id }));
-        socket.onerror = () => reject(new Error("socket error"));
-        socket.onmessage = (event) => {
-          const frame = decodeServerFrame(String(event.data));
-          if (frame?.type !== "ops") return;
-          view = nextViewState(view, frame.ops);
-          resolve();
-        };
+    async toolCallIds(id) {
+      const entries = (await viewEntries(id)) ?? [];
+      return entries.flatMap((entry) => {
+        const content = (entry.model?.[0] as { content?: unknown } | undefined)?.content;
+        if (!Array.isArray(content)) return [];
+        return content
+          .filter((block: { type?: string }) => block.type === "toolCall")
+          .map((block: { id: string }) => block.id);
       });
-      await done;
-      socket.close();
-      const entries = view?.entries ?? [];
+    },
+    async toolOutputs(id) {
+      const entries = (await viewEntries(id)) ?? [];
       return entries
         .filter((entry) => entry.kind === "pi.tool-result")
         .map((entry) => {
@@ -201,6 +217,16 @@ export async function startResourceServer(options: {
     },
     async restart() {
       await server.restart();
+      api = await request.newContext({ baseURL, extraHTTPHeaders: { origin: baseURL } });
+      await login();
+    },
+    async crash() {
+      const pids = execFileSync("lsof", ["-ti", `tcp:${port}`, "-sTCP:LISTEN"], { encoding: "utf8" })
+        .split("\n")
+        .filter(Boolean);
+      for (const pid of pids) process.kill(Number(pid), "SIGKILL");
+      await sleep(500);
+      await server.start();
       api = await request.newContext({ baseURL, extraHTTPHeaders: { origin: baseURL } });
       await login();
     },

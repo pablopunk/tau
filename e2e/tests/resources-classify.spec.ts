@@ -92,7 +92,9 @@ test("only Subagents ticked: the two subagents queue on one slot, the parent's o
   });
   const id = await remote.start("cls parent");
   const seen = await collect(() => settled(id));
-  console.log(`CLASSIFY seen: ${JSON.stringify({ holders: [...seen.holders], waiting: [...seen.waiting], peak: seen.peak })}`);
+  console.log(
+    `CLASSIFY seen: ${JSON.stringify({ holders: [...seen.holders], waiting: [...seen.waiting], peak: seen.peak })}`,
+  );
   const everything = [...seen.holders, ...seen.waiting].join("\n");
   expect(everything).toContain("--child-a");
   expect(everything).toContain("--child-b");
