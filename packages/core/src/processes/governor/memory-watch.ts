@@ -1,4 +1,5 @@
 import { sleep } from "../process-group";
+import type { Footprint } from "./footprint";
 import { membersOf, type ProcRow, type Sweep } from "./ps-sweep";
 
 export const SWEEP_MS = 2000;
@@ -32,6 +33,8 @@ export interface WatchDeps {
   readonly sweep: Sweep;
   readonly now?: () => number;
   readonly graceMs: number;
+  /** Confirms an over-limit tree with the real footprint before any signal; absent or `undefined` trusts RSS. */
+  readonly footprint?: Footprint;
   readonly signal?: (pid: number, signal: NodeJS.Signals) => void;
   readonly sleep?: (ms: number) => Promise<void>;
 }
@@ -43,6 +46,7 @@ interface Item {
   overSweeps: number;
   exitedAt?: number;
   killing: boolean;
+  confirming?: boolean;
 }
 
 const defaultSignal = (pid: number, signal: NodeJS.Signals) => {
@@ -90,12 +94,36 @@ export function createMemoryWatch(deps: WatchDeps): MemoryWatch {
     const used = members.reduce((sum, member) => sum + member.rssKb, 0);
     if (members.some((member) => member.rssKb > limit * HOT_FRACTION)) fast = true;
     item.overSweeps = used > limit ? item.overSweeps + 1 : 0;
-    if (used > limit * HARD_FACTOR || item.overSweeps >= 2) void kill(item, rows);
+    if (used > limit * HARD_FACTOR || item.overSweeps >= 2) {
+      if (deps.footprint) void confirmThenKill(item, rows, members, limit, deps.footprint);
+      else void kill(item, rows);
+    }
+  };
+
+  /** RSS over-counts shared pages: a tree whose footprint is within the limit is left alone. */
+  const confirmThenKill = async (
+    item: Item,
+    rows: readonly ProcRow[],
+    members: readonly ProcRow[],
+    limit: number,
+    footprintOf: Footprint,
+  ) => {
+    item.confirming = true;
+    try {
+      const footprint = await footprintOf(members.map((member) => member.pid)).catch(() => undefined);
+      if (footprint !== undefined && footprint <= limit) {
+        item.overSweeps = 0;
+        return;
+      }
+      await kill(item, rows);
+    } finally {
+      item.confirming = false;
+    }
   };
 
   async function sweepNow() {
     const eligible = [...items].filter(
-      (item) => !item.killing && now() - item.startedAt >= FIRST_SWEEP_AFTER_MS,
+      (item) => !item.killing && !item.confirming && now() - item.startedAt >= FIRST_SWEEP_AFTER_MS,
     );
     if (eligible.length === 0) return;
     fast = false;

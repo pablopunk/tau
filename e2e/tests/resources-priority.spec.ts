@@ -22,7 +22,9 @@ test.describe.configure({ mode: "serial" });
 test.skip(!DARWIN, "macOS priority spec");
 
 test.beforeAll(async () => {
-  const replies = Object.fromEntries(MODES.map((mode) => [`prio ${mode}`, bashThread(job(`${tmp()}/${mode}`))]));
+  const replies = Object.fromEntries(
+    MODES.map((mode) => [`prio ${mode}`, bashThread(job(`${tmp()}/${mode}`))]),
+  );
   remote = await startResourceServer({ replies });
 });
 test.afterAll(async () => remote?.stop());

@@ -4,6 +4,13 @@ import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { type APIRequestContext, request } from "@playwright/test";
+import {
+  decodeServerFrame,
+  encodeFrame,
+  LIVE_PATH,
+  nextViewState,
+  type ViewState,
+} from "../packages/protocol/src/index";
 import { createRestartableServer, type RestartableServer } from "./restartable-server";
 
 export const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -62,6 +69,8 @@ export interface ResourceServer {
   waitActivity(check: (value: Activity) => boolean, ms?: number): Promise<Activity>;
   start(prompt: string, options?: { mode?: "worktree" | "checkout" }): Promise<string>;
   read(id: string): Promise<string>;
+  /** The text of every tool result in the thread, in order (the model-visible output). */
+  toolOutputs(id: string): Promise<string[]>;
   waitIdle(id: string, seconds?: number): Promise<string>;
   restart(): Promise<void>;
   stop(): Promise<void>;
@@ -119,8 +128,9 @@ export async function startResourceServer(options: {
   await login();
   await api.put("/api/providers/openrouter/key", { data: { key: "sk-or-v1-faux" } });
   await api.put("/api/settings/default-model", { data: { provider: "faux", modelId: "faux-1" } });
-  const projectId = ((await (await api.post("/api/projects", { data: { path: repo } })).json()) as { id: string })
-    .id;
+  const projectId = (
+    (await (await api.post("/api/projects", { data: { path: repo } })).json()) as { id: string }
+  ).id;
   let counter = 0;
   const activity = async () => (await (await api.get("/api/settings/resources/activity")).json()) as Activity;
   const result: ResourceServer = {
@@ -146,13 +156,45 @@ export async function startResourceServer(options: {
       throw new Error(`activity never matched: ${JSON.stringify(await activity())}`);
     },
     async start(prompt, startOptions) {
-      const data: Record<string, unknown> = { projectId, text: prompt, requestId: `r-${counter++}-${Date.now()}` };
+      const data: Record<string, unknown> = {
+        projectId,
+        text: prompt,
+        requestId: `r-${counter++}-${Date.now()}`,
+      };
       if (startOptions?.mode) data.workspace = { mode: startOptions.mode };
       const response = await api.post("/api/conversations", { data });
       if (!response.ok()) throw new Error(`start ${response.status()} ${await response.text()}`);
       return ((await response.json()) as { id: string }).id;
     },
     read: (id) => server.tau("threads", "read", id),
+    async toolOutputs(id) {
+      const token = readFileSync(join(home, "token"), "utf8").trim();
+      const socket = new (WebSocket as unknown as new (url: string, options: object) => WebSocket)(
+        `${baseURL.replace(/^http/, "ws")}${LIVE_PATH}`,
+        { headers: { authorization: `Bearer ${token}` } },
+      );
+      let view: ViewState;
+      const done = new Promise<void>((resolve, reject) => {
+        socket.onopen = () => socket.send(encodeFrame({ type: "subscribe", conversationId: id }));
+        socket.onerror = () => reject(new Error("socket error"));
+        socket.onmessage = (event) => {
+          const frame = decodeServerFrame(String(event.data));
+          if (frame?.type !== "ops") return;
+          view = nextViewState(view, frame.ops);
+          resolve();
+        };
+      });
+      await done;
+      socket.close();
+      const entries = view?.entries ?? [];
+      return entries
+        .filter((entry) => entry.kind === "pi.tool-result")
+        .map((entry) => {
+          const content = (entry.model?.[0] as { content?: { type: string; text?: string }[] } | undefined)
+            ?.content;
+          return (content ?? []).map((block) => block.text ?? "").join("");
+        });
+    },
     async waitIdle(id, seconds = 120) {
       await server.tau("threads", "wait", id, "--timeout", String(seconds)).catch(() => undefined);
       return server.tau("threads", "read", id);
