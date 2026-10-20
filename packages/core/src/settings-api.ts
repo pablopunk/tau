@@ -5,6 +5,7 @@ import {
   AppError,
   type Core,
   type ModelRef,
+  type ResourceActivity,
   type ResourceSettings,
   ResourceSettingsSchema,
   type ResourceSupport,
@@ -45,6 +46,12 @@ export function createSettingsApi(deps: {
   onClaudeConnectorsChanged?: () => Promise<void>;
   /** Receives the stored value after `setResources`; the core wires it to the governor. */
   onResourcesChanged?: (value: ResourceSettings) => void;
+  /** The governor's side of the resource calls; without it the Phase 1 stubs answer. */
+  resources?: {
+    support(): Promise<ResourceSupport>;
+    activity(): Promise<ResourceActivity>;
+    stop(entryId: string): Promise<void>;
+  };
 }): Core["settings"] {
   const {
     settings,
@@ -53,6 +60,7 @@ export function createSettingsApi(deps: {
     onProjectsFolderChanged,
     onClaudeConnectorsChanged,
     onResourcesChanged,
+    resources,
   } = deps;
   const requireListedModel = async (ref: ModelRef) => {
     if (!(await provider.isConfigured())) throw new AppError("no_provider", "Connect a provider first.");
@@ -84,9 +92,10 @@ export function createSettingsApi(deps: {
       await settings.setResources(value);
       onResourcesChanged?.(value);
     },
-    resourceSupport: async () => UNSUPPORTED_RESOURCES,
-    resourceActivity: async () => ({ holders: [], waiting: [] }),
+    resourceSupport: async () => (resources ? resources.support() : UNSUPPORTED_RESOURCES),
+    resourceActivity: async () => (resources ? resources.activity() : { holders: [], waiting: [] }),
     async stopResourceCommand(entryId) {
+      if (resources) return resources.stop(entryId);
       throw new AppError("not_found", `No resource command ${entryId}`);
     },
     async setDefaultModel(ref) {

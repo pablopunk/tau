@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { appendFile } from "node:fs/promises";
-import { AppError, type ConversationSummary, type ProcessInfo, type ResourceSettings } from "@tau/protocol";
+import { AppError, type ConversationSummary, type ProcessInfo, type ResourceSettings, type ResourceSupport } from "@tau/protocol";
 import type { Notification, NotificationSubmitter } from "../harness/notification-submitter";
 import { createDeferred, type Deferred } from "./deferred";
 import { createGovernor, type Governor, type Plan } from "./governor/governor";
@@ -86,6 +86,8 @@ export interface ProcessService {
   resourceSettings(): ResourceSettings;
   /** Applies new settings: the heavy-slot limit at once, priority and memory to the next command. */
   setResources(next: ResourceSettings): void;
+  /** What the host can enforce; probes the cgroup lazily on Linux. */
+  resourceSupport(): Promise<ResourceSupport>;
   /** Heavy commands running and waiting, node-wide. */
   resourceActivity(): { holders: SlotInfo[]; waiting: SlotInfo[] };
   /** Stops a listed heavy command; `not_found` for anything not in `resourceActivity`. */
@@ -620,6 +622,7 @@ export function createProcessService(deps: ProcessDeps): ProcessService {
       }
     },
     resourceSettings: () => governor.state.get(),
+    resourceSupport: () => governor.support().describe(),
     setResources: (next) => governor.setResources(next),
     resourceActivity() {
       const { holders, waiting } = governor.queue.snapshot();
