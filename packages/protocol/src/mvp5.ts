@@ -41,7 +41,12 @@ export const ProcessInfoSchema = Type.Object({
   conversationId: Type.String(),
   name: Type.String(),
   command: Type.String(),
-  state: Type.Union([Type.Literal("running"), Type.Literal("exited"), Type.Literal("killed")]),
+  state: Type.Union([
+    Type.Literal("queued"),
+    Type.Literal("running"),
+    Type.Literal("exited"),
+    Type.Literal("killed"),
+  ]),
   exitCode: Type.Union([Type.Number(), Type.Null()]),
   startedAt: Type.Number(),
   urls: Type.Array(Type.String()),

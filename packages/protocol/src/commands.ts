@@ -119,6 +119,36 @@ export const commands: readonly CommandDef[] = [
     destructive: false,
   },
   {
+    command: "settings set-resources",
+    route: "setResources",
+    summary:
+      "Set priority, heavy-command slots and memory limit for agent commands (the body goes in --json)",
+    positionals: [],
+    json: true,
+    destructive: false,
+  },
+  {
+    command: "settings resource-support",
+    route: "getResourceSupport",
+    summary: "Show what resource limits this node can enforce",
+    positionals: [],
+    destructive: false,
+  },
+  {
+    command: "settings resource-activity",
+    route: "getResourceActivity",
+    summary: "List heavy commands running or waiting on this node",
+    positionals: [],
+    destructive: false,
+  },
+  {
+    command: "settings resource-stop",
+    route: "stopResourceCommand",
+    summary: "Stop a heavy command listed by resource-activity",
+    positionals: ["params.id"],
+    destructive: false,
+  },
+  {
     command: "settings set-projects-folder",
     route: "setProjectsFolder",
     summary: "Set the folder for new projects",

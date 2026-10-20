@@ -19,6 +19,7 @@ export * from "./nodes";
 export * from "./ops";
 export * from "./protocol-hash";
 export * from "./remote";
+export * from "./resources";
 export * from "./rest";
 export * from "./retry";
 export * from "./routing";

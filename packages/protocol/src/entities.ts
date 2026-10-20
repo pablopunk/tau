@@ -2,6 +2,7 @@ import type { ModelThinkingLevel } from "@earendil-works/pi-ai";
 import { Type } from "typebox";
 import { GoalSummarySchema } from "./mvp8";
 import { RemoteSettingsSchema } from "./remote";
+import { ResourceSettingsSchema } from "./resources";
 
 export const ModelRefSchema = Type.Object({ provider: Type.String(), modelId: Type.String() });
 export type ModelRef = Type.Static<typeof ModelRefSchema>;
@@ -72,6 +73,8 @@ export const SettingsSchema = Type.Object({
   claudeCliNoticeAt: Type.Union([Type.Number(), Type.Null()]),
   claudeConnectors: ClaudeConnectorSettingsSchema,
   remote: RemoteSettingsSchema,
+  /** Absent on a node older than resource control: treat as unsupported. */
+  resources: ResourceSettingsSchema,
   /** "Use my other nodes": the user skipped first-run setup here because a peer can run threads. Server-side so a fresh browser does not see setup again. */
   setupSkipped: Type.Boolean(),
 });
@@ -297,6 +300,8 @@ export const ChangeSchema = Type.Union([
   Type.Object({ resource: Type.Literal("remote") }),
   Type.Object({ resource: Type.Literal("devices") }),
   Type.Object({ resource: Type.Literal("nodes") }),
+  /** Node-wide: a heavy command queued, started, finished or was cancelled. Not per conversation. */
+  Type.Object({ resource: Type.Literal("resources") }),
 ]);
 export type Change = Type.Static<typeof ChangeSchema>;
 
