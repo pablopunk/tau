@@ -74,3 +74,27 @@ real macOS memory kill of a command plus its `setsid` escapee, platform-gated).
 priority (4 tests: background PRI 4 / band background, 6.67 s vs 0.37 s), memory (5 tests: 2.7 s kill, setsid escapee dead, daemon tail kill, no false kill incl. the shared-memory case, so `footprint` works from the compiled binary),
 Apply-to classification + process_start/monitor (4), live settings/Stop/timeout/crash-restart (6). 19/19.
 `ps`, `taskpolicy` and `footprint` are spawned by absolute path (`/usr/sbin/taskpolicy`, `/bin/ps`-via-PATH, `/usr/bin/footprint`), which Bun's `child_process` handles like Node.
+
+## 6. Memory metric spike — PROVEN (false kill found and fixed); compressed memory NOT-PROVABLE here
+
+`python3 -I e2e/fixtures/metric-spike.py` (whole process tree, MB; `top -l 2 -pid … -stats pid,mem`, `footprint` Summary line, and the sum of
+`proc_pid_rusage(...).ri_phys_footprint` per pid via ctypes, which is what a `bun:ffi` read would give):
+
+| case | procs | ps rss | top mem | `footprint` summary | sum of rusage phys_footprint |
+|---|---|---|---|---|---|
+| private 300 MB touched | 1 | 317 | 310 | 310 | 310 |
+| 300 MB written with zeros | 1 | 317 | 310 | 310 | 310 |
+| MAP_SHARED 100 MB, 4 processes | 4 | **431** | **418** | **119** | **419** |
+| COW fork of 100 MB, 4 processes | 4 | 130 | 119 | 118 | 119 |
+| ten idle `node` processes | 10 | **381** | 110 | 112 | 112 |
+
+Findings:
+- ps RSS over-counts memory shared between processes and the dyld shared cache: ~26 MB per idle node process (37 MB RSS vs 11 MB footprint). 4 processes sharing 100 MB read 431 MB.
+- Summing per-pid `proc_pid_rusage` does NOT fix that for shared mappings (419 MB); only the `footprint` summary de-duplicates (119 MB). So an ffi
+  `proc_pid_rusage` read is not worth adding: nothing beats `footprint`.
+- `footprint` costs 126 ms for 30 pids in one call, 48 ms for one pid (vs ps sweep 30-50 ms).
+- Real false kill reproduced (section 2): 120 MB shared with 3 readers under a 200 MB limit was killed on RSS (4 x 122 MB > 1.5 x limit) at the first sweep.
+  Fix: RSS stays the cheap trigger; before any signal the whole tree's footprint is read with ONE `footprint -p … -p …` call and the kill is skipped when it is within the limit
+  (`overSweeps` resets). If footprint cannot be read the decision falls back to RSS. The same spec now passes (also from the compiled binary). Recommended metric: RSS to trigger, `footprint` summary to confirm.
+- Not provable here: compressed memory. The machine has 48 GB with 78% free and the compressor never engages, so a "compressed pages leave RSS" miss could not be forced.
+  By Apple's definition `phys_footprint` includes compressed pages, so the confirm step is right; the trigger (RSS) could miss a tree whose pages were compressed under real pressure. Left as is.
