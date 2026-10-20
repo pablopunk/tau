@@ -1,7 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { TemporaryEntryError } from "./entry-guard";
 import { createServiceManager, listServices } from "./manager";
 import { CLI, createTestNode } from "./test-context";
 
@@ -94,7 +93,7 @@ describe("macOS (launchd)", () => {
     expect(await listServices(node.context)).toEqual([]);
   });
 
-  it("repairs when the recorded node or entry is not the current one", async () => {
+  it("repairs when the recorded command is not the current one", async () => {
     const node = createTestNode();
     await createServiceManager(node.context, CLI, node.tauHome).install();
     const same = createServiceManager(node.context, CLI, node.tauHome);
@@ -103,15 +102,6 @@ describe("macOS (launchd)", () => {
     expect(await moved.needsRepair()).toBe(true);
     const untouched = createServiceManager(node.context, CLI, join(node.osHome, "no-service"));
     expect(await untouched.needsRepair()).toBe(false);
-  });
-
-  it("refuses an entry inside an npx cache", async () => {
-    const node = createTestNode();
-    const cache = { ...CLI, args: ["/h/.npm/_npx/1/node_modules/tau/dist/bin.js"] };
-    await expect(createServiceManager(node.context, cache, node.tauHome).install()).rejects.toThrow(
-      TemporaryEntryError,
-    );
-    expect(node.runner.calls).toEqual([]);
   });
 
   it("lists provider keys that only live in the shell", async () => {

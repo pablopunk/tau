@@ -36,7 +36,7 @@ export async function gatherStatus(deps: LifecycleDeps, home: string): Promise<S
   ]);
   const extras = (await deps.extras?.(home, instance)) ?? NO_EXTRAS;
   const recorded = manager.recorded();
-  const nodeMissing = installed && recorded !== undefined && !deps.fileExists(recorded.node);
+  const nodeMissing = installed && recorded !== undefined && !deps.fileExists(recorded.command);
   const cliVersion = deps.version();
   const managedPid = state.pid;
   const isService =
@@ -47,7 +47,7 @@ export async function gatherStatus(deps: LifecycleDeps, home: string): Promise<S
   if (instance?.version !== undefined && instance.version !== cliVersion) {
     warnings.push(`Running version ${instance.version} is not ${cliVersion}: run \`tau restart\`.`);
   }
-  if (nodeMissing) warnings.push("node missing: run `tau` to repair the service.");
+  if (nodeMissing) warnings.push("The service program is missing: run `tau` to repair the service.");
   return {
     installed,
     running: instance ? runningKindOf(isService, isBackground) : false,
@@ -56,7 +56,7 @@ export async function gatherStatus(deps: LifecycleDeps, home: string): Promise<S
     version: instance?.version ?? null,
     cliVersion,
     home,
-    node: recorded?.node ?? null,
+    node: recorded?.command ?? null,
     nodeMissing,
     warnings,
     ...extras,

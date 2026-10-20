@@ -64,14 +64,6 @@ describe("service gap: restart installs a missing service", () => {
     expect(bootstrapped(node)).toBe(false);
   });
 
-  it("keeps the npx hint for a temporary entry", async () => {
-    const { node, deps, output } = setup({ entry: "/h/.npm/_npx/9/tau/dist/bin.js" });
-    await runRestartWith(deps, ["--home", node.tauHome]);
-    expect(output).toContain("Run: npx @pablopunk/tau");
-    expect(process.exitCode).toBe(1);
-    expect(bootstrapped(node)).toBe(false);
-  });
-
   it("stops a background tau before bootstrapping the service", async () => {
     let pidFileAtBootstrap: boolean | undefined;
     const holder: { home?: string } = {};

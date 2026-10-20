@@ -2,7 +2,6 @@ import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { createDetachedBackend, ForegroundHolderError, WAITING_TO_STOP_NOTICE } from "./detached";
-import { TemporaryEntryError } from "./entry-guard";
 import { createServiceManager } from "./manager";
 import { buildSpec, pidFileOf } from "./spec";
 import { CLI, createTestNode } from "./test-context";
@@ -119,13 +118,6 @@ describe("detached waited stop", () => {
     const t = setup({ lockPid: 77, command: "node tau serve" });
     await expect(t.backend.restart(t.spec)).rejects.toBeInstanceOf(ForegroundHolderError);
     expect(t.node.runner.detached).toEqual([]);
-  });
-
-  it("start and restart refuse an npx-cache entry", async () => {
-    const t = setup();
-    const spec = { ...t.spec, entry: "/home/u/.npm/_npx/abc/node_modules/tau/dist/bin.js" };
-    await expect(t.backend.start(spec)).rejects.toBeInstanceOf(TemporaryEntryError);
-    await expect(t.backend.restart(spec)).rejects.toBeInstanceOf(TemporaryEntryError);
   });
 });
 

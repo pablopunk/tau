@@ -5,10 +5,9 @@ import type { ServiceSpec } from "./spec";
 const spec: ServiceSpec = {
   names: { launchdLabel: "dev.tau.server", systemdUnit: "tau.service", taskName: "tau" },
   home: "/home/pablo/.tau",
-  node: "/opt/node/bin/node",
-  entry: "/opt/tau/dist/bin.js",
+  command: "/opt/node/bin/node",
   path: "/home/pablo/.local/share/mise/shims:/usr/local/bin:/usr/bin",
-  args: ["serve", "--service", "--no-open"],
+  args: ["/opt/tau/dist/bin.js", "serve", "--service", "--no-open"],
 };
 
 describe("service definitions (golden files)", () => {
@@ -29,8 +28,7 @@ describe("service definitions (golden files)", () => {
   it("renders the .cmd wrapper with PATH", async () => {
     const windows = {
       ...spec,
-      node: "C:\\node\\node.exe",
-      entry: "C:\\tau\\bin.js",
+      command: "C:\\node\\node.exe",
       path: "C:\\bin;C:\\tools",
     };
     await expect(renderCmdWrapper(windows)).toMatchFileSnapshot("./golden/tau-service.cmd");

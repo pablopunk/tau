@@ -1,5 +1,4 @@
 import * as text from "./bare-text";
-import { type BootstrapResult, bootstrap } from "./bootstrap";
 import { type LifecycleDeps, managerOf, withToken } from "./deps";
 import { lifecycleFlagsOf } from "./flags";
 import { installFailure, installOrRepairService } from "./install-or-repair";
@@ -7,15 +6,6 @@ import { openRunning } from "./open";
 import { writeStoredPort } from "./port-store";
 
 const WAITING_NOTICE_MS = 3000;
-
-function finishHandover(deps: LifecycleDeps, result: Exclude<BootstrapResult, { kind: "skip" }>): void {
-  if (result.kind === "handedOver") {
-    process.exitCode = result.code;
-    return;
-  }
-  deps.out(result.message);
-  process.exitCode = 1;
-}
 
 function fail(deps: LifecycleDeps, message: string): void {
   deps.out(message);
@@ -34,8 +24,6 @@ async function waitForStart(deps: LifecycleDeps, home: string) {
 
 /** Bare `tau`: install when missing, repair when stale, start when stopped, print the sign-in link. Never serves in the foreground. */
 export async function runBareWith(deps: LifecycleDeps, argv: readonly string[]): Promise<void> {
-  const handover = await bootstrap(deps, deps.bootstrap, argv);
-  if (handover.kind !== "skip") return finishHandover(deps, handover);
   const flags = lifecycleFlagsOf(argv, deps.context);
   if (flags.explicitPort !== undefined) writeStoredPort(flags.home, flags.explicitPort);
   const { home } = flags;

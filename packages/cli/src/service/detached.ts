@@ -3,7 +3,6 @@ import { dirname } from "node:path";
 import { readRunningInstance } from "@tau/core";
 import type { ServiceBackend } from "./backend";
 import type { ServiceContext } from "./context";
-import { refuseTemporaryEntry } from "./entry-guard";
 import { pidFileOf, type ServiceSpec } from "./spec";
 
 const POLL_MS = 100;
@@ -125,8 +124,7 @@ export function createDetachedBackend(
 
   async function start(spec: ServiceSpec) {
     if (livePid(spec) !== undefined) return;
-    refuseTemporaryEntry(spec.entry);
-    const pid = await context.runner.spawnDetached(spec.node, [spec.entry, ...spec.args], {
+    const pid = await context.runner.spawnDetached(spec.command, [...spec.args], {
       env: { ...context.env, PATH: spec.path },
     });
     if (pid === undefined) return;
@@ -139,7 +137,6 @@ export function createDetachedBackend(
   async function restart(spec: ServiceSpec) {
     const holder = await foregroundHolder(spec);
     if (holder !== undefined) throw new ForegroundHolderError(holder);
-    refuseTemporaryEntry(spec.entry);
     await stop(spec);
     await start(spec);
   }

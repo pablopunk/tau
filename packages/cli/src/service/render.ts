@@ -4,7 +4,7 @@ const xmlEscape = (text: string) =>
   text.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
 
 export function renderPlist(spec: ServiceSpec): string {
-  const programArguments = [spec.node, spec.entry, ...spec.args]
+  const programArguments = [spec.command, ...spec.args]
     .map((argument) => `    <string>${xmlEscape(argument)}</string>`)
     .join("\n");
   return `<?xml version="1.0" encoding="UTF-8"?>
@@ -35,7 +35,7 @@ const systemdQuote = (text: string) =>
   `"${text.replaceAll("\\", "\\\\").replaceAll('"', '\\"').replaceAll("%", "%%")}"`;
 
 export function renderSystemdUnit(spec: ServiceSpec): string {
-  const command = [spec.node, spec.entry, ...spec.args].map(systemdQuote).join(" ");
+  const command = [spec.command, ...spec.args].map(systemdQuote).join(" ");
   return `[Unit]
 Description=tau server
 
@@ -91,7 +91,7 @@ export function renderTaskXml(wrapperPath: string): string {
 const cmdQuote = (text: string) => `"${text.replaceAll("%", "%%")}"`;
 
 export function renderCmdWrapper(spec: ServiceSpec): string {
-  const command = [spec.node, spec.entry, ...spec.args].map(cmdQuote).join(" ");
+  const command = [spec.command, ...spec.args].map(cmdQuote).join(" ");
   return `@echo off\r
 set "PATH=${spec.path.replaceAll("%", "%%")}"\r
 ${command}\r

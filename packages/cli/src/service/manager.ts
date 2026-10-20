@@ -4,16 +4,21 @@ import type { CliCommand } from "../cli-entry";
 import type { DefinitionFile, ServiceBackend, ServiceState } from "./backend";
 import type { ServiceContext } from "./context";
 import { type DetachedOptions, ForegroundHolderError } from "./detached";
-import { refuseTemporaryEntry } from "./entry-guard";
-import { miseNotice } from "./mise-notice";
 import { detachedBackendOf, FALLBACK_WARNING, nativeBackendOf } from "./pick-backend";
 import { providerKeyNotice, shellOnlyProviderKeys } from "./provider-keys";
 import { buildSpec, recordFileOf, type ServiceSpec } from "./spec";
 
+/** What `service.json` holds: the program and arguments the unit was written for. */
 export interface RecordedPaths {
-  readonly node: string;
-  readonly entry: string;
+  readonly command: string;
+  readonly args: readonly string[];
 }
+
+const sameAsSpec = (recorded: RecordedPaths | undefined, spec: ServiceSpec): boolean =>
+  recorded !== undefined &&
+  recorded.command === spec.command &&
+  recorded.args.length === spec.args.length &&
+  recorded.args.every((argument, index) => argument === spec.args[index]);
 
 export interface ServiceManager {
   readonly spec: ServiceSpec;
@@ -23,7 +28,7 @@ export interface ServiceManager {
   readonly native: boolean;
   installed(): Promise<boolean>;
   recorded(): RecordedPaths | undefined;
-  /** Installed, but the recorded node or entry is not the current one. */
+  /** Installed, but the recorded command is not the current one. */
   needsRepair(): Promise<boolean>;
   install(): Promise<string[]>;
   uninstall(): Promise<void>;
@@ -50,8 +55,10 @@ function writeFiles(files: readonly DefinitionFile[]): boolean {
 function readRecord(home: string): RecordedPaths | undefined {
   try {
     const value = JSON.parse(readFileSync(recordFileOf(home), "utf8")) as Partial<RecordedPaths>;
-    return typeof value.node === "string" && typeof value.entry === "string"
-      ? { node: value.node, entry: value.entry }
+    const { command, args } = value;
+    // an old `{ node, entry }` record has no `command`: it reads as missing, so one repair rewrites it
+    return typeof command === "string" && Array.isArray(args) && args.every((a) => typeof a === "string")
+      ? { command, args }
       : undefined;
   } catch {
     return undefined;
@@ -73,7 +80,7 @@ export function createServiceManager(
 
   function record() {
     mkdirSync(home, { recursive: true });
-    writeFileSync(recordFileOf(home), JSON.stringify({ node: spec.node, entry: spec.entry }));
+    writeFileSync(recordFileOf(home), JSON.stringify({ command: spec.command, args: spec.args }));
   }
 
   async function refuseForegroundHolder(spare: number | undefined) {
@@ -98,18 +105,13 @@ export function createServiceManager(
     recorded: () => readRecord(home),
     async needsRepair() {
       const recorded = readRecord(home);
-      if (!native)
-        return recorded !== undefined && (recorded.node !== spec.node || recorded.entry !== spec.entry);
+      if (!native) return recorded !== undefined && !sameAsSpec(recorded, spec);
       if (!(await installed())) return false;
-      return recorded?.node !== spec.node || recorded?.entry !== spec.entry;
+      return !sameAsSpec(recorded, spec);
     },
     async install() {
-      refuseTemporaryEntry(spec.entry);
       record();
-      const warnings = [
-        providerKeyNotice(shellOnlyProviderKeys(context.env)),
-        miseNotice(spec.node, spec.entry),
-      ];
+      const warnings = [providerKeyNotice(shellOnlyProviderKeys(context.env))];
       const held = native && (await detached.lockHolder(spec)) !== undefined;
       const nativePid = held && native ? (await native.state(spec)).pid : undefined;
       await detached.stopExcept(spec, nativePid);
@@ -137,7 +139,6 @@ export function createServiceManager(
     },
     async restart() {
       if (!(await installed()) || !native) return (await activeBackend()).restart(spec);
-      refuseTemporaryEntry(spec.entry);
       const changed = writeFiles(native.files(spec));
       record();
       await (changed ? native.reload(spec) : native.restart(spec));

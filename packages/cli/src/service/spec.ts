@@ -7,10 +7,10 @@ import { captureServicePath } from "./path-capture";
 export interface ServiceSpec {
   readonly names: ServiceNames;
   readonly home: string;
-  readonly node: string;
-  readonly entry: string;
+  /** The program: the stable binary, or node in a dev checkout. */
+  readonly command: string;
   readonly path: string;
-  /** Arguments after `node entry`. */
+  /** Everything after `command`: the CLI entry (dev only), then `serve ...`. */
   readonly args: readonly string[];
 }
 
@@ -26,10 +26,9 @@ export function buildSpec(context: ServiceContext, cli: CliCommand, home: string
   return {
     names,
     home,
-    node: cli.command,
-    entry: cli.args[0] ?? "",
+    command: cli.command,
     path: captureServicePath(context.env.PATH ?? "", context.osHome),
-    args: serviceArgs(home, names.launchdLabel === "dev.tau.server"),
+    args: [...cli.args, ...serviceArgs(home, names.launchdLabel === "dev.tau.server")],
   };
 }
 
