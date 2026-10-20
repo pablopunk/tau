@@ -13,6 +13,7 @@ import retryExhausted from "../../fixtures/retry-exhausted.json";
 import steer from "../../fixtures/steer.json";
 import text from "../../fixtures/text.json";
 import thinking from "../../fixtures/thinking.json";
+import todo from "../../fixtures/todo.json";
 import write from "../../fixtures/write.json";
 import type { Fixture } from "./types";
 
@@ -25,6 +26,7 @@ function asFixture(json: unknown): Fixture {
 export const fixtures = {
   text: asFixture(text),
   thinking: asFixture(thinking),
+  todo: asFixture(todo),
   read: asFixture(read),
   write: asFixture(write),
   edit: asFixture(edit),

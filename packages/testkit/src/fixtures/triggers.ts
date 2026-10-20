@@ -10,6 +10,7 @@ const COMMAND_FIXTURES: Record<string, FixtureName> = {
   flaky: "retry",
   overloaded: "retry-exhausted",
   image: "image",
+  todo: "todo",
 };
 
 export function triggerOf(fixture: Fixture): string | undefined {
