@@ -110,7 +110,8 @@ export function startPeerWorker(initial: Peer, deps: PeerWorkerDeps): PeerWorker
             : { kind: "retry", linked: false },
         );
       });
-      ws.once("error", () => {
+      // `on`, not `once`: under Bun a dial can emit more than one error, and an error with no listener kills the server.
+      ws.on("error", () => {
         if (!attached) resolve({ kind: "retry", linked: false });
       });
       ws.once("open", () => {
