@@ -1,8 +1,8 @@
-import { defineConfig } from "@playwright/test";
+import { defineConfig, type ReporterDescription } from "@playwright/test";
 import { PORT, serverEnvironment, stateDir } from "./support";
 
 /** CI writes a blob and a JSON report per shard (`E2E_SHARD`) under `e2e-reports/`; the report jobs read the JSON. */
-function ciReporters() {
+function ciReporters(): ReporterDescription[] {
   const shard = process.env.E2E_SHARD ?? "local";
   return [
     ["blob", { outputDir: `../e2e-reports/blob-${shard}` }],
