@@ -2,14 +2,19 @@ version: 2
 updates:
   # @earendil-works/* move in lockstep with pi releases and carry our model
   # catalogs: a stale pi-ai means retired model ids (410 ModelDeprecated).
-  # Weekly grouped bump, verified by CI like any other PR.
+  # Minor and patch bumps come as one weekly group PR that auto-merges when CI
+  # is green (.github/workflows/auto-merge-pi.yml). Majors get their own PR and
+  # wait for a human.
   - package-ecosystem: "npm"
     directory: "/"
     schedule:
       interval: "weekly"
     groups:
-      earendil:
+      earendil-pi:
         patterns:
           - "@earendil-works/*"
+        update-types:
+          - "minor"
+          - "patch"
     commit-message:
       prefix: "chore"
