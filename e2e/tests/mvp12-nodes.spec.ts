@@ -184,7 +184,15 @@ test.describe("MVP13 Step 1: symmetric links between real servers", () => {
         .poll(async () => (await listNodes(node.server)).map((listed) => listed.status), { timeout: 30_000 })
         .toEqual(["online"]);
     }
-    await new Promise((resolve) => setTimeout(resolve, 6000));
+    const oneLinkEach = async (node: typeof c) => {
+      const list = await listNodes(node.server);
+      return (
+        list.length === 1 && (list[0]?.links ?? []).filter((link) => link.state === "linked").length === 1
+      );
+    };
+    await expect
+      .poll(async () => [await oneLinkEach(c), await oneLinkEach(d)], { timeout: 30_000 })
+      .toEqual([true, true]);
     for (const node of [c, d]) {
       const list = await listNodes(node.server);
       expect(list).toHaveLength(1);
