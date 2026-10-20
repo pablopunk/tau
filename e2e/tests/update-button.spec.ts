@@ -42,6 +42,7 @@ test.describe("update button on an installed binary", () => {
     github = await serveReleases(releases, GOOD_VERSION);
     server = await startBinaryServer(releases, github);
   });
+  // biome-ignore lint/correctness/noEmptyPattern: Playwright reads the fixtures from a destructured first argument.
   test.afterEach(({}, info) => {
     if (info.status !== info.expectedStatus && server) console.log(updateDiagnostics(server));
   });

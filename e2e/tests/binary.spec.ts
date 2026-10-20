@@ -60,6 +60,7 @@ async function shutdown(): Promise<void> {
 
 test.describe("a good release", () => {
   test.beforeAll(() => boot(GOOD_VERSION));
+  // biome-ignore lint/correctness/noEmptyPattern: Playwright reads the fixtures from a destructured first argument.
   test.afterEach(({}, info) => {
     if (info.status !== info.expectedStatus && server) console.log(updateDiagnostics(server));
   });
