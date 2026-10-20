@@ -96,7 +96,7 @@ main() {
   version=${version%-"$os-$arch.tar.gz"}
 
   say "Downloading $archive"
-  curl -fSL "$base/$archive" -o "$work/$archive" || die "could not download $base/$archive"
+  curl -fsSL "$base/$archive" -o "$work/$archive" || die "could not download $base/$archive"
   [ "$(sha256_of "$work/$archive")" = "$expected" ] || die "SHA-256 mismatch for $archive; nothing was installed"
 
   mkdir -p "$INSTALL_DIR/versions" "$BIN_DIR"

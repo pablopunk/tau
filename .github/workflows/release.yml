@@ -1,0 +1,218 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: jdx/mise-action@7a4e45a543138629540c9a1616d08632b893e492 # v5.0.1
+      - name: Tag matches packages/cli/package.json
+        run: |
+          version="$(node -p "require('./packages/cli/package.json').version")"
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "tag $GITHUB_REF_NAME does not match packages/cli/package.json version $version" >&2
+            exit 1
+          fi
+      - run: mise exec -- pnpm install --frozen-lockfile
+      - run: mise exec -- pnpm check
+      - run: mise exec -- pnpm test
+      - run: mise exec -- pnpm build
+
+  build-linux:
+    needs: check
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - { target: linux-x64-baseline, archive: linux-x64, runner: ubuntu-latest }
+          - { target: linux-arm64, archive: linux-arm64, runner: ubuntu-latest }
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: jdx/mise-action@7a4e45a543138629540c9a1616d08632b893e492 # v5.0.1
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: .bun-version
+      - run: mise exec -- pnpm install --frozen-lockfile
+      - run: mise exec -- pnpm build
+      - name: Claude SDK native for the target
+        run: mise exec -- scripts/fetch-sdk-native.sh "${{ matrix.target }}"
+      - name: Compile and archive
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#v}"
+          name="tau-$version-${{ matrix.archive }}"
+          mkdir -p out
+          mise exec -- pnpm build:binary --target "${{ matrix.target }}" --version "$version" --out "out/$name"
+          tar -czf "out/$name.tar.gz" -C out "$name"
+          rm -rf "out/$name"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: archive-${{ matrix.archive }}
+          path: out/*.tar.gz
+          compression-level: 0
+          retention-days: 7
+          if-no-files-found: error
+
+  build-macos:
+    needs: check
+    runs-on: macos-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: jdx/mise-action@7a4e45a543138629540c9a1616d08632b893e492 # v5.0.1
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: .bun-version
+      - run: mise exec -- pnpm install --frozen-lockfile
+      - run: mise exec -- pnpm build
+      - name: Claude SDK natives
+        run: |
+          mise exec -- scripts/fetch-sdk-native.sh darwin-arm64
+          mise exec -- scripts/fetch-sdk-native.sh darwin-x64
+      - name: Import Developer ID certificate
+        env:
+          MACOS_CERT_P12_BASE64: ${{ secrets.MACOS_CERT_P12_BASE64 }}
+          MACOS_CERT_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
+        run: |
+          set -euo pipefail
+          keychain="$RUNNER_TEMP/build.keychain-db"
+          keychain_password="$(openssl rand -base64 24)"
+          certificate="$RUNNER_TEMP/certificate.p12"
+          echo "$MACOS_CERT_P12_BASE64" | base64 --decode > "$certificate"
+          security create-keychain -p "$keychain_password" "$keychain"
+          security set-keychain-settings -lut 21600 "$keychain"
+          security unlock-keychain -p "$keychain_password" "$keychain"
+          security import "$certificate" -P "$MACOS_CERT_PASSWORD" -A -t cert -f pkcs12 -k "$keychain"
+          security set-key-partition-list -S apple-tool:,apple: -k "$keychain_password" "$keychain" >/dev/null
+          security list-keychains -d user -s "$keychain"
+          security default-keychain -s "$keychain"
+          rm -f "$certificate"
+      - name: Compile, sign, notarize, archive
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#v}"
+          mkdir -p out
+          for arch in arm64 x64; do
+            name="tau-$version-darwin-$arch"
+            mise exec -- pnpm build:binary --target "darwin-$arch" --version "$version" --out "out/$name"
+            scripts/sign-macos.sh "out/$name"
+            scripts/notarize-macos.sh "out/$name"
+            tar -czf "out/$name.tar.gz" -C out "$name"
+            rm -rf "out/$name"
+          done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: archive-darwin
+          path: out/*.tar.gz
+          compression-level: 0
+          retention-days: 7
+          if-no-files-found: error
+
+  smoke:
+    needs: [build-linux, build-macos]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - { runner: ubuntu-latest, artifact: archive-linux-x64 }
+          - { runner: ubuntu-24.04-arm, artifact: archive-linux-arm64 }
+          - { runner: macos-latest, artifact: archive-darwin }
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: jdx/mise-action@7a4e45a543138629540c9a1616d08632b893e492 # v5.0.1
+      - run: mise exec -- pnpm install --frozen-lockfile
+      - uses: actions/download-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: release
+      - name: Keep this runner's archive and add SHA256SUMS and install.sh
+        run: |
+          set -euo pipefail
+          os="$(uname -s | tr '[:upper:]' '[:lower:]')"
+          arch="$(uname -m)"; case "$arch" in aarch64|arm64) arch=arm64 ;; *) arch=x64 ;; esac
+          cd release
+          find . -name 'tau-*.tar.gz' ! -name "*-$os-$arch.tar.gz" -delete
+          shasum -a 256 tau-*-"$os-$arch".tar.gz > SHA256SUMS
+          cp "$GITHUB_WORKSPACE/install.sh" install.sh
+      - name: Smoke the installed binary
+        run: mise exec -- pnpm smoke:binary --release-dir "$PWD/release" --version "${GITHUB_REF_NAME#v}"
+      - name: Quarantined first run, notarization check (macOS)
+        if: runner.os == 'macOS'
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          scratch="$(mktemp -d)"
+          tar -xzf release/tau-*-darwin-arm64.tar.gz -C "$scratch" --strip-components=1
+          xattr -w com.apple.quarantine "0081;$(printf %x "$(date +%s)");curl;" "$scratch/tau"
+          "$scratch/tau" --version
+      - name: systemd swap and restart (Linux, unverified until the first run)
+        if: runner.os == 'Linux'
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          sudo loginctl enable-linger "$USER"
+          XDG_RUNTIME_DIR="/run/user/$(id -u)"
+          export XDG_RUNTIME_DIR
+          scripts/smoke-systemd.sh "$PWD/release"
+
+  release:
+    needs: [check, smoke]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: archive-*
+          path: release
+          merge-multiple: true
+      - name: SHA256SUMS and install.sh
+        run: |
+          set -euo pipefail
+          cd release
+          [ "$(find . -name 'tau-*.tar.gz' | wc -l)" -eq 4 ] || { echo "expected 4 archives" >&2; ls; exit 1; }
+          sha256sum tau-*.tar.gz > SHA256SUMS
+          cp "$GITHUB_WORKSPACE/install.sh" install.sh
+          cat SHA256SUMS
+      - name: Draft, upload, publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --draft --verify-tag \
+            --title "tau ${GITHUB_REF_NAME#v}" --generate-notes
+          gh release upload "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" release/tau-*.tar.gz release/SHA256SUMS release/install.sh
+          gh release edit "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --draft=false
