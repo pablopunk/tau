@@ -8,6 +8,7 @@ import {
   mkdtempSync,
   readFileSync,
   realpathSync,
+  rmSync,
   statSync,
   writeFileSync,
 } from "node:fs";
@@ -83,6 +84,7 @@ export async function ensureReleases(): Promise<string> {
   await pack(stage, BROKEN_VERSION, releases);
   cpSync(join(REPO, "install.sh"), join(releases, "install.sh"));
   writeFileSync(join(releases, "done"), "");
+  rmSync(stage, { recursive: true, force: true });
   return releases;
 }
 
@@ -193,6 +195,9 @@ export async function startBinaryServer(releases: string, github: FakeGitHub): P
     installDir,
     env,
     tau,
-    stop: async () => void (await tau("stop").catch(() => undefined)),
+    stop: async () => {
+      await tau("stop").catch(() => undefined);
+      rmSync(root, { recursive: true, force: true });
+    },
   };
 }
