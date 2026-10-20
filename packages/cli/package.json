@@ -1,6 +1,6 @@
 {
   "name": "@pablopunk/tau",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Chat with a coding agent that works in your project folders, from the browser.",
   "license": "MIT",
   "repository": {
