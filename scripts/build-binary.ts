@@ -116,14 +116,17 @@ function compile(platform: Platform, version: string, out: string): void {
     "--outfile",
     join(out, "tau"),
   ];
-  retry(() => execFileSync("bun", args, { stdio: "inherit" }));
+  retry(() => {
+    execFileSync("bun", args, { stdio: "inherit" });
+  });
 }
 
 /** Bun downloads the target runtime on first use; a flaky network fails the compile once. */
 function retry(action: () => void, attempts = 3): void {
   for (let attempt = 1; ; attempt++) {
     try {
-      return action();
+      action();
+      return;
     } catch (error) {
       if (attempt >= attempts) throw error;
       console.warn(`compile failed (attempt ${attempt}/${attempts}), retrying`);
