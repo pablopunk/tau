@@ -75,11 +75,16 @@ test.describe("MVP5", () => {
       data: { path: demoRepository() },
       headers: ORIGIN,
     });
-    expect(added.ok()).toBe(true);
+    // a serial retry re-runs beforeAll: the project is already added
+    expect(added.ok() || added.status() === 409).toBe(true);
     await page.reload();
   });
 
-  test.afterAll(() => page.close());
+  test.afterAll(async () => {
+    // the queue test flips the shared server's message mode; never leak it into later specs
+    await page.request.put("/api/settings/message-mode", { data: { mode: "steer" }, headers: ORIGIN });
+    await page.close();
+  });
 
   test("a worktree thread edits a file, commits it and merges into main", async () => {
     await startThreadInDemoRepository(page, "write note.txt hello");
@@ -125,15 +130,14 @@ test.describe("MVP5", () => {
     await page.keyboard.press("Escape");
     await openNewThread(page);
     await send(page, "bash sleep 6");
-    await expect(page.getByRole("button", { name: "Stop" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Stop", exact: true })).toBeVisible();
     await messageBox(page).fill("later message");
     await messageBox(page).press("Enter");
     const queued = page.getByRole("list", { name: "Queued messages" });
     await expect(queued).toContainText("later message");
     await queued.getByRole("button", { name: "Cancel" }).click();
     await expect(queued).toBeHidden();
-    await expect(page.getByRole("button", { name: "Stop" })).toBeHidden({ timeout: 20_000 });
-    await page.request.put("/api/settings/message-mode", { data: { mode: "steer" }, headers: ORIGIN });
+    await expect(page.getByRole("button", { name: "Stop", exact: true })).toBeHidden({ timeout: 20_000 });
   });
 
   test("the todo panel shows the agent's list", async () => {
@@ -153,8 +157,8 @@ test.describe("MVP5", () => {
     await chip.click();
     const sheet = page.getByRole("dialog", { name: "Background processes" });
     await expect(sheet).toContainText("sleep 300");
-    await sheet.getByRole("button", { name: "Stop" }).click();
-    await expect(sheet.getByRole("button", { name: "Stop" })).toBeHidden();
+    await sheet.getByRole("button", { name: "Stop", exact: true }).click();
+    await expect(sheet.getByRole("button", { name: "Stop", exact: true })).toBeHidden();
     await page.keyboard.press("Escape");
   });
 
