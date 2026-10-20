@@ -20,6 +20,7 @@ export function createConnectionReader(deps: {
   models: Models;
   faux: boolean;
   claudeCli: ClaudeCliService;
+  env: Readonly<Record<string, string | undefined>>;
 }): ConnectionReader {
   const unchecked = new Set<string>();
   const envChecks = new Map<string, Promise<boolean | null>>();
@@ -37,9 +38,14 @@ export function createConnectionReader(deps: {
     return check;
   }
 
-  async function readEnvironmentConnection(entry: KeyProviderEntry): Promise<Connection> {
+  async function readEnvKey(entry: KeyProviderEntry): Promise<string | undefined> {
+    if (entry.piProviders.length === 0) return deps.env[entry.envVar] || undefined;
     const auth = await deps.models.getAuth(primaryPiId(entry)).catch(() => undefined);
-    const key = auth?.auth.apiKey;
+    return auth?.auth.apiKey;
+  }
+
+  async function readEnvironmentConnection(entry: KeyProviderEntry): Promise<Connection> {
+    const key = await readEnvKey(entry);
     if (!key) return null;
     return { method: "api_key", source: "env", valid: await checkEnvKeyOnce(entry, key) };
   }

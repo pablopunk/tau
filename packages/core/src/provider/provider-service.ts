@@ -21,8 +21,10 @@ import { createConnectionReader } from "./connections";
 import { createLoginSessions, type LoginSessions } from "./login-sessions";
 import { createModelLister } from "./model-list";
 import {
+  countsForChat,
   type KeyProviderEntry,
   type ProviderEntry,
+  primaryPiId,
   requireKeyProvider,
   requireProvider,
   visibleProviders,
@@ -102,7 +104,13 @@ export function createProviderService(options: ProviderServiceOptions): Provider
         replies: loadFauxReplies(options.env.TAU_FAUX_REPLIES),
       }).models
     : createRealModels(credentials, options.env, claudeCli.provider);
-  const connections = createConnectionReader({ credentials, models, faux: options.faux, claudeCli });
+  const connections = createConnectionReader({
+    credentials,
+    models,
+    faux: options.faux,
+    claudeCli,
+    env: options.env,
+  });
   const entries = visibleProviders(!claudeCliDisabled(options.env));
   const lister = createModelLister({
     models,
@@ -154,10 +162,9 @@ export function createProviderService(options: ProviderServiceOptions): Provider
     const key = rawKey.trim();
     if (key === "") throw new AppError("invalid_key", "The API key is empty.");
     const valid = await validated(entry, key);
-    await credentials.writeMany(
-      entry.piProviders.map((ref) => ref.piId),
-      { type: "api_key", key },
-    );
+    const keyIds =
+      entry.piProviders.length > 0 ? entry.piProviders.map((ref) => ref.piId) : [primaryPiId(entry)];
+    await credentials.writeMany(keyIds, { type: "api_key", key });
     if (valid === null) connections.markUnchecked(entry);
     else connections.markChecked(entry);
     options.changes.emit({ resource: "providers" });
@@ -166,7 +173,9 @@ export function createProviderService(options: ProviderServiceOptions): Provider
 
   async function disconnect(id: ProviderId): Promise<ProviderInfo> {
     const entry = requireKeyProvider(id);
-    await credentials.deleteMany(entry.piProviders.map((ref) => ref.piId));
+    const keyIds =
+      entry.piProviders.length > 0 ? entry.piProviders.map((ref) => ref.piId) : [primaryPiId(entry)];
+    await credentials.deleteMany(keyIds);
     connections.markChecked(entry);
     options.changes.emit({ resource: "providers" });
     return infoOf(entry);
@@ -204,7 +213,10 @@ export function createProviderService(options: ProviderServiceOptions): Provider
     models,
     logins,
     async isConfigured() {
-      for (const entry of entries) if (await connections.read(entry)) return true;
+      for (const entry of entries) {
+        if (!countsForChat(entry)) continue;
+        if (await connections.read(entry)) return true;
+      }
       return false;
     },
     list: () => Promise.all(entries.map(infoOf)),
