@@ -78,8 +78,6 @@ export async function run(
   const core: Core = await dependencies.createCore({
     home: options.home,
     faux: options.faux,
-    // `cliCommand` and `assets` are core's new options; the cast keeps this compiling until core declares them.
-    cliEntry: dependencies.cliCommand?.args[0],
     cliCommand: dependencies.cliCommand,
     assets: dependencies.assets,
     tunnelTarget: tunnelTarget.get,
@@ -87,7 +85,7 @@ export async function run(
     latestVersion: dependencies.latestVersion ?? latestVersionSource(process.env, options.home),
     updater,
     autoStartUpdates: true,
-  } as Parameters<CreateCore>[0]);
+  });
   try {
     const server = await listenOnFreePort(options.port, (port) =>
       dependencies.createServer({ core, port, token, staticDir: dependencies.staticDir }),

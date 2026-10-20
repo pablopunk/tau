@@ -1,8 +1,7 @@
 # Integrator notes: CLI owner (bun binary)
 
-- `run.ts` passes `cliCommand` and `assets: { versionDir }` to `createCore` through a local cast
-  (`as Parameters<CreateCore>[0]`), plus `cliEntry` (= `cliCommand.args[0]`, only set in dev) for today's core. When
-  core declares both options, drop the cast and the `cliEntry` line.
+- `run.ts` passes `cliCommand` and `assets` straight to `createCore` (core's options; no cast).
+- `scripts/build-binary.ts` already copies the builtin skill to `<versionDir>/skills/tau/SKILL.md`: nothing to add.
 - New e2e hook `TAU_RELEASES_API` (honoured only for a home under the temp dir, like `TAU_FAKE_LATEST`): a base URL
   replacing `https://api.github.com/repos/pablopunk/tau`. It must serve `/releases/latest` and `/releases/tags/v<x>`
   as GitHub does (`tag_name`, `assets[].name` and `browser_download_url`; assets `tau-<v>-<os>-<arch>.tar.gz`
