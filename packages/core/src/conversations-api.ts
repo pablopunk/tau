@@ -12,6 +12,7 @@ import {
   type WorkspaceMode,
 } from "@tau/protocol";
 import type { ArchivedCleanup } from "./archived-cleanup";
+import { type BangCommandDeps, entryOfThread, parseBangCommand, runBangCommand } from "./bang-command";
 import type { ChangeEmitter } from "./change-emitter";
 import type { CheckpointService } from "./checkpoints/checkpoint-service";
 import { requireContent, requireImageBytesMatchTheirType, requireImagesAllowed } from "./conversation-input";
@@ -19,12 +20,14 @@ import type { ConversationRemoval } from "./conversation-removal";
 import { createConversationsMvp5Api } from "./conversations-mvp5-api";
 import type { ConversationForker } from "./harness/conversation-fork";
 import type { ConversationStore } from "./harness/conversation-store";
+import type { NotificationSubmitter } from "./harness/notification-submitter";
 import type { ProjectStore } from "./harness/project-store";
 import { createSubagentStopper } from "./harness/subagent-stop";
 import type { SettingsStore } from "./home/settings-store";
 import type { ProviderService } from "./provider/provider-service";
 import { requireName } from "./require-name";
 import type { StatusTracker } from "./status/status-tracker";
+import { cwdOf } from "./terminals/cwd-of";
 import type { TitleService } from "./titles/title-service";
 import type { WorkspaceService } from "./workspaces/workspace-service";
 
@@ -46,6 +49,12 @@ export function createConversationsApi(deps: {
   closeClaudeCliThread: (id: string) => Promise<void>;
   /** Closes the thread's terminals; called before an archive and never blocks it. */
   closeTerminalsOf?: (conversationId: string) => Promise<void>;
+  /** What a `!` bang command spawns with: the process service, the home, and the notifier. */
+  bang: {
+    readonly processes: BangCommandDeps["processes"];
+    readonly notifications: NotificationSubmitter;
+    readonly home: string | undefined;
+  };
   changes: ChangeEmitter;
   now: () => number;
 }): Core["conversations"] {
@@ -55,6 +64,7 @@ export function createConversationsApi(deps: {
   const reportCheckpointFailure = (error: unknown) =>
     console.error("tau: could not take a checkpoint", error);
   const startsInFlight = new Map<string, Promise<ConversationSummary>>();
+  const sendsInFlight = new Map<string, Promise<void>>();
 
   const nameTheThread = (id: string, text: string) => void titles.generateFor(id, text);
   const lookUp = (ref: ModelRef) => provider.models.getModel(ref.provider, ref.modelId);
@@ -74,6 +84,38 @@ export function createConversationsApi(deps: {
     requireContent(input);
     requireImagesAllowed(input, lookUp(ref));
     requireImageBytesMatchTheirType(input);
+  }
+
+  async function sendOnce(id: string, input: SendMessageInput): Promise<void> {
+    validateMessage(input, await modelOfThread(id));
+    const bang = parseBangCommand(input.text);
+    // The server strips one `!`; web sends verbatim so every client behaves the same.
+    const effective = bang.kind === "escaped" ? { ...input, text: bang.text } : input;
+    // A bang command resolves its workspace before admission: no exec without a folder.
+    if (bang.kind === "command") await cwdOf(conversations, id);
+    await checkpoints.snapshotBefore(id, input.requestId).catch(reportCheckpointFailure);
+    const { projectId, titleText, admitted } = await conversations.send(
+      id,
+      effective,
+      now(),
+      await whenBusyFor(input),
+    );
+    announce(projectId);
+    if (titleText !== undefined) nameTheThread(id, titleText);
+    // Only the admitted winner spawns: losers deduped by `requestId` never exec. The exit is never awaited.
+    if (admitted && bang.kind === "command") {
+      await runBangCommand(
+        {
+          threads: conversations,
+          processes: deps.bang.processes,
+          notifications: deps.bang.notifications,
+          home: deps.bang.home,
+          entryOf: (conversationId) => entryOfThread(deps.harness, conversationId),
+        },
+        id,
+        bang.command,
+      );
+    }
   }
 
   async function workspaceModeFor(projectId: string, requested: WorkspaceMode | undefined) {
@@ -182,12 +224,14 @@ export function createConversationsApi(deps: {
     async rename(id, title) {
       announce(await conversations.rename(id, requireName(title)));
     },
-    async send(id, input) {
-      validateMessage(input, await modelOfThread(id));
-      await checkpoints.snapshotBefore(id, input.requestId).catch(reportCheckpointFailure);
-      const { projectId, titleText } = await conversations.send(id, input, now(), await whenBusyFor(input));
-      announce(projectId);
-      if (titleText !== undefined) nameTheThread(id, titleText);
+    send(id, input) {
+      // Like `start`: two racing sends with one `requestId` admit once, so one command spawns.
+      const key = `${id}${input.requestId}`;
+      const pending = sendsInFlight.get(key) ?? sendOnce(id, input);
+      sendsInFlight.set(key, pending);
+      return pending.finally(() => {
+        if (sendsInFlight.get(key) === pending) sendsInFlight.delete(key);
+      });
     },
     abort: (id) => conversations.abort(id),
     async archive(id, archived) {
