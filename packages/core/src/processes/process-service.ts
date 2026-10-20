@@ -12,7 +12,10 @@ import {
   processExitNotification,
   restartNoticeText,
 } from "./process-notifications";
-import { type ExitDetails, type RunningProcess, spawnRunning } from "./running-process";
+import type { ExitDetails, ForegroundOutcome, ForegroundRun } from "./process-types";
+import { type RunningProcess, spawnRunning } from "./running-process";
+
+export type { ExitDetails, ForegroundOutcome, ForegroundRun };
 
 export interface StartProcessRequest {
   readonly conversationId: string;
@@ -27,6 +30,8 @@ export interface StartProcessRequest {
   readonly timeoutMs?: number;
   /** Default `/bin/sh`. */
   readonly shell?: string;
+  /** Set by the tool when resource control applies to this command. Unset means ungoverned. */
+  readonly governed?: boolean;
   /** Added to the environment of the process. */
   readonly env?: Readonly<Record<string, string>>;
 }
@@ -40,23 +45,10 @@ export interface ForegroundRequest {
   readonly command: string;
   readonly shell?: string;
   readonly env?: Readonly<Record<string, string>>;
+  /** Set by the tool when resource control applies to this command. Unset means ungoverned. */
+  readonly governed?: boolean;
   /** Every chunk of output while the call still waits. */
   readonly onOutput: (text: string) => void;
-}
-
-export type ForegroundOutcome =
-  | { readonly kind: "exited"; readonly exitCode: number | null; readonly stopRequested: boolean }
-  /** The process runs on, listed and announced like one the agent started in the background. */
-  | { readonly kind: "background"; readonly info: ProcessInfo };
-
-export interface ForegroundRun {
-  readonly id: string;
-  readonly logPath: string;
-  readonly outcome: Promise<ForegroundOutcome>;
-  /** SIGTERM, SIGKILL after the grace period. */
-  stop(): Promise<void>;
-  /** After `exited`: forgets the run. The log stays when `keepLog`. */
-  release(keepLog: boolean): Promise<void>;
 }
 
 export interface ProcessService {
@@ -85,6 +77,8 @@ export interface ProcessDeps {
   /** Monitor events, exit notices and restart notices go through it. */
   readonly notifications?: NotificationSubmitter;
   readonly emitChange: (conversationId: string) => void;
+  /** Node-wide `Change { resource: "resources" }`. */
+  readonly emitResourcesChange?: () => void;
   readonly stopGraceMs?: number;
   readonly batchMs?: number;
 }
@@ -293,6 +287,7 @@ export function createProcessService(deps: ProcessDeps): ProcessService {
         id,
         logPath: files.logFile(id),
         outcome: Promise.race([exited, moved]),
+        admitted: Promise.resolve(),
         stop: () => stopEntry(entry),
         async release(keepLog) {
           if (foregroundEntries.get(key) === entry) foregroundEntries.delete(key);

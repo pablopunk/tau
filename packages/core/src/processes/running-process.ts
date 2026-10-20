@@ -6,6 +6,7 @@ import { createLineSplitter } from "./line-splitter";
 import { extractLocalUrls } from "./local-urls";
 import { type LogFile, openLogFile } from "./log-file";
 import { createLogTail, type LogTail, lastLines } from "./log-tail";
+import type { ExitDetails, StopReason } from "./process-types";
 
 export interface RunningProcess {
   info: ProcessInfo;
@@ -13,6 +14,7 @@ export interface RunningProcess {
   readonly tail: LogTail;
   readonly exited: Promise<void>;
   stopRequested: boolean;
+  stopReason?: StopReason;
   /** What a shell reports: the exit code, or 128 plus the signal number. Unset when the command never started. */
   shellStatus?: number;
 }
@@ -32,16 +34,11 @@ export interface SpawnRequest {
   readonly env?: Readonly<Record<string, string>>;
 }
 
+export type { ExitDetails };
 export type OutputStream = "stdout" | "stderr";
 
 export const EXIT_TAIL_LINES = 20;
 const PIPE_DRAIN_MS = 250;
-
-export interface ExitDetails {
-  readonly exitCode: number | null;
-  readonly stopRequested: boolean;
-  readonly logTail: string;
-}
 
 export function spawnRunning(request: SpawnRequest): RunningProcess {
   const child = spawn(request.shell ?? "/bin/sh", ["-c", request.info.command], {

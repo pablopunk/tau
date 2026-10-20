@@ -4,7 +4,7 @@ import { stat } from "node:fs/promises";
 import { defineTool } from "@earendil-works/pi-durable";
 import type { BashExecution } from "@earendil-works/pi-durable/tools";
 import { Type } from "typebox";
-import type { ForegroundOutcome, ForegroundRun } from "../../processes/process-service";
+import type { ForegroundOutcome, ForegroundRun } from "../../processes/process-types";
 import type { ToolServicesRef } from "./tool-file";
 
 const MAX_TIMEOUT_SECONDS = 2_147_483_647 / 1000;
