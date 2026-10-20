@@ -26,7 +26,7 @@ export function ProjectsView({
   const { overrides, setOpen } = useProjectOpenOverrides();
   const currentProjectId = projectIdFromPath(useLocation().pathname, useNodeId());
   const sections = projectSections(projects, conversations);
-  const openKey = sections.map((section) => isProjectOpen(section, overrides, currentProjectId)).join(",");
+  const openKey = sections.map((section) => isProjectOpen(section, overrides, currentProjectId, showArchived)).join(",");
   useFlipList(listRef, openKey);
   const byId = new Map(projects.map((project) => [project.id, project]));
   return (
@@ -38,7 +38,7 @@ export function ProjectsView({
           projects={byId}
           activeConversationId={activeConversationId}
           showArchived={showArchived}
-          open={isProjectOpen(section, overrides, currentProjectId)}
+          open={isProjectOpen(section, overrides, currentProjectId, showArchived)}
           onOpenChange={(open) => setOpen(section.project.id, open)}
           onRemoved={() => onProjectRemoved(section.project.id)}
         />

@@ -130,7 +130,7 @@ export function ProjectGroup({
           {project.status === "ready" && (
             <SidebarGroupContent>
               <SidebarMenu>
-                {active.length === 0 && (
+                {listed.length === 0 && (
                   <p className="px-2 py-1 text-xs text-muted-foreground">No threads yet</p>
                 )}
                 {nestThreads(listed).map((node) => (
