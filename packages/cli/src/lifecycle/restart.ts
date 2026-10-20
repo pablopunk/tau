@@ -16,7 +16,7 @@ export async function runRestartWith(deps: LifecycleDeps, argv: readonly string[
     process.exitCode = 1;
     return;
   }
-  const prepared = await installOrRepairService(deps, flags.home);
+  const prepared = await installOrRepairService(deps, flags.home, { keepDetached: true });
   if (prepared.kind === "failed") {
     deps.out(prepared.message);
     process.exitCode = 1;

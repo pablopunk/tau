@@ -20,11 +20,18 @@ function installFailure(error: unknown): string {
 }
 
 /**
+ * `keepDetached` (restart, update): a recorded background tau on a node whose service manager refused the install
+ * (launchd without a GUI session) stays detached; installing again would start a second server.
+ *
  * The install-or-repair step of bare `tau`, shared with `tau restart` and the update restart step
  * (UPDATE-BUTTON.md, "Service gap"). Refuses a foreground holder. A background (non-service)
  * tau is stopped before a native install, because `launchctl bootstrap` fails while it holds the port.
  */
-export async function installOrRepairService(deps: LifecycleDeps, home: string): Promise<InstallOrRepair> {
+export async function installOrRepairService(
+  deps: LifecycleDeps,
+  home: string,
+  options: { readonly keepDetached?: boolean } = {},
+): Promise<InstallOrRepair> {
   const manager = managerOf(deps, home);
   const installed = await manager.installed();
   const status = installed ? await gatherStatus(deps, home) : undefined;
@@ -34,6 +41,11 @@ export async function installOrRepairService(deps: LifecycleDeps, home: string):
   const recorded = manager.recorded();
   const stale = (manager.native ? installed : recorded !== undefined) && (await manager.needsRepair());
   const needsInstall = manager.native ? !installed || stale : recorded === undefined || stale;
+  if (options.keepDetached && manager.native && !installed && !stale) {
+    if ((await gatherStatus(deps, home)).running === "background") {
+      return { kind: "ready", changed: false, repairing: false };
+    }
+  }
   if (!needsInstall) return { kind: "ready", changed: false, repairing: false };
   if (stale) deps.out(text.REPAIRING);
   else if (manager.native) deps.out(text.installingService(manager.kind));

@@ -46,7 +46,7 @@ export async function restartInNewBinary(deps: UpdateDeps, request: RestartReque
     deps.err(text.INSIDE_TAU);
     return notRestarted(1);
   }
-  const prepared = await installOrRepairService(deps, request.home);
+  const prepared = await installOrRepairService(deps, request.home, { keepDetached: true });
   if (prepared.kind === "failed") {
     deps.err(prepared.message);
     return notRestarted(1);

@@ -1,6 +1,6 @@
 import type { ClaudeCliStatus, ClaudeCliUsage } from "@tau/protocol";
-import type { ClaudeCliClock } from "../clock";
 import { bundledClaudeBinary } from "../bundled-claude";
+import type { ClaudeCliClock } from "../clock";
 import { isSdkMissing } from "../sdk-missing";
 import type { ClaudeSdkLoader } from "../sdk-types";
 import { claudeCliStatusOf } from "../status";
@@ -48,7 +48,9 @@ async function bundledVersionOf(sdk: ClaudeSdkLoader): Promise<string | null> {
 }
 
 export function createClaudeCliDetector(deps: ClaudeCliDetectorDeps): ClaudeCliDetector {
-  const installedVersion = deps.installedVersion ?? (() =>
+  const installedVersion =
+    deps.installedVersion ??
+    (() =>
       readCliVersion(deps.env ?? process.env, deps.sdkHome ? bundledClaudeBinary(deps.sdkHome) : undefined));
   let last = claudeCliStatusOf("missing");
   let running: Promise<ClaudeCliStatus> | null = null;
