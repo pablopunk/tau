@@ -24,6 +24,10 @@ const runAll = async (t, names) => {
   for (const n of names) ids.push(await t.thread(n));
   for (const id of ids) await t.done(id, 40000);
 };
+const failCount = (t) =>
+  sh(
+    `grep -rahoE 'toolCallId":"[^"]*","toolName":"bash","content":\\[\\{"type":"text","text":"<harness>.n\\[error\\] Resource limits unavailable' ${t.state} | sort -u | wc -l`,
+  );
 const msgs = (t) => t.stored('Resource limits unavailable[^"]*');
 
 // A1: env unset -> fill-in makes the probe succeed
@@ -117,6 +121,10 @@ try {
   }
   log("B2 hung probe: thread completion ms", times);
   log("B2 probe invocations (expect 2: first + one retry after timeout)", calls());
+  log(
+    "B2 distinct commands that failed with 'Resource limits unavailable' (expect exactly 1 of 3)",
+    failCount(t),
+  );
   log("B2 failure message", msgs(t));
   log("B2 which ran", out());
   log("B2 hung fakes left", sh("pgrep -af 'fakesd.*systemd-run|sleep 30' | head -3 || true"));

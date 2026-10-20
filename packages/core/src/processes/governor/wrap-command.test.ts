@@ -48,13 +48,21 @@ describe("wrapCommand", () => {
     });
     expect(background?.file).toBe("/bin/sh");
     expect(background?.args[1]).toBe(BACKGROUND_CHRT);
-    expect(background?.args.slice(2)).toEqual(["_", "chrt", "/usr/bin/nice", "/bin/bash", "-c", "pnpm test"]);
+    expect(background?.args.slice(2)).toEqual([
+      "_",
+      "chrt",
+      "/usr/bin/nice",
+      "/bin/sh",
+      "/bin/bash",
+      "-c",
+      "pnpm test",
+    ]);
   });
 
   it("passes absolute chrt and nice to the background wrapper", () => {
     const support = { ...linux, binaries: { ...linux.binaries, chrt: "/usr/bin/chrt" } };
     const wrapped = wrapCommand({ ...base, settings: settings({ priority: "background" }), support });
-    expect(wrapped?.args.slice(2, 5)).toEqual(["_", "/usr/bin/chrt", "/usr/bin/nice"]);
+    expect(wrapped?.args.slice(2, 6)).toEqual(["_", "/usr/bin/chrt", "/usr/bin/nice", "/bin/sh"]);
   });
 
   it("uses a scope for the memory limit on Linux with cgroup support", () => {

@@ -37,9 +37,12 @@ export interface WrapInput {
 }
 
 export const TASKPOLICY = "/usr/sbin/taskpolicy";
-/** `$1` chrt and `$2` nice, absolute when resolved, so a minimal PATH still finds them. */
+/**
+ * `$1` chrt, `$2` nice, `$3` the shell, absolute when resolved: `chrt` execs its program through PATH, so even the
+ * `true` probe needs an absolute program (the shell) to work under a minimal PATH.
+ */
 export const BACKGROUND_CHRT =
-  'chrt=$1; nice=$2; shift 2; "$chrt" -i 0 true 2>/dev/null && exec "$chrt" -i 0 "$@" || exec "$nice" -n 19 "$@"';
+  'chrt=$1; nice=$2; sh=$3; shift 3; "$chrt" -i 0 "$sh" -c : 2>/dev/null && exec "$chrt" -i 0 "$@" || exec "$nice" -n 19 "$@"';
 
 const isExecutable = (path: string) => {
   try {
@@ -79,7 +82,15 @@ function priorityPrefix(settings: ResourceSettings, support: WrapSupport): strin
   if (platform !== "linux") return [];
   if (priority === "balanced") return binaries.nice ? [binaries.nice, "-n", "5"] : [];
   if (!binaries.sh) return [];
-  return [binaries.sh, "-c", BACKGROUND_CHRT, "_", binaries.chrt ?? "chrt", binaries.nice ?? "nice"];
+  return [
+    binaries.sh,
+    "-c",
+    BACKGROUND_CHRT,
+    "_",
+    binaries.chrt ?? "chrt",
+    binaries.nice ?? "nice",
+    binaries.sh,
+  ];
 }
 
 function scopePrefix({ settings, support, unit }: WrapInput): string[] {
