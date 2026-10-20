@@ -130,3 +130,10 @@ Findings:
 - **Balanced is not a UI-smoothness tool on macOS**: it behaves like slots-only (p95 8.1 s vs 7.7 s; section 1 shows utility ≈ normal when nothing else competes). Its label "lower priority" is accurate, but expect little.
 - **Background is the only mode that keeps the machine usable**: the lone job stays at idle speed (p95 0.44 s) and load halves. Cost: 4.6x the wall time, 2x CPU seconds (cores/E-core cache), and timing-sensitive tests fail (3-13 per suite timed out). Good for unattended runs only, as the UI says.
 - Off is itself flaky under 4 parallel suites (3 suites with a failing test); gating to 2 removed that.
+
+## Final status
+
+`pnpm check`: 0 errors (24 pre-existing warnings). `pnpm build`: ok. Tests: protocol 87, testkit 223, server 367 (one run showed 5 flaky failures while the machine was saturated; green on rerun), core 1240 (+3 skipped), web 736, cli 303.
+Bug found and fixed: macOS memory sampler false-killed trees whose RSS double-counts shared pages (fixed with a `footprint` confirm, commit "core: confirm macOS memory kills with footprint").
+Not provable here: memory compressed under real pressure (48 GB, never engaged). Left as findings: Balanced has little effect on macOS; Background is the effective mode.
+No change was needed in `governor/wrap-command.ts` or `resource-support.ts` (no NOTES-mac.md).
