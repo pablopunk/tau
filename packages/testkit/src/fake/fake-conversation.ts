@@ -6,15 +6,20 @@ import {
   type ConversationSummary,
   type ConversationView,
   type ConversationWatcher,
+  diffTodos,
   type ImageInput,
   type InboxState,
   isRetryable,
+  latestTodos,
   type ModelRef,
   type Op,
   type OpsListener,
   RETIRED_OPS,
   type ThinkingLevel,
   type ThreadWorkspace,
+  TODOS_UPDATED_KIND,
+  type TodoItem,
+  todosUpdatedText,
   type UserMessage,
   unmergedWarningFor,
   type WhenBusy,
@@ -39,6 +44,7 @@ import {
   rebase,
   restyleNewUserEntries,
   substituteText,
+  type UserEntryEdit,
   withInbox,
   withoutRun,
 } from "./replay";
@@ -92,6 +98,9 @@ interface QueuedInput {
   readonly mode: WhenBusy;
   readonly input: FakeInput;
   readonly content: UserMessage["content"];
+  /** Restyles the replayed user entry, so a notification rides the normal admit path. */
+  readonly entryKind?: string;
+  readonly entryData?: unknown;
 }
 
 const MIN_ANSWERS_TO_COMPACT = 2;
@@ -276,7 +285,7 @@ export class FakeConversation {
     const effect = effectOf(input.text);
     this.pendingEffects.push(effect);
     this.checkpoints.record(requestId, effect, this.deps.now());
-    this.admit({ id: this.nextSubmissionId++, mode, input, content: contentOf(input) }, undefined);
+    this.admit({ id: this.nextSubmissionId++, mode, input, content: contentOf(input) });
   }
 
   retry(requestId: string): void {
@@ -287,10 +296,34 @@ export class FakeConversation {
     this.requestIds.add(requestId);
     this.archivedAt = null;
     this.updatedAt = this.deps.now();
-    this.admit(
-      { id: this.nextSubmissionId++, mode: "steer", input: { text: RETRY_PROMPT }, content: RETRY_PROMPT },
-      "app.retry",
-    );
+    this.admit({
+      id: this.nextSubmissionId++,
+      mode: "steer",
+      input: { text: RETRY_PROMPT },
+      content: RETRY_PROMPT,
+      entryKind: "app.retry",
+    });
+  }
+
+  /**
+   * The user's todo edit rides the normal admit path as a followUp notification: the replayed
+   * user entry carries the `app.todos_updated` kind and data, so the panel reads it and the fake
+   * agent wakes. Archived threads stay archived. A repeated `requestId` is a no-op.
+   */
+  updateTodos(requestId: string, todos: TodoItem[]): void {
+    if (this.requestIds.has(requestId)) return;
+    this.requestIds.add(requestId);
+    this.updatedAt = this.deps.now();
+    const diff = diffTodos(latestTodos(this.view), todos);
+    const text = todosUpdatedText(todos, diff);
+    this.admit({
+      id: this.nextSubmissionId++,
+      mode: "followUp",
+      input: { text },
+      content: text,
+      entryKind: TODOS_UPDATED_KIND,
+      entryData: { todos, diff, requestId },
+    });
   }
 
   cancelQueued(itemId: string): boolean {
@@ -379,11 +412,11 @@ export class FakeConversation {
     this.deps.onSummaryChange(this.projectId);
   }
 
-  private admit(queued: QueuedInput, entryKind: string | undefined): void {
+  private admit(queued: QueuedInput): void {
     this.deps.onSummaryChange(this.projectId);
     if (!this.playback) {
       this.failed = false;
-      void this.playAll(queued, entryKind);
+      void this.playAll(queued);
     } else if (!this.consumeScriptedSend(queued.input.text)) {
       this.queued.push(queued);
       this.publish(this.view);
@@ -433,20 +466,18 @@ export class FakeConversation {
       .catch(() => undefined);
   }
 
-  private async playAll(first: QueuedInput, entryKind: string | undefined): Promise<void> {
+  private async playAll(first: QueuedInput): Promise<void> {
     let next: QueuedInput | undefined = first;
-    let kind = entryKind;
     while (next !== undefined) {
-      const finished = await this.play(next, kind);
+      const finished = await this.play(next);
       if (!finished) return;
       next = this.queued.shift();
-      kind = undefined;
     }
     this.playback = undefined;
     this.endRun(lastAssistantFailed(this.view));
   }
 
-  private async play({ input, content }: QueuedInput, entryKind: string | undefined): Promise<boolean> {
+  private async play({ input, content, entryKind, entryData }: QueuedInput): Promise<boolean> {
     const fixture = entryKind ? fixtures.text : fixtureForMessage(input.text);
     const playback: Playback = { cancelled: false, scriptedSends: scriptedSendsOf(fixture) };
     this.playback = playback;
@@ -460,7 +491,9 @@ export class FakeConversation {
       await sleep((frame.at - previousAt) / this.deps.speed);
       if (playback.cancelled) return false;
       previousAt = frame.at;
-      this.publish(this.replayed(fixture, base, fixtureView, { input, content }, entryKind));
+      this.publish(
+        this.replayed(fixture, base, fixtureView, { input, content }, { kind: entryKind, data: entryData }),
+      );
     }
     return !playback.cancelled;
   }
@@ -470,10 +503,10 @@ export class FakeConversation {
     base: ConversationView,
     fixtureView: ConversationView,
     { input, content }: Pick<QueuedInput, "input" | "content">,
-    entryKind: string | undefined,
+    edit: Omit<UserEntryEdit, "content">,
   ): ConversationView {
     const substituted = substituteText(rebase(base, fixtureView), triggerOf(fixture) ?? "", input.text);
-    const restyled = restyleNewUserEntries(substituted, base, { content, kind: entryKind });
+    const restyled = restyleNewUserEntries(substituted, base, { content, ...edit });
     return fixture.name === "image" ? withImageCount(restyled, input.images?.length ?? 0) : restyled;
   }
 }

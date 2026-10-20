@@ -12,9 +12,12 @@ import {
   type StartConversationInput,
   type ThinkingLevel,
   type ThreadWorkspace,
+  type TodoItem,
+  UpdateTodosInputSchema,
   type WorkspaceDefault,
   type WorkspaceMode,
 } from "@tau/protocol";
+import { Value } from "typebox/value";
 import { clampFakeThinkingLevel, FAKE_MODELS, findFakeModel } from "./catalog";
 import { createFakeAccess } from "./fake-access";
 import { createFakeConnectors, type FakeConnectors } from "./fake-connectors";
@@ -638,6 +641,20 @@ export function createFakeCore(options: FakeCoreOptions = {}): FakeCore {
         const whenBusy = input.whenBusy ?? (messageMode === "queue" ? "followUp" : "steer");
         conversation.send(input.requestId, { text: input.text, images: input.images }, whenBusy);
         mvp5.afterMessage(conversation, input.text);
+      },
+      async updateTodos(id, input) {
+        if (!Value.Check(UpdateTodosInputSchema, input)) {
+          throw new AppError(
+            "invalid_request",
+            "The todo list needs 1 to 500 character items, at most 50 of them.",
+          );
+        }
+        const conversation = requireConversation(id);
+        const todos: TodoItem[] = input.todos.map((todo) => ({
+          content: todo.content,
+          status: todo.status,
+        }));
+        conversation.updateTodos(input.requestId, todos);
       },
       async abort(id) {
         await requireConversation(id).abort();

@@ -26,6 +26,7 @@ export * from "./routing";
 export * from "./running-work";
 export * from "./terminal-stream";
 export * from "./terminals";
+export * from "./todos";
 export * from "./updates";
 export * from "./versions";
 export * from "./view";

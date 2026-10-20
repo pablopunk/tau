@@ -6,6 +6,7 @@ const MODULES: readonly ContractModule[] = [
   "configure",
   "clone",
   "chat",
+  "todos",
   "github",
   "icons",
   "sidebar-data",

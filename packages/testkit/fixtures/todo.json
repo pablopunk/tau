@@ -1,0 +1,628 @@
+{
+ "conversationId": "2",
+ "description": "A todo_write tool call with two items.",
+ "frames": [
+  {
+   "at": 0,
+   "ops": [
+    [
+     "r",
+     {
+      "conversation": {
+       "id": 2
+      },
+      "docs": {
+       "pi.agent": {
+        "cwd": "/Users/demo/project",
+        "model": {
+         "modelId": "faux-1",
+         "provider": "faux"
+        }
+       },
+       "pi.inbox": {
+        "items": []
+       },
+       "pi.live": {},
+       "pi.provider": {
+        "sessionId": "01a146ca-9f17-70bc-ab93-1353eabd0b9d"
+       },
+       "pi.usage": {
+        "models": {},
+        "tools": {}
+       }
+      },
+      "entries": []
+     }
+    ]
+   ]
+  },
+  {
+   "at": 4,
+   "ops": [
+    [
+     "s",
+     [
+      "docs",
+      "pi.live",
+      "run"
+     ],
+     {
+      "inputs": [
+       9
+      ],
+      "taskId": 10
+     }
+    ],
+    [
+     "p",
+     [
+      "entries"
+     ],
+     0,
+     0,
+     [
+      {
+       "conversationId": 2,
+       "id": 8,
+       "kind": "pi.user",
+       "model": [
+        {
+         "content": "todo first thing | second thing",
+         "role": "user",
+         "timestamp": 1792189046555
+        }
+       ]
+      }
+     ]
+    ]
+   ]
+  },
+  {
+   "at": 7,
+   "ops": [
+    [
+     "p",
+     [
+      "entries"
+     ],
+     1,
+     0,
+     [
+      {
+       "byTaskId": 10,
+       "conversationId": 2,
+       "id": 11,
+       "kind": "pi.system",
+       "model": [
+        {
+         "content": "",
+         "role": "system",
+         "sections": {
+          "cwd": "<cwd>\n/Users/demo/project\n</cwd>",
+          "preamble": "You are a coding agent working inside the user's project folder. Use the tools to read, edit and run commands there. Be concise."
+         },
+         "timestamp": 1792189046559,
+         "toolsAdded": [
+          {
+           "description": "Read the contents of a file. Supports text files and images (jpg, png, gif, webp). Images are sent as attachments. For text files, output is truncated to 2000 lines or 50KB (whichever is hit first). Use offset/limit for large files. When you need the full file, continue with offset until complete.",
+           "name": "read",
+           "parameters": {
+            "properties": {
+             "limit": {
+              "description": "Maximum number of lines to read",
+              "type": "number"
+             },
+             "offset": {
+              "description": "Line number to start reading from (1-indexed)",
+              "type": "number"
+             },
+             "path": {
+              "description": "Path to the file to read (relative or absolute)",
+              "type": "string"
+             }
+            },
+            "required": [
+             "path"
+            ],
+            "type": "object"
+           }
+          },
+          {
+           "description": "Write content to a file. Creates the file if it doesn't exist, overwrites if it does. Automatically creates parent directories.",
+           "name": "write",
+           "parameters": {
+            "properties": {
+             "content": {
+              "description": "Content to write to the file",
+              "type": "string"
+             },
+             "path": {
+              "description": "Path to the file to write (relative or absolute)",
+              "type": "string"
+             }
+            },
+            "required": [
+             "path",
+             "content"
+            ],
+            "type": "object"
+           }
+          },
+          {
+           "description": "Edit a single file using exact text replacement. Every edits[].oldText must match a unique, non-overlapping region of the original file. If two changes affect the same block or nearby lines, merge them into one edit instead of emitting overlapping edits. Do not include large unchanged regions just to connect distant changes.",
+           "name": "edit",
+           "parameters": {
+            "properties": {
+             "edits": {
+              "description": "One or more targeted replacements. Each edit is matched against the original file, not incrementally. Do not include overlapping or nested edits. If two changes touch the same block or nearby lines, merge them into one edit instead.",
+              "items": {
+               "properties": {
+                "newText": {
+                 "description": "Replacement text for this targeted edit.",
+                 "type": "string"
+                },
+                "oldText": {
+                 "description": "Exact text for one targeted replacement. It must be unique in the original file and must not overlap with any other edits[].oldText in the same call.",
+                 "type": "string"
+                }
+               },
+               "required": [
+                "oldText",
+                "newText"
+               ],
+               "type": "object"
+              },
+              "type": "array"
+             },
+             "path": {
+              "description": "Path to the file to edit (relative or absolute)",
+              "type": "string"
+             }
+            },
+            "required": [
+             "path",
+             "edits"
+            ],
+            "type": "object"
+           }
+          },
+          {
+           "description": "Execute a bash command in the current working directory. Returns combined stdout and stderr. Output is truncated to last 2000 lines or 50KB (whichever is hit first). If truncated, full output is saved to a temp file. Optionally provide a timeout in seconds.",
+           "name": "bash",
+           "parameters": {
+            "properties": {
+             "command": {
+              "description": "Bash command to execute",
+              "type": "string"
+             },
+             "timeout": {
+              "description": "Timeout in seconds (optional, no default timeout)",
+              "type": "number"
+             }
+            },
+            "required": [
+             "command"
+            ],
+            "type": "object"
+           }
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    ]
+   ]
+  },
+  {
+   "at": 7,
+   "ops": [
+    [
+     "s",
+     [
+      "docs",
+      "pi.live",
+      "generation"
+     ],
+     {
+      "attempt": 1
+     }
+    ]
+   ]
+  },
+  {
+   "at": 110,
+   "ops": [
+    [
+     "s",
+     [
+      "docs",
+      "pi.live",
+      "generation",
+      "message"
+     ],
+     {
+      "api": "faux:1792189046547:jtm9zrt3ywb",
+      "content": [
+       {
+        "text": "You said \"Wh",
+        "type": "text"
+       }
+      ],
+      "model": "faux-1",
+      "provider": "faux",
+      "role": "assistant",
+      "stopReason": "pending",
+      "timestamp": 1792189046561,
+      "usage": {
+       "cacheRead": 0,
+       "cacheWrite": 750,
+       "cost": {
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "input": 0,
+        "output": 0,
+        "total": 0
+       },
+       "input": 750,
+       "output": 69,
+       "totalTokens": 1569
+      }
+     }
+    ]
+   ]
+  },
+  {
+   "at": 214,
+   "ops": [
+    [
+     "a",
+     [
+      "docs",
+      "pi.live",
+      "generation",
+      "message",
+      "content",
+      0,
+      "text"
+     ],
+     "at is a monad?\". This is a scrip"
+    ]
+   ]
+  },
+  {
+   "at": 349,
+   "ops": [
+    [
+     "a",
+     [
+      "docs",
+      "pi.live",
+      "generation",
+      "message",
+      "content",
+      0,
+      "text"
+     ],
+     "ted reply from the faux model, s"
+    ]
+   ]
+  },
+  {
+   "at": 483,
+   "ops": [
+    [
+     "a",
+     [
+      "docs",
+      "pi.live",
+      "generation",
+      "message",
+      "content",
+      0,
+      "text"
+     ],
+     "treamed slowly. You said"
+    ]
+   ]
+  },
+  {
+   "at": 587,
+   "ops": [
+    [
+     "a",
+     [
+      "docs",
+      "pi.live",
+      "generation",
+      "message",
+      "content",
+      0,
+      "text"
+     ],
+     " \"todo first thing | second thing\". Thi"
+    ]
+   ]
+  },
+  {
+   "at": 691,
+   "ops": [
+    [
+     "a",
+     [
+      "docs",
+      "pi.live",
+      "generation",
+      "message",
+      "content",
+      0,
+      "text"
+     ],
+     "s is a scripted reply fr"
+    ]
+   ]
+  },
+  {
+   "at": 793,
+   "ops": [
+    [
+     "a",
+     [
+      "docs",
+      "pi.live",
+      "generation",
+      "message",
+      "content",
+      0,
+      "text"
+     ],
+     "om the faux model, streamed "
+    ]
+   ]
+  },
+  {
+   "at": 912,
+   "ops": [
+    [
+     "a",
+     [
+      "docs",
+      "pi.live",
+      "generation",
+      "message",
+      "content",
+      0,
+      "text"
+     ],
+     "slowly. You said \"What is a mona"
+    ]
+   ]
+  },
+  {
+   "at": 1063,
+   "ops": [
+    [
+     "a",
+     [
+      "docs",
+      "pi.live",
+      "generation",
+      "message",
+      "content",
+      0,
+      "text"
+     ],
+     "d?\". This is a scripted repl"
+    ]
+   ]
+  },
+  {
+   "at": 1186,
+   "ops": [
+    [
+     "d",
+     [
+      "docs",
+      "pi.live",
+      "run"
+     ]
+    ],
+    [
+     "d",
+     [
+      "docs",
+      "pi.live",
+      "generation"
+     ]
+    ],
+    [
+     "s",
+     [
+      "docs",
+      "pi.usage",
+      "models",
+      "faux/faux-1"
+     ],
+     {
+      "cacheRead": 0,
+      "cacheWrite": 750,
+      "cost": {
+       "cacheRead": 0,
+       "cacheWrite": 0,
+       "input": 0,
+       "output": 0,
+       "total": 0
+      },
+      "input": 750,
+      "output": 69,
+      "totalTokens": 1569
+     }
+    ],
+    [
+     "p",
+     [
+      "entries"
+     ],
+     2,
+     0,
+     [
+      {
+       "byTaskId": 10,
+       "conversationId": 2,
+       "id": 12,
+       "kind": "pi.assistant",
+       "model": [
+        {
+         "api": "faux:1792189046547:jtm9zrt3ywb",
+         "content": [
+          {
+           "text": "On it.",
+           "type": "text"
+          },
+          {
+           "arguments": {
+            "todos": [
+             {
+              "content": "Write the thing",
+              "status": "in_progress"
+             },
+             {
+              "content": "Ship the thing",
+              "status": "pending"
+             }
+            ]
+           },
+           "id": "tool:todo:1",
+           "name": "todo_write",
+           "type": "toolCall"
+          }
+         ],
+         "durationMs": 1171,
+         "model": "faux-1",
+         "provider": "faux",
+         "role": "assistant",
+         "stopReason": "toolUse",
+         "timestamp": 1792189046561,
+         "usage": {
+          "cacheRead": 0,
+          "cacheWrite": 750,
+          "cost": {
+           "cacheRead": 0,
+           "cacheWrite": 0,
+           "input": 0,
+           "output": 0,
+           "total": 0
+          },
+          "input": 750,
+          "output": 69,
+          "totalTokens": 1569
+         }
+        }
+       ]
+      }
+     ]
+    ]
+   ]
+  },
+  {
+   "at": 1216,
+   "ops": [
+    [
+     "p",
+     [
+      "entries"
+     ],
+     3,
+     0,
+     [
+      {
+       "byTaskId": 13,
+       "conversationId": 2,
+       "data": {
+        "diagnostics": []
+       },
+       "id": 14,
+       "kind": "pi.tool-result",
+       "model": [
+        {
+         "content": [
+          {
+           "text": "Todos updated: 0/2 completed.",
+           "type": "text"
+          }
+         ],
+         "durationMs": 2,
+         "isError": false,
+         "role": "toolResult",
+         "timestamp": 1792189049810,
+         "toolCallId": "tool:todo:1",
+         "toolName": "todo_write"
+        }
+       ]
+      }
+     ]
+    ]
+   ]
+  },
+  {
+   "at": 1246,
+   "ops": [
+    [
+     "p",
+     [
+      "entries"
+     ],
+     4,
+     0,
+     [
+      {
+       "byTaskId": 15,
+       "conversationId": 2,
+       "id": 16,
+       "kind": "pi.assistant",
+       "model": [
+        {
+         "api": "faux:1:t1",
+         "content": [
+          {
+           "text": "Done.",
+           "type": "text"
+          }
+         ],
+         "durationMs": 33,
+         "modelId": "faux-1",
+         "provider": "faux",
+         "role": "assistant",
+         "stopReason": "stop",
+         "timestamp": 1792189049818,
+         "usage": {
+          "cacheRead": 0,
+          "cacheWrite": 0,
+          "cost": {
+           "cacheRead": 0,
+           "cacheWrite": 0,
+           "input": 0,
+           "output": 0,
+           "total": 0
+          },
+          "input": 36,
+          "output": 2,
+          "totalTokens": 38
+         }
+        }
+       ]
+      }
+     ]
+    ]
+   ]
+  }
+ ],
+ "name": "todo",
+ "steps": [
+  {
+   "at": 3,
+   "kind": "send",
+   "text": "todo first thing | second thing"
+  }
+ ]
+}
