@@ -4,7 +4,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import type { Exec, ExecResult } from "./exec";
-import { createResourceSupport, FIRST_PROBE_SCRIPT, PROBE_TIMEOUT_MS } from "./resource-support";
+import {
+  createResourceSupport,
+  FIRST_PROBE_SCRIPT,
+  PROBE_TIMEOUT_MS,
+  priorityIsCgroupLimited,
+} from "./resource-support";
 
 const ok = (stdout = ""): ExecResult => ({ code: 0, stdout, stderr: "", timedOut: false });
 const fail = (stderr: string): ExecResult => ({ code: 1, stdout: "", stderr, timedOut: false });
@@ -115,5 +120,51 @@ describe("prepareMemory", () => {
     await supportWith(exec, {}).prepareMemory();
     expect(seen[0]?.XDG_RUNTIME_DIR).toMatch(/^\/run\/user\/\d+$/);
     expect(seen[0]?.DBUS_SESSION_BUS_ADDRESS).toMatch(/^unix:path=\/run\/user\/\d+\/bus$/);
+  });
+});
+
+describe("priorityIsCgroupLimited", () => {
+  const line = (path: string) => `0::${path}\n`;
+  it("is false in a session or terminal scope", () => {
+    expect(priorityIsCgroupLimited(line("/user.slice/user-1000.slice/session-187.scope"))).toBe(false);
+    expect(
+      priorityIsCgroupLimited(
+        line("/user.slice/user-1000.slice/user@1000.service/app.slice/app-vte-spawn-1.scope"),
+      ),
+    ).toBe(false);
+  });
+
+  it("is true in a systemd service", () => {
+    expect(
+      priorityIsCgroupLimited(line("/user.slice/user-1000.slice/user@1000.service/app.slice/tau.service")),
+    ).toBe(true);
+    expect(priorityIsCgroupLimited(line("/system.slice/tau.service"))).toBe(true);
+  });
+
+  it("is true when the cgroup is unknown", () => {
+    expect(priorityIsCgroupLimited(undefined)).toBe(true);
+    expect(priorityIsCgroupLimited("")).toBe(true);
+    expect(priorityIsCgroupLimited("12:cpu:/user\n")).toBe(true);
+    expect(priorityIsCgroupLimited(line("/"))).toBe(true);
+  });
+});
+
+describe("describe", () => {
+  const described = (cgroup: string) =>
+    createResourceSupport({
+      nodeId: () => "node-a",
+      exec: async () => ok(MAX),
+      platform: "linux",
+      binaries: BINS,
+      env: {},
+      selfCgroup: () => cgroup,
+    }).describe();
+
+  it("reports the same-cgroup limit only for a service", async () => {
+    expect((await described("0::/user.slice/user-1000.slice/session-3.scope\n")).sameCgroupOnly).toBe(false);
+    expect(
+      (await described("0::/user.slice/user-1000.slice/user@1000.service/app.slice/tau.service\n"))
+        .sameCgroupOnly,
+    ).toBe(true);
   });
 });

@@ -1,7 +1,8 @@
 import { createHash, randomBytes } from "node:crypto";
+import { readFileSync } from "node:fs";
 import type { ResourceSupport } from "@tau/protocol";
 import { type Exec, execCommand, systemdEnv } from "./exec";
-import { CGROUP_NOTE, POLLED_NOTE, probeFailedText, UNSUPPORTED_NOTE } from "./governor-text";
+import { POLLED_NOTE, probeFailedText, UNSUPPORTED_NOTE } from "./governor-text";
 import { type Binaries, type HostPlatform, hostPlatform, resolveBinaries } from "./wrap-command";
 
 export const PROBE_TTL_MS = 5000;
@@ -45,10 +46,34 @@ export interface SupportDeps {
   readonly platform?: HostPlatform;
   /** Test seam: skip the PATH scan. */
   readonly binaries?: Binaries;
+  /** Test seam: the contents of `/proc/self/cgroup`. */
+  readonly selfCgroup?: () => string | undefined;
   readonly env?: NodeJS.ProcessEnv;
   readonly now?: () => number;
   readonly sleep?: (ms: number) => Promise<void>;
 }
+
+/**
+ * Does `nice`/`chrt` fail to rank against the user's own terminal? Measured on Debian 13 (4 CPUs, 4 busy loops in
+ * an ssh session): tau in that `session-N.scope` gets 52% / 27% / 0.2% of a free CPU at Off / Balanced / Background;
+ * tau as a `systemd --user` service (`app.slice/<unit>.service`) gets 100% / 100% / 85%, because the kernel shares CPU
+ * between cgroups first and priority only ranks inside one. So: a `.scope` leaf (a session or a terminal's own scope)
+ * means commands share tau's cgroup with the user; anything else (a service, a bare slice, cgroup v1, unreadable) does not.
+ */
+export function priorityIsCgroupLimited(procSelfCgroup: string | undefined): boolean {
+  const line = procSelfCgroup?.split("\n").find((entry) => entry.startsWith("0::"));
+  if (line === undefined) return true;
+  const leaf = line.slice(3).split("/").filter(Boolean).pop() ?? "";
+  return !leaf.endsWith(".scope");
+}
+
+const readSelfCgroup = () => {
+  try {
+    return readFileSync("/proc/self/cgroup", "utf8");
+  } catch {
+    return undefined;
+  }
+};
 
 /** Fixed-length and `[0-9a-f]` only, so `tau-<id>-*` never matches another node id. */
 export const unitNodeId = (nodeId: string) => createHash("sha256").update(nodeId).digest("hex").slice(0, 12);
@@ -180,8 +205,8 @@ export function createResourceSupport(deps: SupportDeps): ResourceSupportProbe {
         platform,
         memoryEnforcement: outcome.ok ? "kernel" : "polled",
         prioritySupported: binaries().nice !== undefined,
-        sameCgroupOnly: true,
-        note: outcome.ok ? CGROUP_NOTE : `${outcome.reason ?? "cgroups unavailable"}. ${POLLED_NOTE}`,
+        sameCgroupOnly: priorityIsCgroupLimited((deps.selfCgroup ?? readSelfCgroup)()),
+        note: outcome.ok ? null : `${outcome.reason ?? "cgroups unavailable"}. ${POLLED_NOTE}`,
       };
     },
     unitFor: (entryId) => `${prefix()}-${entryId}`,
