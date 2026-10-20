@@ -201,3 +201,13 @@ export async function startBinaryServer(releases: string, github: FakeGitHub): P
     },
   };
 }
+
+/** What the detached updater left behind (job file, log, installed versions): printed when an update spec fails. */
+export function updateDiagnostics(server: BinaryServer): string {
+  const read = (path: string) => (existsSync(path) ? readFileSync(path, "utf8") : "(missing)");
+  return [
+    `update.json: ${read(join(server.home, "update.json"))}`,
+    `update.log:\n${read(join(server.home, "update.log"))}`,
+    `instance: ${read(join(server.home, "instance.json"))}`,
+  ].join("\n");
+}

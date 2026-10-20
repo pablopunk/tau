@@ -10,6 +10,7 @@ import {
   INSTALLED_VERSION,
   serveReleases,
   startBinaryServer,
+  updateDiagnostics,
 } from "../binary-support";
 
 test.describe.configure({ mode: "serial" });
@@ -59,6 +60,9 @@ async function shutdown(): Promise<void> {
 
 test.describe("a good release", () => {
   test.beforeAll(() => boot(GOOD_VERSION));
+  test.afterEach(({}, info) => {
+    if (info.status !== info.expectedStatus && server) console.log(updateDiagnostics(server));
+  });
   test.afterAll(shutdown);
 
   test("updates the installed binary to a fake release", async ({ request }) => {

@@ -9,6 +9,7 @@ import {
   INSTALLED_VERSION,
   serveReleases,
   startBinaryServer,
+  updateDiagnostics,
 } from "../binary-support";
 import { startDevCheckoutServer, type UpdateServer } from "../update-support";
 
@@ -40,6 +41,9 @@ test.describe("update button on an installed binary", () => {
     const releases = await ensureReleases();
     github = await serveReleases(releases, GOOD_VERSION);
     server = await startBinaryServer(releases, github);
+  });
+  test.afterEach(({}, info) => {
+    if (info.status !== info.expectedStatus && server) console.log(updateDiagnostics(server));
   });
   test.afterAll(async () => {
     await server?.stop();
