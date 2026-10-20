@@ -12,6 +12,7 @@ import type {
   MintPairingInput,
   ProviderId,
   RemoteStatus,
+  ResourceSettings,
   UpdateStatus,
 } from "@tau/protocol";
 import { isJobActive } from "@/lib/updates";
@@ -34,6 +35,8 @@ export const queryKeys = {
   checkpoints: (conversationId: string) => ["checkpoints", conversationId] as const,
   processes: (conversationId: string) => ["processes", conversationId] as const,
   allProcesses: ["processes"] as const,
+  resourceSupport: ["resources", "support"] as const,
+  resourceActivity: ["resources", "activity"] as const,
   timers: (conversationId: string) => ["timers", conversationId] as const,
   approvals: (conversationId: string) => ["approvals", conversationId] as const,
   goal: (conversationId: string) => ["goal", conversationId] as const,
@@ -265,6 +268,40 @@ export function useSetClaudeConnectors() {
   return useMutation({
     mutationFn: (value: ClaudeConnectorSettings) => api.settings.setClaudeConnectors(value),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.settings }),
+  });
+}
+
+/** `null` data: the node is older than resource control. */
+export const useResourceSupport = () => {
+  const api = useApi();
+  return useQuery({ queryKey: queryKeys.resourceSupport, queryFn: () => api.settings.resourceSupport() });
+};
+
+/** Invalidated by `Change { resource: "resources" }`. `null` data: the node is older than resource control. */
+export const useResourceActivity = (enabled = true) => {
+  const api = useApi();
+  return useQuery({
+    queryKey: queryKeys.resourceActivity,
+    queryFn: () => api.settings.resourceActivity(),
+    enabled,
+  });
+};
+
+export function useSetResources() {
+  const api = useApi();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (value: ResourceSettings) => api.settings.setResources(value),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.settings }),
+  });
+}
+
+export function useStopResourceCommand() {
+  const api = useApi();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (entryId: string) => api.settings.stopResourceCommand(entryId),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.resourceActivity }),
   });
 }
 

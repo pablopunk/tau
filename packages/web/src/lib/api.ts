@@ -35,6 +35,9 @@ import type {
   RedeemPairingBody,
   RedeemPairingResponse,
   RemoteStatus,
+  ResourceActivity,
+  ResourceSettings,
+  ResourceSupport,
   RestorePreview,
   RetryInput,
   SendMessageInput,
@@ -52,7 +55,7 @@ import type {
   WorkspaceDefault,
   WorkspaceStatus,
 } from "@tau/protocol";
-import { fillPath, routes, terminalStreamPath } from "@tau/protocol";
+import { fillPath, isAppError, routes, terminalStreamPath } from "@tau/protocol";
 import { createHttpTransport } from "./transport/http";
 import { createLazyTransport } from "./transport/lazy";
 import type { LiveTransport, StreamHandlers, StreamSocket, Transport } from "./transport/types";
@@ -76,6 +79,12 @@ export interface Api {
     setMessageMode(mode: MessageMode): Promise<void>;
     setWorkspaceDefault(mode: WorkspaceDefault): Promise<void>;
     setClaudeConnectors(value: ClaudeConnectorSettings): Promise<void>;
+    setResources(value: ResourceSettings): Promise<void>;
+    /** `null`: this node is older than resource control (404), so the controls are not supported there. */
+    resourceSupport(): Promise<ResourceSupport | null>;
+    /** `null` on a node without resource control, as for `resourceSupport`. */
+    resourceActivity(): Promise<ResourceActivity | null>;
+    stopResourceCommand(entryId: string): Promise<void>;
     /** "Use my other nodes": skip first-run setup on this node (server-side, so a fresh browser keeps it). */
     setSetupSkipped(skipped: boolean): Promise<void>;
     suggestedCodeFolder(): Promise<SuggestedCodeFolder>;
@@ -230,6 +239,20 @@ export interface Api {
   live: LiveTransport;
 }
 
+const NOT_FOUND_ON_OLD_NODE = /\(404\)/;
+
+/** An older node has no such route: the transport reports a plain 404 as `internal` "Request failed (404)". */
+async function nullWhenMissing<T>(call: Promise<T>): Promise<T | null> {
+  try {
+    return await call;
+  } catch (error) {
+    if (isAppError(error) && (error.code === "not_found" || NOT_FOUND_ON_OLD_NODE.test(error.message))) {
+      return null;
+    }
+    throw error;
+  }
+}
+
 const toBase64 = (bytes: Uint8Array) => btoa(Array.from(bytes, (byte) => String.fromCharCode(byte)).join(""));
 
 export function createApi(transport: Transport): Api {
@@ -250,6 +273,10 @@ export function createApi(transport: Transport): Api {
       setWorkspaceDefault: (mode) => request("setWorkspaceDefault", { body: { mode } }),
       setClaudeConnectors: (value) => request("setClaudeConnectors", { body: value }),
       setSetupSkipped: (skipped) => request("setSetupSkipped", { body: { skipped } }),
+      setResources: (value) => request("setResources", { body: value }),
+      resourceSupport: () => nullWhenMissing(request("getResourceSupport", {})),
+      resourceActivity: () => nullWhenMissing(request("getResourceActivity", {})),
+      stopResourceCommand: (entryId) => request("stopResourceCommand", { params: { id: entryId } }),
     },
     github: {
       status: () => request("getGithubStatus", {}),

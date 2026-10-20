@@ -73,8 +73,8 @@ export const SettingsSchema = Type.Object({
   claudeCliNoticeAt: Type.Union([Type.Number(), Type.Null()]),
   claudeConnectors: ClaudeConnectorSettingsSchema,
   remote: RemoteSettingsSchema,
-  /** Absent on a node older than resource control: treat as unsupported. */
-  resources: ResourceSettingsSchema,
+  /** Optional only so a web can read an older node (the response is validated): absent means "not supported there". A current node always sends it. */
+  resources: Type.Optional(ResourceSettingsSchema),
   /** "Use my other nodes": the user skipped first-run setup here because a peer can run threads. Server-side so a fresh browser does not see setup again. */
   setupSkipped: Type.Boolean(),
 });

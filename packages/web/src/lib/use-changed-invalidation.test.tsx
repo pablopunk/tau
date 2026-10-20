@@ -44,6 +44,12 @@ function setup() {
 }
 
 describe("useChangedInvalidation", () => {
+  it("invalidates the resource activity on a node-wide resources change", () => {
+    const { change, invalidate } = setup();
+    change({ resource: "resources" });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["resources", "activity"] });
+  });
+
   it("does not refetch on the first connection", () => {
     const { emit, invalidate } = setup();
     emit("connecting");
