@@ -21,8 +21,11 @@ compare("e2e", baseline.e2e, actual.e2e);
 
 const table = ["| suite | baseline | actual | status |", "| --- | ---: | ---: | --- |", ...rows].join("\n");
 console.log(table);
-if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, `## Test counts\n\n${table}\n`);
+if (process.env.GITHUB_STEP_SUMMARY)
+  appendFileSync(process.env.GITHUB_STEP_SUMMARY, `## Test counts\n\n${table}\n`);
 if (failed) {
-  console.error("Test count dropped below ci/test-counts.json. Remove tests only on purpose and update the file in the same commit.");
+  console.error(
+    "Test count dropped below ci/test-counts.json. Remove tests only on purpose and update the file in the same commit.",
+  );
   process.exit(1);
 }
