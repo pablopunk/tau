@@ -1,3 +1,4 @@
+import { DEFAULT_RESOURCE_SETTINGS } from "@tau/protocol";
 import { afterEach, beforeEach, describe, expect } from "vitest";
 import type { CaseRunner } from "./case-runner";
 import { FAST_MODEL, hasConnectedProvider, rejectsWithCode, SECOND_MODEL } from "./helpers";
@@ -36,6 +37,7 @@ export function settingsAndProviderCases(make: MakeContractTarget, test: CaseRun
         claudeCliNoticeAt: null,
         claudeConnectors: { disabled: [], alwaysAllow: [], askBeforeWrites: false },
         remote: { enabled: false },
+        resources: DEFAULT_RESOURCE_SETTINGS,
         setupSkipped: false,
       });
       expect(await hasConnectedProvider(core)).toBe(false);

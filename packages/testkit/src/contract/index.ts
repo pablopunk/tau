@@ -26,6 +26,7 @@ import { projectCases } from "./projects";
 import { providerCases } from "./providers";
 import { queueCases } from "./queue";
 import { remoteCases } from "./remote";
+import { resourceCases } from "./resources";
 import { retryCases } from "./retry";
 import { settingsAndProviderCases } from "./settings-provider";
 import { sidebarDataCases } from "./sidebar-data";
@@ -55,6 +56,7 @@ export function runCoreContract(
   const test = caseRunner(options.pending);
   describe(`Core contract: ${name}`, () => {
     settingsAndProviderCases(makeTarget, test);
+    resourceCases(makeTarget, test);
     projectCases(makeTarget, test);
     fsCases(makeTarget, test);
     conversationCases(makeTarget, test);

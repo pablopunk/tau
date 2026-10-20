@@ -10,6 +10,8 @@ interface Entry {
 export interface FakeProcesses {
   readonly api: Core["processes"];
   start(conversationId: string, command: string, kind?: ProcessInfo["kind"]): ProcessInfo;
+  /** A command waiting for a heavy slot. Stopping it ends it as `exited` with no exit code. */
+  queue(conversationId: string, command: string): ProcessInfo;
   killAll(conversationId: string): void;
 }
 
@@ -27,10 +29,32 @@ export function createFakeProcesses(deps: {
   };
 
   const kill = (entry: Entry) => {
+    if (entry.info.state === "queued") {
+      entry.info = { ...entry.info, state: "exited" };
+      deps.emit({ resource: "processes", conversationId: entry.info.conversationId });
+      return;
+    }
     if (entry.info.state !== "running") return;
     entry.info = { ...entry.info, state: "killed" };
     deps.emit({ resource: "processes", conversationId: entry.info.conversationId });
   };
+
+  const newInfo = (
+    conversationId: string,
+    command: string,
+    kind: ProcessInfo["kind"],
+    state: ProcessInfo["state"],
+  ): ProcessInfo => ({
+    id: `process-${nextId++}`,
+    conversationId,
+    name: command.split(/\s+/)[0] ?? command,
+    command,
+    state,
+    exitCode: null,
+    startedAt: deps.now(),
+    urls: state === "running" ? [FAKE_PROCESS_URL] : [],
+    kind,
+  });
 
   return {
     api: {
@@ -48,6 +72,12 @@ export function createFakeProcesses(deps: {
       async background(_conversationId, callId) {
         throw new AppError("not_found", `No running bash call ${callId}`);
       },
+    },
+    queue(conversationId, command) {
+      const info = newInfo(conversationId, command, "process", "queued");
+      entries.set(info.id, { info, logs: `$ ${command}\n` });
+      deps.emit({ resource: "processes", conversationId });
+      return info;
     },
     start(conversationId, command, kind = "process") {
       const info: ProcessInfo = {
