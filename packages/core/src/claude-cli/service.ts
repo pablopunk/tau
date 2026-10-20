@@ -137,6 +137,7 @@ export function createClaudeCliService(deps: ClaudeCliServiceDeps): ClaudeCliSer
       void installSdkWhenMissing();
     },
     clock,
+    sdkHome: deps.sdkHome,
   });
   const models = createClaudeCliModels({
     sdk,

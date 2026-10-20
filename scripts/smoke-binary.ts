@@ -5,7 +5,6 @@
  *   tsx scripts/smoke-binary.ts --release-dir <dir>      use a release folder (archives, SHA256SUMS, install.sh), as CI does
  *
  * Everything runs in temp dirs (TAU_INSTALL_DIR, TAU_BIN_DIR, TAU_HOME) with TAU_INSTALL_NO_START=1: no service is installed.
- * TAU_SMOKE_SKIP_SDK_IMPORT=1 skips only the "SDK loads in the compiled server" step.
  */
 import { type ChildProcess, execFile, spawn } from "node:child_process";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
@@ -152,7 +151,6 @@ async function sdkImport(driver: Driver, installDir: string): Promise<void> {
     env: { ...process.env, HOME: join(installDir, "claude-home") },
   });
   step(`native claude: ${stdout.trim()}`);
-  if (process.env.TAU_SMOKE_SKIP_SDK_IMPORT === "1") return step("SDK import step skipped");
   const refreshed = await driver.tau("providers", "claude-cli", "refresh");
   expect(!refreshed.includes("sdk_missing"), `the compiled server to load the SDK, got ${refreshed}`);
 }
