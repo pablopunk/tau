@@ -27,7 +27,10 @@ export function createRestartableServer(options: {
   port: number;
   home?: string;
   env?: Record<string, string>;
+  /** The program that runs `tau <args>`: the built CLI under node by default, a compiled binary when given. */
+  command?: { file: string; args: string[] };
 }): RestartableServer {
+  const command = options.command ?? { file: "node", args: [CLI] };
   const home = options.home ?? realpathSync(mkdtempSync(join(tmpdir(), "tau-e2e-restart-")));
   let env: Record<string, string | undefined> = {
     ...process.env,
@@ -36,7 +39,7 @@ export function createRestartableServer(options: {
     ...options.env,
   };
   const tau = async (...args: string[]) =>
-    (await run("node", [CLI, ...args], { env, timeout: 60_000 })).stdout;
+    (await run(command.file, [...command.args, ...args], { env, timeout: 60_000 })).stdout;
   const start = async () => {
     await tau("start", "--faux", "--no-open", "--port", String(options.port));
   };
