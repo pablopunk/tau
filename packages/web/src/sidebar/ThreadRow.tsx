@@ -22,6 +22,7 @@ import { RelativeTime } from "@/components/ui/relative-time";
 import { useSidebar } from "@/components/ui/sidebar";
 import { SidebarThreadRow } from "@/components/ui/sidebar-thread-row";
 import { StatusDot } from "@/components/ui/status-dot";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { TreeBranch } from "@/components/ui/tree-branch";
 import { PendingApprovalBadge } from "@/conversation/PendingApprovalBadge";
 import { conversationPath, nodeAssetUrl } from "@/lib/paths";
@@ -70,6 +71,7 @@ export function ThreadRow({
   const [menuOpen, setMenuOpen] = useState(false);
   const title = conversation.title.trim() || "New thread";
   const archived = conversation.archivedAt !== null;
+  const archiveLabel = `${archived ? "Unarchive" : "Archive"} ${title}`;
   const dot = conversationDot(conversation, active, nodeId);
   const queryClient = useQueryClient();
   const navigate = useNavigate();
@@ -175,20 +177,25 @@ export function ThreadRow({
             }
             actions={
               <>
-                <Button
-                  variant="ghost"
-                  size="icon-xs"
-                  aria-label={`${archived ? "Unarchive" : "Archive"} ${title}`}
-                  onClick={toggleArchive}
-                >
-                  <ArchiveToggleIcon />
-                </Button>
-                <DropdownMenu onOpenChange={setMenuOpen}>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon-xs" aria-label={`Actions for ${title}`}>
-                      <MoreHorizontalIcon />
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button variant="ghost" size="icon-xs" aria-label={archiveLabel} onClick={toggleArchive}>
+                      <ArchiveToggleIcon />
                     </Button>
-                  </DropdownMenuTrigger>
+                  </TooltipTrigger>
+                  <TooltipContent side="top">{archiveLabel}</TooltipContent>
+                </Tooltip>
+                <DropdownMenu onOpenChange={setMenuOpen}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon-xs" aria-label={`Actions for ${title}`}>
+                          <MoreHorizontalIcon />
+                        </Button>
+                      </DropdownMenuTrigger>
+                    </TooltipTrigger>
+                    <TooltipContent side="top">Actions for {title}</TooltipContent>
+                  </Tooltip>
                   <DropdownMenuContent side="right" align="start">
                     <ThreadMenuItems
                       Item={DropdownMenuItem}
