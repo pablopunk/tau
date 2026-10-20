@@ -30,8 +30,16 @@ export function createSystemdBackend(context: ServiceContext): ServiceBackend {
     files: (spec) => [{ path: unitPathOf(context, spec), content: renderSystemdUnit(spec) }],
     isInstalled: async (spec) => existsSync(unitPathOf(context, spec)),
     async install(spec) {
-      await must("daemon-reload");
-      await must("enable", "--now", spec.names.systemdUnit);
+      const loaded = await systemctl("daemon-reload");
+      const enabled = loaded.code === 0 && (await systemctl("enable", "--now", spec.names.systemdUnit));
+      if (!enabled || enabled.code !== 0) {
+        return {
+          warnings: [
+            "systemd --user refused the service (no user session?). tau runs detached and will not survive a reboot.",
+          ],
+          fellBack: true,
+        };
+      }
       return { warnings: await enableLinger() };
     },
     async reload(spec) {

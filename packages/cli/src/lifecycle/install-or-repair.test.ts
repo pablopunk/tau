@@ -94,3 +94,30 @@ describe("service gap: restart installs a missing service", () => {
     expect(pidFileAtBootstrap).toBe(false);
   });
 });
+
+describe("no usable user systemd: install falls back instead of failing", () => {
+  function linuxSetup() {
+    const base = setup();
+    const node = createTestNode({ platform: "linux" }, (line) =>
+      line.startsWith("systemctl") ? { code: 1 } : undefined,
+    );
+    return { node, deps: { ...base.deps, context: node.context }, output: base.output };
+  }
+
+  it("the shared step is ready and starts tau detached", async () => {
+    const { node, deps } = linuxSetup();
+    expect(await installOrRepairService(deps, node.tauHome, { keepDetached: true })).toMatchObject({
+      kind: "ready",
+      changed: true,
+    });
+    expect(node.runner.detached).toHaveLength(1);
+  });
+
+  it("tau restart completes detached, without the fallback warning being an error", async () => {
+    const { node, deps, output } = linuxSetup();
+    await runRestartWith(deps, ["--home", node.tauHome]);
+    expect(process.exitCode).toBeUndefined();
+    expect(output.join("\n")).not.toContain("Could not install");
+    expect(node.runner.detached.length).toBeGreaterThan(0);
+  });
+});

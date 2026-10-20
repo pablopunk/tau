@@ -157,6 +157,16 @@ describe("Linux (systemd user unit)", () => {
     expect(existsSync(unitOf(node.osHome))).toBe(false);
   });
 
+  it("falls back to detached when systemctl --user daemon-reload fails", async () => {
+    const node = createTestNode({ platform: "linux" }, (line) =>
+      line.startsWith("systemctl") ? { code: 1 } : undefined,
+    );
+    const warnings = await createServiceManager(node.context, CLI, node.tauHome).install();
+    expect(warnings.join(" ")).toContain("will not survive a reboot");
+    expect(node.runner.detached).toHaveLength(1);
+    expect(existsSync(unitOf(node.osHome))).toBe(false);
+  });
+
   it("stops and restarts through systemctl --user", async () => {
     const node = createTestNode({ platform: "linux" });
     const manager = createServiceManager(node.context, CLI, node.tauHome);
