@@ -1,5 +1,11 @@
 import type { DirectoryNode as Node } from "@tau/protocol";
-import { FoldersIcon, ListIcon, MessageSquarePlusIcon, SettingsIcon } from "lucide-react";
+import {
+  Command as CommandIcon,
+  FoldersIcon,
+  ListIcon,
+  MessageSquarePlusIcon,
+  SettingsIcon,
+} from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
 import { useOpenConversation } from "@/activity";
@@ -17,11 +23,13 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { TauLogo } from "@/components/ui/tau-logo";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { newThreadPath } from "@/lib/paths";
 import { preferences, type SidebarMode } from "@/lib/preferences";
 import { NodeProvider, useNodes } from "@/nodes";
 import { isUsable } from "@/nodes/node-text";
 import { useHubName } from "@/nodes/use-node-avatar";
+import { openPalette } from "@/palette/palette-open";
 import { ArchiveButton, DeleteAllArchivedButton } from "./GlobalArchive";
 import { NodeGroup } from "./NodeGroup";
 import { NodeSection } from "./NodeSection";
@@ -110,7 +118,20 @@ export function AppSidebar() {
     <Sidebar aria-label="Projects and threads">
       <SidebarHeader className="gap-4 px-4 py-3">
         <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
-          <TauLogo className="size-5" />
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                onClick={openPalette}
+                aria-label="Open command palette"
+                className="flex size-5 cursor-pointer items-center justify-center justify-self-start rounded text-foreground"
+              >
+                <TauLogo className="size-5 group-hover:hidden pointer-coarse:hidden" />
+                <CommandIcon className="hidden size-4 group-hover:block pointer-coarse:block" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="right">Open command palette</TooltipContent>
+          </Tooltip>
           <BrandText className="text-base font-semibold drop-shadow-sm">tau</BrandText>
           <SidebarTrigger className="hidden size-8 shrink-0 justify-self-end md:inline-flex [&_svg:not([class*='size-'])]:size-5" />
         </div>

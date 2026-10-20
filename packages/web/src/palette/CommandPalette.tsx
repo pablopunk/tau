@@ -22,6 +22,7 @@ import { AddProjectFlow, type AddProjectStep } from "./AddProjectFlow";
 import { useAdjacentThread } from "./adjacent-thread";
 import { ModelPage } from "./ModelPage";
 import { NodePage, type NodePick } from "./NodePage";
+import { usePaletteOpen } from "./palette-open";
 import { SettingsItem } from "./SettingsItem";
 import { SettingsSearchGroup, useSettingResults } from "./SettingsSearchGroup";
 import { ThinkingPage } from "./ThinkingPage";
@@ -159,7 +160,7 @@ const PLACEHOLDERS = {
 };
 
 export function CommandPalette() {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = usePaletteOpen();
   const [search, setSearch] = useState("");
   const [page, setPage] = useState<"model" | "thinking" | "node" | null>(null);
   const [nodePick, setNodePick] = useState<NodePick | null>(null);
