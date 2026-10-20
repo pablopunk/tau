@@ -22,7 +22,7 @@ import { preferences, type SidebarMode } from "@/lib/preferences";
 import { NodeProvider, useNodes } from "@/nodes";
 import { isUsable } from "@/nodes/node-text";
 import { useHubName } from "@/nodes/use-node-avatar";
-import { ArchiveButton } from "./GlobalArchive";
+import { ArchiveButton, DeleteAllArchivedButton } from "./GlobalArchive";
 import { NodeGroup } from "./NodeGroup";
 import { NodeSection } from "./NodeSection";
 import { OfflineNodeSection } from "./OfflineNodeSection";
@@ -137,6 +137,7 @@ export function AppSidebar() {
             Settings
           </Button>
           <div className="flex shrink-0 items-center gap-1">
+            {showArchived && <DeleteAllArchivedButton />}
             <ArchiveButton show={showArchived} onToggle={toggleArchived} />
             <UpdateButton />
           </div>
