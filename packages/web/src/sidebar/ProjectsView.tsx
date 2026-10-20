@@ -26,7 +26,9 @@ export function ProjectsView({
   const { overrides, setOpen } = useProjectOpenOverrides();
   const currentProjectId = projectIdFromPath(useLocation().pathname, useNodeId());
   const sections = projectSections(projects, conversations);
-  const openKey = sections.map((section) => isProjectOpen(section, overrides, currentProjectId, showArchived)).join(",");
+  const openKey = sections
+    .map((section) => isProjectOpen(section, overrides, currentProjectId, showArchived))
+    .join(",");
   useFlipList(listRef, openKey);
   const byId = new Map(projects.map((project) => [project.id, project]));
   return (
