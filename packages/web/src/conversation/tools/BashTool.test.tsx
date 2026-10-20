@@ -55,20 +55,20 @@ describe("bash tool card", () => {
 
   it("stops a running command", async () => {
     renderAt("/", inThread(running));
-    await userEvent.click(screen.getByRole("button", { name: "Stop" }));
+    await userEvent.click(screen.getByRole("button", { name: "Stop command" }));
     expect(stopCall).toHaveBeenCalledWith("thread-1", "call-7");
   });
 
   it("offers nothing once the command is done", () => {
     renderAt("/", inThread(finished({})));
     expect(screen.queryByRole("button", { name: "Run in background" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Stop" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Stop command" })).toBeNull();
   });
 
   it("offers nothing where the transcript has no thread", () => {
     renderAt("/", <BashTool state={running} />);
     expect(screen.queryByRole("button", { name: "Run in background" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Stop" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Stop command" })).toBeNull();
   });
 
   it("marks a command that was moved to the background", () => {
