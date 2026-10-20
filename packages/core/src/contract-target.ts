@@ -4,8 +4,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { promisify } from "node:util";
 import type { Core } from "@tau/protocol";
-import { type ContractTarget, runCoreContract } from "@tau/testkit/contract";
-import { describe } from "vitest";
+import type { ContractTarget } from "@tau/testkit/contract";
 import { type CoreDependencies, createCoreWith, defaultCoreDependencies } from "./create-core";
 import { peerIdOf } from "./nodes/peer-id";
 import { createFilePeersStore, peersFilePath } from "./peers/peers-store";
@@ -17,7 +16,7 @@ import { makeLocalRepo } from "./test-support/local-repo";
 import { createRealGroup } from "./test-support/real-group";
 import { NO_UPDATE_OPTIONS } from "./test-support/update-options";
 
-const REAL_CORE_IMPLEMENTED = true;
+export const REAL_CORE_IMPLEMENTED = true;
 
 process.env.TAU_FAKE_CLAUDE_CLI = "1";
 
@@ -79,7 +78,7 @@ async function setUpGithub(root: string): Promise<{ deps: CoreDependencies; code
   };
 }
 
-async function makeRealTarget(): Promise<ContractTarget> {
+export async function makeRealTarget(): Promise<ContractTarget> {
   const root = await realpath(await mkdtemp(join(tmpdir(), "tau-contract-")));
   const home = join(root, "home");
   const { deps, codeFolder } = await setUpGithub(root);
@@ -143,7 +142,3 @@ async function makeRealTarget(): Promise<ContractTarget> {
   };
   return target;
 }
-
-describe.skipIf(!REAL_CORE_IMPLEMENTED)("real core", () => {
-  runCoreContract("real core (faux mode)", makeRealTarget);
-});
