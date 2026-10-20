@@ -14,6 +14,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { errorMessage } from "@/lib/error-message";
 import { queryKeys } from "@/lib/queries";
 import { apiOfNode, type NodeData, useNodesData } from "@/nodes";
@@ -33,32 +34,36 @@ const countOf = (nodes: readonly NodeData[]): number =>
 export function ArchiveButton({ show, onToggle }: ArchiveButtonProps) {
   const nodes = useNodesData();
   const count = countOf(nodes);
+  const label =
+    count === 0
+      ? "Show archived threads"
+      : show
+        ? `Hide archived threads, ${count}`
+        : `Show archived threads, ${count}`;
   return (
-    <Button
-      variant="ghost"
-      size="icon-sm"
-      className="relative shrink-0 aria-pressed:bg-sidebar-accent aria-pressed:text-foreground"
-      aria-label={
-        count === 0
-          ? "Show archived threads"
-          : show
-            ? `Hide archived threads, ${count}`
-            : `Show archived threads, ${count}`
-      }
-      aria-pressed={show}
-      title={show ? "Hide archived threads" : "Show archived threads"}
-      onClick={onToggle}
-    >
-      <ArchiveIcon />
-      {count > 0 && (
-        <span
-          aria-hidden
-          className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] leading-none font-medium text-primary-foreground"
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          className="relative shrink-0 aria-pressed:bg-sidebar-accent aria-pressed:text-foreground"
+          aria-label={label}
+          aria-pressed={show}
+          onClick={onToggle}
         >
-          {count > 99 ? "99+" : count}
-        </span>
-      )}
-    </Button>
+          <ArchiveIcon />
+          {count > 0 && (
+            <span
+              aria-hidden
+              className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] leading-none font-medium text-primary-foreground"
+            >
+              {count > 99 ? "99+" : count}
+            </span>
+          )}
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent side="top">{label}</TooltipContent>
+    </Tooltip>
   );
 }
 
@@ -156,16 +161,20 @@ export function DeleteAllArchivedButton() {
   if (countOf(nodes) === 0) return null;
   return (
     <>
-      <Button
-        variant="ghost"
-        size="icon-sm"
-        className="shrink-0 text-muted-foreground hover:text-destructive"
-        aria-label="Delete all archived"
-        title="Delete all archived"
-        onClick={() => setConfirming(true)}
-      >
-        <Trash2Icon />
-      </Button>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            className="shrink-0 text-muted-foreground hover:text-destructive"
+            aria-label="Delete all archived"
+            onClick={() => setConfirming(true)}
+          >
+            <Trash2Icon />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent side="top">Delete all archived</TooltipContent>
+      </Tooltip>
       {confirming && <DeleteAllConfirm onClose={() => setConfirming(false)} />}
     </>
   );
