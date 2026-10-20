@@ -68,7 +68,7 @@ describe("agent tool cards", () => {
     expect(screen.getByText("model-9")).toBeTruthy();
     expect(screen.getByText("running")).toBeTruthy();
     expect(screen.getByRole("link", { name: "Open" })).toBeTruthy();
-    await userEvent.click(screen.getByRole("button", { name: "Stop command" }));
+    await userEvent.click(screen.getByRole("button", { name: "Stop" }));
     expect(stopAgent).toHaveBeenCalledWith("kid");
   });
 
@@ -76,7 +76,7 @@ describe("agent tool cards", () => {
     children.current = [child({ agentStatus: "done" })];
     renderAt("/", <AgentTool state={stateOf("agent", {}, "", { conversationId: "kid" })} />);
     await userEvent.click(screen.getByRole("button"));
-    expect(screen.queryByRole("button", { name: "Stop command" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Stop" })).toBeNull();
     expect(screen.getByText("done")).toBeTruthy();
   });
 
