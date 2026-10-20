@@ -64,7 +64,7 @@ Power = "off" | "balanced" | "background";
 ```
 
 Three power rows, nothing else. The memory cap lives in the core (`sharedMemoryLimitMb`),
-not a setting: half the machine's RAM between 1 and 4 GB, so a 4 GB box kills a runaway at 2 GB
+not a setting: 20% of the machine's RAM between 1 and 4 GB, so small boxes kill runaways early
 instead of OOMing the whole machine. Every governed command gets its scope's CPU priority plus the cap. There is no queue,
 no "heavy" classification, no per-command tuning. Legacy `{priority, appliesTo, heavySlots, memoryLimitMb}`
 settings migrate: each ticked scope takes the old global priority, the rest is ignored.

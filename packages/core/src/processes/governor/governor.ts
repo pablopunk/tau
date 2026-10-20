@@ -14,11 +14,11 @@ export const MAX_MEMORY_LIMIT_MB = 4096;
 export const MIN_MEMORY_LIMIT_MB = 1024;
 
 /**
- * The memory cap for every governed command: half the machine's RAM between 1 and 4 GB.
+ * The memory cap for every governed command: 20% of the machine's RAM between 1 and 4 GB.
  * A fixed 4 GB never fires on a 4 GB box before the OOM killer takes the whole machine.
  */
 export function sharedMemoryLimitMb(totalBytes: number): number {
-  return Math.min(MAX_MEMORY_LIMIT_MB, Math.max(MIN_MEMORY_LIMIT_MB, Math.floor(totalBytes / 2 / 1048576)));
+  return Math.min(MAX_MEMORY_LIMIT_MB, Math.max(MIN_MEMORY_LIMIT_MB, Math.floor(totalBytes / 5 / 1048576)));
 }
 
 export interface GovernorDeps {
