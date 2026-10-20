@@ -78,7 +78,6 @@ describe("<ResourcesGroup>", () => {
 
   it("shows the current levels as pressed", async () => {
     setup({
-
       ...DEFAULT_RESOURCE_SETTINGS,
       levels: { main: "balanced", worktree: "off", subagent: "background" },
     });

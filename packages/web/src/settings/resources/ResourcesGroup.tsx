@@ -2,8 +2,8 @@ import type { ResourceScope, ResourceSettings } from "@tau/protocol";
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { Switch } from "@/components/ui/switch";
 import { useSetResources, useSettings } from "@/lib/queries";
-import { ScopeRow } from "./ScopeRow";
 import { isControlOn, MEMORY_CAP_NOTE, NEEDS_UPDATE, NEW_COMMANDS_ONLY, SCOPES } from "./resources-text";
+import { ScopeRow } from "./ScopeRow";
 
 const ON_DEFAULT: ResourceSettings["levels"] = { main: "off", worktree: "off", subagent: "balanced" };
 const ALL_OFF: ResourceSettings["levels"] = { main: "off", worktree: "off", subagent: "off" };

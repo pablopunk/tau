@@ -1,4 +1,4 @@
-import { TODOS_UPDATED_KIND, type ConversationView, type TodoItem } from "@tau/protocol";
+import { type ConversationView, TODOS_UPDATED_KIND, type TodoItem } from "@tau/protocol";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   type FauxWorld,
