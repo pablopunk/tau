@@ -1,16 +1,25 @@
 import { clampThinkingLevel } from "@earendil-works/pi-ai/models";
-import type { Harness } from "@earendil-works/pi-durable";
+import type { ConversationId, Harness } from "@earendil-works/pi-durable";
 import {
   AppError,
   type ConfigureConversationInput,
   type ConversationSummary,
+  type ConversationView,
   type Core,
+  diffTodos,
+  latestTodos,
   type ModelRef,
   type SendMessageInput,
   type StartConversationInput,
   type ThinkingLevel,
+  TODOS_UPDATED_KIND,
+  type TodoItem,
+  todosUpdatedText,
+  type UpdateTodosInput,
+  UpdateTodosInputSchema,
   type WorkspaceMode,
 } from "@tau/protocol";
+import { Value } from "typebox/value";
 import type { ArchivedCleanup } from "./archived-cleanup";
 import { type BangCommandDeps, entryOfThread, parseBangCommand, runBangCommand } from "./bang-command";
 import type { ChangeEmitter } from "./change-emitter";
@@ -21,6 +30,8 @@ import { createConversationsMvp5Api } from "./conversations-mvp5-api";
 import type { ConversationForker } from "./harness/conversation-fork";
 import type { ConversationStore } from "./harness/conversation-store";
 import type { NotificationSubmitter } from "./harness/notification-submitter";
+import { ThreadGoneError } from "./harness/notification-submitter";
+import { BACKGROUND } from "./harness/open";
 import type { ProjectStore } from "./harness/project-store";
 import { createSubagentStopper } from "./harness/subagent-stop";
 import type { SettingsStore } from "./home/settings-store";
@@ -56,9 +67,11 @@ export function createConversationsApi(deps: {
     readonly home: string | undefined;
   };
   changes: ChangeEmitter;
+  notifications: NotificationSubmitter;
   now: () => number;
 }): Core["conversations"] {
   const { conversations, projects, provider, settings, titles, workspaces, checkpoints, changes, now } = deps;
+  const { notifications } = deps;
   const announce = (projectId: string) => changes.emit({ resource: "conversations", projectId });
   const { removal, archivedCleanup } = deps;
   const reportCheckpointFailure = (error: unknown) =>
@@ -188,6 +201,13 @@ export function createConversationsApi(deps: {
     return ref;
   }
 
+  async function currentTodos(id: string): Promise<TodoItem[]> {
+    const conversation = await deps.harness.conversation(Number(id) as ConversationId, BACKGROUND);
+    if (!conversation) return [];
+    const { entries } = await conversation.context(BACKGROUND);
+    return latestTodos({ entries } as unknown as ConversationView);
+  }
+
   async function configureThread(id: string, input: ConfigureConversationInput): Promise<void> {
     if (input.model === undefined && input.thinkingLevel === undefined) {
       throw new AppError("invalid_request", "Choose a model or a thinking level.");
@@ -232,6 +252,33 @@ export function createConversationsApi(deps: {
       return pending.finally(() => {
         if (sendsInFlight.get(key) === pending) sendsInFlight.delete(key);
       });
+    },
+    async updateTodos(id, input: UpdateTodosInput) {
+      if (!Value.Check(UpdateTodosInputSchema, input)) {
+        throw new AppError(
+          "invalid_request",
+          "The todo list needs 1 to 500 character items, at most 50 of them.",
+        );
+      }
+      const thread = await conversations.find(id);
+      if (!thread) throw new AppError("not_found", "Conversation not found.");
+      const todos: TodoItem[] = input.todos.map((todo) => ({ content: todo.content, status: todo.status }));
+      const before = await currentTodos(id);
+      const diff = diffTodos(before, todos);
+      // Intentionally no TodosDoc write: the entry log is the source of truth for the list
+      // (the UI reads the newest todo event, the agent reads history). The notification below
+      // carries the full list, so a racing agent turn converges on it instead of losing the edit.
+      try {
+        await notifications.notify(id, {
+          kind: TODOS_UPDATED_KIND,
+          data: { todos, diff, requestId: input.requestId },
+          text: todosUpdatedText(todos, diff),
+          requestId: `todos:${id}:${input.requestId}`,
+        });
+      } catch (error) {
+        if (error instanceof ThreadGoneError) throw new AppError("not_found", "Conversation not found.");
+        throw error;
+      }
     },
     abort: (id) => conversations.abort(id),
     async archive(id, archived) {

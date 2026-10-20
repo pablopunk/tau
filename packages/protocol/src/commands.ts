@@ -742,6 +742,7 @@ export const COMMAND_EXCLUSIONS = {
   recreateRemote: "UI only: it clears every linked device, so it needs the confirmation dialog.",
   linkNode: "A WebSocket one node's server dials with a node secret; not an HTTP call.",
   signOutAllDevices: "UI only: it signs out every browser and phone, this one included.",
+  updateTodos: "UI only: the todo panel sends the edited list; the CLI has no todo surface.",
 } as const satisfies Partial<Record<RouteName, string>>;
 
 export type ExcludedRoute = keyof typeof COMMAND_EXCLUSIONS;

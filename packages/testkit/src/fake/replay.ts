@@ -94,6 +94,7 @@ export function isRunning(view: ConversationView): boolean {
 export interface UserEntryEdit {
   readonly content: UserMessage["content"];
   readonly kind?: string;
+  readonly data?: unknown;
 }
 
 /** Rewrites the user entries added after `base`, so a replayed fixture shows what was really sent. */
@@ -106,7 +107,12 @@ export function restyleNewUserEntries(
   const entries = view.entries.map((entry) => {
     const message = entry.model?.[0];
     if (Number(entry.id) <= lastOld || message?.role !== "user") return entry;
-    return { ...entry, kind: edit.kind ?? entry.kind, model: [{ ...message, content: edit.content }] };
+    return {
+      ...entry,
+      kind: edit.kind ?? entry.kind,
+      ...(edit.data !== undefined ? { data: edit.data } : null),
+      model: [{ ...message, content: edit.content }],
+    };
   });
   return { ...view, entries } as unknown as ConversationView;
 }

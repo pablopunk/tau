@@ -14,7 +14,7 @@ import { SubagentNotificationRow } from "./notifications/SubagentNotificationRow
 import { RetryButton } from "./RetryButton";
 import { ToolApproval } from "./ToolApproval";
 import { LatestTodoCallProvider } from "./todos/latest-todo-call";
-import { latestTodoCallId } from "./todos/todo-items";
+import { latestTodoSource } from "./todos/todo-items";
 import { ToolConversationProvider } from "./tools/tool-conversation";
 
 function hasVisibleContent(message: AssistantMessageData | undefined): message is AssistantMessageData {
@@ -84,7 +84,7 @@ export function Transcript({
     return <EmptyTranscript />;
   return (
     <ToolConversationProvider value={conversationId}>
-      <LatestTodoCallProvider value={latestTodoCallId(view)}>
+      <LatestTodoCallProvider value={latestTodoSource(view)}>
         <div className="space-y-5">
           {items.map((item, index) => {
             if (item.kind === "compaction") return <CompactedDivider key={item.key} />;

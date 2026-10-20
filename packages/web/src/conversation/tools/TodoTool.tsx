@@ -7,7 +7,7 @@ import type { ToolRendererProps } from "./types";
 /** Transcript shows only a one-line summary; the full list lives in the panel above the input. */
 export function TodoTool({ state }: ToolRendererProps) {
   const todos = parseTodos(state.call.arguments?.todos);
-  const superseded = useIsSupersededTodoCall(state.call.id);
+  const superseded = useIsSupersededTodoCall(`call:${state.call.id}`);
   return (
     <ToolCard
       icon={<ListChecks />}
