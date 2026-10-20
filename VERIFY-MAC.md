@@ -98,3 +98,12 @@ Findings:
   (`overSweeps` resets). If footprint cannot be read the decision falls back to RSS. The same spec now passes (also from the compiled binary). Recommended metric: RSS to trigger, `footprint` summary to confirm.
 - Not provable here: compressed memory. The machine has 48 GB with 78% free and the compressor never engages, so a "compressed pages leave RSS" miss could not be forced.
   By Apple's definition `phys_footprint` includes compressed pages, so the confirm step is right; the trigger (RSS) could miss a tree whose pages were compressed under real pressure. Left as is.
+
+## 7. Older node compatibility — PROVEN (with a caveat on which message shows)
+
+`e2e/tests/resources-old-node.spec.ts`: a real installed older release (`~/.local/share/tau/versions/0.5.3/tau`, `tau --version` = 0.5.3, no resource control) is
+started on its own home, linked to the current build with `tau connect --node`, and the web's Settings → Agent → "Old node" tab is opened.
+Result: the link works but the node's status is `update-required` (the protocol surface changed, so the hash gate flags it), and the tab shows
+`Old node needs a tau update before its settings can load. Its settings will load once it's back online.` with no Resources controls and no page error.
+The Resources-specific "This node needs an update" (online node, `settings.resources === undefined`) is unreachable with real releases because the
+protocol hash gate stops them first; it stays covered by `ResourcesGroup.test.tsx:150`. The spec accepts either text.
