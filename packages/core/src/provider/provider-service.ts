@@ -154,7 +154,10 @@ export function createProviderService(options: ProviderServiceOptions): Provider
           env: options.env,
         }).check();
       }
-      return createOpenaiClient({ getAuth: (providerId) => models.getAuth(providerId) }).check();
+      return createOpenaiClient({
+        getAuth: (providerId) => models.getAuth(providerId),
+        env: options.env,
+      }).check();
     },
     onRefreshed: () => options.changes.emit({ resource: "providers" }),
   });

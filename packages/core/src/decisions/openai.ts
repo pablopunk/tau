@@ -2,6 +2,8 @@ import { AppError } from "@tau/protocol";
 import type { Availability, DecideClient } from "./client";
 
 export const OPENAI_DECISIONS_URL = "https://api.openai.com/v1/decisions";
+/** Env override for the full decisions endpoint; tests point it at a localhost mock. */
+export const OPENAI_DECISIONS_URL_ENV = "TAU_OPENAI_DECISIONS_URL";
 export const OPENAI_DECISIONS_MODEL = "gpt-6-luna";
 
 /** Own timeout per request; the hook additionally races every call. */
@@ -21,7 +23,9 @@ export function openaiPredicateBody(
 
 export interface OpenaiClientOptions {
   readonly getAuth: (providerId: string) => Promise<{ auth: { apiKey?: string } } | undefined>;
+  readonly env?: Readonly<Record<string, string | undefined>>;
   readonly fetchFn?: typeof fetch;
+  readonly baseUrl?: string;
 }
 
 async function resolveKey(options: OpenaiClientOptions): Promise<string | undefined> {
@@ -49,6 +53,7 @@ function probeUnavailable(status: number, body: string): boolean {
 /** Live OpenAI Decisions client. Key via `api.models.getAuth("openai")`. */
 export function createOpenaiClient(options: OpenaiClientOptions): DecideClient {
   const fetchFn = options.fetchFn ?? fetch;
+  const url = options.baseUrl ?? options.env?.[OPENAI_DECISIONS_URL_ENV] ?? OPENAI_DECISIONS_URL;
   return {
     id: "openai",
     check: async (): Promise<Availability> => {
@@ -56,7 +61,7 @@ export function createOpenaiClient(options: OpenaiClientOptions): DecideClient {
       if (key === undefined) return "unavailable";
       let response: Response;
       try {
-        response = await fetchFn(OPENAI_DECISIONS_URL, {
+        response = await fetchFn(url, {
           method: "POST",
           headers: { authorization: `Bearer ${key}`, "content-type": "application/json" },
           body: JSON.stringify(openaiPredicateBody("hello", "Answer yes.")),
@@ -78,7 +83,7 @@ export function createOpenaiClient(options: OpenaiClientOptions): DecideClient {
       }
       let response: Response;
       try {
-        response = await fetchFn(OPENAI_DECISIONS_URL, {
+        response = await fetchFn(url, {
           method: "POST",
           headers: { authorization: `Bearer ${key}`, "content-type": "application/json" },
           body: JSON.stringify(openaiPredicateBody(input, instructions)),

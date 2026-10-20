@@ -90,6 +90,7 @@ function buildClients(
           }),
           createOpenaiClient({
             getAuth: (providerId) => api.models.getAuth(providerId),
+            env: deps.env,
             ...(deps.fetchFn && { fetchFn: deps.fetchFn }),
           }),
         ];

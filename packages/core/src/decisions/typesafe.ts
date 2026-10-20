@@ -3,6 +3,8 @@ import type { Availability, DecideClient } from "./client";
 
 export const TYPESAFE_MODEL = "jev-latest";
 export const TYPESAFE_BASE_URL = "https://api.typesafe.ai";
+/** Env override for the API base; tests point it at a localhost mock. */
+export const TYPESAFE_BASE_URL_ENV = "TAU_TYPESAFE_BASE_URL";
 
 /** Own timeout per request; the hook additionally races every call. */
 export const TYPESAFE_REQUEST_TIMEOUT_MS = 30_000;
@@ -47,7 +49,7 @@ function parseNoul(json: unknown): number {
 
 /** Live TypeSafe Jev client. Key resolution: file credential `typesafe` → `TYPESAFE_API_KEY` env. */
 export function createTypesafeClient(options: TypesafeClientOptions): DecideClient {
-  const baseUrl = options.baseUrl ?? TYPESAFE_BASE_URL;
+  const baseUrl = options.baseUrl ?? options.env[TYPESAFE_BASE_URL_ENV] ?? TYPESAFE_BASE_URL;
   const fetchFn = options.fetchFn ?? fetch;
   return {
     id: "typesafe",

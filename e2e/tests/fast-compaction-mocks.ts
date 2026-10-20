@@ -42,7 +42,9 @@ export async function startDecisionMock(options: MockOptions): Promise<DecisionM
   const expectedPath = options.backend === "typesafe" ? "/v1/systemone" : "/v1/decisions";
   const server = createServer((request, response) => {
     if (request.method !== "POST" || request.url !== expectedPath) {
-      response.writeHead(request.method !== "POST" ? 405 : 404, { "content-type": "application/json" }).end("{}");
+      response
+        .writeHead(request.method !== "POST" ? 405 : 404, { "content-type": "application/json" })
+        .end("{}");
       return;
     }
     let raw = "";
@@ -63,7 +65,8 @@ export async function startDecisionMock(options: MockOptions): Promise<DecisionM
         body = {};
       }
       // TypeSafe nests input under questions.keep; OpenAI sends predicate + input flat.
-      const keep = (body.questions as { keep?: { input?: unknown; instructions?: unknown } } | undefined)?.keep;
+      const keep = (body.questions as { keep?: { input?: unknown; instructions?: unknown } } | undefined)
+        ?.keep;
       const input = String(keep?.input ?? body.input ?? "");
       const instructions = String(keep?.instructions ?? body.instructions ?? body.predicate ?? "");
       const probability = scripted[Math.min(index, scripted.length - 1)] ?? 0.5;
@@ -74,7 +77,7 @@ export async function startDecisionMock(options: MockOptions): Promise<DecisionM
           ? {
               model: TYPESAFE_MODEL,
               probability,
-              answers: { keep: { type: "noul", probability } },
+              answers: { keep: { type: "noul", noul: probability, probability } },
               data: { keep: { probability } },
             }
           : {

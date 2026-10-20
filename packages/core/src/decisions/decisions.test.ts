@@ -101,9 +101,31 @@ describe("typesafe client", () => {
     const error = await gone.predicate("x", "y").catch((cause: unknown) => cause);
     expect(isDecisionsNotFound(error)).toBe(true);
   });
+  it("prefers an explicit base-URL env override (localhost mock seam)", async () => {
+    const fetchFn = vi.fn<typeof fetch>(async () => jsonResponse({ answers: { keep: { noul: 0.5 } } }));
+    const client = createTypesafeClient({
+      readCredential: async () => "sk-test",
+      env: { TAU_TYPESAFE_BASE_URL: "http://127.0.0.1:9" },
+      fetchFn,
+    });
+    await client.predicate("call", "keep?");
+    const [[url]] = fetchFn.mock.calls as unknown as [[string]];
+    expect(url).toBe("http://127.0.0.1:9/v1/systemone");
+  });
 });
 
 describe("openai client", () => {
+  it("prefers an explicit endpoint env override (localhost mock seam)", async () => {
+    const fetchFn = vi.fn<typeof fetch>(async () => jsonResponse({ probability: 0.5 }));
+    const client = createOpenaiClient({
+      getAuth: async () => ({ auth: { apiKey: "sk-test" } }),
+      env: { TAU_OPENAI_DECISIONS_URL: "http://127.0.0.1:9/v1/decisions" },
+      fetchFn,
+    });
+    await client.predicate("call", "keep?");
+    const [[url]] = fetchFn.mock.calls as unknown as [[string]];
+    expect(url).toBe("http://127.0.0.1:9/v1/decisions");
+  });
   it("is unavailable without a key and unknown on network failure", async () => {
     const client = createOpenaiClient({ getAuth: async () => undefined });
     expect(await client.check()).toBe("unavailable");
