@@ -108,6 +108,12 @@ jobs:
           security list-keychains -d user -s "$keychain"
           security default-keychain -s "$keychain"
           rm -f "$certificate"
+          # The runner may not trust the Developer ID G2 intermediate: without it the identity is "not valid".
+          curl -fsSL https://www.apple.com/certificateauthority/DeveloperIDG2CA.cer -o "$RUNNER_TEMP/DeveloperIDG2CA.cer"
+          security import "$RUNNER_TEMP/DeveloperIDG2CA.cer" -k "$keychain" || true
+          echo "identities in the keychain (all, then valid):"
+          security find-identity -p codesigning "$keychain" | sed -E 's/[0-9A-F]{40}/<hash>/'
+          security find-identity -v -p codesigning "$keychain" | sed -E 's/[0-9A-F]{40}/<hash>/'
       - name: Compile, sign, notarize, archive
         env:
           APPLE_ID: ${{ secrets.APPLE_ID }}
