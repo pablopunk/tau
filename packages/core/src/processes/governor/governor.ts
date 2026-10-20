@@ -34,7 +34,7 @@ export interface Governor {
   /** Created on first use. */
   support(): ResourceSupportProbe;
   watch(): MemoryWatch;
-  plan(command: string, foreground: boolean): Plan;
+  plan(command: string, foreground: boolean): Plan | undefined;
   wrapSupport(cgroupMemory: boolean): WrapSupport;
   setResources(next: ResourceSettings): void;
 }
@@ -59,6 +59,8 @@ export function createGovernor(deps: GovernorDeps): Governor {
     },
     plan(command, foreground) {
       const settings = state.get();
+      if (settings.priority === "off" && settings.heavySlots === null && settings.memoryLimitMb === null)
+        return undefined;
       const slot = foreground && settings.heavySlots !== null && isHeavyCommand(command);
       const probe = settings.memoryLimitMb !== null && supportOf().platform === "linux";
       return { settings, slot, probe };

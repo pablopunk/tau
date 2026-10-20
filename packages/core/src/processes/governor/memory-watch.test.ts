@@ -76,7 +76,7 @@ describe("memory watch", () => {
   });
 
   it("kills after two sweeps over the limit, with a fresh sweep before KILL", async () => {
-    const over = [row(10, 1, 10, 2 * 1024)];
+    const over = [row(10, 1, 10, 1200)];
     const state = setup(() => over);
     let marked = 0;
     state.watch.watch({ rootPid: 10, limitMb: 1, onOverLimit: () => marked++ });

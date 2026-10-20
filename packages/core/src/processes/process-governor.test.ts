@@ -95,7 +95,7 @@ describe("heavy slots", () => {
     const first = await foreground(service, "cargo test --version 2>/dev/null; sleep 1", "a");
     const second = await foreground(service, "cargo test --version 2>/dev/null; true", "b");
     expect(service.resourceActivity().waiting).toHaveLength(1);
-    expect(spawnCalls).toHaveLength(1);
+    await waitFor(() => spawnCalls.length === 1);
     await first.outcome;
     await second.admitted;
     await second.outcome;
@@ -117,7 +117,7 @@ describe("heavy slots", () => {
       stopReason: "resources",
     });
     await second.stop("user");
-    expect(spawnCalls).toHaveLength(1);
+    await waitFor(() => spawnCalls.length === 1);
     await first.stop();
     await first.outcome;
     expect(service.resourceActivity()).toEqual({ holders: [], waiting: [] });
