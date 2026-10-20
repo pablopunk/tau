@@ -1,3 +1,4 @@
+import { totalmem } from "node:os";
 import type { ResourceSettings } from "@tau/protocol";
 import { type Exec, execCommand } from "./exec";
 import { createFootprint, type Footprint } from "./footprint";
@@ -7,8 +8,18 @@ import { anyControlOn, createResourceState, type ResourceState } from "./resourc
 import { createResourceSupport, type ResourceSupportProbe } from "./resource-support";
 import type { WrapSupport } from "./wrap-command";
 
-/** Memory cap for every governed command. Generous on purpose: only runaways hit it. */
-export const GOVERNED_MEMORY_LIMIT_MB = 4096;
+/** Ceiling for the memory cap: generous on purpose, only runaways hit it. */
+export const MAX_MEMORY_LIMIT_MB = 4096;
+/** Floor: a 4 GB box still kills a runaway at 2 GB with room to breathe. */
+export const MIN_MEMORY_LIMIT_MB = 1024;
+
+/**
+ * The memory cap for every governed command: half the machine's RAM between 1 and 4 GB.
+ * A fixed 4 GB never fires on a 4 GB box before the OOM killer takes the whole machine.
+ */
+export function sharedMemoryLimitMb(totalBytes: number): number {
+  return Math.min(MAX_MEMORY_LIMIT_MB, Math.max(MIN_MEMORY_LIMIT_MB, Math.floor(totalBytes / 2 / 1048576)));
+}
 
 export interface GovernorDeps {
   readonly nodeId?: () => string;
@@ -74,6 +85,6 @@ export function createGovernor(deps: GovernorDeps): Governor {
     setResources(next) {
       state.set(next);
     },
-    memoryLimitMb: () => deps.memoryLimitMb ?? GOVERNED_MEMORY_LIMIT_MB,
+    memoryLimitMb: () => deps.memoryLimitMb ?? sharedMemoryLimitMb(totalmem()),
   };
 }

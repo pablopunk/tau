@@ -49,10 +49,8 @@ test("a 5 GB command is stopped with the memory message, after the first 2 s swe
   const text = await outputOf(id, 90);
   const seconds = (Date.now() - begun) / 1000;
   console.log(`MEMORY hog: ended after ${seconds.toFixed(1)} s\n${text}`);
-  expect(text).toContain(
-    "Stopped: memory limit 4096 MB exceeded (resource control is on: Main threads run at Balanced). " +
-      "To allow more memory, set Main threads to Off in Settings → Agent, or split the work into smaller steps.",
-  );
+  expect(text).toMatch(/Stopped: memory limit [\d,]+ MB exceeded/);
+  expect(text).toContain("(resource control is on: Main threads run at Balanced).");
   expect(seconds).toBeGreaterThan(2);
   expect(seconds).toBeLessThan(90);
 });
@@ -62,10 +60,8 @@ test("a setsid escapee holding memory dies with its command", async () => {
   const id = await remote.start("mem escapee");
   const text = await outputOf(id, 90);
   console.log(`MEMORY escapee:\n${text}`);
-  expect(text).toContain(
-    "Stopped: memory limit 4096 MB exceeded (resource control is on: Main threads run at Balanced). " +
-      "To allow more memory, set Main threads to Off in Settings → Agent, or split the work into smaller steps.",
-  );
+  expect(text).toMatch(/Stopped: memory limit [\d,]+ MB exceeded/);
+  expect(text).toContain("(resource control is on: Main threads run at Balanced).");
   console.log(`MEMORY escapee: ended after ${((Date.now() - begun) / 1000).toFixed(1)} s`);
   const pid = Number(readFileSync(join(pids, "escapee.pid"), "utf8"));
   await sleep(1500);
