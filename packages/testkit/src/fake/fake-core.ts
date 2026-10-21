@@ -14,6 +14,8 @@ import {
   type ThreadWorkspace,
   type TodoItem,
   UpdateTodosInputSchema,
+  type VoiceModelSetting,
+  VoiceModelSettingSchema,
   type WorkspaceDefault,
   type WorkspaceMode,
 } from "@tau/protocol";
@@ -72,6 +74,8 @@ export interface FakeCoreOptions {
   /** How this fake names itself in `nodes.self()` (and to its peers). Default `Mac`, `darwin arm64`. */
   readonly nodeName?: string;
   readonly nodeOs?: string;
+  /** Speech models the fake OpenRouter key lists in `voice.options()`. Default two stub models. */
+  readonly voiceModels?: readonly { modelId: string; name: string }[];
   /** This tau's version for `updates.status()`. Default `0.0.0`. */
   readonly currentVersion?: string;
   /** The latest version the registry answers, known from the start. Default none (unreachable). */
@@ -138,6 +142,11 @@ export function createFakeCore(options: FakeCoreOptions = {}): FakeCore {
   let defaultThinkingLevel: ThinkingLevel | null = null;
   let fastModel: ModelRef | null = null;
   let fastThinkingLevel: ThinkingLevel | null = null;
+  let voiceModel: VoiceModelSetting | null = null;
+  const voiceModels = options.voiceModels ?? [
+    { modelId: "voxtral-small-latest", name: "Voxtral Small" },
+    { modelId: "parakeet-tdt-0.6b-v3", name: "Parakeet TDT 0.6B v3" },
+  ];
   const clampFor = (ref: ModelRef, level: ThinkingLevel | null) => {
     const info = findFakeModel(ref);
     return level && info ? clampFakeThinkingLevel(info, level) : level;
@@ -483,6 +492,7 @@ export function createFakeCore(options: FakeCoreOptions = {}): FakeCore {
           defaultThinkingLevel,
           fastModel,
           fastThinkingLevel,
+          voiceModel,
           projectsFolder,
           messageMode,
           workspaceDefault,
@@ -522,6 +532,17 @@ export function createFakeCore(options: FakeCoreOptions = {}): FakeCore {
         fastModel = { provider: ref.provider, modelId: ref.modelId };
         fastThinkingLevel = clampFor(ref, fastThinkingLevel);
       },
+      async setVoiceModel(setting) {
+        if (!Value.Check(VoiceModelSettingSchema, setting)) {
+          throw new AppError("invalid_request", "The voice setting is invalid.");
+        }
+        voiceModel =
+          setting === null
+            ? null
+            : setting.kind === "local"
+              ? { kind: "local" }
+              : { kind: "provider", provider: setting.provider, modelId: setting.modelId };
+      },
       async setMessageMode(mode) {
         messageMode = mode;
       },
@@ -541,6 +562,30 @@ export function createFakeCore(options: FakeCoreOptions = {}): FakeCore {
     },
     providers: connections.providers,
     models: connections.models,
+    voice: {
+      async options() {
+        const openrouter = (await connections.providers.list()).find(
+          (provider) => provider.id === "openrouter" && provider.connection !== null,
+        );
+        return {
+          local: { available: true, state: "needs-download" },
+          providers: openrouter
+            ? [
+                {
+                  provider: openrouter.id,
+                  providerName: openrouter.name,
+                  models: voiceModels.map((model) => ({ ...model })),
+                },
+              ]
+            : [],
+        };
+      },
+      /** Deterministic loopback: the text echoes the payload size, so web work never needs a mic. */
+      async transcribe(input) {
+        return { text: `[transcribed ${input.data.length} chars]` };
+      },
+      async removeModel() {},
+    },
     skills: {
       async list(projectId) {
         if (projectId !== null) requireProject(projectId);

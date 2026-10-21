@@ -84,6 +84,7 @@ import { createTimerToolServices } from "./timers/timer-tool-services";
 import { createTimersApi } from "./timers-api";
 import { createTitleService } from "./titles/title-service";
 import { createUpdateService } from "./updates/update-service";
+import { createVoiceApi } from "./voice-api";
 import { CRASH_LOOP_TEXT, recordStart, startRecordFiles } from "./watchdog/start-record";
 import { createWorkspaceService } from "./workspaces/workspace-service";
 
@@ -477,6 +478,7 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
         refreshRepos: () => github.refreshRepos(),
         use: (input) => github.use(input),
       },
+      voice: createVoiceApi({ settings }),
       ...createProvidersApi(provider),
       skills: createSkillsApi({ projects }),
       projects: createProjectsApi({ ...shared, clones, icons, present, removalHooks }),

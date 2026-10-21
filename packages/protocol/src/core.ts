@@ -34,7 +34,10 @@ import type {
   SuggestDirectoriesInput,
   SuggestedCodeFolder,
   ThinkingLevel,
+  TranscribeInput,
   UseGithubRepoInput,
+  VoiceModelSetting,
+  VoiceOptions,
   WorkspaceDefault,
 } from "./entities";
 import type {
@@ -79,7 +82,10 @@ export type {
   StartConversationInput,
   SuggestDirectoriesInput,
   SuggestedCodeFolder,
+  TranscribeInput,
   UseGithubRepoInput,
+  VoiceModelSetting,
+  VoiceOptions,
   WorkspaceDefault,
   WorkspaceMode,
 } from "./entities";
@@ -127,6 +133,12 @@ export interface Core {
     setDefaultThinkingLevel(level: ThinkingLevel | null): Promise<void>;
     /** `null` means the model's own default. Clamped to the fast model; rejects `invalid_request` without one. */
     setFastThinkingLevel(level: ThinkingLevel | null): Promise<void>;
+    /**
+     * Which speech-to-text the composer uses (`null` is the browser fallback). The `local` flavor is
+     * always accepted; the `provider` flavor needs the provider connected and the model in its voice
+     * catalog, else `invalid_request`.
+     */
+    setVoiceModel(setting: VoiceModelSetting): Promise<void>;
     /** Absolute path; created when missing and stored as its real path. Rejects `not_a_directory`. */
     setProjectsFolder(path: string): Promise<void>;
     /** The first existing `~/src`, `~/code`, `~/projects` or `~/dev` while the projects folder is still the default; else `null`. */
@@ -147,6 +159,17 @@ export interface Core {
     resourceActivity(): Promise<ResourceActivity>;
     /** Stops a command listed by `resourceActivity`. Rejects `not_found` otherwise. Not owner-only, like `setClaudeConnectors`. */
     stopResourceCommand(entryId: string): Promise<void>;
+  };
+  voice: {
+    /** Local download state plus every connected provider's speech-to-text catalog. Never rejects for a failing catalog: that is a per-provider `error`. */
+    options(): Promise<VoiceOptions>;
+    /**
+     * Transcribes audio with the *stored* voice setting. Rejects `invalid_request` with no setting, while
+     * the local model is still downloading, or for a provider failure the caller should surface.
+     */
+    transcribe(input: TranscribeInput): Promise<{ text: string }>;
+    /** Deletes the downloaded local model bytes. `setVoiceModel(null)` only unsets the default. */
+    removeModel(): Promise<void>;
   };
   github: {
     /** Cached for a minute. Never rejects for a missing or logged-out `gh`: that is a state. */

@@ -15,6 +15,8 @@ import {
   type Settings,
   type ThinkingLevel,
   ThinkingLevelSchema,
+  type VoiceModelSetting,
+  VoiceModelSettingSchema,
   type WorkspaceDefault,
   WorkspaceDefaultSchema,
   type WorkspaceMode,
@@ -30,6 +32,7 @@ type StoredSettings = {
   defaultThinkingLevel?: ThinkingLevel;
   fastModel?: ModelRef;
   fastThinkingLevel?: ThinkingLevel;
+  voiceModel?: VoiceModelSetting;
   projectsFolder?: string;
   messageMode?: MessageMode;
   workspaceDefault?: WorkspaceDefault;
@@ -56,6 +59,15 @@ const parseJson = (text: string | undefined): Record<string, unknown> => {
 
 const validModelRef = (value: unknown): ModelRef | undefined =>
   Value.Check(ModelRefSchema, value) ? { provider: value.provider, modelId: value.modelId } : undefined;
+
+const validVoiceModel = (value: unknown): VoiceModelSetting | undefined =>
+  Value.Check(VoiceModelSettingSchema, value)
+    ? value === null
+      ? null
+      : value.kind === "local"
+        ? { kind: "local" }
+        : { kind: "provider", provider: value.provider, modelId: value.modelId }
+    : undefined;
 
 const validLevel = (value: unknown): ThinkingLevel | undefined =>
   Value.Check(ThinkingLevelSchema, value) ? value : undefined;
@@ -167,6 +179,8 @@ function parseStored(text: string | undefined): StoredSettings {
   const projectsFolder = validFolder(raw.projectsFolder);
   if (defaultModel) stored.defaultModel = defaultModel;
   if (fastModel) stored.fastModel = fastModel;
+  const voiceModel = validVoiceModel(raw.voiceModel);
+  if (voiceModel !== undefined) stored.voiceModel = voiceModel;
   const defaultThinkingLevel = validLevel(raw.defaultThinkingLevel);
   const fastThinkingLevel = validLevel(raw.fastThinkingLevel);
   if (defaultThinkingLevel) stored.defaultThinkingLevel = defaultThinkingLevel;
@@ -194,6 +208,7 @@ const withDefaults = (stored: StoredSettings, defaultProjectsFolder: string): Se
   defaultThinkingLevel: stored.defaultThinkingLevel ?? null,
   fastModel: stored.fastModel ?? null,
   fastThinkingLevel: stored.fastThinkingLevel ?? null,
+  voiceModel: stored.voiceModel ?? null,
   projectsFolder: stored.projectsFolder ?? defaultProjectsFolder,
   messageMode: stored.messageMode ?? "steer",
   workspaceDefault: stored.workspaceDefault ?? "per-project",
@@ -212,6 +227,8 @@ export interface SettingsStore {
   /** `null` clears it, and its level with it. */
   setFastModel(ref: ModelRef | null, level: ThinkingLevel | null): Promise<void>;
   setFastThinkingLevel(level: ThinkingLevel | null): Promise<void>;
+  /** `null` unsets the default (it never deletes downloaded bytes; that is `voice.removeModel`). */
+  setVoiceModel(setting: VoiceModelSetting): Promise<void>;
   /** The caller has already validated and resolved the path. */
   setProjectsFolder(path: string): Promise<void>;
   setMessageMode(mode: MessageMode): Promise<void>;
@@ -262,6 +279,18 @@ export function createSettingsStore(settingsFile: string, defaultProjectsFolder:
     setFastThinkingLevel: (level) =>
       update(({ fastThinkingLevel: _level, ...rest }) =>
         level ? { ...rest, fastThinkingLevel: level } : rest,
+      ),
+    setVoiceModel: (setting) =>
+      update(({ voiceModel: _voice, ...rest }) =>
+        setting === null
+          ? rest
+          : {
+              ...rest,
+              voiceModel:
+                setting.kind === "local"
+                  ? { kind: "local" }
+                  : { kind: "provider", provider: setting.provider, modelId: setting.modelId },
+            },
       ),
     setProjectsFolder: (path) => update((stored) => ({ ...stored, projectsFolder: path })),
     setMessageMode: (mode) => update((stored) => ({ ...stored, messageMode: mode })),

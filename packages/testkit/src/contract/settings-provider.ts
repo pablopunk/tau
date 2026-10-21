@@ -31,6 +31,7 @@ export function settingsAndProviderCases(make: MakeContractTarget, test: CaseRun
         defaultThinkingLevel: null,
         fastModel: null,
         fastThinkingLevel: null,
+        voiceModel: null,
         projectsFolder: expect.any(String),
         messageMode: "steer",
         workspaceDefault: "per-project",
@@ -129,6 +130,47 @@ export function settingsAndProviderCases(make: MakeContractTarget, test: CaseRun
         core.settings.setProjectsFolder(await paths.file("a-file.txt")),
         "not_a_directory",
       );
+    });
+
+    test("[settings] stores a voice model, clears it, and rejects a malformed setting", async () => {
+      const { core } = target;
+      expect((await core.settings.get()).voiceModel).toBeNull();
+      await core.settings.setVoiceModel({ kind: "local" });
+      expect((await core.settings.get()).voiceModel).toEqual({ kind: "local" });
+      await core.settings.setVoiceModel({
+        kind: "provider",
+        provider: "openrouter",
+        modelId: "voxtral-small-latest",
+      });
+      expect((await core.settings.get()).voiceModel).toEqual({
+        kind: "provider",
+        provider: "openrouter",
+        modelId: "voxtral-small-latest",
+      });
+      await core.settings.setVoiceModel(null);
+      expect((await core.settings.get()).voiceModel).toBeNull();
+      await rejectsWithCode(
+        core.settings.setVoiceModel({ kind: "provider", provider: "openrouter" } as never),
+        "invalid_request",
+      );
+    });
+
+    test("[voice] options report local state and provider rows", async () => {
+      const { core } = target;
+      const options = await core.voice.options();
+      expect(options.local).toMatchObject({ available: expect.any(Boolean) });
+      expect(Array.isArray(options.providers)).toBe(true);
+    });
+
+    test("[voice-transcribe] transcribes audio with the stored setting", async () => {
+      const { core } = target;
+      await core.settings.setVoiceModel({ kind: "local" });
+      const { text } = await core.voice.transcribe({
+        format: "pcm-f32",
+        sampleRate: 16000,
+        data: "AAAA",
+      });
+      expect(text.length).toBeGreaterThan(0);
     });
   });
 }

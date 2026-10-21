@@ -1,7 +1,11 @@
 import { defineConfig } from "tsdown";
 
 export default defineConfig({
-  entry: { bin: "src/bin.ts", watchdog: "../core/src/watchdog/worker.ts" },
+  entry: {
+    bin: "src/bin.ts",
+    watchdog: "../core/src/watchdog/worker.ts",
+    "transcriber-worker": "../core/src/voice/transcriber-worker.ts",
+  },
   format: "esm",
   platform: "node",
   target: "node22",

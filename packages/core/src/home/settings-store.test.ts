@@ -11,6 +11,7 @@ const DEFAULTS = {
   defaultThinkingLevel: null,
   fastModel: null,
   fastThinkingLevel: null,
+  voiceModel: null,
   projectsFolder: PROJECTS,
   messageMode: "steer",
   workspaceDefault: "per-project",
@@ -154,6 +155,22 @@ describe("settings store", () => {
     const path = join(await tempDir(), "settings.json");
     await writeFile(path, JSON.stringify({ defaultModel: ref, defaultThinkingLevel: "bogus" }));
     expect(await createSettingsStore(path, PROJECTS).get()).toEqual({ ...DEFAULTS, defaultModel: ref });
+  });
+
+  it("stores a voice model, loads it back, and drops an invalid one", async () => {
+    const path = join(await tempDir(), "settings.json");
+    const store = createSettingsStore(path, PROJECTS);
+    expect((await store.get()).voiceModel).toBeNull();
+    await store.setVoiceModel({ kind: "local" });
+    expect((await store.get()).voiceModel).toEqual({ kind: "local" });
+    expect(JSON.parse(await readFile(path, "utf8"))).toEqual({ voiceModel: { kind: "local" } });
+    const provided = { kind: "provider", provider: "openrouter", modelId: "m" } as const;
+    await store.setVoiceModel(provided);
+    expect((await store.get()).voiceModel).toEqual(provided);
+    await store.setVoiceModel(null);
+    expect((await store.get()).voiceModel).toBeNull();
+    await writeFile(path, JSON.stringify({ voiceModel: { kind: "provider" } }));
+    expect((await createSettingsStore(path, PROJECTS).get()).voiceModel).toBeNull();
   });
 
   it("falls back to the defaults for a corrupt file", async () => {

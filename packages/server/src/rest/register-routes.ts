@@ -55,6 +55,10 @@ export function registerRoutes(app: FastifyInstance, core: Core, sockets: Device
     core.settings.setFastThinkingLevel(body.thinkingLevel),
   );
   defineRoute(app, routes.setFastModel, ({ body }) => core.settings.setFastModel(body.model));
+  defineRoute(app, routes.setVoiceModel, ({ body }) => core.settings.setVoiceModel(body.setting));
+  defineRoute(app, routes.getVoiceOptions, () => core.voice.options());
+  defineRoute(app, routes.transcribeVoice, ({ body }) => core.voice.transcribe(body));
+  defineRoute(app, routes.removeVoiceModel, () => core.voice.removeModel());
   defineRoute(app, routes.setSetupSkipped, ({ body }) => core.settings.setSetupSkipped(body.skipped));
   defineRoute(app, routes.setProjectsFolder, ({ body }) => core.settings.setProjectsFolder(body.path));
   defineRoute(app, routes.getSuggestedCodeFolder, () => core.settings.suggestedCodeFolder());

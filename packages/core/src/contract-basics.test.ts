@@ -15,5 +15,6 @@ const MODULES: readonly ContractModule[] = [
 ];
 
 describe.skipIf(!REAL_CORE_IMPLEMENTED)("real core", () => {
-  runCoreContract("real core (faux mode)", makeRealTarget, {}, MODULES);
+  // `[voice-transcribe]` is the foundation stub: agents (a)/(b) implement the pipelines, then drop the tag.
+  runCoreContract("real core (faux mode)", makeRealTarget, { pending: ["[voice-transcribe]"] }, MODULES);
 });

@@ -49,10 +49,13 @@ import type {
   TerminalInfo,
   ThinkingLevel,
   Timer,
+  TranscribeInput,
   UpdateStartBody,
   UpdateStatus,
   UpdateTodosInput,
   UseGithubRepoInput,
+  VoiceModelSetting,
+  VoiceOptions,
   WorkspaceDefault,
   WorkspaceStatus,
 } from "@tau/protocol";
@@ -89,6 +92,14 @@ export interface Api {
     /** "Use my other nodes": skip first-run setup on this node (server-side, so a fresh browser keeps it). */
     setSetupSkipped(skipped: boolean): Promise<void>;
     suggestedCodeFolder(): Promise<SuggestedCodeFolder>;
+    /** `null` is the browser fallback; the body goes in `--json` on the CLI. Never deletes bytes. */
+    setVoiceModel(setting: VoiceModelSetting): Promise<void>;
+  };
+  voice: {
+    /** `null`: this node predates voice support (404), so the row hides. */
+    options(): Promise<VoiceOptions | null>;
+    transcribe(input: TranscribeInput): Promise<{ text: string }>;
+    removeModel(): Promise<void>;
   };
   github: {
     status(): Promise<GithubStatus>;
@@ -281,6 +292,12 @@ export function createApi(transport: Transport): Api {
       resourceSupport: () => nullWhenMissing(request("getResourceSupport", {})),
       resourceActivity: () => nullWhenMissing(request("getResourceActivity", {})),
       stopResourceCommand: (entryId) => request("stopResourceCommand", { params: { id: entryId } }),
+      setVoiceModel: (setting) => request("setVoiceModel", { body: { setting } }),
+    },
+    voice: {
+      options: () => nullWhenMissing(request("getVoiceOptions", {})),
+      transcribe: (input) => request("transcribeVoice", { body: input }),
+      removeModel: () => request("removeVoiceModel", {}),
     },
     github: {
       status: () => request("getGithubStatus", {}),

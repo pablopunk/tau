@@ -78,6 +78,29 @@ describe("http transport", () => {
     expect(calls[4]?.[1].body).toBe(JSON.stringify({ model: null }));
   });
 
+  it("calls the voice routes with their paths, methods and bodies", async () => {
+    const fetchMock = stubFetch(respond(204));
+    await api.settings.setVoiceModel({ kind: "local" });
+    await api.voice.removeModel();
+    const calls = fetchMock.mock.calls as unknown as [string, RequestInit][];
+    expect(calls.map(([url, init]) => `${init.method} ${url}`)).toEqual([
+      "PUT /api/settings/voice-model",
+      "DELETE /api/voice/model",
+    ]);
+    expect(calls[0]?.[1].body).toBe(JSON.stringify({ setting: { kind: "local" } }));
+    stubFetch(respond(200, { text: "hello" }));
+    await expect(
+      api.voice.transcribe({ format: "pcm-f32", sampleRate: 16000, data: "AAAA" }),
+    ).resolves.toEqual({ text: "hello" });
+  });
+
+  it("reads a node older than voice support: 404 on options is null", async () => {
+    stubFetch(respond(404));
+    expect(await api.voice.options()).toBeNull();
+    stubFetch(respond(500));
+    await expect(api.voice.options()).rejects.toBeInstanceOf(AppError);
+  });
+
   it("maps an error body to an AppError with the server's code", async () => {
     stubFetch(respond(422, { error: { code: "invalid_key", message: "Bad key" } }));
     await expect(api.providers.setKey("openrouter", "nope")).rejects.toMatchObject({

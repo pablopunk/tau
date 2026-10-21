@@ -10,6 +10,8 @@ import {
   ResourceSettingsSchema,
   type ResourceSupport,
   type ThinkingLevel,
+  type VoiceModelSetting,
+  VoiceModelSettingSchema,
 } from "@tau/protocol";
 import { Value } from "typebox/value";
 import { expandHome } from "./fs/expand-home";
@@ -112,6 +114,15 @@ export function createSettingsApi(deps: {
       const { fastModel } = await settings.get();
       if (!fastModel) throw new AppError("invalid_request", "Choose a fast model first.");
       await settings.setFastThinkingLevel(clampForModel(fastModel, level));
+    },
+    async setVoiceModel(setting: VoiceModelSetting) {
+      if (!Value.Check(VoiceModelSettingSchema, setting)) {
+        throw new AppError("invalid_request", "The voice setting is invalid.");
+      }
+      // TODO(agent b): validate the provider flavor against the live voice catalog
+      // (provider connected AND modelId in `listProviderOptions`) and reject `invalid_request`
+      // otherwise. The local flavor is always accepted; availability surfaces via `voice.options()`.
+      await settings.setVoiceModel(setting);
     },
     async setProjectsFolder(path) {
       await settings.setProjectsFolder(await createFolder(path));

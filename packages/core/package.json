@@ -24,6 +24,7 @@
     "@tau/protocol": "workspace:*",
     "effect": "4.0.5",
     "pi-web-access": "0.42.0",
+    "sherpa-onnx": "1.13.8",
     "typebox": "1.3.27"
   },
   "devDependencies": {

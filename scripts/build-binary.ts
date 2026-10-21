@@ -113,6 +113,7 @@ function compile(platform: Platform, version: string, out: string): void {
     `TAU_VERSION=${JSON.stringify(version)}`,
     join(dist, "bin.js"),
     join(dist, "watchdog.js"),
+    join(dist, "transcriber-worker.js"),
     "--outfile",
     join(out, "tau"),
   ];

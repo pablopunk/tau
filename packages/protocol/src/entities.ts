@@ -18,6 +18,54 @@ export const ThinkingLevelSchema = Type.Union([
 ]);
 export type ThinkingLevel = Type.Static<typeof ThinkingLevelSchema>;
 
+export const VoiceModelSettingSchema = Type.Union([
+  Type.Object({ kind: Type.Literal("local") }),
+  Type.Object({
+    kind: Type.Literal("provider"),
+    provider: Type.String({ minLength: 1 }),
+    modelId: Type.String({ minLength: 1 }),
+  }),
+  Type.Null(),
+]);
+export type VoiceModelSetting = Type.Static<typeof VoiceModelSettingSchema>;
+
+/** Bytes the client decoded (local path) or recorded (provider path); transcribed and discarded, never stored. */
+export const TranscribeInputSchema = Type.Union([
+  Type.Object({
+    format: Type.Literal("pcm-f32"),
+    sampleRate: Type.Number({ minimum: 8000, maximum: 192000 }),
+    data: Type.String({ maxLength: 14 * 1024 * 1024 }),
+  }),
+  Type.Object({
+    format: Type.Literal("blob"),
+    mimeType: Type.Union([Type.Literal("audio/webm"), Type.Literal("audio/mp4")]),
+    data: Type.String({ maxLength: 14 * 1024 * 1024 }),
+  }),
+]);
+export type TranscribeInput = Type.Static<typeof TranscribeInputSchema>;
+
+export const VoiceOptionsSchema = Type.Object({
+  local: Type.Object({
+    available: Type.Boolean(),
+    state: Type.Union([
+      Type.Literal("ready"),
+      Type.Literal("needs-download"),
+      Type.Literal("downloading"),
+      Type.Literal("error"),
+    ]),
+    error: Type.Optional(Type.String()),
+  }),
+  providers: Type.Array(
+    Type.Object({
+      provider: Type.String(),
+      providerName: Type.String(),
+      models: Type.Array(Type.Object({ modelId: Type.String(), name: Type.String() })),
+      error: Type.Optional(Type.String()),
+    }),
+  ),
+});
+export type VoiceOptions = Type.Static<typeof VoiceOptionsSchema>;
+
 type Equal<A, B> = (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2 ? true : false;
 const thinkingLevelMatchesPi: Equal<ThinkingLevel, ModelThinkingLevel> = true;
 void thinkingLevelMatchesPi;
@@ -77,6 +125,8 @@ export const SettingsSchema = Type.Object({
   remote: RemoteSettingsSchema,
   /** Optional only so a web can read an older node (the response is validated): absent means "not supported there". A current node always sends it. */
   resources: Type.Optional(ResourceSettingsSchema),
+  /** Which speech-to-text the composer uses; `null`/absent is the browser fallback. Absent means "not supported there", like `resources`. */
+  voiceModel: Type.Optional(VoiceModelSettingSchema),
   /** "Use my other nodes": the user skipped first-run setup here because a peer can run threads. Server-side so a fresh browser does not see setup again. */
   setupSkipped: Type.Boolean(),
 });

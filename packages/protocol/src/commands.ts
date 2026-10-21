@@ -82,6 +82,15 @@ export const commands: readonly CommandDef[] = [
     destructive: false,
   },
   {
+    command: "settings set-voice-model",
+    route: "setVoiceModel",
+    summary:
+      'Set the voice model for dictation: {"kind":"local"} or {"kind":"provider",...} (the body goes in --json), or null',
+    positionals: [],
+    json: true,
+    destructive: false,
+  },
+  {
     command: "settings set-fast-thinking",
     route: "setFastThinking",
     summary: "Set the fast thinking level, or none",
@@ -734,6 +743,9 @@ export const COMMAND_EXCLUSIONS = {
   openTerminal: "A terminal needs a screen.",
   getTerminalsAvailable: "A state the web reads to show or hide the Terminal button.",
   suggestDirectories: TYPING_HELPER,
+  getVoiceOptions: "The web settings row reads it to render the voice picker; agents have no microphone.",
+  transcribeVoice: "Needs recorded audio bytes; agents have no microphone.",
+  removeVoiceModel: "The web settings row deletes the download next to unsetting the default.",
   getSuggestedCodeFolder: TYPING_HELPER,
   suggestProjectFiles: TYPING_HELPER,
   redeemPairing:

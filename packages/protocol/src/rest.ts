@@ -35,7 +35,10 @@ import {
   SuggestDirectoriesInputSchema,
   SuggestedCodeFolderSchema,
   ThinkingLevelSchema,
+  TranscribeInputSchema,
   UseGithubRepoInputSchema,
+  VoiceModelSettingSchema,
+  VoiceOptionsSchema,
   WorkspaceDefaultSchema,
 } from "./entities";
 import { ICON_BODY_LIMIT } from "./icons";
@@ -62,6 +65,8 @@ export const LIVE_PATH = `${API_PREFIX}/live`;
 export const PAIR_PAGE_PATH = "/pair";
 
 export const MESSAGE_BODY_LIMIT = 42 * 1024 * 1024;
+/** Audio uploads copy the image pattern: base64-in-JSON, parsed in memory only, transcribed and discarded. */
+export const AUDIO_BODY_LIMIT = 10 * 1024 * 1024;
 export const PROCESS_LOG_TAIL_DEFAULT = 200;
 
 export type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
@@ -252,6 +257,31 @@ export const routes = {
     path: `${API_PREFIX}/settings/fast-model`,
     status: 204,
     body: Type.Object({ model: Type.Union([ModelRefSchema, Type.Null()]) }),
+  },
+  setVoiceModel: {
+    method: "PUT",
+    path: `${API_PREFIX}/settings/voice-model`,
+    status: 204,
+    body: Type.Object({ setting: VoiceModelSettingSchema }),
+  },
+  getVoiceOptions: {
+    method: "GET",
+    path: `${API_PREFIX}/voice/options`,
+    status: 200,
+    response: VoiceOptionsSchema,
+  },
+  transcribeVoice: {
+    method: "POST",
+    path: `${API_PREFIX}/voice/transcribe`,
+    status: 200,
+    body: TranscribeInputSchema,
+    response: Type.Object({ text: Type.String() }),
+    bodyLimit: AUDIO_BODY_LIMIT,
+  },
+  removeVoiceModel: {
+    method: "DELETE",
+    path: `${API_PREFIX}/voice/model`,
+    status: 204,
   },
   setSetupSkipped: {
     method: "PUT",
