@@ -1,5 +1,6 @@
 import { useQueryClient } from "@tanstack/react-query";
 import type { VoiceModelSetting, VoiceOptions } from "@tau/protocol";
+import { useEffect } from "react";
 import { FormError } from "@/app/FormError";
 import { useSubmit } from "@/app/use-submit";
 import { Button } from "@/components/ui/button";
@@ -81,27 +82,38 @@ export function VoiceModelRow() {
   const voice = useVoiceOptions();
   const save = useSubmit();
   const remove = useSubmit();
+  const current: VoiceModelSetting | null | undefined = settings.data?.voiceModel;
+  const options = voice.data;
+
+  // While local is selected but not settled, keep polling: the warm POST
+  // and the status refetch race over HTTP, and a refetch that lands first
+  // observes "needs-download" and never starts the downloading poll.
+  // (Above the early returns: hooks must run unconditionally.)
+  useEffect(() => {
+    if (current?.kind !== "local" || !options) return;
+    if (options.local.state === "ready" || options.local.state === "error") return;
+    const id = setInterval(() => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.voiceOptions });
+    }, 2000);
+    return () => clearInterval(id);
+  }, [current, options, queryClient]);
 
   if (settings.isPending || voice.isPending) return <Skeleton className="h-9 w-full" />;
   // An old node sends no `voiceModel` field; an old route 404s to `null`.
   if ((settings.data && !("voiceModel" in settings.data)) || voice.data === null) return null;
 
-  const current: VoiceModelSetting | null = settings.data?.voiceModel ?? null;
-  const options = voice.data;
+  const resolved: VoiceModelSetting | null = current ?? null;
   const models = options ? providerOptions(options) : [];
-  const selected = current?.kind === "provider" ? keyOf(current) : null;
+  const selected = resolved?.kind === "provider" ? keyOf(resolved) : null;
   const selectedMissing = selected !== null && !models.some((model) => model.value === selected);
   const noProviderModels = models.length === 0;
-  const value = current === null ? "browser" : current.kind;
+  const value = resolved === null ? "browser" : resolved.kind;
 
   const choose = (setting: VoiceModelSetting | null) =>
     void save.run(async () => {
       await api.settings.setVoiceModel(setting);
       await queryClient.invalidateQueries({ queryKey: queryKeys.settings });
       if (setting?.kind === "local") {
-        // Warm first: it flips the status synchronously, so the refetch
-        // below observes "downloading" and polling takes over. The other
-        // order leaves the row stuck on "not downloaded" forever.
         void api.voice.warm().catch(() => undefined);
         await queryClient.invalidateQueries({ queryKey: queryKeys.voiceOptions });
       }
