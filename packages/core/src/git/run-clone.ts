@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { withBackground } from "../system/background";
 
 const STDERR_TAIL_BYTES = 4096;
 export const CLONE_TIMEOUT_MS = 10 * 60_000;
@@ -55,10 +56,13 @@ export function startClone(options: CloneOptions): CloneRun {
     options.url,
     options.directory,
   ];
-  const child = spawn(options.command ?? "git", args, {
+  const env = quietEnv(options.env);
+  const path = options.env.PATH;
+  const command = withBackground(options.command ?? "git", args, typeof path === "string" ? path : "");
+  const child = spawn(command.file, [...command.args], {
     detached: true,
     stdio: ["ignore", "ignore", "pipe"],
-    env: quietEnv(options.env),
+    env,
   });
   let stderr = "";
   let stopReason: string | undefined;

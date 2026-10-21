@@ -1,6 +1,7 @@
 import { execFile } from "node:child_process";
 import { accessSync, constants } from "node:fs";
 import { delimiter, isAbsolute, join } from "node:path";
+import { withBackground } from "../system/background";
 
 export const GH_TIMEOUT_MS = 15_000;
 export const GH_MAX_BUFFER = 8 * 1024 * 1024;
@@ -49,9 +50,10 @@ export function createRunGh(ghPath: string | undefined, env: Environment): RunGh
   const childEnv = ghEnvironment(env);
   return (args) =>
     new Promise((resolve, reject) => {
+      const command = withBackground(ghPath ?? "gh", args, childEnv.PATH ?? "");
       execFile(
-        ghPath ?? "gh",
-        [...args],
+        command.file,
+        [...command.args],
         { env: childEnv, timeout: GH_TIMEOUT_MS, maxBuffer: GH_MAX_BUFFER },
         (error, stdout, stderr) => {
           const failure = error as (NodeJS.ErrnoException & { killed?: boolean }) | null;
