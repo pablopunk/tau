@@ -37,12 +37,11 @@ export function ResourcesGroup() {
       </Field>
       {on && (
         <div className="flex flex-col gap-4">
-          {SCOPES.map(({ key, rowId, label, blurb }) => (
+          {SCOPES.map(({ key, rowId, label }) => (
             <ScopeRow
               key={key}
               id={rowId}
               label={label}
-              blurb={blurb}
               scope={key}
               value={value?.levels[key] ?? "off"}
               disabled={disabled}

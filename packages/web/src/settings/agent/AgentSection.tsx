@@ -4,6 +4,7 @@ import { FormError } from "@/app/FormError";
 import { useSubmit } from "@/app/use-submit";
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { SegmentedControl, type SegmentedOption } from "@/components/ui/segmented-control";
+import { Separator } from "@/components/ui/separator";
 import { SettingRow } from "@/components/ui/settings-layout";
 import { Skeleton } from "@/components/ui/skeleton";
 import { queryKeys, useSettings } from "@/lib/queries";
@@ -72,7 +73,9 @@ export function AgentSection() {
           </div>
         </Field>
       </SettingRow>
+      <Separator />
       <ResourcesGroup />
+      <Separator />
       <FastCompactionGroup />
       <FormError message={error} />
     </div>

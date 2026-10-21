@@ -8,29 +8,20 @@ export const MEMORY_CAP_NOTE =
 export const isControlOn = (value: ResourceSettings): boolean =>
   value.levels.main !== "off" || value.levels.worktree !== "off" || value.levels.subagent !== "off";
 
-export const SCOPES: { key: ResourceScope; rowId: string; label: string; blurb: string }[] = [
+export const SCOPES: { key: ResourceScope; rowId: string; label: string }[] = [
   {
     key: "main",
     rowId: "resources-levels-main",
     label: "Main threads",
-    blurb: "The thread in the main checkout.",
   },
   {
     key: "worktree",
     rowId: "resources-levels-worktree",
     label: "Worktree threads",
-    blurb: "Threads working in worktrees.",
   },
   {
     key: "subagent",
     rowId: "resources-levels-subagent",
     label: "Subagents",
-    blurb: "Subagents spawned by any thread.",
   },
 ];
-
-export const LEVEL_HINT: Record<string, string> = {
-  off: "Runs at full speed.",
-  balanced: "Lower CPU priority.",
-  background: "Lowest CPU priority; commands take longer.",
-};
