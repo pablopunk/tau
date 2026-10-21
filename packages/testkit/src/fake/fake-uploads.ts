@@ -27,7 +27,10 @@ export function createFakeUploads(deps: { now: () => number }) {
     if (input.name.includes("/") || input.name.includes("\\") || input.name.includes("..")) {
       throw new AppError("invalid_request", "The file name must be a bare name without any path.");
     }
-    const size = Buffer.from(input.data, "base64").length;
+    // Decoded size without Node's Buffer, so the fake also runs in the browser.
+    const data = input.data;
+    const padding = data.endsWith("==") ? 2 : data.endsWith("=") ? 1 : 0;
+    const size = Math.floor((data.length * 3) / 4) - padding;
     if (size > MAX_UPLOAD_FILE_BYTES) {
       throw new AppError(
         "too_large",
