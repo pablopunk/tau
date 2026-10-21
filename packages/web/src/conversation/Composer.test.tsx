@@ -47,7 +47,7 @@ describe("<Composer>", () => {
   it("sends on Enter, trims the text and clears the input", async () => {
     const { onSend, input } = setup();
     await userEvent.type(input, "  hello  {Enter}");
-    expect(onSend).toHaveBeenCalledWith({ text: "hello", images: [] });
+    expect(onSend).toHaveBeenCalledWith({ text: "hello", images: [], files: [] });
     expect(input).toHaveValue("");
   });
 
@@ -76,7 +76,7 @@ describe("<Composer>", () => {
     const { onSend, input } = setup();
     await userEvent.type(input, "hi");
     await userEvent.click(screen.getByRole("button", { name: "Send" }));
-    expect(onSend).toHaveBeenCalledWith({ text: "hi", images: [] });
+    expect(onSend).toHaveBeenCalledWith({ text: "hi", images: [], files: [] });
   });
 
   it("restores the text and shows the error when sending fails", async () => {
@@ -91,7 +91,7 @@ describe("<Composer>", () => {
     const { onStop, onSend, input } = setup({ busy: true });
     expect(input).toHaveAttribute("placeholder", "Steer the agent…");
     await userEvent.type(input, "change course{Enter}");
-    expect(onSend).toHaveBeenCalledWith({ text: "change course", images: [] });
+    expect(onSend).toHaveBeenCalledWith({ text: "change course", images: [], files: [] });
     await userEvent.click(screen.getByRole("button", { name: "Stop" }));
     expect(onStop).toHaveBeenCalledTimes(1);
   });

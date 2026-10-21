@@ -12,6 +12,7 @@ import type {
   Device,
   DirectoryNode,
   Expulsion,
+  FileRef,
   FileSuggestion,
   GithubRepo,
   GithubStatus,
@@ -57,7 +58,7 @@ import type {
   WorkspaceDefault,
   WorkspaceStatus,
 } from "@tau/protocol";
-import { fillPath, isAppError, routes, terminalStreamPath } from "@tau/protocol";
+import { AppError, fillPath, isAppError, MAX_UPLOAD_FILE_BYTES, routes, terminalStreamPath } from "@tau/protocol";
 import { createHttpTransport } from "./transport/http";
 import { createLazyTransport } from "./transport/lazy";
 import type { LiveTransport, StreamHandlers, StreamSocket, Transport } from "./transport/types";
@@ -190,6 +191,10 @@ export interface Api {
     save(config: McpServerConfig): Promise<void>;
     remove(name: string): Promise<void>;
   };
+  uploads: {
+    /** Stages a file for a later message and returns its ref (a virtual path, never bytes). */
+    stage(file: File): Promise<FileRef>;
+  };
   remote: {
     status(): Promise<RemoteStatus>;
     enable(): Promise<RemoteStatus>;
@@ -260,6 +265,26 @@ async function nullWhenMissing<T>(call: Promise<T>): Promise<T | null> {
 }
 
 const toBase64 = (bytes: Uint8Array) => btoa(Array.from(bytes, (byte) => String.fromCharCode(byte)).join(""));
+
+/** `File.arrayBuffer` to base64 in 32 KiB chunks, so a 5 MiB file never blows the argument limit. */
+function fileToBase64(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer);
+  const CHUNK = 32 * 1024;
+  let binary = "";
+  for (let offset = 0; offset < bytes.length; offset += CHUNK) {
+    binary += String.fromCharCode(...bytes.subarray(offset, offset + CHUNK));
+  }
+  return btoa(binary);
+}
+
+const mib = (bytes: number): string => `${(bytes / (1024 * 1024)).toFixed(1)} MiB`;
+
+/** An older node never heard of this route: the transport reports a plain 404 as `internal` "Request failed (404)". */
+export function isUnknownRoute(error: unknown): boolean {
+  return (
+    isAppError(error) && (error.code === "not_found" || NOT_FOUND_ON_OLD_NODE.test(error.message))
+  );
+}
 
 export function createApi(transport: Transport): Api {
   const { request } = transport;
@@ -384,6 +409,23 @@ export function createApi(transport: Transport): Api {
       servers: (projectId) => request("listMcpServers", { query: projectId ? { projectId } : {} }),
       save: (config) => request("saveMcpServer", { params: { name: config.name }, body: config }),
       remove: (name) => request("removeMcpServer", { params: { name } }),
+    },
+    uploads: {
+      stage: async (file) => {
+        if (file.size > MAX_UPLOAD_FILE_BYTES) {
+          throw new AppError(
+            "too_large",
+            `The file is ${mib(file.size)}; the limit is ${mib(MAX_UPLOAD_FILE_BYTES)}.`,
+          );
+        }
+        return request("stageUpload", {
+          body: {
+            name: file.name || "file",
+            mimeType: file.type || "application/octet-stream",
+            data: fileToBase64(await file.arrayBuffer()),
+          },
+        });
+      },
     },
     remote: {
       status: () => request("getRemoteStatus", {}),

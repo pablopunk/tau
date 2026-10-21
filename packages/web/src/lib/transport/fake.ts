@@ -205,6 +205,7 @@ const handlers: Handlers = {
   },
   decideApproval: (core, { params, body }) =>
     core.approvals.decide(params.id, params.toolUseId, body.decision as never),
+  stageUpload: (core, { body }) => core.uploads.stage(body as never),
 };
 
 function detach<T>(value: T): T {
