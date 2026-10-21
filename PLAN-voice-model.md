@@ -29,8 +29,9 @@ SpeechRecognition when unset. Nothing here changes the chat path.
   PCM at native rate.
 - Audio upload copies the image pattern: base64-in-JSON (server rejects
   multipart), new body-limit const (~10MB), thread's node transport
-  (`useApi()`), proxy allowlist entry, transcribe-and-discard (never written
-  to a live doc — first such endpoint).
+  (`useApi()`), transcribe-and-discard (never written
+  to a live doc — first such endpoint). (Proxy needs no manual entry:
+  `path-filter.ts` builds its allow-table from the route defs.)
 - New setting checklist (17 touchpoints, see plan): protocol field + route +
   Core method + CLI map, core setter + store, server one-liner, web client +
   fake + testkit fake + contract tests, UI row (+ maybe setup step).
@@ -158,11 +159,10 @@ d  downloading" hint); transcribe with unset/null setting rejects
   /api/voice/options` (new query key + `refetchInterval` while
   `state === "downloading"`). Saves via `api.settings.setVoiceModel`
   + invalidate `queryKeys.settings`. Per-node free via `useApi()`.
-  Delete button calls a `DELETE`-shaped route (or setVoiceModel(null) +
-  `voice.clearModel`? — foundation picks the smaller: prefer
-  `POST /api/voice/model/remove` only if delete needs server work;
-  else client deletes nothing and core exposes `voice.removeModel()`.
-  Decide in foundation; do NOT overload setVoiceModel(null) to mean delete).
+  Delete button calls `DELETE /api/voice/model` → `core.voice.removeModel()`
+  (matches the removeWorkspace/resetIcon DELETE-shape precedent).
+  `setVoiceModel(null)` NEVER deletes bytes — unsetting the default and
+  deleting the download are separate operations.
 - `setup/ModelStep.tsx`: skip. Discovery path is the settings row only
   (a fresh node has no voice setting and gets no prompt — stated product
   choice, not free friction).
@@ -195,16 +195,18 @@ Gate e2e on `VITE_FAKE=1` composer test with fake loopback transcribe
    commit message scope; probe deleted). No sidecar, no native module.
    Remaining spike 2 (foundation's first task): `new Worker()` from a
    version-dir entry under the compiled binary; fallback in-process +
-   busy-flag (serialize takes) if it fails.
+   busy-flag (serialize takes) if it fails. Shipping the worker needs a
+   third tsdown entry + `scripts/build-binary.ts` compile args
+   (currently exactly bin.js + watchdog.js) + copy to the version dir —
+   foundation implements that alongside the spike.
 1. **Foundation**: freeze contract above + stubs + fake; check+test+build
    green. Adversarial review before fan-out.
 2. **Parallel**: (a) core local pipeline, (b) core provider path + options,
    (c) web settings row + composer wiring. Owners touch only their files
    (plan lists them); cross-cutting needs go in a note for the integrator.
-3. **Integrate + verify**: merge, check/test/build, e2e a real dictation on
-   the faux server with a stubbed transcriber? No — verify for real: record
-   in-browser against a local node with the real model (needs mic; do it
-   headed), plus unit/contract suites.
+3. **Integrate + verify**: merge, check/test/build, gate e2e on the
+   `VITE_FAKE=1` composer test with fake loopback transcribe (no
+   headed-mic e2e), plus unit/contract suites.
 
 ## Risks
 
