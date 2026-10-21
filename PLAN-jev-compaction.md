@@ -270,8 +270,9 @@ Use only `packages/web/src/components/ui` primitives (shadcn first).
 ## Open questions (spike answers)
 
 - `auto` order when both backends ready (measure cost/latency/retention first).
-- Exact per-backend thresholds (Jev RLCD-calibrated vs OpenAI predicate — tune
-  separately, don't share one number blindly).
+- Threshold upkeep: the shared 0.5 cut is validated on current calibration
+  (relevant ≥0.8, irrelevant ≤0.23 on both). Re-run the live calibration probe
+  if either vendor ships a new decision model generation.
 - Probe TTL + where the availability cache lives (in-memory vs persisted).
 
 ## Non-goals

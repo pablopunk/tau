@@ -137,29 +137,44 @@ test.describe("fast-compaction mocks", () => {
     const typesafe = await startDecisionMock({ backend: "typesafe", probabilities: [0.1, 0.9] });
     const openai = await startDecisionMock({ backend: "openai", probabilities: [0.7] });
     try {
+      const typesafeBody = (state: string) =>
+        JSON.stringify({
+          model: "jev-latest",
+          state,
+          questions: { keep: { type: "noul", instructions: "keep?" } },
+        });
       const first = (await (
-        await fetch(`${typesafe.url}/v1/systemone`, {
-          method: "POST",
-          body: JSON.stringify({ questions: { keep: { type: "noul", input: "a", instructions: "keep?" } } }),
-        })
-      ).json()) as { probability: number };
-      expect(first.probability).toBe(0.1);
+        await fetch(`${typesafe.url}/v1/systemone`, { method: "POST", body: typesafeBody("a") })
+      ).json()) as { answers: { keep: { noul: number } } };
+      expect(first.answers.keep.noul).toBe(0.1);
       const second = (await (
-        await fetch(`${typesafe.url}/v1/systemone`, { method: "POST", body: "{}" })
-      ).json()) as { probability: number };
-      expect(second.probability).toBe(0.9);
+        await fetch(`${typesafe.url}/v1/systemone`, { method: "POST", body: typesafeBody("b") })
+      ).json()) as { answers: { keep: { noul: number } } };
+      expect(second.answers.keep.noul).toBe(0.9);
       // Exhausted scripts repeat the last value.
       const third = (await (
-        await fetch(`${typesafe.url}/v1/systemone`, { method: "POST", body: "{}" })
-      ).json()) as { probability: number };
-      expect(third.probability).toBe(0.9);
+        await fetch(`${typesafe.url}/v1/systemone`, { method: "POST", body: typesafeBody("c") })
+      ).json()) as { answers: { keep: { noul: number } } };
+      expect(third.answers.keep.noul).toBe(0.9);
       const only = (await (
         await fetch(`${openai.url}/v1/decisions`, {
           method: "POST",
-          body: JSON.stringify({ predicate: "keep?", input: "b" }),
+          body: JSON.stringify({
+            model: "gpt-6-luna",
+            input: "b",
+            questions: [{ type: "predicate", name: "keep", instructions: "keep?" }],
+          }),
         })
-      ).json()) as { probability: number };
-      expect(only.probability).toBe(0.7);
+      ).json()) as { answers: [{ probability: number }] };
+      expect(only.answers[0]?.probability).toBe(0.7);
+      // Wrong shapes are rejected loudly instead of silently passing.
+      const garbage = await fetch(`${typesafe.url}/v1/systemone`, { method: "POST", body: "{}" });
+      expect(garbage.status).toBe(422);
+      const legacy = await fetch(`${openai.url}/v1/decisions`, {
+        method: "POST",
+        body: JSON.stringify({ predicate: "keep?", input: "b" }),
+      });
+      expect(legacy.status).toBe(422);
       expect(typesafe.hits).toHaveLength(3);
       expect(typesafe.hits[0]).toMatchObject({ backend: "typesafe", input: "a", instructions: "keep?" });
       expect(openai.hits[0]).toMatchObject({ backend: "openai", input: "b", instructions: "keep?" });

@@ -29,4 +29,20 @@ describe("decisions status", () => {
     now = 25 * 60 * 60 * 1000;
     expect(status.decisionsFor("openai")).toBe("ready");
   });
+
+  it("drops a probe overtaken by invalidate() so stale results never cache", async () => {
+    let resolveProbe: (value: "unavailable") => void = () => undefined;
+    const gate = new Promise<"unavailable">((resolve) => {
+      resolveProbe = resolve;
+    });
+    const status = createDecisionsStatus({ check: () => gate, now: () => 0 });
+    expect(status.decisionsFor("typesafe")).toBe("unknown");
+    status.invalidate("typesafe");
+    expect(status.decisionsFor("typesafe")).toBe("checking");
+    resolveProbe("unavailable");
+    await gate;
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    // The overtaken probe must not populate the cache: next read re-probes.
+    expect(status.decisionsFor("typesafe")).toBe("unknown");
+  });
 });

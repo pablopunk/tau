@@ -29,13 +29,18 @@ export function createDecisionsStatus(deps: {
   const now = deps.now ?? Date.now;
   const cached = new Map<ProviderId, { status: DecisionsAvailability; at: number }>();
   const inFlight = new Set<ProviderId>();
+  // Bumped by invalidate() so a probe overtaken by a key change can never
+  // write its stale result back into the cache.
+  let generation = 0;
 
   const refresh = (id: "typesafe" | "openai"): void => {
     if (inFlight.has(id)) return;
     inFlight.add(id);
+    const gen = generation;
     deps
       .check(id)
       .then((status: Availability) => {
+        if (gen !== generation) return;
         cached.set(id, { status, at: now() });
       })
       .catch(() => undefined)
@@ -46,7 +51,10 @@ export function createDecisionsStatus(deps: {
   };
 
   return {
-    invalidate: (id) => void cached.delete(id),
+    invalidate: (id) => {
+      void cached.delete(id);
+      generation += 1;
+    },
     decisionsFor: (id) => {
       if (!isDecisionBackend(id)) return undefined;
       const backend = id as "typesafe" | "openai";

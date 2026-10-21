@@ -63,13 +63,11 @@ export async function startDecisionMock(options: MockOptions): Promise<DecisionM
       } catch {
         body = {};
       }
-      // Shapes must match the live clients exactly (see typesafePredicateBody /
-      // openaiPredicateBody); the mock rejects anything else so a regression
-      // back to a wrong shape fails loudly here instead of silently passing.
+      // Backend-strict shapes matching the live clients exactly (see
+      // typesafePredicateBody / openaiPredicateBody); anything else is
+      // rejected so a regression back to a wrong shape fails loudly here.
       const keep =
-        body.questions !== null &&
-        typeof body.questions === "object" &&
-        !Array.isArray(body.questions)
+        body.questions !== null && typeof body.questions === "object" && !Array.isArray(body.questions)
           ? (body.questions as { keep?: { instructions?: unknown } }).keep
           : undefined;
       const firstQuestion = Array.isArray(body.questions) ? body.questions[0] : undefined;
@@ -77,9 +75,19 @@ export async function startDecisionMock(options: MockOptions): Promise<DecisionM
         typeof firstQuestion === "object" && firstQuestion !== null
           ? (firstQuestion as { instructions?: unknown }).instructions
           : undefined;
-      const input = String(body.state ?? body.input ?? "");
-      const instructions = String(keep?.instructions ?? questionInstructions ?? "");
-      if (input === "" || instructions === "") {
+      const input =
+        options.backend === "typesafe"
+          ? (typeof body.state === "string" ? body.state : undefined)
+          : typeof body.input === "string"
+            ? body.input
+            : undefined;
+      const instructions =
+        options.backend === "typesafe"
+          ? (typeof keep?.instructions === "string" ? keep.instructions : undefined)
+          : typeof questionInstructions === "string"
+            ? questionInstructions
+            : undefined;
+      if (input === undefined || input === "" || instructions === undefined || instructions === "") {
         response
           .writeHead(422, { "content-type": "application/json" })
           .end(JSON.stringify({ error: { message: "mock: unrecognized request shape", code: "mock_shape" } }));
