@@ -1,4 +1,4 @@
-import { screen, within } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { apiOfNode } from "@/nodes/node-apis";
@@ -8,7 +8,14 @@ const api = apiOfNode();
 
 vi.mock("@/lib/api", () => ({
   api: {
-    conversations: { send: vi.fn(), abort: vi.fn(), retry: vi.fn(), listAll: vi.fn(), configure: vi.fn() },
+    conversations: {
+      send: vi.fn(),
+      abort: vi.fn(),
+      retry: vi.fn(),
+      listAll: vi.fn(),
+      configure: vi.fn(),
+      updateTodos: vi.fn(),
+    },
     models: { list: vi.fn() },
     timers: { list: vi.fn(), delete: vi.fn() },
     processes: { list: vi.fn() },
@@ -32,6 +39,25 @@ describe("conversation sidebar", () => {
     renderView(endOf("image"));
     const sidebar = await screen.findByTestId("conversation-sidebar");
     expect(within(sidebar).getByRole("list", { name: "Conversation images" })).toBeInTheDocument();
+  });
+
+  it("hides sections that have nothing to show", async () => {
+    renderView(endOf("text"));
+    const sidebar = await screen.findByTestId("conversation-sidebar");
+    await waitFor(() => {
+      expect(within(sidebar).queryByText("Todos")).not.toBeInTheDocument();
+      expect(within(sidebar).queryByText("Timers")).not.toBeInTheDocument();
+      expect(within(sidebar).queryByText("Processes")).not.toBeInTheDocument();
+      expect(within(sidebar).queryByText("Images")).not.toBeInTheDocument();
+    });
+  });
+
+  it("edits todos from the sidebar like the composer panel", async () => {
+    renderView(endOf("todo"));
+    const sidebar = await screen.findByTestId("conversation-sidebar");
+    await userEvent.click(within(sidebar).getByRole("button", { name: "Edit todos" }));
+    expect(within(sidebar).getByRole("button", { name: "Save" })).toBeInTheDocument();
+    expect(within(sidebar).getByRole("button", { name: "Cancel" })).toBeInTheDocument();
   });
 
   it("toggles closed and brings the header chips back", async () => {

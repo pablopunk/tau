@@ -9,6 +9,7 @@ import { useApi } from "@/nodes/node-context";
 import { TimerRow } from "@/timers/TimerRow";
 import { useNow } from "@/timers/use-now";
 import { SidebarSection } from "./SidebarSection";
+import { useAutoExpand } from "./use-auto-expand";
 
 export function TimersSection({ conversationId }: { conversationId: string }) {
   const api = useApi();
@@ -16,6 +17,9 @@ export function TimersSection({ conversationId }: { conversationId: string }) {
   const count = useAllConversations().data?.find((item) => item.id === conversationId)?.timers ?? 0;
   const timers = useTimers(conversationId, true);
   const now = useNow(true);
+  const list = timers.data ?? [];
+  const expanded = useAutoExpand(list.length > 0);
+  if (list.length === 0 && !timers.isPending && !timers.isError) return null;
 
   const remove = async (timer: Timer) => {
     try {
@@ -28,7 +32,7 @@ export function TimersSection({ conversationId }: { conversationId: string }) {
   };
 
   return (
-    <SidebarSection title="Timers" count={count} defaultOpen={count > 0}>
+    <SidebarSection title="Timers" count={count} open={expanded.open} onOpenChange={expanded.onOpenChange}>
       {timers.isPending ? (
         <p className="flex items-center gap-2 text-xs text-muted-foreground">
           <Spinner /> Loading timers…
@@ -42,11 +46,9 @@ export function TimersSection({ conversationId }: { conversationId: string }) {
             Retry
           </Button>
         </div>
-      ) : timers.data.length === 0 ? (
-        <p className="text-xs text-muted-foreground">No timers.</p>
       ) : (
         <ul className="flex flex-col gap-3">
-          {timers.data.map((timer) => (
+          {list.map((timer) => (
             <TimerRow key={timer.id} timer={timer} now={now} onDelete={(item) => void remove(item)} />
           ))}
         </ul>

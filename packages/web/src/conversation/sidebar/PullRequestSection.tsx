@@ -1,30 +1,13 @@
 import { ExternalLinkIcon, GitPullRequestIcon } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { useAllConversations } from "@/lib/queries";
-import { useWorkspaceActions } from "@/workspaces/use-workspace-actions";
 import { SidebarSection } from "./SidebarSection";
 
 export function PullRequestSection({ conversationId }: { conversationId: string }) {
   const thread = useAllConversations().data?.find((summary) => summary.id === conversationId);
   const workspace = thread?.workspace;
-  const actions = useWorkspaceActions(conversationId);
   if (!workspace || workspace.mode !== "worktree" || workspace.state === "removed") return null;
-  if (!workspace.pullRequestUrl) {
-    return (
-      <SidebarSection title="Pull request">
-        <p className="text-xs text-muted-foreground">No pull request yet for this worktree.</p>
-        <Button
-          variant="outline"
-          size="sm"
-          className="mt-2"
-          disabled={actions.pending}
-          onClick={actions.createPullRequest}
-        >
-          Create PR
-        </Button>
-      </SidebarSection>
-    );
-  }
+  // Creating a PR lives in the worktree section; here we only list an open one.
+  if (!workspace.pullRequestUrl) return null;
   return (
     <SidebarSection title="Pull request">
       <a

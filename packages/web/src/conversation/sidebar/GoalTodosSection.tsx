@@ -1,6 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import type { ConversationView } from "@tau/protocol";
-import { CircleCheckIcon, CircleXIcon, PauseIcon, TargetIcon } from "lucide-react";
+import { CircleCheckIcon, CircleXIcon, PauseIcon, Pencil, TargetIcon } from "lucide-react";
+import { useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { useNow } from "@/conversation/use-now";
@@ -8,9 +9,11 @@ import { goalStatusFields } from "@/goal/goal-status";
 import { errorMessage } from "@/lib/error-message";
 import { useGoal } from "@/lib/queries";
 import { useApi } from "@/nodes/node-context";
+import { TodoEditor } from "../todos/TodoEditor";
 import { TodoList } from "../todos/TodoList";
 import { doneCount, isFinished, latestTodos } from "../todos/todo-items";
 import { SidebarSection } from "./SidebarSection";
+import { useAutoExpand } from "./use-auto-expand";
 
 function GoalBlock({ conversationId }: { conversationId: string }) {
   const api = useApi();
@@ -61,10 +64,39 @@ export function GoalTodosSection({
 }) {
   const todos = latestTodos(view);
   const todosVisible = !isFinished(todos);
+  const hasGoal = useGoal(conversationId).data != null;
+  const [editing, setEditing] = useState(false);
+  const expanded = useAutoExpand(todosVisible || editing || hasGoal);
+  if (!hasGoal && !todosVisible && !editing) return null;
   return (
-    <SidebarSection title="Todos" count={todosVisible ? todos.length : undefined} defaultOpen={todosVisible}>
+    <SidebarSection
+      title="Todos"
+      count={todosVisible ? todos.length : undefined}
+      open={expanded.open}
+      onOpenChange={expanded.onOpenChange}
+      actions={
+        editing ? null : (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-xs"
+            aria-label="Edit todos"
+            onClick={() => setEditing(true)}
+          >
+            <Pencil aria-hidden />
+          </Button>
+        )
+      }
+    >
       <GoalBlock conversationId={conversationId} />
-      {todosVisible ? (
+      {editing ? (
+        <TodoEditor
+          conversationId={conversationId}
+          initial={todos}
+          onDone={() => setEditing(false)}
+          onCancel={() => setEditing(false)}
+        />
+      ) : todosVisible ? (
         <>
           <p className="mb-1.5 text-xs text-muted-foreground">
             {doneCount(todos)}/{todos.length} done
