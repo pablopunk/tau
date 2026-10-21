@@ -17,9 +17,13 @@ export function UserMessage({ text, images = [], pending = false, entry }: UserM
     <div className="group flex flex-col items-end gap-1.5">
       <MessageImages images={images} />
       {text ? (
-        <div className="flex max-w-[85%] items-start gap-1">
-          {pending ? null : <CopyButton text={text} label="Copy message" className="mt-1" />}
-          {entry ? <MessageMenu entry={entry} /> : null}
+        // On small coarse screens the 44px actions would squeeze the bubble:
+        // stack them in their own right-aligned row instead.
+        <div className="flex max-w-[85%] items-start gap-1 max-sm:pointer-coarse:flex-col max-sm:pointer-coarse:items-end">
+          <div className="flex shrink-0 items-center gap-0.5">
+            {pending ? null : <CopyButton text={text} label="Copy message" className="mt-1" />}
+            {entry ? <MessageMenu entry={entry} /> : null}
+          </div>
           <div
             className={cn(
               "rounded-2xl rounded-br-md bg-secondary px-3.5 py-2 text-sm leading-relaxed whitespace-pre-wrap break-words text-secondary-foreground",

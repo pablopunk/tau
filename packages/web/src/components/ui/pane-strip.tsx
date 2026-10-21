@@ -16,6 +16,8 @@ export interface PaneTab {
 }
 
 export interface PaneStripProps {
+  /** Shown before the tabs, e.g. a sidebar toggle when the chat pane is hidden. */
+  readonly leading?: ReactNode;
   readonly tabs: readonly PaneTab[];
   readonly focusedId: string | undefined;
   readonly onFocus: (tab: PaneTab) => void;
@@ -30,7 +32,7 @@ export interface PaneStripProps {
 }
 
 /** The open panes as tabs (`role=tablist`) over the body of the focused one. Generic: a pane has a `kind` and an `id`. */
-export function PaneStrip({ tabs, focusedId, onFocus, onClose, onAdd, addLabel = "New pane", children, className, style }: PaneStripProps) {
+export function PaneStrip({ leading, tabs, focusedId, onFocus, onClose, onAdd, addLabel = "New pane", children, className, style }: PaneStripProps) {
   const focus = (id: string) => {
     const tab = tabs.find((candidate) => candidate.id === id);
     if (tab) onFocus(tab);
@@ -39,6 +41,7 @@ export function PaneStrip({ tabs, focusedId, onFocus, onClose, onAdd, addLabel =
     <div data-slot="pane-strip" style={style} className={cn("flex min-h-0 min-w-0 flex-col bg-background", className)}>
       <Tabs value={focusedId ?? ""} onValueChange={focus} className="shrink-0 gap-0 border-b px-2 py-2">
         <div className="flex items-center gap-1 overflow-x-auto">
+          {leading}
           <TabsList aria-label="Panes" className="w-auto flex-none">
             {tabs.map((tab) => (
               <ClosableTab

@@ -39,12 +39,7 @@ export function ThreadHeader({
     (summary?.workspace?.mode === "worktree" && summary.workspace.state !== "removed");
   return (
     <header className="shrink-0">
-      {/* Mobile: a single compact bar; the app bar above stays hidden on thread pages. */}
-      <div className="flex h-12 items-center gap-1 border-b px-1 md:hidden">
-        <SidebarTrigger aria-label="Open sidebar" />
-        <h1 className="min-w-0 flex-1 truncate text-sm font-medium">{title}</h1>
-        {actions}
-      </div>
+      {/* Desktop first in the DOM: scoped `.first()` lookups keep hitting the visible heading. */}
       <div className="hidden min-w-0 flex-wrap items-center gap-x-2 gap-y-1 border-b px-4 py-2 md:flex">
         <h1 className="min-w-32 flex-1 truncate text-sm font-medium">{title}</h1>
         {actions ? <div className="order-1 flex shrink-0 items-center sm:order-3">{actions}</div> : null}
@@ -53,6 +48,12 @@ export function ThreadHeader({
           {extras}
         </div>
         {slot && machine ? createPortal(machine, slot) : null}
+      </div>
+      {/* Mobile: a single compact bar; the app bar above stays hidden on thread pages. */}
+      <div className="flex h-12 items-center gap-1 border-b px-1 md:hidden">
+        <SidebarTrigger aria-label="Open sidebar" />
+        <h1 className="min-w-0 flex-1 truncate text-sm font-medium">{title}</h1>
+        {actions}
       </div>
       {hasChips ? (
         <div className="flex min-w-0 flex-wrap items-center gap-2 border-b px-3 py-1.5 md:hidden">
