@@ -50,6 +50,7 @@ import { suggestFakeDirectories } from "./fake-suggest";
 import { createFakeTerminals } from "./fake-terminals";
 import type { SpawnParams } from "./fake-thread-ops";
 import { createFakeUpdates, type FakeUpdates, type FakeUpdatesOptions } from "./fake-updates";
+import { createFakeUploads } from "./fake-uploads";
 import { linkFakeCores } from "./link-fake-cores";
 
 export interface FakeCoreOptions {
@@ -197,15 +198,19 @@ export function createFakeCore(options: FakeCoreOptions = {}): FakeCore {
   const liveConversations = () => [...conversations.values()].filter((item) => !item.isDeleted);
   const byRecent = (a: { updatedAt: number }, b: { updatedAt: number }) => b.updatedAt - a.updatedAt;
 
+  const staged = createFakeUploads({ now });
   const validateInput = (input: FakeInput, model: ModelRef) => {
     const images = input.images ?? [];
-    if (input.text.trim() === "" && images.length === 0) {
+    const files = input.files ?? [];
+    if (input.text.trim() === "" && images.length === 0 && files.length === 0) {
       throw new AppError("invalid_request", "The message is empty.");
     }
     if (images.length > 0 && !requireListedModel(model).images) {
       throw new AppError("images_not_supported", "This model does not accept images.");
     }
     for (const image of images) assertImageMatchesMimeType(image);
+    // Files ride path-only context, so even a text-only model accepts them.
+    staged.requireRefs(files);
   };
 
   const generateTitle = (text: string): string | undefined => {
@@ -341,7 +346,7 @@ export function createFakeCore(options: FakeCoreOptions = {}): FakeCore {
       ),
     });
     startsByRequest.set(input.requestId, conversation.id);
-    conversation.send(input.requestId, { text: input.text, images: input.images });
+    conversation.send(input.requestId, { text: input.text, images: input.images, files: input.files });
     mvp5.afterMessage(conversation, input.text);
     return conversation.summary();
   }
@@ -665,7 +670,11 @@ export function createFakeCore(options: FakeCoreOptions = {}): FakeCore {
         const conversation = requireConversation(id);
         validateInput(input, conversation.model);
         const whenBusy = input.whenBusy ?? (messageMode === "queue" ? "followUp" : "steer");
-        conversation.send(input.requestId, { text: input.text, images: input.images }, whenBusy);
+        conversation.send(
+          input.requestId,
+          { text: input.text, images: input.images, files: input.files },
+          whenBusy,
+        );
         mvp5.afterMessage(conversation, input.text);
       },
       async updateTodos(id, input) {
@@ -740,6 +749,11 @@ export function createFakeCore(options: FakeCoreOptions = {}): FakeCore {
     seedResourceActivity: resources.seed,
     timers: mvp8.timers,
     goals: mvp8.goals,
+    uploads: {
+      async stage(input) {
+        return staged.stage(input);
+      },
+    },
     mcp: mvp5.mcp,
     onChange(listener) {
       listeners.add(listener);

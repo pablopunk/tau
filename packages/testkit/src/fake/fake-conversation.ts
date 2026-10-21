@@ -15,6 +15,7 @@ import {
   type Op,
   type OpsListener,
   RETIRED_OPS,
+  type FileRef,
   type ThinkingLevel,
   type ThreadWorkspace,
   TODOS_UPDATED_KIND,
@@ -80,6 +81,7 @@ export interface AgentInfo {
 export interface FakeInput {
   readonly text: string;
   readonly images?: readonly ImageInput[];
+  readonly files?: readonly FileRef[];
 }
 
 interface Watcher {
@@ -112,14 +114,21 @@ type TitleSource = "first-message" | "generated" | "user";
 
 function titleFrom(input: FakeInput): string {
   const line = input.text.trim().split("\n")[0] ?? "";
+  if (line === "" && (input.files?.length ?? 0) > 0) return input.files?.[0]?.name ?? IMAGE_TITLE;
   if (line === "") return IMAGE_TITLE;
   return line.length > TITLE_LENGTH ? `${line.slice(0, TITLE_LENGTH)}…` : line;
 }
 
 function contentOf(input: FakeInput): UserMessage["content"] {
-  if (!input.images?.length) return input.text;
+  if (!input.images?.length && !input.files?.length) return input.text;
   const text = input.text.trim() === "" ? [] : [{ type: "text" as const, text: input.text }];
-  return [...text, ...input.images.map((image) => ({ type: "image" as const, ...image }))];
+  const images = (input.images ?? []).map((image) => ({ type: "image" as const, ...image }));
+  // Path-only context: the agent sees where the staged file lives, never its bytes.
+  const files = (input.files ?? []).map((file) => ({
+    type: "text" as const,
+    text: `Attached file: ${file.path}`,
+  }));
+  return [...text, ...images, ...files];
 }
 
 export class FakeConversation {

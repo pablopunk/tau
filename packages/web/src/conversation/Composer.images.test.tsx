@@ -43,6 +43,7 @@ describe("<Composer> images", () => {
     expect(onSend).toHaveBeenCalledWith({
       text: "look",
       images: [{ mimeType: "image/png", data: "AQID" }],
+      files: [],
     });
     expect(screen.queryByRole("img", { name: "Attachment 1" })).not.toBeInTheDocument();
   });
@@ -52,7 +53,11 @@ describe("<Composer> images", () => {
     pasteFiles(input, [png()]);
     await screen.findByRole("img", { name: "Attachment 1" });
     await userEvent.click(screen.getByRole("button", { name: "Send" }));
-    expect(onSend).toHaveBeenCalledWith({ text: "", images: [{ mimeType: "image/png", data: "AQID" }] });
+    expect(onSend).toHaveBeenCalledWith({
+      text: "",
+      images: [{ mimeType: "image/png", data: "AQID" }],
+      files: [],
+    });
   });
 
   it("removes an attached image", async () => {
@@ -64,7 +69,7 @@ describe("<Composer> images", () => {
 
   it("attaches with the picker", async () => {
     setup();
-    await userEvent.upload(screen.getByLabelText("Choose images"), png());
+    await userEvent.upload(screen.getByLabelText("Choose files"), png());
     expect(await screen.findByRole("img", { name: "Attachment 1" })).toBeInTheDocument();
   });
 
@@ -72,14 +77,14 @@ describe("<Composer> images", () => {
     setup();
     const types = ["Files"];
     fireEvent.dragEnter(window, { dataTransfer: { types } });
-    const zone = await screen.findByText("Drop images to attach");
+    const zone = await screen.findByText("Drop files to attach");
     fireEvent.drop(zone.parentElement as HTMLElement, { dataTransfer: { types, files: [png()] } });
     expect(await screen.findByRole("img", { name: "Attachment 1" })).toBeInTheDocument();
   });
 
-  it("offers no attach button and toasts on paste when images are not allowed", async () => {
+  it("keeps the attach button visible but toasts on paste when images are not allowed", async () => {
     const { input } = setup({ imagesAllowed: false });
-    expect(screen.queryByRole("button", { name: "Attach images" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Attach files" })).toBeInTheDocument();
     pasteFiles(input, [png()]);
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith("This model does not accept images."));
   });

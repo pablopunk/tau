@@ -16,6 +16,7 @@ import {
   CompactionSettingsSchema,
   ConfigureConversationInputSchema,
   ConversationSummarySchema,
+  FileRefSchema,
   FileSuggestionSchema,
   GithubRepoSchema,
   GithubStatusSchema,
@@ -36,6 +37,7 @@ import {
   SuggestDirectoriesInputSchema,
   SuggestedCodeFolderSchema,
   ThinkingLevelSchema,
+  UploadInputSchema,
   UseGithubRepoInputSchema,
   WorkspaceDefaultSchema,
 } from "./entities";
@@ -63,6 +65,8 @@ export const LIVE_PATH = `${API_PREFIX}/live`;
 export const PAIR_PAGE_PATH = "/pair";
 
 export const MESSAGE_BODY_LIMIT = 42 * 1024 * 1024;
+/** Caps `POST /api/uploads`: base64 inflates 5 MiB of file bytes to about 6.7 MiB on the wire. */
+export const UPLOAD_BODY_LIMIT = 8 * 1024 * 1024;
 export const PROCESS_LOG_TAIL_DEFAULT = 200;
 
 export type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
@@ -78,6 +82,8 @@ export interface RouteDef {
   readonly body?: TSchema;
   readonly response?: TSchema;
   readonly bodyLimit?: number;
+  /** Only the owner may call this (server enforces `route.ownerOnly || options.ownerOnly` with `forbidden`). */
+  readonly ownerOnly?: boolean;
 }
 
 const IdParams = Type.Object({ id: Type.String({ minLength: 1 }) });
@@ -518,6 +524,15 @@ export const routes = {
     status: 200,
     query: Type.Object({ projectId: Type.Optional(Type.String({ minLength: 1 })) }),
     response: Type.Array(SkillSchema),
+  },
+  stageUpload: {
+    method: "POST",
+    path: `${API_PREFIX}/uploads`,
+    status: 201,
+    body: UploadInputSchema,
+    response: FileRefSchema,
+    bodyLimit: UPLOAD_BODY_LIMIT,
+    ownerOnly: true,
   },
   listConversations: {
     method: "GET",
