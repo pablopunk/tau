@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { LIVE_PATH, terminalStreamPath } from "@tau/protocol";
+import { ERROR_STATUS, LIVE_PATH, terminalStreamPath, UPLOAD_BODY_LIMIT } from "@tau/protocol";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import WebSocket from "ws";
 import { linkRaw, type RawLink, type RealRole, ROLES } from "../testing/raw-link";
@@ -154,6 +154,26 @@ describe.each(ROLES)("requests to the remote node (the real node is the %s)", (r
     );
     expect(responses.every((response) => response.statusCode === 200)).toBe(true);
     expect(Date.now() - started).toBeLessThan(2000);
+  });
+
+  it("refuses an over-limit upload at the destination responder, and stages a valid one there", async () => {
+    link = await linkRaw(node, role, { handlers: { request: () => ok } });
+    const big = await link.peer.request({
+      method: "POST",
+      path: "/api/uploads",
+      body: Buffer.alloc(UPLOAD_BODY_LIMIT + 1, 97),
+      contentType: "application/json",
+    });
+    expect(big.status).toBe(ERROR_STATUS.too_large);
+    const data = Buffer.from("hi").toString("base64");
+    const small = await link.peer.request({
+      method: "POST",
+      path: "/api/uploads",
+      body: Buffer.from(JSON.stringify({ name: "n.txt", mimeType: "text/plain", data })),
+      contentType: "application/json",
+    });
+    expect(small.status).toBe(201);
+    expect(JSON.parse(small.body.toString())).toMatchObject({ name: "n.txt", size: 2 });
   });
 
   it("answers not_found for a node that never linked", async () => {

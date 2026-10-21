@@ -1,4 +1,10 @@
-import { LIVE_PATH, MESSAGE_BODY_LIMIT, routes, TERMINAL_STREAM_PATH } from "@tau/protocol";
+import {
+  LIVE_PATH,
+  MESSAGE_BODY_LIMIT,
+  routes,
+  TERMINAL_STREAM_PATH,
+  UPLOAD_BODY_LIMIT,
+} from "@tau/protocol";
 import { describe, expect, it } from "vitest";
 import { filterProxyPath, filterResponseHeaders, forwardableRequestHeaders } from "./path-filter";
 
@@ -28,6 +34,28 @@ describe("path filter: allowed", () => {
     }
     const message = allowed("POST", routes.sendMessage.path.replace(":id", "c1"));
     expect(message).toMatchObject({ allowed: true, target: { kind: "http", bodyLimit: MESSAGE_BODY_LIMIT } });
+  });
+
+  it("allows /api/uploads with the upload body limit and owner metadata", () => {
+    expect(allowed("POST", "/api/uploads")).toMatchObject({
+      allowed: true,
+      path: "/api/uploads",
+      target: { kind: "http", bodyLimit: UPLOAD_BODY_LIMIT, ownerOnly: true },
+    });
+    expect(UPLOAD_BODY_LIMIT).toBeLessThan(MESSAGE_BODY_LIMIT);
+  });
+
+  it("marks only the upload route owner-only", () => {
+    const denied = /^\/api\/(access|remote|nodes|n|pair|health|update)(\/|$)/;
+    for (const [name, route] of Object.entries(routes)) {
+      if (denied.test(route.path)) continue;
+      const path = route.path.replace(/:\w+/g, "x1");
+      const decision = allowed(route.method, path);
+      expect(decision.allowed, name).toBe(true);
+      if (decision.allowed && decision.target.kind === "http") {
+        expect(decision.target.ownerOnly, name).toBe(route.ownerOnly ?? false);
+      }
+    }
   });
 
   it("recognises the live socket and the terminal stream", () => {

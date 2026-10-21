@@ -1,15 +1,16 @@
 import { request as httpRequest } from "node:http";
-import { ERROR_STATUS, LIVE_PATH, nodeApiPrefix, terminalStreamPath } from "@tau/protocol";
+import { ERROR_STATUS, LIVE_PATH, nodeApiPrefix, terminalStreamPath, UPLOAD_BODY_LIMIT } from "@tau/protocol";
 import { afterEach, describe, expect, it } from "vitest";
 import WebSocket from "ws";
 import { startTestServer, type TestServer } from "../testing/harness";
 import { createStubGateway } from "../testing/stub-gateway";
+import { linkNodes, startNode, type TestNode, viaNode } from "../testing/two-nodes";
 import type { GatewayRequest, NodeGateway } from "./gateway";
 
 let ctx: TestServer;
 afterEach(async () => {
-  await ctx.server.close();
-  await ctx.core.close();
+  await ctx?.server.close();
+  await ctx?.core.close();
 });
 
 function echoGateway(seen: GatewayRequest[], streams: WebSocket[] = []): NodeGateway {
@@ -164,6 +165,162 @@ describe("hub proxied sockets", () => {
     expect(await closed).toBe(1008);
     expect(await ctx.core.nodes.list()).toHaveLength(1);
   });
+});
+
+describe("hub proxy owner-only upload route", () => {
+  const uploadBody = (data: string) => JSON.stringify({ name: "notes.txt", mimeType: "text/plain", data });
+  const tinyData = () => Buffer.from("hello").toString("base64");
+
+  async function deviceHeaders(): Promise<Record<string, string>> {
+    const minted = await ctx.core.access.mintPairing({ kind: "device" });
+    const redeemed = await ctx.core.access.redeemPairing({
+      code: minted.code,
+      deviceName: "browser",
+      peer: "test",
+    });
+    return { ...ctx.headers, cookie: `tau_device=${redeemed.secret}` };
+  }
+
+  it("rejects a non-owner upload with forbidden, before any gateway call", async () => {
+    const seen: GatewayRequest[] = [];
+    ctx = await startTestServer({ gateway: echoGateway(seen) });
+    const response = await ctx.request({
+      method: "POST",
+      url: proxied("/api/uploads"),
+      payload: uploadBody(tinyData()),
+      headers: { ...(await deviceHeaders()), "content-type": "application/json" },
+    });
+    expect(response.statusCode).toBe(ERROR_STATUS.forbidden);
+    expect(response.json().error.code).toBe("forbidden");
+    expect(seen).toEqual([]);
+  });
+
+  it("forwards an owner upload to the gateway", async () => {
+    const seen: GatewayRequest[] = [];
+    ctx = await startTestServer({ gateway: echoGateway(seen) });
+    const body = uploadBody(tinyData());
+    const response = await ctx.request({
+      method: "POST",
+      url: proxied("/api/uploads"),
+      payload: body,
+      headers: { "content-type": "application/json" },
+    });
+    expect(response.statusCode).toBe(200);
+    expect(seen).toHaveLength(1);
+    expect(seen[0]?.body?.toString()).toBe(body);
+  });
+
+  it("rejects a declared over-limit upload with too_large, never reaching the gateway", async () => {
+    const seen: GatewayRequest[] = [];
+    ctx = await startTestServer({ gateway: echoGateway(seen) });
+    const response = await ctx.request({
+      method: "POST",
+      url: proxied("/api/uploads"),
+      payload: Buffer.alloc(UPLOAD_BODY_LIMIT + 1, 97),
+      headers: { "content-type": "application/json" },
+    });
+    expect(response.statusCode).toBe(ERROR_STATUS.too_large);
+    expect(response.json().error.code).toBe("too_large");
+    expect(seen).toEqual([]);
+  });
+
+  it("rejects a chunked over-limit upload with too_large, never reaching the gateway", async () => {
+    const seen: GatewayRequest[] = [];
+    ctx = await startTestServer({ gateway: echoGateway(seen) });
+    const status = await new Promise<number>((resolve, reject) => {
+      const req = httpRequest(
+        {
+          host: "127.0.0.1",
+          port: ctx.server.port,
+          path: proxied("/api/uploads"),
+          method: "POST",
+          headers: { ...ctx.headers, "content-type": "application/json", "transfer-encoding": "chunked" },
+        },
+        (res) => {
+          res.resume();
+          res.on("end", () => resolve(res.statusCode ?? 0));
+        },
+      );
+      // The server answers 413 and closes the socket mid-body; later writes fail with EPIPE.
+      req.on("error", () => undefined);
+      const timer = setTimeout(() => reject(new Error("no response to the chunked upload")), 10_000);
+      const chunk = Buffer.alloc(512 * 1024, 98);
+      const writes = Math.ceil(UPLOAD_BODY_LIMIT / chunk.length) + 1;
+      let sent = 0;
+      const pump = (): void => {
+        // Never wait for drain: the server stops reading once the route limit trips.
+        if (sent >= writes || req.destroyed) return void req.end();
+        sent += 1;
+        try {
+          req.write(chunk, () => setImmediate(pump));
+        } catch {
+          req.end();
+        }
+      };
+      req.on("response", () => clearTimeout(timer));
+      req.on("close", () => clearTimeout(timer));
+      pump();
+    });
+    expect(status).toBe(ERROR_STATUS.too_large);
+    expect(seen).toEqual([]);
+  });
+
+  it("lets a valid 5 MiB file upload through to the gateway", async () => {
+    const seen: GatewayRequest[] = [];
+    ctx = await startTestServer({ gateway: echoGateway(seen) });
+    const data = Buffer.alloc(5 * 1024 * 1024, 99).toString("base64");
+    expect(Buffer.byteLength(uploadBody(data))).toBeLessThan(UPLOAD_BODY_LIMIT);
+    const response = await ctx.request({
+      method: "POST",
+      url: proxied("/api/uploads"),
+      payload: uploadBody(data),
+      headers: { "content-type": "application/json" },
+    });
+    expect(response.statusCode).toBe(200);
+    expect(seen).toHaveLength(1);
+    expect(seen[0]?.body?.length).toBe(Buffer.byteLength(uploadBody(data)));
+  });
+});
+
+describe("remote upload staged on the destination node", () => {
+  let a: TestNode;
+  let b: TestNode;
+  afterEach(async () => {
+    await a?.stop();
+    await b?.stop();
+  });
+
+  it("stages through the hub proxy and the ref validates only on the destination", async () => {
+    a = await startNode("Alpha");
+    b = await startNode("Bravo");
+    await linkNodes(a, b);
+    const data = Buffer.from("remote bytes").toString("base64");
+    const staged = await a.ctx.request({
+      method: "POST",
+      url: viaNode(b, "/api/uploads"),
+      payload: { name: "notes.txt", mimeType: "text/plain", data },
+    });
+    expect(staged.statusCode).toBe(201);
+    const ref = staged.json() as { name: string; path: string; size: number };
+    expect(ref).toMatchObject({ name: "notes.txt", size: 12 });
+    const startOn = async (host: TestNode) => {
+      const made = await host.ctx.request({
+        method: "POST",
+        url: "/api/projects",
+        payload: { path: "/Users/demo/project" },
+      });
+      const project = made.json() as { id: string };
+      return host.ctx.request({
+        method: "POST",
+        url: "/api/conversations",
+        payload: { projectId: project.id, text: "use this", files: [ref], requestId: `r-${host.name}` },
+      });
+    };
+    expect((await startOn(b)).statusCode).toBe(201);
+    const foreign = await startOn(a);
+    expect(foreign.statusCode).toBe(ERROR_STATUS.file_expired);
+    expect(foreign.json().error.code).toBe("file_expired");
+  }, 30_000);
 });
 
 describe("node routes on the hub", () => {

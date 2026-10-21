@@ -104,6 +104,7 @@ export function registerRoutes(app: FastifyInstance, core: Core, sockets: Device
   defineImageRoute(app, routes.getIconCandidate, ({ params, query }) =>
     core.projects.iconCandidate(params.id, requireCandidateName(query.name)),
   );
+  defineRoute(app, routes.stageUpload, ({ body }) => core.uploads.stage(body));
   defineRoute(app, routes.listConversations, ({ params }) => core.conversations.list(params.id));
   defineRoute(app, routes.listAllConversations, () => core.conversations.listAll());
   defineRoute(app, routes.deleteArchivedConversations, ({ body }) => core.conversations.deleteArchived(body));
