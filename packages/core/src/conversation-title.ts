@@ -1,5 +1,6 @@
 const MAX_TITLE_LENGTH = 80;
 const IMAGE_ONLY_TITLE = "Image";
+const MAX_FILE_TITLE_LENGTH = 60;
 const LEADING_TITLE_LABEL = /^title\s*:\s*/i;
 const SURROUNDING_QUOTES = /^["'“”‘’`]+|["'“”‘’`]+$/g;
 
@@ -9,9 +10,19 @@ function capTitle(oneLine: string): string {
     : `${oneLine.slice(0, MAX_TITLE_LENGTH - 1).trimEnd()}…`;
 }
 
-export function titleFromFirstMessage(text: string): string {
+function safeFileName(name: string): string | undefined {
+  const base = name.split(/[\\/]/).pop() ?? "";
+  const cleaned = base.replace(/[\0-\x1f\x7f]+/g, "").trim();
+  if (cleaned === "") return undefined;
+  const capped = cleaned.length <= MAX_FILE_TITLE_LENGTH ? cleaned : `${cleaned.slice(0, MAX_FILE_TITLE_LENGTH).trimEnd()}…`;
+  return capTitle(capped);
+}
+
+export function titleFromFirstMessage(text: string, files: readonly { name: string }[] = []): string {
   const oneLine = text.replace(/\s+/g, " ").trim();
-  return capTitle(oneLine) || IMAGE_ONLY_TITLE;
+  if (oneLine !== "") return capTitle(oneLine);
+  // A file-only start is titled by its file; images alone keep the image-only title.
+  return files.map((file) => safeFileName(file.name)).find((name) => name !== undefined) ?? IMAGE_ONLY_TITLE;
 }
 
 /** Returns undefined when the model produced nothing usable. */

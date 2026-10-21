@@ -18,8 +18,9 @@ import {
   type WhenBusy,
 } from "@tau/protocol";
 import { stripBangPrefix } from "../bang-command";
-import { toUserInput } from "../conversation-input";
+import { readFromResolved, toUserInput } from "../conversation-input";
 import { titleFromFirstMessage } from "../conversation-title";
+import type { UploadStore } from "../upload-store";
 import { RETRY_PROMPT } from "../retry-prompt";
 import type { ConnectorOffering } from "./connector-offering";
 import { compactConversation } from "./conversation-compact";
@@ -119,6 +120,8 @@ export interface StoreHooks {
   readonly offering?: Pick<ConnectorOffering, "modelToolsFor">;
   /** Stop: runs before a thread aborts, so a pending approval is denied first. */
   readonly beforeAbort?: (id: string) => void;
+  /** Staged file refs resolve through this; without it sends carry no `files`. */
+  readonly uploads?: Pick<UploadStore, "resolveRefs">;
 }
 
 export function createConversationStore(
@@ -128,7 +131,7 @@ export function createConversationStore(
 ): ConversationStore {
   const { offering } = hooks;
   const watchers = createWatcherRegistry();
-  const starter = createConversationStarter(harness, projectPathOf, offering);
+  const starter = createConversationStarter(harness, projectPathOf, offering, hooks.uploads);
 
   async function known(id: string): Promise<KnownConversation> {
     const conversationId = conversationIdFrom(id);
@@ -238,9 +241,16 @@ export function createConversationStore(
 
     async send(id, input, now, whenBusy = "steer") {
       const { conversation, id: conversationId, projectId } = await known(id);
+      const duplicate = await harness.commit(
+        (tx) => tx.submissionByRequest(conversationId, input.requestId),
+        BACKGROUND,
+      );
+      if (duplicate) return { projectId, admitted: false };
+      // Revalidate staged refs before re-admitting: expiry fails here, before the run.
+      const resolved = await hooks.uploads?.resolveRefs(input.files ?? []) ?? [];
       const admitted = await submitOnce(harness, conversation, {
         type: "input",
-        content: toUserInput(input),
+        content: toUserInput(input, readFromResolved(resolved)),
         requestId: input.requestId,
         whenBusy,
       });
@@ -250,7 +260,7 @@ export function createConversationStore(
       const titleSource = stripBangPrefix(input.text);
       await updateLiveConversation(harness, conversationId, projectId, (meta, entry) => {
         if (meta.title === "") {
-          meta.title = titleFromFirstMessage(titleSource);
+          meta.title = titleFromFirstMessage(titleSource, input.files);
           provisionalFor = titleSource.trim() === "" ? undefined : titleSource;
         }
         entry.title = meta.title;

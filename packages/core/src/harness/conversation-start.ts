@@ -8,10 +8,11 @@ import {
   type ThinkingLevel,
   type ThreadWorkspace,
 } from "@tau/protocol";
-import { toUserInput } from "../conversation-input";
+import { readFromResolved, toUserInput } from "../conversation-input";
 import { titleFromFirstMessage } from "../conversation-title";
+import type { UploadStore } from "../upload-store";
 import type { ConnectorOffering } from "./connector-offering";
-import { ConversationDoc, INDEX_SEED, ProjectIndexDoc } from "./conversation-docs";
+import { ConversationDoc, INDEX_SEED, pendingFirstInputOf, ProjectIndexDoc } from "./conversation-docs";
 import {
   indexOf,
   isLive,
@@ -55,6 +56,7 @@ export function createConversationStarter(
   harness: Harness,
   projectPathOf: (projectId: string) => Promise<string>,
   offering?: Pick<ConnectorOffering, "modelToolsFor">,
+  uploads?: Pick<UploadStore, "resolveRefs">,
 ): ConversationStarter {
   async function admitFirstInput(
     conversation: Conversation,
@@ -62,9 +64,11 @@ export function createConversationStarter(
     input: SendMessageInput,
     now: number | undefined,
   ): Promise<ConversationSummary> {
+    // Revalidate staged refs at admission: a restart may have cut off the first message after expiry.
+    const resolved = await uploads?.resolveRefs(input.files ?? []) ?? [];
     await submitOnce(harness, conversation, {
       type: "input",
-      content: toUserInput(input),
+      content: toUserInput(input, readFromResolved(resolved)),
       requestId: input.requestId,
       whenBusy: "steer",
     });
@@ -100,7 +104,7 @@ export function createConversationStarter(
             (entry) => entry.startRequestId === input.requestId && isLive(entry),
           );
           if (existing) throw new ExistingStart(existing.conversationId);
-          const title = titleFromFirstMessage(input.text);
+          const title = titleFromFirstMessage(input.text, input.files);
           const meta = await tx.doc(ConversationDoc, conversationId);
           meta.projectId = project.id;
           meta.title = title;
@@ -108,6 +112,7 @@ export function createConversationStarter(
           meta.pendingFirstInput = {
             text: input.text,
             images: input.images ?? [],
+            ...(input.files ? { files: input.files } : {}),
             requestId: input.requestId,
           };
           index.conversations.push({
@@ -152,18 +157,30 @@ export function createConversationStarter(
     async resumePendingStarts() {
       const projectIds = new Set<string>();
       for (const { id, meta } of await scanAppConversations(harness)) {
-        if (!meta.pendingFirstInput || meta.deletedAt !== undefined) continue;
+        const pending = pendingFirstInputOf(meta);
+        if (!pending || meta.deletedAt !== undefined) continue;
         try {
           const conversation = await existingConversation(Number(id));
           await admitFirstInput(
             conversation,
             { id: meta.projectId, path: await projectPathOf(meta.projectId) },
-            meta.pendingFirstInput,
+            pending,
             undefined,
           );
           projectIds.add(meta.projectId);
         } catch (error) {
-          console.error("tau: could not resume a first message", error);
+          if (error instanceof AppError && error.code === "file_expired") {
+            // The staged files are gone: clear the pending start instead of retrying it forever.
+            await updateLiveConversation(harness, id, meta.projectId, (doc, entry) => {
+              delete doc.pendingFirstInput;
+              delete entry.pendingStart;
+              return true;
+            });
+            projectIds.add(meta.projectId);
+            console.error("tau: dropping a first message with expired uploads", error);
+          } else {
+            console.error("tau: could not resume a first message", error);
+          }
         }
       }
       return [...projectIds];

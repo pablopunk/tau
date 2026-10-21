@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  readFromResolved,
   requireContent,
   requireImageBytesMatchTheirType,
   requireImagesAllowed,
@@ -23,9 +24,21 @@ describe("message input", () => {
     expect(toUserInput({ text: "  ", images: [PNG] })).toEqual([{ type: "image", ...PNG }]);
   });
 
-  it("requires text or an image", () => {
+  it("appends staged files as quoted path-only blocks, never bytes", () => {
+    const file = { name: "notes.txt", path: "uploads/some-uuid", size: 5 };
+    expect(toUserInput({ text: "read this", files: [file] })).toEqual([
+      { type: "text", text: "read this" },
+      { type: "text", text: 'Attached file: "uploads/some-uuid"' },
+    ]);
+    expect(toUserInput({ text: "  ", files: [file] }, readFromResolved([{ ref: file, absPath: "/tmp/x" }]))).toEqual([
+      { type: "text", text: 'Attached file: "uploads/some-uuid"\nRead it from: /tmp/x' },
+    ]);
+  });
+
+  it("requires text, an image or a file", () => {
     expect(() => requireContent({ text: " " })).toThrow(expect.objectContaining({ code: "invalid_request" }));
     expect(() => requireContent({ text: "", images: [PNG] })).not.toThrow();
+    expect(() => requireContent({ text: "  ", files: [{ name: "a", path: "uploads/x", size: 1 }] })).not.toThrow();
   });
 
   it("checks magic bytes against the declared type", () => {
@@ -52,6 +65,13 @@ describe("titles", () => {
     expect(titleFromFirstMessage("  a\n\nb  c ")).toBe("a b c");
     expect(titleFromFirstMessage("")).toBe("Image");
     expect(titleFromFirstMessage("x ".repeat(100)).length).toBeLessThanOrEqual(80);
+  });
+
+  it("titles file-only starts by the safe file name", () => {
+    expect(titleFromFirstMessage("", [{ name: "notes.txt" }])).toBe("notes.txt");
+    expect(titleFromFirstMessage("", [{ name: "../../etc/passwd" }])).toBe("passwd");
+    expect(titleFromFirstMessage("", [{ name: "   " }])).toBe("Image");
+    expect(titleFromFirstMessage("hello", [{ name: "notes.txt" }])).toBe("hello");
   });
 
   it("cleans a model answer", () => {

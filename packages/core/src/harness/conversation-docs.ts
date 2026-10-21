@@ -2,9 +2,11 @@ import { defineDoc, defineDocFamily } from "@earendil-works/pi-durable";
 import type {
   AgentStatus,
   ConversationStatus,
+  FileRef,
   GoalSummary,
   ImageInput,
   ModelRef,
+  SendMessageInput,
   ThinkingLevel,
   ThreadWorkspace,
 } from "@tau/protocol";
@@ -37,7 +39,24 @@ export type IndexedConversation = {
 
 export type TitleSource = "first-message" | "generated" | "user";
 
-export type PendingFirstInput = { text: string; images: ImageInput[]; requestId: string };
+export type PendingFirstInput = {
+  text: string;
+  images: ImageInput[];
+  files?: FileRef[];
+  requestId: string;
+};
+
+/** Reads a pending first message tolerantly: legacy docs predate `files`. */
+export function pendingFirstInputOf(doc: { pendingFirstInput?: PendingFirstInput }): SendMessageInput | undefined {
+  const pending = doc.pendingFirstInput;
+  if (!pending) return undefined;
+  return {
+    text: typeof pending.text === "string" ? pending.text : "",
+    images: Array.isArray(pending.images) ? pending.images : [],
+    ...(Array.isArray(pending.files) ? { files: pending.files } : {}),
+    requestId: pending.requestId,
+  };
+}
 
 export type ConversationMeta = {
   projectId: string;

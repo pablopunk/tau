@@ -20,6 +20,7 @@ import {
   type WorkspaceMode,
 } from "@tau/protocol";
 import { Value } from "typebox/value";
+import type { UploadStore } from "./upload-store";
 import type { ArchivedCleanup } from "./archived-cleanup";
 import { type BangCommandDeps, entryOfThread, parseBangCommand, runBangCommand } from "./bang-command";
 import type { ChangeEmitter } from "./change-emitter";
@@ -60,6 +61,8 @@ export function createConversationsApi(deps: {
   closeClaudeCliThread: (id: string) => Promise<void>;
   /** Closes the thread's terminals; called before an archive and never blocks it. */
   closeTerminalsOf?: (conversationId: string) => Promise<void>;
+  /** Staged file refs validate through this before any side effect (workspace, checkpoint, exec). */
+  uploads?: Pick<UploadStore, "resolveRefs">;
   /** What a `!` bang command spawns with: the process service, the home, and the notifier. */
   bang: {
     readonly processes: BangCommandDeps["processes"];
@@ -93,14 +96,16 @@ export function createConversationsApi(deps: {
     return chosen;
   }
 
-  function validateMessage(input: SendMessageInput, ref: ModelRef) {
+  async function validateMessage(input: SendMessageInput, ref: ModelRef) {
     requireContent(input);
     requireImagesAllowed(input, lookUp(ref));
     requireImageBytesMatchTheirType(input);
+    // Files ride path-only context, so even a text-only model accepts them once staged.
+    if ((input.files ?? []).length > 0) await deps.uploads?.resolveRefs(input.files ?? []);
   }
 
   async function sendOnce(id: string, input: SendMessageInput): Promise<void> {
-    validateMessage(input, await modelOfThread(id));
+    await validateMessage(input, await modelOfThread(id));
     const bang = parseBangCommand(input.text);
     // The server strips one `!`; web sends verbatim so every client behaves the same.
     const effective = bang.kind === "escaped" ? { ...input, text: bang.text } : input;
@@ -147,7 +152,7 @@ export function createConversationsApi(deps: {
     const ref = await chooseModel(input.model);
     const model = lookUp(ref);
     if (!model) throw new AppError("invalid_request", "This model is not available.");
-    validateMessage(input, ref);
+    await validateMessage(input, ref);
     const thinkingLevel = clampThinkingLevel(model, input.thinkingLevel ?? (await defaultLevel()));
     const workspace = await workspaces.create({
       project,
