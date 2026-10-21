@@ -12,6 +12,7 @@ import {
 } from "react";
 import { Button } from "@/components/ui/button";
 import { DropZone } from "@/components/ui/drop-zone";
+import { AnimatePresence, fade, gentle, motion, rise } from "@/components/ui/motion";
 import { Input } from "@/components/ui/input";
 import { type MentionItem, MentionMenu } from "@/components/ui/mention-menu";
 import { Textarea } from "@/components/ui/textarea";
@@ -236,7 +237,13 @@ function ComposerForm({
 
   return (
     <form onSubmit={onSubmit} className="space-y-2">
-      {abovePanel}
+      <AnimatePresence initial={false}>
+        {abovePanel ? (
+          <motion.div key="above-panel" {...rise} transition={gentle}>
+            {abovePanel}
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
       {pageDragging ? (
         <DropZone
           className="fixed inset-0 z-50"
@@ -248,11 +255,13 @@ function ComposerForm({
           <span className="sr-only">Drop images to attach</span>
         </DropZone>
       ) : null}
-      {error ? (
-        <p role="alert" className="text-sm text-destructive">
-          {error}
-        </p>
-      ) : null}
+      <AnimatePresence initial={false}>
+        {error ? (
+          <motion.p key="error" role="alert" {...fade} transition={gentle} className="text-sm text-destructive">
+            {error}
+          </motion.p>
+        ) : null}
+      </AnimatePresence>
       <MentionMenu
         open={menu.open}
         items={menu.items}

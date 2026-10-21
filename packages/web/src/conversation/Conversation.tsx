@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useMatch } from "react-router";
 import type { PickersHandle } from "@/components/ModelThinkingPickers";
 import { Button } from "@/components/ui/button";
+import { AnimatePresence, gentle, motion } from "@/components/ui/motion";
 import { Skeleton } from "@/components/ui/skeleton";
 import { GoalChip } from "@/goal/GoalChip";
 import { useAllConversations, useModels, useSettings } from "@/lib/queries";
@@ -144,16 +145,27 @@ function ConversationPanel({ id }: ConversationProps) {
               </section>
             </div>
           </div>
-          {atBottom ? null : (
-            <Button
-              variant="outline"
-              size="sm"
-              className="absolute bottom-24 left-1/2 -translate-x-1/2 rounded-full bg-background shadow-md"
-              onClick={scrollToBottom}
-            >
-              <ArrowDown /> Jump to latest
-            </Button>
-          )}
+          <AnimatePresence initial={false}>
+            {atBottom ? null : (
+              <motion.div
+                key="jump-latest"
+                initial={{ opacity: 0, y: 8, x: "-50%" }}
+                animate={{ opacity: 1, y: 0, x: "-50%" }}
+                exit={{ opacity: 0, y: 8, x: "-50%" }}
+                transition={gentle}
+                className="absolute bottom-24 left-1/2"
+              >
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="rounded-full bg-background shadow-md"
+                  onClick={scrollToBottom}
+                >
+                  <ArrowDown /> Jump to latest
+                </Button>
+              </motion.div>
+            )}
+          </AnimatePresence>
           {state.status === "gone" || parentId ? null : (
             <div className="mx-auto w-full max-w-3xl px-3 pt-1 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-4 sm:pb-[max(1rem,env(safe-area-inset-bottom))]">
               <Composer
