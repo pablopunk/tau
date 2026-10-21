@@ -110,15 +110,17 @@ describe("images in the thread", () => {
     expect(within(dialog).getByRole("img", { name: "Attachment 1, full size" })).toBeInTheDocument();
   });
 
-  it("hides the attach button when the thread model has no image support", async () => {
+  it("keeps the attach button when the thread model has no image support", async () => {
     withModels(false);
     renderView(endOf("text"));
-    await waitFor(() => expect(screen.queryByRole("button", { name: "Attach images" })).toBeNull());
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Attach files" })).toBeInTheDocument(),
+    );
   });
 
   it("allows images when the model is unknown", () => {
     renderView(endOf("text"));
-    expect(screen.getByRole("button", { name: "Attach images" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Attach files" })).toBeInTheDocument();
   });
 });
 

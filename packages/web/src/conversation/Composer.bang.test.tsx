@@ -35,7 +35,7 @@ describe("<Composer> bang mode", () => {
     expect(screen.getByTestId("bang-prompt")).toBeInTheDocument();
     expect(screen.queryByText("tool")).not.toBeInTheDocument();
     expect(screen.queryByText("start")).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Attach images" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Attach files" })).not.toBeInTheDocument();
   });
 
   it("restores the normal composer when backspacing out of the prefix", async () => {
@@ -48,7 +48,7 @@ describe("<Composer> bang mode", () => {
     expect(input.parentElement).not.toHaveClass("border-destructive/50");
     expect(screen.queryByTestId("bang-prompt")).not.toBeInTheDocument();
     expect(screen.getByText("tool")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Attach images" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Attach files" })).toBeInTheDocument();
   });
 
   it("shows an inline error and sends nothing for bare `!`", async () => {
@@ -62,15 +62,15 @@ describe("<Composer> bang mode", () => {
   it("sends `!!` escapes verbatim without client-side stripping", async () => {
     const { onSend, input } = setup();
     await userEvent.type(input, "!!wow{Enter}");
-    expect(onSend).toHaveBeenCalledWith({ text: "!!wow", images: [] });
+    expect(onSend).toHaveBeenCalledWith({ text: "!!wow", images: [], files: [] });
   });
 
   it("sends bang text verbatim and never treats it as a slash command", async () => {
     const { onSend, compact, input } = setup();
     await userEvent.type(input, "!/compact{Enter}");
-    expect(onSend).toHaveBeenCalledWith({ text: "!/compact", images: [] });
+    expect(onSend).toHaveBeenCalledWith({ text: "!/compact", images: [], files: [] });
     await userEvent.type(input, "! /compact{Enter}");
-    expect(onSend).toHaveBeenCalledWith({ text: "! /compact", images: [] });
+    expect(onSend).toHaveBeenCalledWith({ text: "! /compact", images: [], files: [] });
     expect(compact).not.toHaveBeenCalled();
   });
 });

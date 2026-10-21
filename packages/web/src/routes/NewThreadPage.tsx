@@ -1,5 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
-import type { ImageInput, ModelRef, ThinkingLevel, WorkspaceMode } from "@tau/protocol";
+import type { FileRef, ImageInput, ModelRef, ThinkingLevel, WorkspaceMode } from "@tau/protocol";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 import { ModelThinkingPickers, type PickersHandle } from "@/components/ModelThinkingPickers";
@@ -71,7 +71,15 @@ export function NewThreadPage() {
   const notSetUp = models.data.length === 0;
   const cloning = projects.data.find((project) => project.id === projectId)?.status === "cloning";
 
-  const start = async ({ text, images }: { text: string; images: ImageInput[] }) => {
+  const start = async ({
+    text,
+    images,
+    files,
+  }: {
+    text: string;
+    images: ImageInput[];
+    files: FileRef[];
+  }) => {
     setBusy(true);
     try {
       const created = await api.conversations.start({
@@ -82,6 +90,7 @@ export function NewThreadPage() {
         thinkingLevel: level,
         ...(workspace && { workspace }),
         ...(images.length > 0 && { images }),
+        ...(files.length > 0 && { files }),
       });
       clearDraftRequestId();
       clearNewThreadDraft(nodeId);
