@@ -162,9 +162,12 @@ describe("sidebar with two nodes", () => {
     render(
       <MemoryRouter initialEntries={["/n/m2/p/p1/c/c9"]}>
         <NodeProvider>
-          <Routes>
-            <Route path="/n/:nodeId/p/:projectId/c/:conversationId/*" element={<ConversationRoute />} />
-          </Routes>
+          {/* ConversationRoute renders the mobile sidebar toggle: needs the provider like the app shell provides. */}
+          <SidebarProvider>
+            <Routes>
+              <Route path="/n/:nodeId/p/:projectId/c/:conversationId/*" element={<ConversationRoute />} />
+            </Routes>
+          </SidebarProvider>
         </NodeProvider>
       </MemoryRouter>,
     );
