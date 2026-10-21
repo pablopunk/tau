@@ -17,17 +17,18 @@ const services: ProcessService[] = [];
 
 const settings = (patch: Partial<ResourceSettings>): ResourceSettings => ({
   ...DEFAULT_RESOURCE_SETTINGS,
-  appliesTo: { main: true, worktrees: true, subagents: true },
+  levels: { main: "balanced", worktree: "balanced", subagent: "balanced" },
   ...patch,
 });
 
-function make(initial: ResourceSettings) {
+function make(initial: ResourceSettings, memoryLimitMb?: number) {
   const service = createProcessService({
     home,
     emitChange: () => {},
     stopGraceMs: 300,
     graceMs: 300,
     resources: createResourceState(initial),
+    ...(memoryLimitMb !== undefined && { memoryLimitMb }),
   } as Parameters<typeof createProcessService>[0]);
   services.push(service);
   return service;
@@ -74,55 +75,19 @@ afterEach(async () => {
   await rm(cwd, { recursive: true, force: true });
 });
 
-describe("bash tool with heavy slots", () => {
-  it("an abort while queued ends the call as aborted and never spawns it", async () => {
-    const service = make(settings({ heavySlots: 1 }));
-    const bash = bashOf(service);
-    const holder = settle(bash("cargo test --holder 2>/dev/null; sleep 3", "h"));
-    for (let tries = 0; tries < 100 && service.resourceActivity().holders.length === 0; tries++)
-      await sleep(20);
-    const controller = new AbortController();
-    const queued = settle(
-      bash("cargo test --queued 2>/dev/null; touch ran.marker", "q", { signal: controller.signal }),
-    );
-    for (let tries = 0; tries < 100 && service.resourceActivity().waiting.length === 0; tries++)
-      await sleep(20);
-    expect(service.resourceActivity().waiting).toHaveLength(1);
-    controller.abort();
-    expect(await queued).toBe("Command aborted");
-    expect(service.resourceActivity().waiting).toHaveLength(0);
-    await service.stopAll();
-    await holder;
-    expect(spawnSync("test", ["-e", join(cwd, "ran.marker")]).status).not.toBe(0);
-  });
-
-  it("the timeout starts at spawn: queue time never counts, a running command still times out", async () => {
-    const service = make(settings({ heavySlots: 1 }));
-    const bash = bashOf(service);
-    const holder = settle(bash("cargo test --holder 2>/dev/null; sleep 2", "h"));
-    for (let tries = 0; tries < 100 && service.resourceActivity().holders.length === 0; tries++)
-      await sleep(20);
-    const began = Date.now();
-    const result = await settle(bash("cargo test --short 2>/dev/null; sleep 0.3", "q", { timeout: 1 }));
-    expect(result).toBe("ok");
-    expect(Date.now() - began).toBeGreaterThan(1500); // queued longer than its 1 s timeout
-    await holder;
-    expect(await settle(bash("cargo test --slow 2>/dev/null; sleep 5", "t", { timeout: 1 }))).toBe(
-      "Command timed out after 1 seconds",
-    );
-  });
-});
-
 describe.skipIf(process.platform !== "darwin")("real memory kill (macOS polled sampler)", () => {
   it("stops a runaway command and its setsid escapee with the memory message", async () => {
-    const service = make(settings({ memoryLimitMb: 150 }));
+    const service = make(settings({}), 150);
     const bash = bashOf(service);
     const python =
       "import os,sys,time\\n" +
       'if os.fork()==0:\\n os.setsid(); open("escapee.pid","w").write(str(os.getpid())); b=bytearray(300*2**20)\\n for i in range(0,len(b),4096): b[i]=1\\n time.sleep(120)\\n' +
       "time.sleep(60)";
     const result = await settle(bash(`printf '${python}' | python3 -I -`, "m"));
-    expect(result).toBe("Stopped: memory limit 150 MB exceeded");
+    expect(result).toBe(
+      "Stopped: memory limit 150 MB exceeded (resource control is on: Main threads run at Balanced). " +
+        "To allow more memory, set Main threads to Off in Settings → Agent, or split the work into smaller steps.",
+    );
     await sleep(1500);
     const pid = Number(await readFile(join(cwd, "escapee.pid"), "utf8"));
     expect(pid).toBeGreaterThan(1);

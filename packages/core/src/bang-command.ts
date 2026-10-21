@@ -5,7 +5,7 @@ import type { IndexedConversation as IndexedEntry } from "./harness/conversation
 import { indexOf, readMeta } from "./harness/conversation-index";
 import type { NotificationSubmitter } from "./harness/notification-submitter";
 import { bashPath, DEFAULT_TIMEOUT_SECONDS } from "./harness/tools/bash";
-import { isGoverned } from "./processes/governor/governed";
+import { governedScope } from "./processes/governor/governed";
 import { noticeNotification } from "./processes/process-notifications";
 import type { StopReason } from "./processes/process-types";
 import { cwdOf, type ThreadLookup } from "./terminals/cwd-of";
@@ -84,7 +84,7 @@ export async function runBangCommand(
 ): Promise<void> {
   try {
     const cwd = await cwdOf(deps.threads, conversationId);
-    const governed = await isGoverned(deps.processes.resourceSettings(), () => deps.entryOf(conversationId));
+    const scope = await governedScope(deps.processes.resourceSettings(), () => deps.entryOf(conversationId));
     const env: Record<string, string> = {};
     addTauEnvironment(deps.home, env, conversationId);
     const info = await deps.processes.start({
@@ -93,7 +93,7 @@ export async function runBangCommand(
       command,
       shell: bashPath(),
       env,
-      ...(governed && { governed }),
+      ...(scope && { governed: true, scope }),
       notifyOnExit: true,
     });
     const timer = setTimeout(() => {

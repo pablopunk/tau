@@ -133,6 +133,7 @@ export const NOTIFICATION_TAGS = [
   "timer-fired",
   "notice",
   "goal-verdict",
+  "todos-updated",
 ] as const;
 
 export const isNotificationText = (text: string): boolean => {

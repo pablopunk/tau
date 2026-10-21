@@ -94,10 +94,7 @@ export function createSettingsApi(deps: {
     },
     async setResources(value) {
       if (!Value.Check(ResourceSettingsSchema, value)) {
-        throw new AppError(
-          "invalid_request",
-          "Heavy slots must be 1 to 64 and the memory limit at least 64 MB.",
-        );
+        throw new AppError("invalid_request", "Each scope runs Off, Balanced or Background.");
       }
       await settings.setResources(value);
       onResourcesChanged?.(value);

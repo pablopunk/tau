@@ -52,6 +52,7 @@ import type {
   Timer,
   UpdateStartBody,
   UpdateStatus,
+  UpdateTodosInput,
   UseGithubRepoInput,
   WorkspaceDefault,
   WorkspaceStatus,
@@ -139,6 +140,8 @@ export interface Api {
     start(input: StartConversationInput): Promise<ConversationSummary>;
     rename(id: string, title: string): Promise<void>;
     send(id: string, input: SendMessageInput): Promise<void>;
+    /** Replaces the thread's todo list with the user's edit and pings the agent with the diff. */
+    updateTodos(id: string, input: UpdateTodosInput): Promise<void>;
     abort(id: string): Promise<void>;
     archive(id: string, archived: boolean): Promise<void>;
     remove(id: string, options?: { force?: boolean }): Promise<void>;
@@ -328,6 +331,7 @@ export function createApi(transport: Transport): Api {
       start: (input) => request("startConversation", { body: input }),
       rename: (id, title) => request("renameConversation", { params: { id }, body: { title } }),
       send: (id, input) => request("sendMessage", { params: { id }, body: input }),
+      updateTodos: (id, input) => request("updateTodos", { params: { id }, body: input }),
       abort: (id) => request("abortConversation", { params: { id } }),
       archive: (id, archived) => request("archiveConversation", { params: { id }, body: { archived } }),
       remove: (id, options) =>

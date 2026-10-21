@@ -1,4 +1,4 @@
-# Resource control for agent commands (plan) — v8 (APPROVED, round 7)
+# Resource control for agent commands (plan) — v9 (simplified: per-scope power, no queue)
 
 v7 answers review round 6 (5 items, marked **[R6-n]**) and turns **Apply to** into three checkboxes (user decision: main checkout threads, worktree threads, subagents). v8 folds in round 7's minor items **[R7-n]** and is approved. v6 answered round 5 (7 items, **[R5-n]**) and added Apply to. v5 answered round 4 (**[R4-n]**), v4 round 3 (**[R3-n]**). v3 answered round 2 (**[R2-n]**), v2 round 1 (**[R1-n]**).
 
@@ -58,12 +58,16 @@ Per node, `settings.json` key `resources`, one object written whole, validated p
 
 ```ts
 ResourceSettings = {
-  priority: "off" | "balanced" | "background";  // default "off"
-  heavySlots: number | null;                     // null = unlimited (default). 1..64
-  memoryLimitMb: number | null;                  // null = none (default). >= 64. per command process tree
-  appliesTo: { main: boolean; worktrees: boolean; subagents: boolean };  // default { false, false, true }
+  levels: { main: Power; worktree: Power; subagent: Power };  // default all "off"
 }
+Power = "off" | "balanced" | "background";
 ```
+
+Three power rows, nothing else. The memory cap lives in the core (`sharedMemoryLimitMb`),
+not a setting: 20% of the machine's RAM between 1 and 4 GB, so small boxes kill runaways early
+instead of OOMing the whole machine. Every governed command gets its scope's CPU priority plus the cap. There is no queue,
+no "heavy" classification, no per-command tuning. Legacy `{priority, appliesTo, heavySlots, memoryLimitMb}`
+settings migrate: each ticked scope takes the old global priority, the rest is ignored.
 
 | Priority | macOS | Linux |
 |---|---|---|
@@ -99,28 +103,35 @@ Claude CLI threads reach it because tau exposes its tools to the SDK as `mcp__ta
 
 | Control | bash | process_start | monitor |
 |---|---|---|---|
-| Priority | yes | yes | yes |
-| Memory limit | yes | yes | yes |
-| Heavy slots | yes, if heavy | **never** | never |
+| Priority (own scope's level) | yes | yes | yes |
+| Memory cap (fixed 4 GB) | yes | yes | yes |
 
 **Apply to [v7, R6-1, R6-2].** Classification of a conversation: **subagent** if `ConversationSummary.parentId !== null`
 (`protocol/src/entities.ts:275`; verified: `agent` and `task` children set `parentId` (`task` children have no `agentType`, so
 the rule is `parentId`, never `agentType`), user forks set only `forkOf`, goals cannot be children); otherwise **worktree** if
 `workspace.mode === "worktree"`, else **main** (`workspace.mode === "checkout"`). A subagent of a worktree thread is a subagent;
-the worktree thread itself is a worktree thread. A command is governed when the box for its class is ticked.
+the worktree thread itself is a worktree thread. A command is governed when its scope's level is not Off, and it runs at exactly that level.
 **[R7-1] Lookup API:** `ToolServices` has no conversation store. The tools use what the code already does: `api.snapshot(ConversationDoc, api.conversationId, context)` for the project id (`mcp-project.ts:6`), then `snapshot(ProjectIndexDoc, projectId, context)` and match `IndexedConversation.parentId` / `.workspace` (precedent: `subagents-prompt.ts:34`, `timers-prompt.ts:19`). `workspace` is optional on the index entry, so the rule is `entry.workspace?.mode ?? "checkout"`; entries with `deletedAt` or no index entry are ungoverned. `process-start.ts` and `monitor.ts` have `execute(args, api)` with no `context`: add the third parameter, as `bash.ts` does. **First step for the core agent: confirm with `tsc` that `api.snapshot` accepts `ProjectIndexDoc`** (not verifiable in the review worktree: no `node_modules`). Cost is one project-index read per candidate command, paid only when a control is on and a box is ticked.
 **There is no sync thread lookup** (every thread read is async: `conversation-store.ts:161,170`). So classification happens at
 **tool level**: `bash.ts`, `process-start.ts` and `monitor.ts` are already async; each reads the sync `resource-state` first and,
-only when a control is on and at least one box is ticked, awaits the conversation summary, classifies, and passes
-`governed: boolean` in `ForegroundRequest` / `StartProcessRequest`. Off (or no control on) pays nothing: no lookup. An unknown
+only when at least one scope is on, awaits the conversation summary, classifies, and passes
+`governed: true` plus `scope` in `ForegroundRequest` / `StartProcessRequest`. Off (or no control on) pays nothing: no lookup. An unknown
 id counts as ungoverned (fail-safe). `createProcessService` stays sync and just honours `governed`. A command with
 `governed: false` takes the sync path with `wrap = null` and no slot, exactly like Off. There is therefore **no `isSubagent`
 dep and no cache**. Ungoverned commands never appear in `resourceActivity`, and a main thread waiting on a governed subagent
-is not a slot holder, so there is no queue deadlock. Slots are shared by all governed commands node-wide. In the UI the Apply
-to row is disabled while all three controls are off (it would have no effect).
+is not a slot holder, so there is no queue deadlock. Slots are shared by all governed commands node-wide. The UI is three power rows (Main threads, Worktree threads, Subagents) plus one footnote line.
+Ungoverned scopes run at full speed, exactly like Off.
 
-Only foreground `bash` takes a slot **[R1-2, R1-7]**. Cost: a model that runs `pnpm test` through `process_start` bypasses
-the queue; stated in the setting's description.
+There is no queue: every governed command spawns at once (after the Linux cgroup probe, if any).
+The async spawn path exists only for that probe.
+
+## Agent-facing messages
+
+A cap kill must explain itself, or the agent cannot act. The memory stop text names the scope, its level,
+the cap, and the way out: `Stopped: memory limit 4096 MB exceeded (resource control is on: Subagents run
+at Balanced). To allow more memory, set Subagents to Off in Settings → Agent, or split the work into
+smaller steps.` A timeout under an active level adds `(… run at Background, which slows commands down)`.
+There is deliberately no per-command bypass flag: lifting a cap is the user's call in Settings.
 
 ## Design
 

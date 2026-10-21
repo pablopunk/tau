@@ -27,11 +27,6 @@ async function freePort() {
   return port;
 }
 
-interface Activity {
-  holders: { entryId: string }[];
-  waiting: { entryId: string }[];
-}
-
 test.describe.configure({ mode: "serial" });
 
 test.describe("resource control in the browser", () => {
@@ -43,14 +38,7 @@ test.describe("resource control in the browser", () => {
   let projectId: string;
   const threads: string[] = [];
 
-  const activity = async () => (await (await api.get("/api/settings/resources/activity")).json()) as Activity;
-  const waitActivity = async (check: (value: Activity) => boolean) => {
-    for (let attempt = 0; attempt < 100; attempt++) {
-      if (check(await activity())) return;
-      await sleep(200);
-    }
-    throw new Error(`activity never matched: ${JSON.stringify(await activity())}`);
-  };
+  const settings = async () => (await (await api.get("/api/settings")).json()) as any;
 
   test.beforeAll(async ({ browser }) => {
     root = realpathSync(mkdtempSync(join(tmpdir(), "tau-res-")));
@@ -119,61 +107,58 @@ test.describe("resource control in the browser", () => {
     rmSync(root, { recursive: true, force: true });
   });
 
-  test("Off: a heavy command runs at once and the panel lists nothing", async () => {
+  test("Off: heavy commands run and finish with nothing listed", async () => {
     await page.goto("/");
     const response = await api.post("/api/conversations", {
       data: { projectId, text: PROMPTS[0], requestId: "off-1" },
     });
     threads.push(((await response.json()) as { id: string }).id);
-    await sleep(1500);
-    expect(await activity()).toEqual({ holders: [], waiting: [] });
+    await expect
+      .poll(
+        async () => {
+          const all = (await (await api.get("/api/conversations")).json()) as {
+            id: string;
+            status: string;
+          }[];
+          return all.find((thread) => thread.id === threads[0])?.status;
+        },
+        { timeout: 60_000 },
+      )
+      .not.toBe("running");
   });
 
-  test("the Agent settings set one heavy slot and apply to worktree threads", async () => {
+  test("the Agent settings set each scope's power", async () => {
     await page.getByRole("button", { name: "Settings" }).click();
     const dialog = page.getByRole("dialog", { name: "Settings" });
     await dialog.getByRole("navigation", { name: "Settings sections" }).getByText("Agent").click();
-    await expect(dialog.getByText("Heavy command slots")).toBeVisible();
-    await dialog.getByRole("switch", { name: "Limit: Heavy command slots" }).click();
-    const slots = dialog.getByRole("spinbutton", { name: /Heavy command slots/ });
-    await slots.fill("1");
-    await slots.press("Enter");
+    await dialog.getByRole("switch", { name: "Resource control" }).click();
+    for (const name of ["Main threads power", "Worktree threads power", "Subagents power"]) {
+      await expect(dialog.getByRole("group", { name })).toBeVisible();
+    }
+    await dialog
+      .getByRole("group", { name: "Subagents power" })
+      .getByRole("radio", { name: "Background" })
+      .click();
     await expect
-      .poll(async () => ((await (await api.get("/api/settings")).json()) as any).resources?.heavySlots)
-      .toBe(1);
-    await dialog.getByRole("checkbox", { name: /Worktree threads/ }).click();
+      .poll(async () => (await settings()).resources?.levels)
+      .toEqual({ main: "off", worktree: "off", subagent: "background" });
+    await dialog
+      .getByRole("group", { name: "Main threads power" })
+      .getByRole("radio", { name: "Balanced" })
+      .click();
     await expect
-      .poll(async () => ((await (await api.get("/api/settings")).json()) as any).resources)
-      .toMatchObject({
-        heavySlots: 1,
-        appliesTo: { worktrees: true },
-      });
+      .poll(async () => (await settings()).resources?.levels)
+      .toEqual({ main: "balanced", worktree: "off", subagent: "background" });
     await page.screenshot({ path: join(root, "settings.png") });
   });
 
-  test("three threads: one holds the slot, two queue, Stop cancels a queued one", async () => {
-    await sleep(7000); // let the Off-path thread from the first test finish
+  test("governed threads run to the end: nothing queues", async () => {
     for (const [index, prompt] of PROMPTS.entries()) {
       const response = await api.post("/api/conversations", {
         data: { projectId, text: prompt, requestId: `gov-${index}` },
       });
       threads.push(((await response.json()) as { id: string }).id);
     }
-    await waitActivity((value) => value.holders.length === 1 && value.waiting.length === 2);
-    const dialog = page.getByRole("dialog", { name: "Settings" });
-    await expect(dialog.getByRole("button", { name: /^Stop cargo test/ })).toHaveCount(3, {
-      timeout: 10_000,
-    });
-    await page.screenshot({ path: "/tmp/res-queue-shot.png" });
-    await dialog
-      .getByRole("button", { name: /^Stop cargo test/ })
-      .nth(2)
-      .click();
-    await waitActivity((value) => value.holders.length === 1 && value.waiting.length === 1);
-  });
-
-  test("the queue drains and every thread ends", async () => {
-    await waitActivity((value) => value.holders.length === 0 && value.waiting.length === 0);
     for (const id of threads) {
       await expect
         .poll(
@@ -184,7 +169,7 @@ test.describe("resource control in the browser", () => {
             }[];
             return all.find((thread) => thread.id === id)?.status;
           },
-          { timeout: 30_000 },
+          { timeout: 120_000 },
         )
         .not.toBe("running");
     }

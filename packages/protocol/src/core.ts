@@ -86,6 +86,8 @@ export type {
   WorkspaceMode,
 } from "./entities";
 
+import type { UpdateTodosInput } from "./todos";
+
 export interface TerminalHandlers {
   /** Raw output bytes: replay first, then live. */
   onData(data: Uint8Array): void;
@@ -248,6 +250,14 @@ export interface Core {
      * A repeated `requestId` is a no-op. Unarchives. Rejects `not_found`, `invalid_request` or `images_not_supported`.
      */
     send(id: string, input: SendMessageInput): Promise<void>;
+    /**
+     * Replaces the thread's todo list with the user's edit and pings the agent with the diff
+     * (a queued `app.todos_updated` notification, so it never interrupts a run and wakes an idle
+     * thread). Newest event wins against the agent's `todo_write`. Rejects `not_found` for an
+     * unknown or deleted thread; archived threads are allowed without unarchiving. A repeated
+     * `requestId` is a no-op.
+     */
+    updateTodos(id: string, input: UpdateTodosInput): Promise<void>;
     /** Stops the current run; resolves once the conversation is idle. Rejects `not_found`. */
     abort(id: string): Promise<void>;
     /** Never aborts a run. Rejects `not_found`. */

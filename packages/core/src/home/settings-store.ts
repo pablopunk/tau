@@ -4,11 +4,8 @@ import {
   type CompactionSettings,
   CompactionSettingsSchema,
   DEFAULT_RESOURCE_SETTINGS,
-  HEAVY_SLOTS_MAX,
-  HEAVY_SLOTS_MIN,
   type McpServerConfig,
   McpServerConfigSchema,
-  MEMORY_LIMIT_MIN_MB,
   type MessageMode,
   MessageModeSchema,
   type ModelRef,
@@ -111,36 +108,52 @@ const validClaudeConnectors = (value: unknown): ClaudeConnectorSettings | undefi
     : undefined;
 };
 
-const validSlots = (value: unknown): number | null =>
-  Number.isInteger(value) && (value as number) >= HEAVY_SLOTS_MIN && (value as number) <= HEAVY_SLOTS_MAX
-    ? (value as number)
-    : null;
+const validPower = (value: unknown): ResourceSettings["levels"]["main"] =>
+  Value.Check(ResourcePrioritySchema, value) ? value : "off";
 
-const validMemoryMb = (value: unknown): number | null =>
-  Number.isInteger(value) && (value as number) >= MEMORY_LIMIT_MIN_MB ? (value as number) : null;
-
-const validAppliesTo = (value: unknown): ResourceSettings["appliesTo"] => {
+const validLevels = (value: unknown): ResourceSettings["levels"] => {
   const raw = typeof value === "object" && value !== null ? (value as Record<string, unknown>) : {};
-  const defaults = DEFAULT_RESOURCE_SETTINGS.appliesTo;
-  const flag = (key: keyof typeof defaults) => (typeof raw[key] === "boolean" ? raw[key] : defaults[key]);
-  return { main: flag("main"), worktrees: flag("worktrees"), subagents: flag("subagents") };
+  return {
+    main: validPower(raw.main),
+    worktree: validPower(raw.worktree),
+    subagent: validPower(raw.subagent),
+  };
+};
+
+/** Legacy `{priority, appliesTo}` maps each ticked scope to the old global priority. */
+const migratedLevels = (raw: Record<string, unknown>): ResourceSettings["levels"] => {
+  const priority = validPower(raw.priority);
+  const boxes =
+    typeof raw.appliesTo === "object" && raw.appliesTo !== null
+      ? (raw.appliesTo as Record<string, unknown>)
+      : {};
+  // Old defaults: only subagents ticked.
+  const ticked = (key: string, fallback: boolean) =>
+    typeof boxes[key] === "boolean" ? (boxes[key] as boolean) : fallback;
+  const at = (t: boolean) => (t ? priority : "off") as ResourceSettings["levels"]["main"];
+  return {
+    main: at(ticked("main", false)),
+    worktree: at(ticked("worktrees", false)),
+    subagent: at(ticked("subagents", true)),
+  };
 };
 
 /** Each field on its own: a missing or invalid one falls back to its default (Off). */
 export function parseResourceSettings(value: unknown): ResourceSettings | undefined {
   if (typeof value !== "object" || value === null || Array.isArray(value)) return undefined;
   const raw = value as Record<string, unknown>;
-  return {
-    priority: Value.Check(ResourcePrioritySchema, raw.priority) ? raw.priority : "off",
-    heavySlots: validSlots(raw.heavySlots),
-    memoryLimitMb: validMemoryMb(raw.memoryLimitMb),
-    appliesTo: validAppliesTo(raw.appliesTo),
-  };
+  const levels =
+    typeof raw.levels === "object" && raw.levels !== null
+      ? validLevels(raw.levels)
+      : "priority" in raw || "appliesTo" in raw
+        ? migratedLevels(raw)
+        : { ...DEFAULT_RESOURCE_SETTINGS.levels };
+  return { levels };
 }
 
 const copyResources = (value: ResourceSettings): ResourceSettings => ({
   ...value,
-  appliesTo: { ...value.appliesTo },
+  levels: { ...value.levels },
 });
 
 const validMcpServers = (value: unknown): McpServerConfig[] =>

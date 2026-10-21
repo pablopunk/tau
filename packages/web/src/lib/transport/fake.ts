@@ -97,6 +97,7 @@ const handlers: Handlers = {
   startConversation: (core, { body }) => core.conversations.start(body as never),
   renameConversation: (core, { params, body }) => core.conversations.rename(params.id, body.title as string),
   sendMessage: (core, { params, body }) => core.conversations.send(params.id, body as never),
+  updateTodos: (core, { params, body }) => core.conversations.updateTodos(params.id, body as never),
   abortConversation: (core, { params }) => core.conversations.abort(params.id),
   archiveConversation: (core, { params, body }) =>
     core.conversations.archive(params.id, body.archived as boolean),
