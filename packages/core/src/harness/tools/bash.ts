@@ -11,6 +11,11 @@ import type { ToolServicesRef } from "./tool-file";
 
 /** The tool default; bang commands reuse it as their fixed kill timeout. */
 export const DEFAULT_TIMEOUT_SECONDS = 120;
+/**
+ * Background priority slows commands ~5x, so the default timeout stretches for them instead of
+ * killing commands that would finish fine unthrottled. An explicit timeout is always honored as-is.
+ */
+export const BACKGROUND_TIMEOUT_SCALE = 5;
 export const MAX_TIMEOUT_SECONDS = 600;
 const MAX_LINES = 2000;
 const MAX_KB = 50;
@@ -111,7 +116,6 @@ export const createTauBashTool = ({ services, prepare }: TauBashOptions) =>
     outputLimits: { retain: "tail" },
     async execute({ command, timeout }, api, context) {
       validateTimeout(timeout);
-      const effectiveTimeout = timeout ?? DEFAULT_TIMEOUT_SECONDS;
       const cwd = api.env?.cwd ?? process.cwd();
       await requireDirectory(cwd);
       const execution: BashExecution = { command, cwd, env: {}, inheritEnv: true };
@@ -121,6 +125,11 @@ export const createTauBashTool = ({ services, prepare }: TauBashOptions) =>
       let waiting = true;
       const settings = processes.resourceSettings();
       const scope = await governedScope(settings, indexEntryOfCall(api, context));
+      const scale =
+        timeout === undefined && scope && settings.levels[scope] === "background"
+          ? BACKGROUND_TIMEOUT_SCALE
+          : 1;
+      const effectiveTimeout = (timeout ?? DEFAULT_TIMEOUT_SECONDS) * scale;
       const run = await processes.runForeground({
         conversationId,
         callId: api.callId,
