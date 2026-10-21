@@ -42,6 +42,10 @@ class FakeRecognition {
       })),
     });
   }
+
+  fail(error: string) {
+    this.onerror?.({ error });
+  }
 }
 
 const tracks = () => [{ stop: vi.fn() }];
@@ -55,6 +59,7 @@ function Harness({ onError = () => undefined }: { onError?: (message: string) =>
   return (
     <>
       <output data-testid="text">{text}</output>
+      <output data-testid="preview">{dictation.preview}</output>
       <div data-testid="card">
         <div ref={dictation.glowRef} data-testid="glow" />
       </div>
@@ -125,13 +130,45 @@ describe("useDictation", () => {
     expect(FakeRecognition.instances[0]?.stopped).toHaveBeenCalled();
   });
 
-  it("ignores interim transcripts", async () => {
+  it("shows interim transcripts as preview without committing them", async () => {
     const user = userEvent.setup();
     render(<Harness />);
     await user.click(screen.getByRole("button", { name: "Dictate" }));
     await screen.findByRole("button", { name: "Stop dictation" });
     FakeRecognition.instances[0]?.fire([{ transcript: "half a", isFinal: false }]);
     expect(screen.getByTestId("text")).toHaveTextContent("");
+    expect(await screen.findByTestId("preview")).toHaveTextContent("half a");
+    FakeRecognition.instances[0]?.fire([{ transcript: "half a sentence", isFinal: true }]);
+    expect(await screen.findByTestId("text")).toHaveTextContent("half a sentence");
+    expect(screen.getByTestId("preview")).toHaveTextContent("");
+  });
+
+  it("reports a recognition start failure and stays idle", async () => {
+    const user = userEvent.setup();
+    const onError = vi.fn();
+    vi.spyOn(FakeRecognition.prototype, "start").mockImplementationOnce(() => {
+      throw new Error("not allowed");
+    });
+    render(<Harness onError={onError} />);
+    await user.click(screen.getByRole("button", { name: "Dictate" }));
+    await vi.waitFor(() => {
+      expect(onError).toHaveBeenCalledOnce();
+    });
+    expect(screen.getByRole("button", { name: "Dictate" })).toBeInTheDocument();
+    expect(getUserMedia).not.toHaveBeenCalled();
+  });
+
+  it("reports a speech service failure and stops", async () => {
+    const user = userEvent.setup();
+    const onError = vi.fn();
+    render(<Harness onError={onError} />);
+    await user.click(screen.getByRole("button", { name: "Dictate" }));
+    await screen.findByRole("button", { name: "Stop dictation" });
+    FakeRecognition.instances[0]?.fail("network");
+    await vi.waitFor(() => {
+      expect(onError).toHaveBeenCalledOnce();
+    });
+    expect(await screen.findByRole("button", { name: "Dictate" })).toBeInTheDocument();
   });
 
   it("reports a blocked microphone and stays idle", async () => {

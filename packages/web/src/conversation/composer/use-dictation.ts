@@ -38,6 +38,8 @@ declare global {
 export interface Dictation {
   /** True while the microphone is open. */
   readonly listening: boolean;
+  /** The current unfinished sentence, for live feedback while talking. */
+  readonly preview: string;
   readonly toggle: () => void;
   /** The glow overlay; the volume loop paints it directly, no re-renders. */
   readonly glowRef: React.RefObject<HTMLDivElement | null>;
@@ -69,7 +71,7 @@ function rms(analyser: AnalyserNode, samples: Uint8Array<ArrayBuffer>): number {
     const centered = ((samples[i] ?? 128) - 128) / 128;
     sum += centered * centered;
   }
-  return Math.pow(Math.min(1, Math.sqrt(sum / samples.length) * GAIN), CURVE);
+  return Math.min(1, Math.sqrt(sum / samples.length) * GAIN) ** CURVE;
 }
 
 function paint(glow: HTMLDivElement | null, level: number) {
@@ -93,6 +95,7 @@ function unpaint(glow: HTMLDivElement | null) {
  */
 export function useDictation(onText: (text: string) => void, onError: (message: string) => void): Dictation {
   const [listening, setListening] = useState(false);
+  const [preview, setPreview] = useState("");
   const glowRef = useRef<HTMLDivElement | null>(null);
   const running = useRef<Running | null>(null);
   const wantListening = useRef(false);
@@ -115,29 +118,14 @@ export function useDictation(onText: (text: string) => void, onError: (message: 
     }
     unpaint(glowRef.current);
     setListening(false);
+    setPreview("");
   }, []);
 
   const start = useCallback(async () => {
     wantListening.current = true;
-    let stream: MediaStream;
-    try {
-      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    } catch {
-      wantListening.current = false;
-      callbacks.current.onError("Microphone blocked. Allow access and try again.");
-      return;
-    }
-    if (!wantListening.current) {
-      for (const track of stream.getTracks()) track.stop();
-      return;
-    }
-    const context = new AudioContext();
-    const source = context.createMediaStreamSource(stream);
-    const analyser = context.createAnalyser();
-    analyser.fftSize = FFT_SIZE;
-    source.connect(analyser);
-    const samples = new Uint8Array(analyser.fftSize);
-
+    // Start recognition synchronously in the tap gesture: Chrome rejects
+    // start() once transient activation expires (e.g. after awaiting a
+    // permission prompt), and it reports nothing when that throw is swallowed.
     const Recognition = window.SpeechRecognition ?? window.webkitSpeechRecognition ?? null;
     const recognition = Recognition ? new Recognition() : null;
     if (recognition) {
@@ -146,22 +134,31 @@ export function useDictation(onText: (text: string) => void, onError: (message: 
       recognition.lang = navigator.language;
       recognition.onresult = (event) => {
         let text = "";
+        let draft = "";
         for (let i = event.resultIndex; i < event.results.length; i++) {
           const result = event.results[i];
           const first = result?.[0];
-          if (result?.isFinal && first) text += first.transcript;
+          if (!first) continue;
+          if (result?.isFinal) text += first.transcript;
+          else draft += first.transcript;
         }
         if (text.trim()) callbacks.current.onText(text);
+        setPreview(draft.trim());
       };
       recognition.onerror = (event) => {
-        if (event.error === "not-allowed" || event.error === "service-not-allowed") {
+        if (event.error === "no-speech" || event.error === "aborted") return;
+        if (event.error === "network") {
+          callbacks.current.onError("Speech service unreachable. Check your connection and try again.");
+        } else if (event.error === "audio-capture") {
+          callbacks.current.onError("No microphone found. Check your device and try again.");
+        } else {
           callbacks.current.onError("Microphone blocked. Allow access and try again.");
-          stop();
         }
+        stop();
       };
       recognition.onend = () => {
         // Recognition stops itself on long pauses; keep it alive while wanted.
-        if (wantListening.current && running.current?.recognition === recognition) {
+        if (wantListening.current) {
           try {
             recognition.start();
           } catch {
@@ -172,9 +169,39 @@ export function useDictation(onText: (text: string) => void, onError: (message: 
       try {
         recognition.start();
       } catch {
-        // Ignored: onend/onerror report real failures.
+        wantListening.current = false;
+        callbacks.current.onError("Dictation could not start. Tap again and allow the microphone.");
+        return;
       }
     }
+    let stream: MediaStream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch {
+      wantListening.current = false;
+      try {
+        recognition?.stop();
+      } catch {
+        // Never started; nothing to stop.
+      }
+      callbacks.current.onError("Microphone blocked. Allow access and try again.");
+      return;
+    }
+    if (!wantListening.current) {
+      for (const track of stream.getTracks()) track.stop();
+      try {
+        recognition?.stop();
+      } catch {
+        // Never started; nothing to stop.
+      }
+      return;
+    }
+    const context = new AudioContext();
+    const source = context.createMediaStreamSource(stream);
+    const analyser = context.createAnalyser();
+    analyser.fftSize = FFT_SIZE;
+    source.connect(analyser);
+    const samples = new Uint8Array(analyser.fftSize);
 
     const state: Running = { stream, context, source, analyser, samples, recognition, frame: 0, smoothed: 0 };
     running.current = state;
@@ -195,5 +222,5 @@ export function useDictation(onText: (text: string) => void, onError: (message: 
 
   useEffect(() => () => stop(), [stop]);
 
-  return { listening, toggle, glowRef };
+  return { listening, preview, toggle, glowRef };
 }
