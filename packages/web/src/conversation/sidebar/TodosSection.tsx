@@ -16,6 +16,7 @@ export function TodosSection({ conversationId, view }: { conversationId: string;
   if (!todosVisible && !editing) return null;
   return (
     <SidebarSection
+      sectionId="todos"
       title="Todos"
       count={todosVisible ? todos.length : undefined}
       open={expanded.open}

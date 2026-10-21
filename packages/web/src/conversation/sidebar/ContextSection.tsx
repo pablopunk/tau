@@ -13,7 +13,7 @@ export function ContextSection({ view }: { view: ConversationView }) {
   if (!usage) return null;
   const percent = Math.round((usage.used / usage.total) * 100);
   return (
-    <SidebarSection title="Context">
+    <SidebarSection sectionId="context" title="Context">
       <div className="flex items-center gap-2">
         <ContextMeter used={usage.used} total={usage.total} label={usage.label} />
         <p className="text-xs text-muted-foreground">{usage.label}</p>

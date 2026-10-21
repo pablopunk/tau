@@ -9,7 +9,7 @@ export function PullRequestSection({ conversationId }: { conversationId: string 
   // Creating a PR lives in the worktree section; here we only list an open one.
   if (!workspace.pullRequestUrl) return null;
   return (
-    <SidebarSection title="Pull request">
+    <SidebarSection sectionId="pull-request" title="Pull request">
       <a
         href={workspace.pullRequestUrl}
         target="_blank"

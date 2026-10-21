@@ -93,6 +93,7 @@ export function GoalSection({ conversationId }: { conversationId: string }) {
       .catch((error: unknown) => void toast.error(errorMessage(error)));
   return (
     <SidebarSection
+      sectionId="goal"
       title="Goal"
       actions={
         editing ? null : (

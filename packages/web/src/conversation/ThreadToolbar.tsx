@@ -11,18 +11,22 @@ import { ProcessesChip } from "@/processes/ProcessesChip";
 import { TimersChip } from "@/timers/TimersChip";
 import { contextUsage } from "./composer/context-usage";
 import { findModel, readAgent } from "./model/agent";
+import type { SidebarSectionId } from "./sidebar/sections";
 
 export function ThreadToolbar({
   id,
   view,
   pickers,
   sidebarOpen,
+  onRevealSection,
 }: {
   id: string;
   view: ConversationView;
   pickers?: Ref<PickersHandle>;
   /** When the right sidebar is open these chips live there instead. */
   sidebarOpen?: boolean;
+  /** When collapsed, indicators jump to the sidebar section instead of their popover. */
+  onRevealSection?: (section: SidebarSectionId) => void;
 }) {
   const api = useApi();
   const models = useModels().data;
@@ -50,9 +54,18 @@ export function ThreadToolbar({
         {sidebarOpen ? null : (
           <>
             {usage ? <ContextMeter used={usage.used} total={usage.total} label={usage.label} /> : null}
-            <GoalChip conversationId={id} />
-            <ProcessesChip conversationId={id} />
-            <TimersChip conversationId={id} />
+            <GoalChip
+              conversationId={id}
+              onReveal={onRevealSection ? () => onRevealSection("goal") : undefined}
+            />
+            <ProcessesChip
+              conversationId={id}
+              onReveal={onRevealSection ? () => onRevealSection("processes") : undefined}
+            />
+            <TimersChip
+              conversationId={id}
+              onReveal={onRevealSection ? () => onRevealSection("timers") : undefined}
+            />
           </>
         )}
       </div>

@@ -82,6 +82,26 @@ describe("conversation sidebar", () => {
     await waitFor(() => expect(vi.mocked(api.goals.set)).toHaveBeenCalledWith("2", "Ship it faster"));
   });
 
+  it("opens the sidebar from a collapsed-view indicator", async () => {
+    vi.mocked(api.goals.get).mockResolvedValue({
+      id: "g",
+      condition: "Ship the release",
+      state: "active",
+      startedAt: Date.now(),
+      turnsEvaluated: 1,
+      tokensSpent: 100,
+      lastVerdict: null,
+      lastReason: null,
+    });
+    renderView(endOf("text"));
+    await screen.findByTestId("conversation-sidebar");
+    await userEvent.click(screen.getByRole("button", { name: "Close conversation sidebar" }));
+    expect(screen.queryByTestId("conversation-sidebar")).not.toBeInTheDocument();
+    await userEvent.click(await screen.findByRole("button", { name: "Goal active" }));
+    const sidebar = await screen.findByTestId("conversation-sidebar");
+    expect(within(sidebar).getByText("Ship the release")).toBeInTheDocument();
+  });
+
   it("toggles closed and brings the header chips back", async () => {
     withWorktree();
     renderView(endOf("text"));

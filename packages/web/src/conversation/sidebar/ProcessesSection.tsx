@@ -11,6 +11,7 @@ export function ProcessesSection({ conversationId }: { conversationId: string })
   if (processes.length === 0) return null;
   return (
     <SidebarSection
+      sectionId="processes"
       title="Processes"
       count={running}
       open={expanded.open}

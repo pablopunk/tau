@@ -12,7 +12,7 @@ export function ImagesSection({ view }: { view: ConversationView }) {
   const opened = open === undefined ? undefined : images[open];
   const agentCount = images.filter((image) => image.source === "agent").length;
   return (
-    <SidebarSection title="Images" count={images.length}>
+    <SidebarSection sectionId="images" title="Images" count={images.length}>
       <ul aria-label="Conversation images" className="flex flex-wrap gap-1.5">
         {images.map((image, index) => (
           // biome-ignore lint/suspicious/noArrayIndexKey: images have no id and never reorder

@@ -21,7 +21,7 @@ export function WorktreeSection({ conversationId }: { conversationId: string }) 
   const dirty = status?.dirtyFiles ?? [];
   const nothingToMerge = status !== undefined && status.unmergedCommits === 0;
   return (
-    <SidebarSection title="Worktree" defaultOpen>
+    <SidebarSection sectionId="worktree" title="Worktree" defaultOpen>
       <div className="flex items-center gap-1.5 text-sm">
         <GitBranchIcon className="size-4 shrink-0 text-muted-foreground" />
         <span className="min-w-0 flex-1 truncate font-medium">{workspace.branch ?? "worktree"}</span>

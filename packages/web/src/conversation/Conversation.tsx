@@ -1,6 +1,6 @@
 import { readLive } from "@tau/protocol";
 import { ArrowDown } from "lucide-react";
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useMatch } from "react-router";
 import type { PickersHandle } from "@/components/ModelThinkingPickers";
 import { Button } from "@/components/ui/button";
@@ -20,6 +20,7 @@ import { whenBusyOf } from "./queue/queued-mode";
 import { stopAndRestore } from "./queue/stop-restore";
 import { ConversationSidebar } from "./sidebar/ConversationSidebar";
 import { SidebarToggleButton } from "./sidebar/SidebarToggleButton";
+import type { SidebarSectionId } from "./sidebar/sections";
 import { useConversationSidebarOpen } from "./sidebar/use-sidebar-open";
 import { ThreadHeader } from "./ThreadHeader";
 import { ThreadToolbar } from "./ThreadToolbar";
@@ -98,6 +99,14 @@ function ConversationPanel({ id }: ConversationProps) {
     if (terminalOpen && sidebarWantsOpen) setSidebarOpen(false);
   }, [terminalOpen, sidebarWantsOpen, setSidebarOpen]);
   const sidebarOpen = sidebarWantsOpen && !terminalOpen;
+  const [reveal, setReveal] = useState<SidebarSectionId | null>(null);
+  const revealSection = useCallback(
+    (section: SidebarSectionId) => {
+      setSidebarOpen(true);
+      setReveal(section);
+    },
+    [setSidebarOpen],
+  );
   return (
     <div data-testid="conversation" className="relative flex h-full min-h-0 flex-col bg-background">
       {view ? (
@@ -107,7 +116,7 @@ function ConversationPanel({ id }: ConversationProps) {
           extras={
             sidebarOpen ? null : (
               <>
-                <GoalChip conversationId={id} />
+                <GoalChip conversationId={id} onReveal={() => revealSection("goal")} />
                 <WorkspaceChip conversationId={id} />
               </>
             )
@@ -156,7 +165,13 @@ function ConversationPanel({ id }: ConversationProps) {
                 abovePanel={view && !sidebarOpen ? <TodoPanel conversationId={id} view={view} /> : undefined}
                 toolbar={
                   view ? (
-                    <ThreadToolbar id={id} view={view} pickers={pickers} sidebarOpen={sidebarOpen} />
+                    <ThreadToolbar
+                      id={id}
+                      view={view}
+                      pickers={pickers}
+                      sidebarOpen={sidebarOpen}
+                      onRevealSection={revealSection}
+                    />
                   ) : undefined
                 }
                 commands={thread.commands}
@@ -168,7 +183,14 @@ function ConversationPanel({ id }: ConversationProps) {
             </div>
           )}
         </div>
-        {sidebarOpen && view ? <ConversationSidebar conversationId={id} view={view} /> : null}
+        {sidebarOpen && view ? (
+          <ConversationSidebar
+            conversationId={id}
+            view={view}
+            reveal={reveal}
+            onRevealed={() => setReveal(null)}
+          />
+        ) : null}
       </div>
       {thread.renaming ? (
         <NameDialog

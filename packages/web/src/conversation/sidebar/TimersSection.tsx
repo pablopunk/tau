@@ -32,7 +32,13 @@ export function TimersSection({ conversationId }: { conversationId: string }) {
   };
 
   return (
-    <SidebarSection title="Timers" count={count} open={expanded.open} onOpenChange={expanded.onOpenChange}>
+    <SidebarSection
+      sectionId="timers"
+      title="Timers"
+      count={count}
+      open={expanded.open}
+      onOpenChange={expanded.onOpenChange}
+    >
       {timers.isPending ? (
         <p className="flex items-center gap-2 text-xs text-muted-foreground">
           <Spinner /> Loading timers…

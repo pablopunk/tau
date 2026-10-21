@@ -12,7 +12,7 @@ export function MachineSection() {
   const avatar = useNodeAvatar(nodeId);
   if (!nodeName) return null;
   return (
-    <SidebarSection title="Node">
+    <SidebarSection sectionId="node" title="Node">
       <Badge variant="outline">
         <OsIcon os={avatar.os} className="text-muted-foreground" />
         <NodeName name={nodeName} local={nodeId === undefined} />

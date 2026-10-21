@@ -331,9 +331,7 @@ function ComposerForm({
               {toolbar}
             </div>
           )}
-          {hint ? (
-            <div className="ml-auto min-w-0 truncate sm:ml-0 sm:shrink-0">{hint}</div>
-          ) : null}
+          {hint ? <div className="ml-auto min-w-0 truncate sm:ml-0 sm:shrink-0">{hint}</div> : null}
           <div className="flex shrink-0 items-center gap-1 max-sm:ml-1">
             {busy && onStop ? (
               <Tooltip>
