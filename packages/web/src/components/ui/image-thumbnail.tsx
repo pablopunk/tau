@@ -43,7 +43,7 @@ function ImageThumbnail({ src, alt, onRemove, onOpen, className, ...props }: Ima
           size="icon-xs"
           aria-label={`Remove ${alt}`}
           onClick={onRemove}
-          className="absolute top-0.5 right-0.5 size-5 rounded-full after:absolute after:-bottom-4 after:-left-4 after:top-0 after:right-0 pointer-coarse:size-5 pointer-coarse:[&_svg:not([class*='size-'])]:size-3"
+          className="absolute top-0.5 right-0.5 size-5 rounded-full after:absolute after:-bottom-4 after:-left-4 after:top-0 after:right-0 pointer-coarse:size-5 pointer-coarse:min-h-5 pointer-coarse:min-w-5 pointer-coarse:[&_svg:not([class*='size-'])]:size-3"
         >
           <XIcon />
         </Button>
