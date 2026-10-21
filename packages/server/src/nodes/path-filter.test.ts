@@ -1,6 +1,7 @@
 import {
   LIVE_PATH,
   MESSAGE_BODY_LIMIT,
+  type RouteDef,
   routes,
   TERMINAL_STREAM_PATH,
   UPLOAD_BODY_LIMIT,
@@ -47,7 +48,7 @@ describe("path filter: allowed", () => {
 
   it("marks only the upload route owner-only", () => {
     const denied = /^\/api\/(access|remote|nodes|n|pair|health|update)(\/|$)/;
-    for (const [name, route] of Object.entries(routes)) {
+    for (const [name, route] of Object.entries(routes as Record<string, RouteDef>)) {
       if (denied.test(route.path)) continue;
       const path = route.path.replace(/:\w+/g, "x1");
       const decision = allowed(route.method, path);
