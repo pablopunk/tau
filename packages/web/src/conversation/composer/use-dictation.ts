@@ -55,8 +55,10 @@ interface Running {
 }
 
 const FFT_SIZE = 1024;
-const GAIN = 3;
-const SMOOTHING = 0.85;
+const GAIN = 5;
+/** Exponent below 1 lifts quiet sounds so the glow answers sooner. */
+const CURVE = 0.7;
+const SMOOTHING = 0.8;
 const GLOW_RGB = "96, 165, 250";
 
 /** Root-mean-square of the time-domain samples, roughly 0 for silence. */
@@ -67,13 +69,13 @@ function rms(analyser: AnalyserNode, samples: Uint8Array<ArrayBuffer>): number {
     const centered = ((samples[i] ?? 128) - 128) / 128;
     sum += centered * centered;
   }
-  return Math.min(1, Math.sqrt(sum / samples.length) * GAIN);
+  return Math.pow(Math.min(1, Math.sqrt(sum / samples.length) * GAIN), CURVE);
 }
 
 function paint(glow: HTMLDivElement | null, level: number) {
   if (!glow) return;
-  glow.style.opacity = (0.25 + level * 0.75).toFixed(3);
-  glow.style.boxShadow = `0 0 ${(14 + level * 44).toFixed(0)}px ${(3 + level * 9).toFixed(0)}px rgba(${GLOW_RGB}, ${(0.35 + level * 0.45).toFixed(3)})`;
+  glow.style.opacity = (0.3 + level * 0.7).toFixed(3);
+  glow.style.boxShadow = `0 0 ${(18 + level * 54).toFixed(0)}px ${(4 + level * 12).toFixed(0)}px rgba(${GLOW_RGB}, ${(0.4 + level * 0.5).toFixed(3)})`;
 }
 
 function unpaint(glow: HTMLDivElement | null) {

@@ -337,7 +337,7 @@ function ComposerForm({
             aria-label={showInput ? "Hide keyboard" : "Show keyboard"}
             aria-pressed={showInput}
             onClick={() => setShowInput((visible) => !visible)}
-            className="h-14 flex-1 text-base"
+            className="h-14 flex-1 rounded-full text-base"
           >
             <Keyboard className="size-6" />
             Keyboard
@@ -347,7 +347,7 @@ function ComposerForm({
             aria-label={dictation.listening ? "Stop dictation" : "Dictate"}
             aria-pressed={dictation.listening}
             onClick={dictation.toggle}
-            className="h-14 flex-1 text-base"
+            className="h-14 flex-1 rounded-full text-base"
           >
             {dictation.listening ? <Square className="size-6 fill-current" /> : <Mic className="size-6" />}
             Dictate
