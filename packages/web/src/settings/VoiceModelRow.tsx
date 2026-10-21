@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Combobox, type ComboboxOption } from "@/components/ui/combobox";
 import { SettingRow } from "@/components/ui/settings-layout";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { queryKeys, useSettings, useVoiceOptions } from "@/lib/queries";
 import { useApi } from "@/nodes/node-context";
 
@@ -98,9 +99,11 @@ export function VoiceModelRow() {
       await api.settings.setVoiceModel(setting);
       await queryClient.invalidateQueries({ queryKey: queryKeys.settings });
       if (setting?.kind === "local") {
-        // Start the download now so the state below flips to progress.
-        await queryClient.invalidateQueries({ queryKey: queryKeys.voiceOptions });
+        // Warm first: it flips the status synchronously, so the refetch
+        // below observes "downloading" and polling takes over. The other
+        // order leaves the row stuck on "not downloaded" forever.
         void api.voice.warm().catch(() => undefined);
+        await queryClient.invalidateQueries({ queryKey: queryKeys.voiceOptions });
       }
     });
 
@@ -115,51 +118,39 @@ export function VoiceModelRow() {
       <span id="voice-model-label" className="text-sm font-medium">
         Voice model
       </span>
-      <div
-        role="radiogroup"
-        aria-labelledby="voice-model-label"
-        className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm"
+      <ToggleGroup
+        type="single"
+        variant="outline"
+        size="sm"
+        spacing={0}
+        value={value}
+        aria-label="Voice model"
+        onValueChange={(next) => {
+          if (next === "browser") choose(null);
+          else if (next === "local") choose({ kind: "local" });
+          else if (next === "provider") {
+            const first = models[0];
+            if (first && !noProviderModels) {
+              const [provider, ...rest] = first.value.split("/");
+              choose({ kind: "provider", provider: provider ?? "", modelId: rest.join("/") });
+            }
+          }
+        }}
       >
-        <label className="flex items-center gap-1.5">
-          <input
-            type="radio"
-            name="voice-model"
-            className="accent-primary"
-            checked={value === "browser"}
-            disabled={save.pending}
-            onChange={() => choose(null)}
-          />
+        <ToggleGroupItem value="browser" aria-label="Browser" disabled={save.pending}>
           Browser
-        </label>
-        <label className="flex items-center gap-1.5">
-          <input
-            type="radio"
-            name="voice-model"
-            className="accent-primary"
-            checked={value === "local"}
-            disabled={save.pending || !options?.local.available}
-            onChange={() => choose({ kind: "local" })}
-          />
+        </ToggleGroupItem>
+        <ToggleGroupItem
+          value="local"
+          aria-label="Local"
+          disabled={save.pending || !options?.local.available}
+        >
           Local
-        </label>
-        <label className="flex items-center gap-1.5">
-          <input
-            type="radio"
-            name="voice-model"
-            className="accent-primary"
-            checked={value === "provider"}
-            disabled={save.pending || noProviderModels}
-            onChange={() => {
-              const first = models[0];
-              if (first) {
-                const [provider, ...rest] = first.value.split("/");
-                choose({ kind: "provider", provider: provider ?? "", modelId: rest.join("/") });
-              }
-            }}
-          />
+        </ToggleGroupItem>
+        <ToggleGroupItem value="provider" aria-label="Provider" disabled={save.pending || noProviderModels}>
           Provider
-        </label>
-      </div>
+        </ToggleGroupItem>
+      </ToggleGroup>
       <div className="text-sm text-muted-foreground">
         {value === "browser" ? (
           <span>Built-in speech recognition, nothing to download.</span>

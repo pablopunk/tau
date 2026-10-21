@@ -35,6 +35,9 @@ export function SettingsModels() {
         onModel={(ref) => save(() => api.settings.setDefaultModel(ref))}
         onLevel={(level) => save(() => api.settings.setDefaultThinkingLevel(level))}
       />
+      <p className="text-sm text-muted-foreground">
+        Used for new threads; change a thread's model from its composer.
+      </p>
       <ModelSetting
         settingId="fast-model"
         label="Fast model"
@@ -46,11 +49,8 @@ export function SettingsModels() {
         clearLabel="Same as thread"
         onClear={() => save(() => api.settings.setFastModel(null))}
       />
+      <p className="text-sm text-muted-foreground">The fast model names new threads.</p>
       <VoiceModelRow />
-      <p className="text-sm text-muted-foreground">
-        The fast model names new threads. The default model and its thinking level are used for new threads;
-        change a thread's model from its composer.
-      </p>
       <FormError message={error} />
     </div>
   );
