@@ -4,8 +4,11 @@ import { clampThinkingLevel } from "@earendil-works/pi-ai/models";
 import { listProviderOptions } from "./provider/voice-models";
 import {
   AppError,
+  type CompactionSettings,
+  CompactionSettingsSchema,
   type Core,
   type ModelRef,
+  type ProviderId,
   type ResourceActivity,
   type ResourceSettings,
   ResourceSettingsSchema,
@@ -86,6 +89,13 @@ export function createSettingsApi(deps: {
       throw new AppError("invalid_request", "This model is not available from your connected providers.");
     }
   };
+  const hasDecisionBackend = async (backend: CompactionSettings["backend"]): Promise<boolean> => {
+    const wanted: readonly ProviderId[] = backend === "auto" ? ["typesafe", "openai"] : [backend];
+    const connected = new Set(
+      (await provider.list()).filter((info) => info.connection !== null).map((info) => info.id),
+    );
+    return wanted.some((id) => connected.has(id));
+  };
   const clampForModel = (ref: ModelRef, level: ThinkingLevel | null): ThinkingLevel | null => {
     const model = provider.models.getModel(ref.provider, ref.modelId);
     return level !== null && model ? clampThinkingLevel(model, level) : level;
@@ -106,6 +116,18 @@ export function createSettingsApi(deps: {
       }
       await settings.setResources(value);
       onResourcesChanged?.(value);
+    },
+    async setCompaction(value: CompactionSettings) {
+      if (!Value.Check(CompactionSettingsSchema, value)) {
+        throw new AppError("invalid_request", "Compaction mode must be summary or fast.");
+      }
+      if (value.mode === "fast" && !(await hasDecisionBackend(value.backend))) {
+        throw new AppError(
+          "invalid_request",
+          "Connect TypeSafe, or OpenAI with decisions access, to enable fast compaction.",
+        );
+      }
+      await settings.setCompaction(value);
     },
     resourceSupport: async () => (resources ? resources.support() : UNSUPPORTED_RESOURCES),
     resourceActivity: async () => (resources ? resources.activity() : { holders: [], waiting: [] }),

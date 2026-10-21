@@ -8,6 +8,7 @@ import {
 import type {
   ApprovalDecision,
   ClaudeConnectorSettings,
+  CompactionSettings,
   ConversationSummary,
   MintPairingInput,
   ProviderId,
@@ -282,6 +283,15 @@ export function useSetClaudeConnectors() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (value: ClaudeConnectorSettings) => api.settings.setClaudeConnectors(value),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.settings }),
+  });
+}
+
+export function useSetCompaction() {
+  const api = useApi();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (value: CompactionSettings) => api.settings.setCompaction(value),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.settings }),
   });
 }

@@ -6,8 +6,8 @@ Chat with a coding agent that works in your project folders, from the browser.
 
 * Run pnpm only as `mise exec -- pnpm <command>`. Never npm, yarn or bare pnpm.
 * `check`: Biome and `tsc --noEmit` in every package (`format` fixes). `test`: Vitest. `build`: web, then the CLI. `e2e`: Playwright on the built CLI.
-* Web without a backend: `VITE_FAKE=1 mise exec -- pnpm --filter @tau/web dev` (add `?fake=ready` to skip setup, `&nodes` to link two fake nodes; `?fake=setup&nodes` is an unconfigured node with peers).
-* zsh has noclobber: use `>|` to overwrite a file.
+* Web without a backend: `VITE_FAKE=1 mise exec -- pnpm --filter @tau/web dev -- --port <free-port> --strictPort` (always pass an explicit free port with `--strictPort`: without it Vite silently bumps to the next free port and you may open another agent's tree. Add `?fake=ready` to skip setup, `&nodes` to link two fake nodes; `?fake=setup&nodes` is an unconfigured node with peers).
+* * zsh has noclobber: use `>|` to overwrite a file.
 
 ## Packages
 

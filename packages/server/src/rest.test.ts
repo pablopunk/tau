@@ -18,6 +18,7 @@ describe("REST routes", () => {
       null,
       null,
       null,
+      null,
     ]);
     expect((await ctx.request({ url: "/api/models" })).json()).toEqual([]);
     const put = await ctx.request({

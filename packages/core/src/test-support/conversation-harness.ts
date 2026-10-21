@@ -3,6 +3,7 @@ import { createModels } from "@earendil-works/pi-ai/models";
 import type { Harness } from "@earendil-works/pi-durable";
 import type { Change, Project } from "@tau/protocol";
 import { type ChangeEmitter, createChangeEmitter } from "../change-emitter";
+import { type UploadStore, createUploadStore } from "../upload-store";
 import { createConversationRecovery } from "../conversation-recovery";
 import { legacyWorkspace } from "../harness/conversation-index";
 import { type ConversationStore, createConversationStore } from "../harness/conversation-store";
@@ -21,6 +22,7 @@ export type LateModels = { readonly before: boolean; readonly afterMs: number };
 
 export interface ConversationHarness {
   readonly harness: Harness;
+  readonly uploads: UploadStore;
   readonly store: ConversationStore;
   readonly changes: ChangeEmitter;
   readonly seen: Change[];
@@ -54,7 +56,8 @@ export async function openConversationHarness(
     },
   });
   if (late && !late.before) void sleep(late.afterMs).then(() => models.setProvider(setup.faux.provider));
-  const store = createConversationStore(harness, async () => directory);
+  const uploads = createUploadStore({ now, root: join(directory, "uploads") });
+  const store = createConversationStore(harness, async () => directory, { uploads });
   const recovery = createConversationRecovery({ harness, conversations: store, changes });
   const project: Project = {
     id: "p1",
@@ -67,6 +70,7 @@ export async function openConversationHarness(
   };
   return {
     harness,
+    uploads,
     store,
     changes,
     seen,

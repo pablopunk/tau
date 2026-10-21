@@ -13,8 +13,10 @@ import { DeleteArchivedInputSchema, DeleteArchivedResultSchema } from "./archive
 import {
   ClaudeConnectorSettingsSchema,
   CompactInputSchema,
+  CompactionSettingsSchema,
   ConfigureConversationInputSchema,
   ConversationSummarySchema,
+  FileRefSchema,
   FileSuggestionSchema,
   GithubRepoSchema,
   GithubStatusSchema,
@@ -36,6 +38,7 @@ import {
   SuggestedCodeFolderSchema,
   ThinkingLevelSchema,
   TranscribeInputSchema,
+  UploadInputSchema,
   UseGithubRepoInputSchema,
   VoiceModelSettingSchema,
   VoiceOptionsSchema,
@@ -67,6 +70,8 @@ export const PAIR_PAGE_PATH = "/pair";
 export const MESSAGE_BODY_LIMIT = 42 * 1024 * 1024;
 /** Audio uploads copy the image pattern: base64-in-JSON, parsed in memory only, transcribed and discarded. */
 export const AUDIO_BODY_LIMIT = 10 * 1024 * 1024;
+/** Caps `POST /api/uploads`: base64 inflates 5 MiB of file bytes to about 6.7 MiB on the wire. */
+export const UPLOAD_BODY_LIMIT = 8 * 1024 * 1024;
 export const PROCESS_LOG_TAIL_DEFAULT = 200;
 
 export type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
@@ -82,6 +87,8 @@ export interface RouteDef {
   readonly body?: TSchema;
   readonly response?: TSchema;
   readonly bodyLimit?: number;
+  /** Only the owner may call this (server enforces `route.ownerOnly || options.ownerOnly` with `forbidden`). */
+  readonly ownerOnly?: boolean;
 }
 
 const IdParams = Type.Object({ id: Type.String({ minLength: 1 }) });
@@ -318,6 +325,12 @@ export const routes = {
     status: 204,
     body: ResourceSettingsSchema,
   },
+  setCompaction: {
+    method: "PUT",
+    path: `${API_PREFIX}/settings/compaction`,
+    status: 204,
+    body: CompactionSettingsSchema,
+  },
   getResourceSupport: {
     method: "GET",
     path: `${API_PREFIX}/settings/resources/support`,
@@ -546,6 +559,15 @@ export const routes = {
     status: 200,
     query: Type.Object({ projectId: Type.Optional(Type.String({ minLength: 1 })) }),
     response: Type.Array(SkillSchema),
+  },
+  stageUpload: {
+    method: "POST",
+    path: `${API_PREFIX}/uploads`,
+    status: 201,
+    body: UploadInputSchema,
+    response: FileRefSchema,
+    bodyLimit: UPLOAD_BODY_LIMIT,
+    ownerOnly: true,
   },
   listConversations: {
     method: "GET",

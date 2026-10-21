@@ -1,7 +1,16 @@
 import { Terminal } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { argText, exitCodeOf, isActive, resultDetails, resultText, wasAborted } from "../model/tool-state";
+import {
+  argText,
+  durationMsOf,
+  exitCodeOf,
+  isActive,
+  resultDetails,
+  resultText,
+  wasAborted,
+} from "../model/tool-state";
 import { BackgroundButton } from "./BackgroundButton";
+import { formatDurationMs } from "./format-duration";
 import { OutputBlock } from "./OutputBlock";
 import { StopToolCallButton } from "./StopToolCallButton";
 import { ToolCard } from "./ToolCard";
@@ -23,12 +32,26 @@ function wasTruncated(state: ToolRendererProps["state"]): boolean {
   );
 }
 
-function ExitBadge({ state }: ToolRendererProps) {
+function Badges({ state }: ToolRendererProps) {
   if (resultDetails(state).backgrounded === true) return <Badge variant="secondary">Background</Badge>;
   if (wasAborted(state.result)) return <Badge variant="secondary">Stopped</Badge>;
   const exitCode = exitCodeOf(state.result);
-  if (exitCode === undefined) return null;
-  return <Badge variant="destructive">Exit {exitCode}</Badge>;
+  const durationMs = durationMsOf(state.result);
+  if (exitCode === undefined && durationMs === undefined) return null;
+  return (
+    <span className="flex items-center gap-1.5">
+      {durationMs !== undefined ? (
+        <Badge variant="secondary" title={`Took ${formatDurationMs(durationMs)}`}>
+          {formatDurationMs(durationMs)}
+        </Badge>
+      ) : null}
+      {exitCode === undefined ? null : exitCode === 0 ? (
+        <Badge variant="secondary">Exit 0</Badge>
+      ) : (
+        <Badge variant="destructive">Exit {exitCode}</Badge>
+      )}
+    </span>
+  );
 }
 
 export function BashTool({ state }: ToolRendererProps) {
@@ -40,7 +63,7 @@ export function BashTool({ state }: ToolRendererProps) {
       title="Bash"
       subtitle={argText(state, "command")}
       status={state.status}
-      badge={<ExitBadge state={state} />}
+      badge={<Badges state={state} />}
       actions={
         conversationId && state.status === "running" ? (
           <div className="flex gap-1.5">

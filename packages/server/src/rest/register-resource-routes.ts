@@ -6,6 +6,7 @@ import { defineRoute } from "./define-route";
 export function registerResourceRoutes(app: FastifyInstance, core: Core): void {
   const { settings } = core;
   defineRoute(app, routes.setResources, ({ body }) => settings.setResources(body));
+  defineRoute(app, routes.setCompaction, ({ body }) => settings.setCompaction(body));
   defineRoute(app, routes.getResourceSupport, () => settings.resourceSupport());
   defineRoute(app, routes.getResourceActivity, () => settings.resourceActivity());
   defineRoute(app, routes.stopResourceCommand, ({ params }) => settings.stopResourceCommand(params.id));

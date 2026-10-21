@@ -21,9 +21,8 @@ const DEFAULTS = {
   remote: { enabled: false },
   resources: {
     levels: { main: "off", worktree: "off", subagent: "off" },
-    heavySlots: null,
-    memoryLimitMb: null,
   },
+  compaction: { mode: "summary", backend: "auto" },
 };
 const ref = { provider: "openrouter", modelId: "x/y" };
 
@@ -217,13 +216,9 @@ describe("resources", () => {
   it("keeps valid fields and defaults each invalid or missing one on its own", async () => {
     expect(await read({ levels: { main: "balanced" }, heavySlots: 99, memoryLimitMb: 10 })).toEqual({
       levels: { main: "balanced", worktree: "off", subagent: "off" },
-      heavySlots: null,
-      memoryLimitMb: null,
     });
     expect(await read({ heavySlots: 3, memoryLimitMb: 2048, levels: { main: "nope" } })).toMatchObject({
       levels: { main: "off", worktree: "off", subagent: "off" },
-      heavySlots: 3,
-      memoryLimitMb: 2048,
     });
     expect(await read("garbage")).toEqual(DEFAULTS.resources);
   });
@@ -232,11 +227,23 @@ describe("resources", () => {
     const path = join(await tempDir(), "settings.json");
     const value = {
       levels: { main: "background", worktree: "balanced", subagent: "off" } as const,
-      heavySlots: 2,
-      memoryLimitMb: 4096,
     };
     await createSettingsStore(path, PROJECTS).setResources(value);
     expect((await createSettingsStore(path, PROJECTS).get()).resources).toEqual(value);
+  });
+
+  it("defaults compaction to summary/auto and stores the value whole", async () => {
+    const path = join(await tempDir(), "settings.json");
+    await writeFile(path, JSON.stringify({}));
+    expect((await createSettingsStore(path, PROJECTS).get()).compaction).toEqual({
+      mode: "summary",
+      backend: "auto",
+    });
+    await createSettingsStore(path, PROJECTS).setCompaction({ mode: "fast", backend: "typesafe" });
+    expect((await createSettingsStore(path, PROJECTS).get()).compaction).toEqual({
+      mode: "fast",
+      backend: "typesafe",
+    });
   });
 
   it("migrates a legacy {priority, appliesTo} setting to per-scope levels", async () => {
@@ -248,8 +255,6 @@ describe("resources", () => {
       }),
     ).toEqual({
       levels: { main: "balanced", worktree: "off", subagent: "off" },
-      heavySlots: 2,
-      memoryLimitMb: null,
     });
     expect(await read({ priority: "background" })).toMatchObject({
       levels: { main: "off", worktree: "off", subagent: "background" },

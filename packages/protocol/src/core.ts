@@ -11,8 +11,10 @@ import type {
   Change,
   ClaudeConnectorSettings,
   CompactInput,
+  CompactionSettings,
   ConfigureConversationInput,
   ConversationSummary,
+  FileRef,
   FileSuggestion,
   GithubRepo,
   GithubStatus,
@@ -35,6 +37,7 @@ import type {
   SuggestedCodeFolder,
   ThinkingLevel,
   TranscribeInput,
+  UploadInput,
   UseGithubRepoInput,
   VoiceModelSetting,
   VoiceOptions,
@@ -61,8 +64,10 @@ import type { Op } from "./view";
 export type {
   Change,
   CompactInput,
+  CompactionSettings,
   ConfigureConversationInput,
   ConversationSummary,
+  FileRef,
   FileSuggestion,
   GithubRepo,
   GithubStatus,
@@ -86,6 +91,7 @@ export type {
   UseGithubRepoInput,
   VoiceModelSetting,
   VoiceOptions,
+  UploadInput,
   WorkspaceDefault,
   WorkspaceMode,
 } from "./entities";
@@ -153,6 +159,8 @@ export interface Core {
     setSetupSkipped(skipped: boolean): Promise<void>;
     /** Replaces the node's resource settings. Priority and memory apply to the next spawned command; slots apply at once. */
     setResources(value: ResourceSettings): Promise<void>;
+    /** Replaces the node's compaction preference. Enabling `fast` with no available backend rejects `invalid_request`. */
+    setCompaction(value: CompactionSettings): Promise<void>;
     /** What this node can enforce. Lazy: may probe the host. */
     resourceSupport(): Promise<ResourceSupport>;
     /** Heavy commands running or waiting, node-wide. */
@@ -388,6 +396,14 @@ export interface Core {
     get(conversationId: string): Promise<Goal | null>;
     /** Idempotent. Rejects `not_found`. */
     clear(conversationId: string): Promise<void>;
+  };
+  uploads: {
+    /**
+     * Stages a file for a later message and returns its virtual path. The agent sees the path only and reads
+     * the bytes itself; refs expire (use then rejects `file_expired`: stage again and retry). Rejects `too_large`
+     * past 5 MiB of decoded bytes and `invalid_request` for a bad name or data.
+     */
+    stage(input: UploadInput): Promise<FileRef>;
   };
   mcp: {
     /** Settings servers plus the project's `.mcp.json` servers (`null` for settings only). Never returns env or header values. */

@@ -198,6 +198,78 @@ describe("retry", () => {
   });
 });
 
+describe("uploads", () => {
+  const toBase64 = (text: string): string => Buffer.from(text).toString("base64");
+  const missing = { name: "gone.txt", path: "uploads/00000000-0000-4000-8000-000000000000", size: 1 };
+
+  async function userTexts(id: string): Promise<string[]> {
+    const conversation = await world.harness.conversation(conversationIdOf(id), BACKGROUND);
+    const entries = (await conversation?.context(BACKGROUND))?.entries ?? [];
+    return entries.flatMap((entry) => {
+      const message = (entry as { model?: { role?: string; content?: unknown }[] }).model?.[0];
+      if (entry.kind !== "pi.user" || message?.role !== "user") return [];
+      const content = message.content;
+      if (typeof content === "string") return [content];
+      if (!Array.isArray(content)) return [];
+      return content.flatMap((part) =>
+        typeof part === "object" && part !== null && (part as { type?: unknown }).type === "text"
+          ? [(part as { text?: unknown }).text].flatMap((text) => (typeof text === "string" ? [text] : []))
+          : [],
+      );
+    });
+  }
+
+  it("admits staged files as quoted path-only context, never bytes", async () => {
+    const ref = await world.uploads.stage({
+      name: "notes.txt",
+      mimeType: "text/plain",
+      data: toBase64("hello"),
+    });
+    const started = startRequest(world, "read this", "with-file");
+    const { summary } = await world.store.start({ ...started, input: { ...started.input, files: [ref] } });
+    await waitForSummary(world, summary.id, (item) => item.status === "idle", "the answer");
+    const texts = (await userTexts(summary.id)).join("\n");
+    expect(texts).toContain(`Attached file: "${ref.path}"`);
+    expect(texts).toContain("Read it from:");
+    expect(texts).not.toContain(toBase64("hello"));
+    expect(summary.title).toBe("read this");
+  });
+
+  it("titles a file-only start by the safe file name", async () => {
+    const ref = await world.uploads.stage({ name: "plan.md", mimeType: "text/plain", data: toBase64("x") });
+    const started = startRequest(world, "  ", "file-only");
+    const { summary } = await world.store.start({ ...started, input: { ...started.input, files: [ref] } });
+    expect(summary.title).toBe("plan.md");
+  });
+
+  it("rejects expired refs on send without admitting anything", async () => {
+    const { summary } = await world.store.start(startRequest(world, "hello", "no-file"));
+    await waitForSummary(world, summary.id, (item) => item.status === "idle", "the answer");
+    const before = await userTexts(summary.id);
+    await expect(
+      world.store.send(summary.id, { text: "read this", files: [missing], requestId: "bad-file" }, 2),
+    ).rejects.toMatchObject({
+      code: "file_expired",
+    });
+    expect(await userTexts(summary.id)).toEqual(before);
+  });
+
+  it("clears a pending start whose uploads expired instead of retrying forever", async () => {
+    const started = startRequest(world, "read this", "expired-pending");
+    const pending = await world.store.createPendingOnly({
+      ...started,
+      input: { ...started.input, files: [missing] },
+    });
+    await reopen();
+    await reopen();
+    const meta = await readMeta(world.harness, pending.id);
+    expect(meta?.pendingFirstInput).toBeUndefined();
+    const conversation = await world.harness.conversation(pending.id, BACKGROUND);
+    const entries = (await conversation?.context(BACKGROUND))?.entries ?? [];
+    expect(entries.filter((entry) => entry.kind === "pi.user")).toHaveLength(0);
+  });
+});
+
 describe("migration", () => {
   it("gives a version 1 conversation document its title source", async () => {
     const { defineDoc } = await import("@earendil-works/pi-durable");

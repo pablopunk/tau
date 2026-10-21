@@ -5,6 +5,7 @@ import {
   validateGoogleKey,
   validateOpenAiKey,
   validateOpenCodeKey,
+  validateTypesafeKey,
 } from "./validators";
 
 function fetchAnswering(status: number, body = "{}") {
@@ -23,6 +24,7 @@ const offline = (async () => {
 const bearerValidators: [string, KeyValidator][] = [
   ["OpenAI", validateOpenAiKey],
   ["OpenCode", validateOpenCodeKey],
+  ["TypeSafe", validateTypesafeKey],
 ];
 
 describe.each(bearerValidators)("%s validator", (_name, validate) => {

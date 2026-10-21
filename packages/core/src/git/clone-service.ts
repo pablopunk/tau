@@ -9,6 +9,7 @@ import type { ChangeEmitter } from "../change-emitter";
 import type { ProjectStore } from "../harness/project-store";
 import type { SettingsStore } from "../home/settings-store";
 import { requireName } from "../require-name";
+import { withBackground } from "../system/background";
 import { claimFolder } from "./claim-folder";
 import { withCloneHint } from "./clone-hints";
 import { checkGitUrl, folderNameOf } from "./git-url";
@@ -41,7 +42,8 @@ export interface CloneService {
 const INTERRUPTED = "Interrupted by a restart";
 
 async function requireGit(env: CloneServiceDeps["env"]): Promise<void> {
-  await promisify(execFile)("git", ["--version"], { env }).catch(() => {
+  const command = withBackground("git", ["--version"], typeof env.PATH === "string" ? env.PATH : "");
+  await promisify(execFile)(command.file, [...command.args], { env }).catch(() => {
     throw new AppError("git_missing", "Git is not installed or not on the PATH.");
   });
 }

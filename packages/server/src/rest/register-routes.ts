@@ -60,6 +60,7 @@ export function registerRoutes(app: FastifyInstance, core: Core, sockets: Device
   defineRoute(app, routes.transcribeVoice, ({ body }) => core.voice.transcribe(body));
   defineRoute(app, routes.removeVoiceModel, () => core.voice.removeModel());
   defineRoute(app, routes.warmVoice, () => core.voice.warm());
+  defineRoute(app, routes.warmVoice, () => core.voice.warm());
   defineRoute(app, routes.setSetupSkipped, ({ body }) => core.settings.setSetupSkipped(body.skipped));
   defineRoute(app, routes.setProjectsFolder, ({ body }) => core.settings.setProjectsFolder(body.path));
   defineRoute(app, routes.getSuggestedCodeFolder, () => core.settings.suggestedCodeFolder());
@@ -109,6 +110,7 @@ export function registerRoutes(app: FastifyInstance, core: Core, sockets: Device
   defineImageRoute(app, routes.getIconCandidate, ({ params, query }) =>
     core.projects.iconCandidate(params.id, requireCandidateName(query.name)),
   );
+  defineRoute(app, routes.stageUpload, ({ body }) => core.uploads.stage(body));
   defineRoute(app, routes.listConversations, ({ params }) => core.conversations.list(params.id));
   defineRoute(app, routes.listAllConversations, () => core.conversations.listAll());
   defineRoute(app, routes.deleteArchivedConversations, ({ body }) => core.conversations.deleteArchived(body));

@@ -20,7 +20,7 @@ const DENIED_FIRST_SEGMENTS: ReadonlySet<string> = new Set([
 const FASTIFY_DEFAULT_BODY_LIMIT = 1024 * 1024;
 
 export type ProxyTarget =
-  | { readonly kind: "http"; readonly bodyLimit: number }
+  | { readonly kind: "http"; readonly bodyLimit: number; readonly ownerOnly: boolean }
   | { readonly kind: "live" }
   | { readonly kind: "terminal-stream"; readonly terminalId: string };
 
@@ -42,7 +42,11 @@ function httpEntry(route: RouteDef): Entry {
   return {
     method: route.method,
     segments: segmentsOf(route.path),
-    target: () => ({ kind: "http", bodyLimit: route.bodyLimit ?? FASTIFY_DEFAULT_BODY_LIMIT }),
+    target: () => ({
+      kind: "http",
+      bodyLimit: route.bodyLimit ?? FASTIFY_DEFAULT_BODY_LIMIT,
+      ownerOnly: route.ownerOnly ?? false,
+    }),
   };
 }
 

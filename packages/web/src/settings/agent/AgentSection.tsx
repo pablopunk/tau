@@ -4,11 +4,13 @@ import { FormError } from "@/app/FormError";
 import { useSubmit } from "@/app/use-submit";
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { SegmentedControl, type SegmentedOption } from "@/components/ui/segmented-control";
+import { Separator } from "@/components/ui/separator";
 import { SettingRow } from "@/components/ui/settings-layout";
 import { Skeleton } from "@/components/ui/skeleton";
 import { queryKeys, useSettings } from "@/lib/queries";
 import { useApi } from "@/nodes/node-context";
 import { ResourcesGroup } from "@/settings/resources/ResourcesGroup";
+import { FastCompactionGroup } from "./FastCompactionGroup";
 
 const textOption = <T extends string>(value: T, label: string): SegmentedOption<T> => ({
   value,
@@ -71,7 +73,10 @@ export function AgentSection() {
           </div>
         </Field>
       </SettingRow>
+      <Separator />
       <ResourcesGroup />
+      <Separator />
+      <FastCompactionGroup />
       <FormError message={error} />
     </div>
   );

@@ -12,6 +12,7 @@ const MODULES: readonly ContractModule[] = [
   "titles-status",
   "lifecycle",
   "retry",
+  "uploads",
 ];
 
 describe.skipIf(!REAL_CORE_IMPLEMENTED)("real core", () => {

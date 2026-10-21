@@ -39,6 +39,7 @@ export function settingsAndProviderCases(make: MakeContractTarget, test: CaseRun
         claudeConnectors: { disabled: [], alwaysAllow: [], askBeforeWrites: false },
         remote: { enabled: false },
         resources: DEFAULT_RESOURCE_SETTINGS,
+        compaction: { mode: "summary", backend: "auto" },
         setupSkipped: false,
       });
       expect(await hasConnectedProvider(core)).toBe(false);
@@ -118,6 +119,21 @@ export function settingsAndProviderCases(make: MakeContractTarget, test: CaseRun
         defaultThinkingLevel: null,
         fastThinkingLevel: null,
       });
+    });
+
+    test("[settings] stores compaction and rejects fast with no decision backend", async () => {
+      const { core } = target;
+      expect((await core.settings.get()).compaction).toEqual({ mode: "summary", backend: "auto" });
+      await core.settings.setCompaction({ mode: "summary", backend: "openai" });
+      expect((await core.settings.get()).compaction).toEqual({ mode: "summary", backend: "openai" });
+      await rejectsWithCode(
+        core.settings.setCompaction({ mode: "fast", backend: "auto" }),
+        "invalid_request",
+      );
+      await core.providers.setApiKey("typesafe", "sk-contract-test");
+      await core.settings.setCompaction({ mode: "fast", backend: "typesafe" });
+      expect((await core.settings.get()).compaction).toEqual({ mode: "fast", backend: "typesafe" });
+      await core.providers.disconnect("typesafe");
     });
 
     test("[settings] stores the projects folder and rejects a relative path or a file", async () => {

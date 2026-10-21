@@ -14,16 +14,21 @@ import type { ChangeEmitter } from "../change-emitter";
 import type { ObservedResultStore } from "../claude-cli/connectors/observed-results";
 import { bundledSdkHomeOf, type ClaudeSdkInstaller, sdkHomeOf } from "../claude-cli/sdk-install";
 import { claudeCliDisabled, createClaudeCliService } from "../claude-cli/service";
+import { createOpenaiClient } from "../decisions/openai";
+import { createTypesafeClient } from "../decisions/typesafe";
 import type { SettingsStore } from "../home/settings-store";
 import { createFauxSetup } from "../testing/faux-provider";
 import { loadFauxReplies } from "../testing/faux-replies";
 import { createConnectionReader } from "./connections";
+import { createDecisionsStatus, isDecisionBackend } from "./decisions-status";
 import { createLoginSessions, type LoginSessions } from "./login-sessions";
 import { createModelLister } from "./model-list";
 import { clearVoiceModelCache } from "./voice-models";
 import {
+  countsForChat,
   type KeyProviderEntry,
   type ProviderEntry,
+  primaryPiId,
   requireKeyProvider,
   requireProvider,
   visibleProviders,
@@ -103,7 +108,13 @@ export function createProviderService(options: ProviderServiceOptions): Provider
         replies: loadFauxReplies(options.env.TAU_FAUX_REPLIES),
       }).models
     : createRealModels(credentials, options.env, claudeCli.provider);
-  const connections = createConnectionReader({ credentials, models, faux: options.faux, claudeCli });
+  const connections = createConnectionReader({
+    credentials,
+    models,
+    faux: options.faux,
+    claudeCli,
+    env: options.env,
+  });
   const entries = visibleProviders(!claudeCliDisabled(options.env));
   const lister = createModelLister({
     models,
@@ -134,6 +145,24 @@ export function createProviderService(options: ProviderServiceOptions): Provider
     return connections.read(entry);
   }
 
+  const decisions = createDecisionsStatus({
+    check: (id) => {
+      // Faux nodes never touch the network; status stays unknown there.
+      if (options.faux) return Promise.resolve("unknown" as const);
+      if (id === "typesafe") {
+        return createTypesafeClient({
+          readCredential: () => connections.keyOf(requireKeyProvider("typesafe")),
+          env: options.env,
+        }).check();
+      }
+      return createOpenaiClient({
+        getAuth: (providerId) => models.getAuth(providerId),
+        env: options.env,
+      }).check();
+    },
+    onRefreshed: () => options.changes.emit({ resource: "providers" }),
+  });
+
   const infoOf = async (entry: ProviderEntry): Promise<ProviderInfo> => ({
     id: entry.id,
     name: entry.name,
@@ -141,6 +170,9 @@ export function createProviderService(options: ProviderServiceOptions): Provider
     keyUrl: entry.keyUrl,
     connection: await readAfterFirstCheck(entry),
     cli: entry.kind === "cli" ? claudeCli.status() : null,
+    ...(decisions.decisionsFor(entry.id) === undefined
+      ? {}
+      : { decisions: decisions.decisionsFor(entry.id) }),
   });
 
   async function validated(entry: KeyProviderEntry, key: string): Promise<boolean | null> {
@@ -155,22 +187,25 @@ export function createProviderService(options: ProviderServiceOptions): Provider
     const key = rawKey.trim();
     if (key === "") throw new AppError("invalid_key", "The API key is empty.");
     const valid = await validated(entry, key);
-    await credentials.writeMany(
-      entry.piProviders.map((ref) => ref.piId),
-      { type: "api_key", key },
-    );
+    const keyIds =
+      entry.piProviders.length > 0 ? entry.piProviders.map((ref) => ref.piId) : [primaryPiId(entry)];
+    await credentials.writeMany(keyIds, { type: "api_key", key });
     if (valid === null) connections.markUnchecked(entry);
     else connections.markChecked(entry);
     clearVoiceModelCache();
+    if (isDecisionBackend(id)) decisions.invalidate(id);
     options.changes.emit({ resource: "providers" });
     return infoOf(entry);
   }
 
   async function disconnect(id: ProviderId): Promise<ProviderInfo> {
     const entry = requireKeyProvider(id);
-    await credentials.deleteMany(entry.piProviders.map((ref) => ref.piId));
+    const keyIds =
+      entry.piProviders.length > 0 ? entry.piProviders.map((ref) => ref.piId) : [primaryPiId(entry)];
+    await credentials.deleteMany(keyIds);
     connections.markChecked(entry);
     clearVoiceModelCache();
+    if (isDecisionBackend(id)) decisions.invalidate(id);
     options.changes.emit({ resource: "providers" });
     return infoOf(entry);
   }
@@ -207,7 +242,10 @@ export function createProviderService(options: ProviderServiceOptions): Provider
     models,
     logins,
     async isConfigured() {
-      for (const entry of entries) if (await connections.read(entry)) return true;
+      for (const entry of entries) {
+        if (!countsForChat(entry)) continue;
+        if (await connections.read(entry)) return true;
+      }
       return false;
     },
     list: () => Promise.all(entries.map(infoOf)),

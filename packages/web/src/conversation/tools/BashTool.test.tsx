@@ -25,12 +25,38 @@ const call = { id: "call-7", name: "bash", arguments: { command: "sleep 60" } } 
 
 const running: ToolCallState = { call, status: "running", result: undefined, slot: undefined };
 
-function finished(details: unknown): ToolCallState {
-  const message = { role: "toolResult", isError: false, details, content: [{ type: "text", text: "ok" }] };
+function finished(details: unknown, durationMs?: number): ToolCallState {
+  const message = {
+    role: "toolResult",
+    isError: false,
+    details,
+    content: [{ type: "text", text: "ok" }],
+    ...(durationMs !== undefined && { durationMs }),
+  };
   return {
     call,
     status: "done",
     result: { message, diagnostics: [] } as unknown as ToolResultInfo,
+    slot: undefined,
+  };
+}
+
+function failedWithExit(exitCode: number, durationMs?: number): ToolCallState {
+  const message = {
+    role: "toolResult",
+    isError: true,
+    content: [{ type: "text", text: "boom" }],
+    ...(durationMs !== undefined && { durationMs }),
+  };
+  return {
+    call,
+    status: "error",
+    result: {
+      message,
+      diagnostics: [
+        { severity: "error", code: "exit_code", message: `Command exited with code ${exitCode}` },
+      ],
+    } as unknown as ToolResultInfo,
     slot: undefined,
   };
 }
@@ -74,5 +100,21 @@ describe("bash tool card", () => {
   it("marks a command that was moved to the background", () => {
     renderAt("/", inThread(finished({ processId: "p1", backgrounded: true })));
     expect(screen.getByText("Background")).toBeTruthy();
+  });
+
+  it("shows how long a successful command took", () => {
+    renderAt("/", inThread(finished({}, 1250)));
+    expect(screen.getByText("1.3s")).toBeTruthy();
+  });
+
+  it("shows duration next to a non-zero exit", () => {
+    renderAt("/", inThread(failedWithExit(1, 65_000)));
+    expect(screen.getByText("1m 5s")).toBeTruthy();
+    expect(screen.getByText("Exit 1")).toBeTruthy();
+  });
+
+  it("shows milliseconds for fast commands", () => {
+    renderAt("/", inThread(finished({}, 25)));
+    expect(screen.getByText("25ms")).toBeTruthy();
   });
 });

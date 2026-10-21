@@ -39,6 +39,7 @@ import { titleAndStatusCases } from "./titles-status";
 import { todoCases } from "./todos";
 import type { MakeContractTarget } from "./types";
 import { updatesCases } from "./updates";
+import { uploadCases } from "./uploads";
 import { workspaceCases } from "./workspaces";
 
 export type { ContractOptions } from "./case-runner";
@@ -67,6 +68,7 @@ export const CONTRACT_MODULES = {
   login: loginCases,
   compact: compactCases,
   files: fileCases,
+  uploads: uploadCases,
   skills: skillCases,
   workspaces: workspaceCases,
   checkpoints: checkpointCases,

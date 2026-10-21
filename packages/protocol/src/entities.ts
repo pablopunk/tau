@@ -119,6 +119,12 @@ export const ClaudeConnectorSettingsSchema = Type.Object({
 });
 export type ClaudeConnectorSettings = Type.Static<typeof ClaudeConnectorSettingsSchema>;
 
+export const CompactionSettingsSchema = Type.Object({
+  mode: Type.Union([Type.Literal("summary"), Type.Literal("fast")]),
+  backend: Type.Union([Type.Literal("auto"), Type.Literal("typesafe"), Type.Literal("openai")]),
+});
+export type CompactionSettings = Type.Static<typeof CompactionSettingsSchema>;
+
 export const SettingsSchema = Type.Object({
   defaultModel: Type.Union([ModelRefSchema, Type.Null()]),
   defaultThinkingLevel: Type.Union([ThinkingLevelSchema, Type.Null()]),
@@ -134,6 +140,8 @@ export const SettingsSchema = Type.Object({
   resources: Type.Optional(ResourceSettingsSchema),
   /** Which speech-to-text the composer uses; `null`/absent is the browser fallback. Absent means "not supported there", like `resources`. */
   voiceModel: Type.Optional(VoiceModelSettingSchema),
+  /** Fast-compaction preference. Optional so an older node still validates; a current node always sends it. */
+  compaction: Type.Optional(CompactionSettingsSchema),
   /** "Use my other nodes": the user skipped first-run setup here because a peer can run threads. Server-side so a fresh browser does not see setup again. */
   setupSkipped: Type.Boolean(),
 });
@@ -146,6 +154,7 @@ export const ProviderIdSchema = Type.Union([
   Type.Literal("google"),
   Type.Literal("opencode"),
   Type.Literal("claude-cli"),
+  Type.Literal("typesafe"),
 ]);
 export type ProviderId = Type.Static<typeof ProviderIdSchema>;
 
@@ -217,6 +226,14 @@ export const ClaudeCliStatusSchema = Type.Object({
 });
 export type ClaudeCliStatus = Type.Static<typeof ClaudeCliStatusSchema>;
 
+export const DecisionsAvailabilitySchema = Type.Union([
+  Type.Literal("ready"),
+  Type.Literal("unavailable"),
+  Type.Literal("checking"),
+  Type.Literal("unknown"),
+]);
+export type DecisionsAvailability = Type.Static<typeof DecisionsAvailabilitySchema>;
+
 export const ProviderInfoSchema = Type.Object({
   id: ProviderIdSchema,
   name: Type.String(),
@@ -224,6 +241,7 @@ export const ProviderInfoSchema = Type.Object({
   keyUrl: Type.String(),
   connection: Type.Union([ProviderConnectionSchema, Type.Null()]),
   cli: Type.Union([ClaudeCliStatusSchema, Type.Null()]),
+  decisions: Type.Optional(DecisionsAvailabilitySchema),
 });
 export type ProviderInfo = Type.Static<typeof ProviderInfoSchema>;
 
@@ -365,7 +383,7 @@ export const ChangeSchema = Type.Union([
 export type Change = Type.Static<typeof ChangeSchema>;
 
 export const MAX_IMAGE_BASE64_LENGTH = 5 * 1024 * 1024;
-export const MAX_IMAGES_PER_MESSAGE = 8;
+export const MAX_IMAGES_PER_MESSAGE = 16;
 
 export const ImageInputSchema = Type.Object({
   mimeType: Type.Union([
@@ -378,9 +396,27 @@ export const ImageInputSchema = Type.Object({
 });
 export type ImageInput = Type.Static<typeof ImageInputSchema>;
 
+/** At most 5 MiB of decoded bytes; the HTTP body limit (`UPLOAD_BODY_LIMIT`) is what bounds `data` on the wire. */
+export const MAX_UPLOAD_FILE_BYTES = 5 * 1024 * 1024;
+
+/** A staged upload: `path` is a virtual path under `uploads/` that only the agent resolves, never bytes on the wire. */
+export const FileRefSchema = Type.Object({
+  name: Type.String({ minLength: 1, maxLength: 255 }),
+  path: Type.String({ minLength: 1, maxLength: 1024 }),
+  size: Type.Integer({ minimum: 0, maximum: MAX_UPLOAD_FILE_BYTES }),
+});
+export type FileRef = Type.Static<typeof FileRefSchema>;
+export const UploadInputSchema = Type.Object({
+  name: Type.String({ minLength: 1, maxLength: 255 }),
+  mimeType: Type.String({ minLength: 1, maxLength: 128 }),
+  data: Type.String({ minLength: 1 }),
+});
+export type UploadInput = Type.Static<typeof UploadInputSchema>;
+
 const SendMessageFields = {
   text: Type.String(),
   images: Type.Optional(Type.Array(ImageInputSchema, { maxItems: MAX_IMAGES_PER_MESSAGE })),
+  files: Type.Optional(Type.Array(FileRefSchema)),
   requestId: Type.String({ minLength: 1 }),
 };
 

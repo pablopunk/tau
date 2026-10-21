@@ -1,4 +1,4 @@
-import type { ImageInput, TranscribeInput, WhenBusy } from "@tau/protocol";
+import type { FileRef, ImageInput, TranscribeInput, WhenBusy } from "@tau/protocol";
 import { ArrowUp, Keyboard, Mic, Paperclip, Square } from "lucide-react";
 import {
   type ChangeEvent,
@@ -13,6 +13,7 @@ import {
 } from "react";
 import { Button } from "@/components/ui/button";
 import { DropZone } from "@/components/ui/drop-zone";
+import { AnimatePresence, fade, gentle, motion, rise } from "@/components/ui/motion";
 import { Input } from "@/components/ui/input";
 import { type MentionItem, MentionMenu } from "@/components/ui/mention-menu";
 import { Textarea } from "@/components/ui/textarea";
@@ -24,6 +25,8 @@ import { useApi, useNodeId } from "@/nodes/node-context";
 import { AttachmentRow } from "./composer/AttachmentRow";
 import { BANG_EMPTY_ERROR, isBangMode, isBareBang } from "./composer/bang-mode";
 import { loadDraft, saveDraft } from "./composer/drafts";
+import { loadFileAttachments } from "./files/attachments";
+import { useFileAttachments } from "./files/use-file-attachments";
 import { applyMention } from "./composer/mentions";
 import { menuKeyAction } from "./composer/menu-keys";
 import { onComposerRestore } from "./composer/restore";
@@ -58,7 +61,7 @@ export interface ComposerProps {
   commands?: CommandHandlers;
   /** Project searched by `@` mentions; without it only skills of the user are offered. */
   projectId?: string | null;
-  onSend(input: { text: string; images: ImageInput[]; whenBusy?: WhenBusy }): Promise<void>;
+  onSend(input: { text: string; images: ImageInput[]; files: FileRef[]; whenBusy?: WhenBusy }): Promise<void>;
   onStop?(): Promise<void>;
   /** Called right after a message is handed to `onSend`, e.g. to scroll to it. */
   onSent?(): void;
@@ -107,6 +110,13 @@ function ComposerForm({
   const [stopping, setStopping] = useState(false);
   const picker = useRef<HTMLInputElement>(null);
   const { attachments, preparing, addFiles, remove, replace } = useAttachments(target, imagesAllowed);
+  const {
+    files: fileAttachments,
+    staging: stagingFiles,
+    stageFiles,
+    remove: removeFile,
+    replace: replaceFiles,
+  } = useFileAttachments(target);
   const [pageDragging, endPageDrag] = usePageDrag(true);
   const [caret, setCaret] = useState(0);
   const [anchor, setAnchor] = useState<HTMLElement | null>(null);
@@ -115,7 +125,20 @@ function ComposerForm({
   const textarea = useRef<HTMLTextAreaElement>(null);
   const menu = useComposerMenu({ text, caret, commands, projectId, pastedText });
   const bangMode = isBangMode(text);
-  const canSend = (text.trim().length > 0 || attachments.length > 0) && !preparing && !disabled;
+  const canSend =
+    (text.trim().length > 0 || attachments.length > 0 || fileAttachments.length > 0) &&
+    !preparing &&
+    !stagingFiles &&
+    !disabled;
+
+  /** Images stay on the vision path; everything else stages as a generic file, even when the model disallows images. */
+  const addSelection = (selection: File[]) => {
+    if (selection.length === 0) return;
+    const images = selection.filter((file) => file.type.startsWith("image/"));
+    const rest = selection.filter((file) => !file.type.startsWith("image/"));
+    if (images.length > 0) addFiles(images);
+    if (rest.length > 0) void stageFiles(rest);
+  };
 
   useEffect(() => {
     const active = document.activeElement;
@@ -132,9 +155,10 @@ function ComposerForm({
       onComposerRestore(target, () => {
         setTextState(loadDraft(target));
         replace(loadAttachments(target));
+        replaceFiles(loadFileAttachments(target));
         requestAnimationFrame(() => textarea.current?.focus());
       }),
-    [target, replace],
+    [target, replace, replaceFiles],
   );
 
   const setText = useCallback(
@@ -201,18 +225,23 @@ function ComposerForm({
     }
     const message = text.trim();
     const sent = attachments;
+    const sentFiles = fileAttachments;
     if (!canSend) return;
     setText("");
     replace([]);
+    replaceFiles([]);
     setError(undefined);
     onSent?.();
     onSend({
       text: message,
       images: sent.map((item) => item.image),
+      files: sentFiles.map((item) => item.ref),
       ...(busy && mode && { whenBusy: mode }),
     }).catch((failure: unknown) => {
+      // A stale ref rejects `file_expired`: put everything back so nothing is silently lost.
       setText(message);
       replace(sent);
+      replaceFiles(sentFiles);
       setError(errorText(failure));
     });
   };
@@ -263,7 +292,7 @@ function ComposerForm({
   };
 
   const onPicked = (files: FileList | null) => {
-    addFiles(Array.from(files ?? []));
+    addSelection(Array.from(files ?? []));
     if (picker.current) picker.current.value = "";
   };
 
@@ -274,23 +303,31 @@ function ComposerForm({
 
   return (
     <form onSubmit={onSubmit} className="space-y-2">
-      {abovePanel}
+      <AnimatePresence initial={false}>
+        {abovePanel ? (
+          <motion.div key="above-panel" {...rise} transition={gentle}>
+            {abovePanel}
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
       {pageDragging ? (
         <DropZone
           className="fixed inset-0 z-50"
-          onFiles={(files) => {
+          onFiles={(dropped) => {
             endPageDrag();
-            addFiles(files);
+            addSelection(dropped);
           }}
         >
-          <span className="sr-only">Drop images to attach</span>
+          <span className="sr-only">Drop files to attach</span>
         </DropZone>
       ) : null}
-      {error ? (
-        <p role="alert" className="text-sm text-destructive">
-          {error}
-        </p>
-      ) : null}
+      <AnimatePresence initial={false}>
+        {error ? (
+          <motion.p key="error" role="alert" {...fade} transition={gentle} className="text-sm text-destructive">
+            {error}
+          </motion.p>
+        ) : null}
+      </AnimatePresence>
       <MentionMenu
         open={menu.open}
         items={menu.items}
@@ -316,7 +353,12 @@ function ComposerForm({
           data-testid="dictation-glow"
           className="pointer-events-none absolute -inset-px rounded-2xl opacity-0 transition-opacity duration-150"
         />
-        <AttachmentRow attachments={attachments} onRemove={remove} />
+        <AttachmentRow
+          attachments={attachments}
+          onRemove={remove}
+          files={fileAttachments}
+          onRemoveFile={removeFile}
+        />
         {bangMode ? (
           <span
             aria-hidden="true"
@@ -372,17 +414,16 @@ function ComposerForm({
             {dictation.listening ? <Square className="size-8 fill-current" /> : <Mic className="size-8" />}
           </Button>
         </div>
-        <div className="flex flex-wrap items-start gap-1 sm:flex-nowrap">
+        <div className="flex flex-wrap items-center gap-1 sm:flex-nowrap">
           {bangMode ? null : toolbarStart}
-          {imagesAllowed && !bangMode ? (
+          {bangMode ? null : (
             <>
               <Input
                 ref={picker}
                 type="file"
-                accept="image/png,image/jpeg,image/webp,image/gif"
                 multiple
                 tabIndex={-1}
-                aria-label="Choose images"
+                aria-label="Choose files"
                 className="hidden"
                 onChange={(event) => onPicked(event.target.files)}
               />
@@ -391,33 +432,36 @@ function ComposerForm({
                   <Button
                     type="button"
                     variant="ghost"
-                    size="icon"
-                    aria-label="Attach images"
+                    size="icon-sm"
+                    aria-label="Attach files"
                     onClick={() => picker.current?.click()}
                   >
                     <Paperclip />
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent side="top">Attach images</TooltipContent>
+                <TooltipContent side="top">Attach files</TooltipContent>
               </Tooltip>
             </>
-          ) : null}
+          )}
           {bangMode ? null : (
             <div className="order-last flex w-full min-w-0 flex-wrap items-center gap-x-2 gap-y-1 sm:order-none sm:w-auto sm:flex-1">
               {toolbar}
             </div>
           )}
-          {hint ? (
-            <div className="ml-auto min-w-0 self-center truncate sm:ml-0 sm:shrink-0">{hint}</div>
+          {stagingFiles ? (
+            <span role="status" className="text-xs text-muted-foreground">
+              Staging…
+            </span>
           ) : null}
-          <div className="flex shrink-0 gap-1 max-sm:ml-1">
+          {hint ? <div className="ml-auto min-w-0 truncate sm:ml-0 sm:shrink-0">{hint}</div> : null}
+          <div className="flex shrink-0 items-center gap-1 max-sm:ml-1">
             {busy && onStop ? (
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
                     type="button"
                     variant="outline"
-                    size="icon"
+                    size="icon-sm"
                     aria-label="Stop"
                     disabled={stopping}
                     onClick={stop}
@@ -432,7 +476,7 @@ function ComposerForm({
               <TooltipTrigger asChild>
                 <Button
                   type="submit"
-                  size="icon"
+                  size="icon-sm"
                   aria-label={busy ? "Send as steer" : "Send"}
                   disabled={!canSend}
                 >

@@ -33,7 +33,7 @@ export function defineRoute<R extends RouteDef>(
       ...(route.query && { querystring: route.query }),
       ...(route.body && { body: route.body }),
     },
-    ...(options.ownerOnly && { preHandler: requireOwner }),
+    ...(options.ownerOnly || route.ownerOnly ? { preHandler: requireOwner } : {}),
     handler: async (request, reply) => {
       const input = { params: request.params, query: request.query, body: request.body } as RouteInput<R>;
       const output = await handler(input, request);

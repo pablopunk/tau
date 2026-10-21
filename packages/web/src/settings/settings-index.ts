@@ -104,6 +104,13 @@ export const SETTINGS_INDEX: readonly SettingEntry[] = [
     keywords: ["resources", "cpu", "nice", "priority", "background", "balanced", "subagents"],
   },
   {
+    id: "fast-compaction",
+    section: "agent",
+    label: "Fast compaction",
+    description: "Score old tool activity with a decision model instead of summarizing.",
+    keywords: ["compaction", "fast", "summary", "jev", "typesafe", "decisions"],
+  },
+  {
     id: "web-search",
     section: "tools",
     label: "Web search",

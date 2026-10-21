@@ -16,6 +16,7 @@ import { resolveModelAlias } from "./agents/model-alias";
 import { createApprovals } from "./approvals/approvals";
 import { createApprovalsApi } from "./approvals-api";
 import { createArchivedCleanup } from "./archived-cleanup";
+import { FileCredentialStore } from "./auth/file-credential-store";
 import { createChangeEmitter } from "./change-emitter";
 import { createCheckpointService } from "./checkpoints/checkpoint-service";
 import { createConnectorToolServices } from "./claude-cli/connectors/connector-tool-services";
@@ -23,6 +24,7 @@ import { writeTauShim } from "./cli-shim/write-shim";
 import { createConversationRecovery } from "./conversation-recovery";
 import { createConversationRemoval } from "./conversation-removal";
 import { createConversationsApi } from "./conversations-api";
+import { createAvailabilityCache } from "./decisions/availability";
 import { suggestDirectories } from "./fs/suggest-directories";
 import { createCloneService } from "./git/clone-service";
 import { createGithubService } from "./github/github-service";
@@ -35,6 +37,7 @@ import { resyncWhenConnectorsChange } from "./harness/connector-resync";
 import { createConversationForker } from "./harness/conversation-fork";
 import { type ConversationOfSession, createConversationOfSession } from "./harness/conversation-of-session";
 import { createConversationStore } from "./harness/conversation-store";
+import { makeFastCompactionExtension } from "./harness/fast-compaction";
 import { createLiveWork } from "./harness/live-work";
 import { harnessNotificationSubmitter } from "./harness/notification-submitter";
 import { BACKGROUND, openAgentHarness, openSqliteStorage } from "./harness/open";
@@ -85,6 +88,7 @@ import { createTimersApi } from "./timers-api";
 import { createTitleService } from "./titles/title-service";
 import { createUpdateService } from "./updates/update-service";
 import { createVoiceApi } from "./voice-api";
+import { createUploadStore } from "./upload-store";
 import { CRASH_LOOP_TEXT, recordStart, startRecordFiles } from "./watchdog/start-record";
 import { createWorkspaceService } from "./workspaces/workspace-service";
 
@@ -161,8 +165,15 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
     });
     const status = createStatusTracker({ changes, now: deps.now });
     const toolServices = createToolServicesRef();
+    const fastCompaction = makeFastCompactionExtension({
+      settingsStore: settings,
+      credentials: new FileCredentialStore(home.credentialsFile),
+      env: deps.env,
+      // Shared across compactions so backend demotion survives the run.
+      availability: createAvailabilityCache(),
+    });
     const harness = await openAgentHarness({
-      registry: createAgentRegistry(toolServices, undefined, home.root),
+      registry: createAgentRegistry(toolServices, undefined, home.root, [fastCompaction]),
       storage: await openSqliteStorage(home.agentDatabase),
       models: provider.models,
       onReport: (error) => console.error("tau: agent report", error),
@@ -183,9 +194,11 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
       connectors: () => provider.claudeConnectors(),
     });
     resyncWhenConnectorsChange(changes, provider, connectorOffering);
+    const uploads = createUploadStore({ now: deps.now });
     const conversations = createConversationStore(harness, async (id) => (await projects.require(id)).path, {
       offering: connectorOffering,
       beforeAbort: (id) => approvals.denyAll(id),
+      uploads,
     });
     const shared = { projects, conversations, changes, now: deps.now };
     const titles = createTitleService({ harness, models: provider.models, settings, changes });
@@ -489,6 +502,7 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
       skills: createSkillsApi({ projects }),
       projects: createProjectsApi({ ...shared, clones, icons, present, removalHooks }),
       conversations: createConversationsApi({
+        uploads,
         ...shared,
         provider,
         settings,
@@ -522,6 +536,9 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
       approvals: createApprovalsApi(approvals, conversations),
       timers: timersApi,
       goals: createGoalsApi(goals),
+      uploads: {
+        stage: (input) => uploads.stage(input),
+      },
       mcp: createMcpApi({ settings, mcp, changes }),
       updates: {
         status: () => updates.status(),

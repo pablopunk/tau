@@ -1,5 +1,6 @@
 import { execFile } from "node:child_process";
 import { AppError } from "@tau/protocol";
+import { withBackground } from "../system/background";
 
 export interface CommandResult {
   readonly ok: boolean;
@@ -17,9 +18,10 @@ function cleanEnvironment(): NodeJS.ProcessEnv {
 
 export function tryGit(cwd: string, args: readonly string[]): Promise<CommandResult> {
   return new Promise((resolve) => {
+    const command = withBackground("git", [...identity, "-C", cwd, ...args]);
     execFile(
-      "git",
-      [...identity, "-C", cwd, ...args],
+      command.file,
+      [...command.args],
       { env: cleanEnvironment(), timeout: 120_000, maxBuffer: 16 * 1024 * 1024 },
       (error, stdout, stderr) => resolve({ ok: error === null, stdout, stderr }),
     );

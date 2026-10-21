@@ -10,6 +10,8 @@ export type Connection = ProviderInfo["connection"];
 export interface ConnectionReader {
   /** The stored credential first; only without one, the environment key. Faux mode ignores the environment. */
   read(entry: ProviderEntry): Promise<Connection>;
+  /** Raw key for a key provider, stored first then env; `undefined` in faux mode without a stored key. */
+  keyOf(entry: KeyProviderEntry): Promise<string | undefined>;
   /** The saved key could not be checked (offline); reported as `valid: null` until the process restarts. */
   markUnchecked(entry: ProviderEntry): void;
   markChecked(entry: ProviderEntry): void;
@@ -20,6 +22,7 @@ export function createConnectionReader(deps: {
   models: Models;
   faux: boolean;
   claudeCli: ClaudeCliService;
+  env: Readonly<Record<string, string | undefined>>;
 }): ConnectionReader {
   const unchecked = new Set<string>();
   const envChecks = new Map<string, Promise<boolean | null>>();
@@ -37,9 +40,14 @@ export function createConnectionReader(deps: {
     return check;
   }
 
-  async function readEnvironmentConnection(entry: KeyProviderEntry): Promise<Connection> {
+  async function readEnvKey(entry: KeyProviderEntry): Promise<string | undefined> {
+    if (entry.piProviders.length === 0) return deps.env[entry.envVar] || undefined;
     const auth = await deps.models.getAuth(primaryPiId(entry)).catch(() => undefined);
-    const key = auth?.auth.apiKey;
+    return auth?.auth.apiKey;
+  }
+
+  async function readEnvironmentConnection(entry: KeyProviderEntry): Promise<Connection> {
+    const key = await readEnvKey(entry);
     if (!key) return null;
     return { method: "api_key", source: "env", valid: await checkEnvKeyOnce(entry, key) };
   }
@@ -51,6 +59,12 @@ export function createConnectionReader(deps: {
   }
 
   return {
+    async keyOf(entry) {
+      const stored = await deps.credentials.read(primaryPiId(entry));
+      if (stored?.type === "api_key" && stored.key) return stored.key;
+      if (deps.faux) return undefined;
+      return readEnvKey(entry);
+    },
     async read(entry) {
       if (entry.kind === "cli") return readCliConnection();
       const stored = await deps.credentials.read(primaryPiId(entry));

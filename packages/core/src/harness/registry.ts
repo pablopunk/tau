@@ -1,4 +1,4 @@
-import { createRegistry } from "@earendil-works/pi-durable";
+import { createRegistry, type Extension } from "@earendil-works/pi-durable";
 import { codingExtension } from "./coding-extension";
 import { createTauCodingTools } from "./coding-tools";
 import { piWebAccessToolFile } from "./pi-extension-adapter/pi-extension-adapter";
@@ -57,10 +57,12 @@ export function createAgentRegistry(
   services: ToolServicesRef = createToolServicesRef(),
   toolFiles: readonly ToolFileFactory[] = TOOL_FILES,
   home?: string,
+  extraExtensions: readonly Extension[] = [],
 ) {
   const registry = createRegistry();
   registry.install(createTauCodingTools(home, services));
   registry.install(codingExtension);
+  for (const extension of extraExtensions) registry.install(extension);
   registry.install(subagentRuntimeExtension);
   for (const build of toolFiles) {
     const file = build(services);

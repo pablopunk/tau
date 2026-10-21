@@ -74,6 +74,16 @@ export const validateOpenCodeKey: KeyValidator = (key, fetchFn = fetch) =>
     fetchFn,
   );
 
+export const validateTypesafeKey: KeyValidator = (key, fetchFn = fetch) =>
+  checkModelsRequest(
+    {
+      url: "https://api.typesafe.ai/v1/models",
+      headers: { authorization: `Bearer ${key}` },
+      rejects: isUnauthorized,
+    },
+    fetchFn,
+  );
+
 export const validateOpenRouterKey: KeyValidator = async (key) => {
   try {
     return await checkOpenRouterKey(key);

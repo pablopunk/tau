@@ -1,4 +1,5 @@
 import { execFile } from "node:child_process";
+import { withBackground } from "../system/background";
 
 const MAX_OUTPUT_BYTES = 256 * 1024 * 1024;
 const IDENTITY = {
@@ -16,9 +17,10 @@ export type GitRun = {
 export function runGitBuffer(run: GitRun, args: readonly string[]): Promise<Buffer> {
   const env = { ...process.env, ...IDENTITY, ...(run.indexFile && { GIT_INDEX_FILE: run.indexFile }) };
   return new Promise((resolve, reject) => {
+    const command = withBackground("git", args);
     execFile(
-      "git",
-      [...args],
+      command.file,
+      [...command.args],
       { cwd: run.cwd, env, encoding: "buffer", maxBuffer: MAX_OUTPUT_BYTES },
       (error, stdout, stderr) => {
         if (error) reject(new Error(`git ${args[0]} failed: ${stderr.toString().trim() || error.message}`));

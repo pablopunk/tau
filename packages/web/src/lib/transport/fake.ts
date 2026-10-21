@@ -152,6 +152,7 @@ const handlers: Handlers = {
   setWorkspaceDefault: (core, { body }) => core.settings.setWorkspaceDefault(body.mode as never),
   setClaudeConnectors: (core, { body }) => core.settings.setClaudeConnectors(body as never),
   setResources: (core, { body }) => core.settings.setResources(body as never),
+  setCompaction: (core, { body }) => core.settings.setCompaction(body as never),
   getResourceSupport: (core) => core.settings.resourceSupport(),
   getResourceActivity: (core) => core.settings.resourceActivity(),
   stopResourceCommand: (core, { params }) => core.settings.stopResourceCommand(params.id),
@@ -209,6 +210,7 @@ const handlers: Handlers = {
   },
   decideApproval: (core, { params, body }) =>
     core.approvals.decide(params.id, params.toolUseId, body.decision as never),
+  stageUpload: (core, { body }) => core.uploads.stage(body as never),
 };
 
 function detach<T>(value: T): T {
