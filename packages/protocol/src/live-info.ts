@@ -42,12 +42,18 @@ function isQueuedMessage(item: InboxItem): item is QueuedItem {
 
 type Block = { type?: string; text?: string };
 
+function blocksOf(content: unknown): Block[] {
+  return Array.isArray(content) ? (content as Block[]) : [];
+}
+
 function queuedBlocks(item: QueuedItem): string | Block[] {
   const content = item.content as unknown;
   if (typeof content === "string") return content;
-  const blocks = (content as { content?: unknown } | undefined)?.content;
-  if (typeof blocks === "string") return blocks;
-  return Array.isArray(blocks) ? (blocks as Block[]) : [];
+  if (Array.isArray(content)) return content as Block[];
+  // Tolerate a wrapped `{ content }` shape, should one ever appear.
+  const wrapped = (content as { content?: unknown } | undefined)?.content;
+  if (typeof wrapped === "string") return wrapped;
+  return blocksOf(wrapped);
 }
 
 function queuedText(item: QueuedItem): string {
