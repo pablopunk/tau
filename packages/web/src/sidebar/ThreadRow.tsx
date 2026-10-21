@@ -71,7 +71,8 @@ export function ThreadRow({
   const [menuOpen, setMenuOpen] = useState(false);
   const title = conversation.title.trim() || "New thread";
   const archived = conversation.archivedAt !== null;
-  const archiveLabel = `${archived ? "Unarchive" : "Archive"} ${title}`;
+  const archiveAction = archived ? "Unarchive" : "Archive";
+  const archiveLabel = `${archiveAction} ${title}`;
   const dot = conversationDot(conversation, active, nodeId);
   const queryClient = useQueryClient();
   const navigate = useNavigate();
@@ -183,7 +184,7 @@ export function ThreadRow({
                       <ArchiveToggleIcon />
                     </Button>
                   </TooltipTrigger>
-                  <TooltipContent side="top">{archiveLabel}</TooltipContent>
+                  <TooltipContent side="top">{archiveAction}</TooltipContent>
                 </Tooltip>
                 <DropdownMenu onOpenChange={setMenuOpen}>
                   <Tooltip>
@@ -194,7 +195,7 @@ export function ThreadRow({
                         </Button>
                       </DropdownMenuTrigger>
                     </TooltipTrigger>
-                    <TooltipContent side="top">Actions for {title}</TooltipContent>
+                    <TooltipContent side="top">Actions</TooltipContent>
                   </Tooltip>
                   <DropdownMenuContent side="right" align="start">
                     <ThreadMenuItems
