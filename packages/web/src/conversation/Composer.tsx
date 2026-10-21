@@ -103,8 +103,12 @@ function ComposerForm({
 }: ComposerProps) {
   const target = scopeTarget(threadTarget, useNodeId());
   const [text, setTextState] = useState(() => loadDraft(target));
-  // Phones show two big buttons (keyboard / dictate) instead of the text
-  // field; the keyboard button reveals it. Dictation wiring comes later.
+  // Touch devices get a four-button row (attach, keyboard, dictate, send)
+  // instead of the desktop field + toolbar; keyboard and dictate run big.
+  // Pointer type never changes on resize, so read it once per mount.
+  const [coarse] = useState(
+    () => typeof window !== "undefined" && !!window.matchMedia?.("(pointer: coarse)").matches,
+  );
   const [showInput, setShowInput] = useState(false);
   const [error, setError] = useState<string>();
   const [stopping, setStopping] = useState(false);
@@ -391,39 +395,78 @@ function ComposerForm({
           className={cn(
             "max-h-48 min-h-9 resize-none border-0 bg-transparent px-2 py-1.5 shadow-none focus-visible:ring-0 dark:bg-transparent",
             bangMode && "pl-7 font-mono",
-            !showInput && "max-sm:hidden",
+            coarse && !showInput && "hidden",
           )}
         />
-        {dictation.listening && (dictation.preview || dictation.hint) ? (
+        {coarse && dictation.listening && (dictation.preview || dictation.hint) ? (
           <p
             aria-live="polite"
             data-testid="dictation-preview"
-            className="px-4 pt-1 text-center text-sm text-muted-foreground italic sm:hidden"
+            className="px-4 pt-1 text-center text-sm text-muted-foreground italic"
           >
             {dictation.preview ? `${dictation.preview}…` : dictation.hint}
           </p>
         ) : null}
-        <div className="flex items-center justify-center gap-6 px-6 py-3 sm:hidden">
-          <Button
-            type="button"
-            variant="outline"
-            aria-label={showInput ? "Hide keyboard" : "Show keyboard"}
-            aria-pressed={showInput}
-            onClick={() => setShowInput((visible) => !visible)}
-            className="size-20 rounded-full"
+        {coarse ? (
+          <div
+            className="flex items-center justify-center gap-4 py-2"
+            role="group"
+            aria-label="Composer actions"
           >
-            <Keyboard className="size-8" />
-          </Button>
-          <Button
-            type="button"
-            aria-label={dictation.listening ? "Stop dictation" : "Dictate"}
-            aria-pressed={dictation.listening}
-            onClick={dictation.toggle}
-            className="size-20 rounded-full"
-          >
-            {dictation.listening ? <Square className="size-8 fill-current" /> : <Mic className="size-8" />}
-          </Button>
-        </div>
+            {bangMode ? null : (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    aria-label="Attach files"
+                    onClick={() => picker.current?.click()}
+                    className="size-11 rounded-full"
+                  >
+                    <Paperclip className="size-5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="top">Attach files</TooltipContent>
+              </Tooltip>
+            )}
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              aria-label={showInput ? "Hide keyboard" : "Show keyboard"}
+              aria-pressed={showInput}
+              onClick={() => setShowInput((visible) => !visible)}
+              className="size-14 rounded-full"
+            >
+              <Keyboard className="size-6" />
+            </Button>
+            <Button
+              type="button"
+              size="icon"
+              aria-label={dictation.listening ? "Stop dictation" : "Dictate"}
+              aria-pressed={dictation.listening}
+              onClick={dictation.toggle}
+              className="size-14 rounded-full"
+            >
+              {dictation.listening ? <Square className="size-6 fill-current" /> : <Mic className="size-6" />}
+            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="submit"
+                  size="icon"
+                  aria-label={busy ? "Send as steer" : "Send"}
+                  disabled={!canSend}
+                  className="size-11 rounded-full"
+                >
+                  <ArrowUp className="size-5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="top">{busy ? "Send as steer" : "Send"}</TooltipContent>
+            </Tooltip>
+          </div>
+        ) : null}
         <div className="flex flex-wrap items-center gap-1 sm:flex-nowrap">
           {bangMode ? null : toolbarStart}
           {bangMode ? null : (
@@ -437,20 +480,22 @@ function ComposerForm({
                 className="hidden"
                 onChange={(event) => onPicked(event.target.files)}
               />
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    aria-label="Attach files"
-                    onClick={() => picker.current?.click()}
-                  >
-                    <Paperclip />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="top">Attach files</TooltipContent>
-              </Tooltip>
+              {!coarse ? (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      aria-label="Attach files"
+                      onClick={() => picker.current?.click()}
+                    >
+                      <Paperclip />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top">Attach files</TooltipContent>
+                </Tooltip>
+              ) : null}
             </>
           )}
           {bangMode ? null : (
@@ -482,19 +527,21 @@ function ComposerForm({
                 <TooltipContent side="top">Stop</TooltipContent>
               </Tooltip>
             ) : null}
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  type="submit"
-                  size="icon-sm"
-                  aria-label={busy ? "Send as steer" : "Send"}
-                  disabled={!canSend}
-                >
-                  <ArrowUp />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="top">{busy ? "Send as steer" : "Send"}</TooltipContent>
-            </Tooltip>
+            {!coarse ? (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="submit"
+                    size="icon-sm"
+                    aria-label={busy ? "Send as steer" : "Send"}
+                    disabled={!canSend}
+                  >
+                    <ArrowUp />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="top">{busy ? "Send as steer" : "Send"}</TooltipContent>
+              </Tooltip>
+            ) : null}
           </div>
         </div>
       </div>
