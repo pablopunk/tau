@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { basename } from "node:path";
 import { AppError, type Core, isIconPng } from "@tau/protocol";
 import type { ChangeEmitter } from "./change-emitter";
-import { changeProjectFolder } from "./change-project-folder";
+import { type ChangeFolderDeps, changeProjectFolder } from "./change-project-folder";
 import { suggestFiles } from "./fs/suggest-files";
 import type { CloneService } from "./git/clone-service";
 import type { ConversationStore } from "./harness/conversation-store";
@@ -31,8 +31,10 @@ export function createProjectsApi(deps: {
   removalHooks: RemovalHooks;
   changes: ChangeEmitter;
   now: () => number;
+  relocateCheckpoints: ChangeFolderDeps["relocateCheckpoints"];
 }): Core["projects"] {
   const { projects, conversations, clones, icons, present, removalHooks, changes, now } = deps;
+  const { relocateCheckpoints } = deps;
   const nonHome = async (id: string) => {
     const project = await projects.require(id);
     return project.id === HOME_PROJECT_ID ? undefined : project;
@@ -83,7 +85,8 @@ export function createProjectsApi(deps: {
       announce();
     },
     async setFolder(id, path) {
-      return present(await changeProjectFolder({ projects, conversations, changes }, id, path));
+      const folderDeps = { projects, conversations, changes, relocateCheckpoints };
+      return present(await changeProjectFolder(folderDeps, id, path));
     },
     async remove(id) {
       rejectHome(id, "removed");

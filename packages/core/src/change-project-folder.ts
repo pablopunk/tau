@@ -11,6 +11,16 @@ export interface ChangeFolderDeps {
   readonly projects: ProjectStore;
   readonly conversations: ConversationStore;
   readonly changes: ChangeEmitter;
+  readonly relocateCheckpoints: (conversationId: string, oldRoot: string, newRoot: string) => Promise<void>;
+}
+
+async function moveCheckpoints(
+  deps: ChangeFolderDeps,
+  threads: readonly ConversationSummary[],
+  oldPath: string,
+  newPath: string,
+) {
+  for (const thread of threads) await deps.relocateCheckpoints(thread.id, oldPath, newPath);
 }
 
 const requireNotHome = (project: Project) => {
@@ -76,6 +86,7 @@ export async function changeProjectFolder(deps: ChangeFolderDeps, id: string, ty
   await failingStep("moving threads", () =>
     moveCheckoutThreads(conversations, threads, project.path, newPath),
   );
+  await failingStep("moving checkpoints", () => moveCheckpoints(deps, threads, project.path, newPath));
   await projects.setPath(id, newPath);
   changes.emit({ resource: "projects" });
   changes.emit({ resource: "conversations", projectId: id });
