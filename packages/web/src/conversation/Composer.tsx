@@ -1,11 +1,12 @@
 import type { ImageInput, WhenBusy } from "@tau/protocol";
-import { ArrowUp, Paperclip, Square } from "lucide-react";
+import { ArrowUp, Keyboard, Mic, Paperclip, Square } from "lucide-react";
 import {
   type ChangeEvent,
   type ClipboardEvent,
   type FormEvent,
   type KeyboardEvent,
   type ReactNode,
+  useCallback,
   useEffect,
   useRef,
   useState,
@@ -27,6 +28,7 @@ import { menuKeyAction } from "./composer/menu-keys";
 import { onComposerRestore } from "./composer/restore";
 import { type CommandHandlers, type CommandName, parseSlashCommand } from "./composer/slash-commands";
 import { commandItemId, useComposerMenu } from "./composer/use-composer-menu";
+import { useDictation } from "./composer/use-dictation";
 import { insertionOf } from "./composer/use-mention-items";
 import { usePageDrag } from "./composer/use-page-drop";
 import { loadAttachments } from "./images/attachments";
@@ -97,6 +99,9 @@ function ComposerForm({
 }: ComposerProps) {
   const target = scopeTarget(threadTarget, useNodeId());
   const [text, setTextState] = useState(() => loadDraft(target));
+  // Phones show two big buttons (keyboard / dictate) instead of the text
+  // field; the keyboard button reveals it. Dictation wiring comes later.
+  const [showInput, setShowInput] = useState(false);
   const [error, setError] = useState<string>();
   const [stopping, setStopping] = useState(false);
   const picker = useRef<HTMLInputElement>(null);
@@ -117,6 +122,10 @@ function ComposerForm({
     textarea.current?.focus({ preventScroll: true });
   }, []);
 
+  useEffect(() => {
+    if (showInput) textarea.current?.focus({ preventScroll: true });
+  }, [showInput]);
+
   useEffect(
     () =>
       onComposerRestore(target, () => {
@@ -127,10 +136,27 @@ function ComposerForm({
     [target, replace],
   );
 
-  const setText = (value: string) => {
-    saveDraft(target, value);
-    setTextState(value);
-  };
+  const setText = useCallback(
+    (value: string) => {
+      saveDraft(target, value);
+      setTextState(value);
+    },
+    [target],
+  );
+
+  const textRef = useRef(text);
+  textRef.current = text;
+  const appendDictation = useCallback(
+    (transcript: string) => {
+      const clean = transcript.replace(/\s+/g, " ").trim();
+      if (!clean) return;
+      setShowInput(true);
+      const base = textRef.current.replace(/\s+$/, "");
+      setText(base ? `${base} ${clean} ` : `${clean} `);
+    },
+    [setText],
+  );
+  const dictation = useDictation(appendDictation, setError);
 
   const runCommand = (name: CommandName, args: string) => {
     setText("");
@@ -269,8 +295,15 @@ function ComposerForm({
           "relative rounded-2xl border bg-card p-2 shadow-xs focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50",
           bangMode &&
             "border-destructive/50 focus-within:border-destructive focus-within:ring-destructive/20",
+          dictation.listening && "border-primary/60",
         )}
       >
+        <div
+          aria-hidden
+          ref={dictation.glowRef}
+          data-testid="dictation-glow"
+          className="pointer-events-none absolute -inset-px rounded-2xl opacity-0 transition-opacity duration-150"
+        />
         <AttachmentRow attachments={attachments} onRemove={remove} />
         {bangMode ? (
           <span
@@ -294,8 +327,32 @@ function ComposerForm({
           className={cn(
             "max-h-48 min-h-9 resize-none border-0 bg-transparent px-2 py-1.5 shadow-none focus-visible:ring-0 dark:bg-transparent",
             bangMode && "pl-7 font-mono",
+            !showInput && "max-sm:hidden",
           )}
         />
+        <div className="flex gap-2 sm:hidden">
+          <Button
+            type="button"
+            variant="outline"
+            aria-label={showInput ? "Hide keyboard" : "Show keyboard"}
+            aria-pressed={showInput}
+            onClick={() => setShowInput((visible) => !visible)}
+            className="h-14 flex-1 text-base"
+          >
+            <Keyboard className="size-6" />
+            Keyboard
+          </Button>
+          <Button
+            type="button"
+            aria-label={dictation.listening ? "Stop dictation" : "Dictate"}
+            aria-pressed={dictation.listening}
+            onClick={dictation.toggle}
+            className="h-14 flex-1 text-base"
+          >
+            {dictation.listening ? <Square className="size-6 fill-current" /> : <Mic className="size-6" />}
+            Dictate
+          </Button>
+        </div>
         <div className="flex flex-wrap items-start gap-1 sm:flex-nowrap">
           {bangMode ? null : toolbarStart}
           {imagesAllowed && !bangMode ? (
