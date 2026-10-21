@@ -59,7 +59,7 @@ export function createVoiceApi(deps: {
       }
     },
     async close() {
-      transcriber.close();
+      await transcriber.close();
     },
   };
 }

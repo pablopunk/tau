@@ -60,7 +60,6 @@ export function registerRoutes(app: FastifyInstance, core: Core, sockets: Device
   defineRoute(app, routes.transcribeVoice, ({ body }) => core.voice.transcribe(body));
   defineRoute(app, routes.removeVoiceModel, () => core.voice.removeModel());
   defineRoute(app, routes.warmVoice, () => core.voice.warm());
-  defineRoute(app, routes.warmVoice, () => core.voice.warm());
   defineRoute(app, routes.setSetupSkipped, ({ body }) => core.settings.setSetupSkipped(body.skipped));
   defineRoute(app, routes.setProjectsFolder, ({ body }) => core.settings.setProjectsFolder(body.path));
   defineRoute(app, routes.getSuggestedCodeFolder, () => core.settings.suggestedCodeFolder());
