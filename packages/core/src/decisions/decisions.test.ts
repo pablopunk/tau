@@ -117,8 +117,8 @@ describe("typesafe client", () => {
 
 describe("openai client", () => {
   it("prefers an explicit endpoint env override (localhost mock seam)", async () => {
-    const fetchFn = vi.fn<typeof fetch>(
-      async () => jsonResponse({ answers: [{ type: "predicate", name: "keep", probability: 0.5 }] }),
+    const fetchFn = vi.fn<typeof fetch>(async () =>
+      jsonResponse({ answers: [{ type: "predicate", name: "keep", probability: 0.5 }] }),
     );
     const client = createOpenaiClient({
       getAuth: async () => ({ auth: { apiKey: "sk-test" } }),
@@ -158,8 +158,8 @@ describe("openai client", () => {
   });
 
   it("posts a predicate and parses the probability", async () => {
-    const fetchFn = vi.fn<typeof fetch>(
-      async () => jsonResponse({ answers: [{ type: "predicate", name: "keep", probability: 0.2 }] }),
+    const fetchFn = vi.fn<typeof fetch>(async () =>
+      jsonResponse({ answers: [{ type: "predicate", name: "keep", probability: 0.2 }] }),
     );
     const client = createOpenaiClient({ getAuth: async () => ({ auth: { apiKey: "sk-test" } }), fetchFn });
     expect(await client.predicate("call", "keep?")).toBeCloseTo(0.2);

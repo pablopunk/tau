@@ -62,9 +62,7 @@ export function createFakeProviders(deps: {
     const connected = connections.get(id) ?? null;
     // The fake simulates capability: a connected decision backend reads as ready.
     const decisions =
-      connected !== null && (id === "typesafe" || id === "openai")
-        ? ("ready" as const)
-        : undefined;
+      connected !== null && (id === "typesafe" || id === "openai") ? ("ready" as const) : undefined;
     return {
       ...provider,
       methods: [...provider.methods],

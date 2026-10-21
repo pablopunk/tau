@@ -77,20 +77,26 @@ export async function startDecisionMock(options: MockOptions): Promise<DecisionM
           : undefined;
       const input =
         options.backend === "typesafe"
-          ? (typeof body.state === "string" ? body.state : undefined)
+          ? typeof body.state === "string"
+            ? body.state
+            : undefined
           : typeof body.input === "string"
             ? body.input
             : undefined;
       const instructions =
         options.backend === "typesafe"
-          ? (typeof keep?.instructions === "string" ? keep.instructions : undefined)
+          ? typeof keep?.instructions === "string"
+            ? keep.instructions
+            : undefined
           : typeof questionInstructions === "string"
             ? questionInstructions
             : undefined;
       if (input === undefined || input === "" || instructions === undefined || instructions === "") {
         response
           .writeHead(422, { "content-type": "application/json" })
-          .end(JSON.stringify({ error: { message: "mock: unrecognized request shape", code: "mock_shape" } }));
+          .end(
+            JSON.stringify({ error: { message: "mock: unrecognized request shape", code: "mock_shape" } }),
+          );
         return;
       }
       const probability = scripted[Math.min(index, scripted.length - 1)] ?? 0.5;
