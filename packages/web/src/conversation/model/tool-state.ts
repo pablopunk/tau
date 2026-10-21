@@ -64,3 +64,8 @@ export function exitCodeOf(result: ToolResultInfo | undefined): number | undefin
 export function wasAborted(result: ToolResultInfo | undefined): boolean {
   return result?.diagnostics.some((item) => item.code === "aborted") ?? false;
 }
+
+export function durationMsOf(result: ToolResultInfo | undefined): number | undefined {
+  const ms = result?.message.durationMs;
+  return typeof ms === "number" && Number.isFinite(ms) && ms >= 0 ? ms : undefined;
+}
