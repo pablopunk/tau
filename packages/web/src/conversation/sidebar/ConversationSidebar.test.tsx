@@ -19,7 +19,7 @@ vi.mock("@/lib/api", () => ({
     models: { list: vi.fn() },
     timers: { list: vi.fn(), delete: vi.fn() },
     processes: { list: vi.fn() },
-    goals: { get: vi.fn(), clear: vi.fn() },
+    goals: { get: vi.fn(), set: vi.fn(), clear: vi.fn() },
   },
 }));
 
@@ -58,6 +58,28 @@ describe("conversation sidebar", () => {
     await userEvent.click(within(sidebar).getByRole("button", { name: "Edit todos" }));
     expect(within(sidebar).getByRole("button", { name: "Save" })).toBeInTheDocument();
     expect(within(sidebar).getByRole("button", { name: "Cancel" })).toBeInTheDocument();
+  });
+
+  it("edits the goal from the sidebar", async () => {
+    vi.mocked(api.goals.get).mockResolvedValue({
+      id: "g",
+      condition: "Ship the release",
+      state: "active",
+      startedAt: Date.now(),
+      turnsEvaluated: 1,
+      tokensSpent: 100,
+      lastVerdict: null,
+      lastReason: null,
+    });
+    vi.mocked(api.goals.set).mockReset().mockResolvedValue(undefined);
+    renderView(endOf("text"));
+    const sidebar = await screen.findByTestId("conversation-sidebar");
+    await userEvent.click(await within(sidebar).findByRole("button", { name: "Edit goal" }));
+    const box = within(sidebar).getByRole("textbox", { name: "Goal condition" });
+    await userEvent.clear(box);
+    await userEvent.type(box, "Ship it faster");
+    await userEvent.click(within(sidebar).getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(vi.mocked(api.goals.set)).toHaveBeenCalledWith("2", "Ship it faster"));
   });
 
   it("toggles closed and brings the header chips back", async () => {

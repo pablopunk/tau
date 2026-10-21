@@ -1,11 +1,12 @@
 import type { ConversationView } from "@tau/protocol";
 import { ContextSection } from "./ContextSection";
-import { GoalTodosSection } from "./GoalTodosSection";
+import { GoalSection } from "./GoalSection";
 import { ImagesSection } from "./ImagesSection";
 import { MachineSection } from "./MachineSection";
 import { ProcessesSection } from "./ProcessesSection";
 import { PullRequestSection } from "./PullRequestSection";
 import { TimersSection } from "./TimersSection";
+import { TodosSection } from "./TodosSection";
 import { WorktreeSection } from "./WorktreeSection";
 
 /** The per-conversation right sidebar: images, worktree, machine, PRs, context, todos, timers, processes. */
@@ -27,7 +28,8 @@ export function ConversationSidebar({
       <MachineSection />
       <ContextSection view={view} />
       <ImagesSection view={view} />
-      <GoalTodosSection conversationId={conversationId} view={view} />
+      <GoalSection conversationId={conversationId} />
+      <TodosSection conversationId={conversationId} view={view} />
       <TimersSection conversationId={conversationId} />
       <ProcessesSection conversationId={conversationId} />
     </aside>
