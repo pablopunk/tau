@@ -467,7 +467,7 @@ function ComposerForm({
             </Tooltip>
           </div>
         ) : null}
-        <div className="flex flex-wrap items-center gap-1 sm:flex-nowrap">
+        <div className="flex flex-wrap items-center gap-1 max-sm:justify-center sm:flex-nowrap">
           {bangMode ? null : toolbarStart}
           {bangMode ? null : (
             <>
@@ -499,7 +499,7 @@ function ComposerForm({
             </>
           )}
           {bangMode ? null : (
-            <div className="order-last flex w-full min-w-0 flex-wrap items-center gap-x-2 gap-y-1 sm:order-none sm:w-auto sm:flex-1">
+            <div className="order-last flex w-full min-w-0 flex-wrap items-center gap-x-2 gap-y-1 max-sm:justify-center sm:order-none sm:w-auto sm:flex-1">
               {toolbar}
             </div>
           )}
@@ -508,7 +508,7 @@ function ComposerForm({
               Staging…
             </span>
           ) : null}
-          {hint ? <div className="ml-auto min-w-0 truncate sm:ml-0 sm:shrink-0">{hint}</div> : null}
+          {hint ? <div className="min-w-0 truncate sm:shrink-0">{hint}</div> : null}
           <div className="flex shrink-0 items-center gap-1 max-sm:ml-1">
             {busy && onStop ? (
               <Tooltip>
