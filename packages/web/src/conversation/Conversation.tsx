@@ -122,7 +122,7 @@ function ConversationPanel({ id }: ConversationProps) {
         </Button>
       )}
       {state.status === "gone" || parentId ? null : (
-        <div className="mx-auto w-full max-w-3xl px-3 pt-1 pb-3 sm:px-4 sm:pb-4">
+        <div className="mx-auto w-full max-w-3xl px-3 pt-1 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-4 sm:pb-[max(1rem,env(safe-area-inset-bottom))]">
           <Composer
             target={id}
             imagesAllowed={imagesAllowedFor(view, models)}

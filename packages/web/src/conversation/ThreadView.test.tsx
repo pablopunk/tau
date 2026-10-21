@@ -57,7 +57,9 @@ describe("thread header", () => {
   it("shows the title and the model picker", async () => {
     withModels(true);
     renderView(endOf("text"));
-    expect(await screen.findByText("Fix the bug")).toBeInTheDocument();
+    // The title renders in both the mobile bar and the desktop header;
+    // CSS shows exactly one per viewport (jsdom shows both).
+    expect(await screen.findAllByText("Fix the bug")).toHaveLength(2);
     expect(await screen.findByRole("combobox", { name: "Model" })).toHaveTextContent("Faux One");
   });
 });

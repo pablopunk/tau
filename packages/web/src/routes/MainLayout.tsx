@@ -1,4 +1,5 @@
 import { Route, Routes, useSearchParams } from "react-router";
+import { useOpenConversation } from "@/activity";
 import { SidebarInset, SidebarProvider, SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
 import { preferences } from "@/lib/preferences";
 import { useNodes } from "@/nodes";
@@ -30,6 +31,10 @@ function NewThreadRoute() {
 
 function MainHeader() {
   const { isMobile, open } = useSidebar();
+  const { conversationId } = useOpenConversation();
+  // On mobile thread pages the thread renders its own bar (toggle + title +
+  // actions), so the app bar would be a second, redundant header.
+  if (isMobile && conversationId) return null;
   if (!isMobile && open) return null;
   return (
     <header className="flex h-12 shrink-0 items-center gap-2 border-b px-3">
@@ -56,7 +61,7 @@ export function MainLayout() {
       <SidebarInset className="h-dvh min-w-0">
         <HeaderSlotProvider>
           <MainHeader />
-          <div className="flex min-h-0 flex-1 flex-col overflow-auto">
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
             <Routes>
               <Route path="/p/:projectId/c/:conversationId/*" element={<ConversationRoute />} />
               <Route path="/n/:nodeId/p/:projectId/c/:conversationId/*" element={<ConversationRoute />} />

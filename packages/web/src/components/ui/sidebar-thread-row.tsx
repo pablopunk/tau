@@ -134,13 +134,13 @@ function SidebarThreadRow({
         isActive={current}
         size="lg"
         tooltip={tooltip}
-        className={cn("h-auto gap-2 pr-14 [&>span:last-child]:overflow-visible [&>span:last-child]:whitespace-normal!", compact ? "min-h-8 py-1" : "min-h-14 py-2")}
+        className={cn("h-auto gap-2 [&>span:last-child]:overflow-visible [&>span:last-child]:whitespace-normal!", actions ? "pr-14 pointer-coarse:pr-28" : "pr-2", compact ? "min-h-8 py-1 pointer-coarse:min-h-12" : "min-h-14 py-2")}
       >
         {React.cloneElement(link, undefined, content)}
       </SidebarMenuButton>
       <div
         data-slot="thread-aside"
-        className={cn("pointer-events-none absolute right-2 flex h-6 items-center justify-end", compact ? "top-1.5" : "top-2")}
+        className={cn("pointer-events-none absolute right-2 flex h-6 items-center justify-end pointer-coarse:top-1/2 pointer-coarse:h-11 pointer-coarse:-translate-y-1/2", compact ? "top-1.5" : "top-2")}
       >
         <span
           data-slot="thread-time"

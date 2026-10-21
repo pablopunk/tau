@@ -4,6 +4,7 @@ import { type FixtureName, finalView, fixtures, fixtureViews } from "@tau/testki
 import { render } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 import { vi } from "vitest";
+import { SidebarProvider } from "@/components/ui/sidebar";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { NodeApiProvider } from "@/nodes/node-context";
 import { Conversation } from "./Conversation";
@@ -45,7 +46,9 @@ export function renderConversation(client: LiveClient, id = "2") {
         <NodeApiProvider>
           <TooltipProvider>
             <LiveClientProvider client={client}>
-              <Conversation id={id} />
+              <SidebarProvider>
+                <Conversation id={id} />
+              </SidebarProvider>
             </LiveClientProvider>
           </TooltipProvider>
         </NodeApiProvider>
