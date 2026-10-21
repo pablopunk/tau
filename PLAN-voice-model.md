@@ -56,56 +56,85 @@ VoiceModelSettingSchema = Type.Union([
   Type.Object({ kind: Type.Literal("provider"), provider: Type.String(), modelId: Type.String() }),
   Type.Null(),
 ]);
-//SettingsSchema += voiceModel: VoiceModelSettingSchema  // required; old nodes: see below
+//// Optional like `resources`: absent means "voice unsupported there"; a current node always sends it.
+SettingsSchema += voiceModel: Type.Optional(VoiceModelSettingSchema)
 
 // protocol/rest.ts
-PUT /api/settings/voice-model {body: VoiceModelSettingSchema}
-GET /api/voice/options -> { local: {available: boolean, state: "ready"|"needs-download"|"downloading"},
-                             providers: {provider, providerName, models: {modelId, name}[]}[] }
-POST /api/voice/transcribe {body: {format: "pcm-f32", sampleRate: number, data: base64} |
-                                       {format: "blob", mimeType: string, data: base64},
-                            bodyLimit: AUDIO_BODY_LIMIT(10MB)}
+// (mirror setFastModel: wrapped object, not the bare union)
+PUT /api/settings/voice-model {body: {setting: VoiceModelSettingSchema}}
+GET /api/voice/options -> { local: {available: boolean,
+                                    state: "ready"|"needs-download"|"downloading"|"error",
+                                    error?: string},
+                             providers: {provider, providerName,
+                                         models: {modelId, name}[], error?: string}[] }
+POST /api/voice/transcribe {body: TranscribeInputSchema, bodyLimit: AUDIO_BODY_LIMIT(10MB)}
   -> {text: string}
-
+// TranscribeInputSchema (field-level caps IN the schema, not just the route limit):
+// { format: "pcm-f32", sampleRate: 8000..192000 number, data: base64 maxLength ~14MB }
+// { format: "blob", mimeType: enum(opus/webm, mp4/aac containers), data: base64 maxLength ~14MB }
+// Route bodyLimit 10MB is the backstop; the hub proxy buffers the full body
+// (no streaming — same as images, acceptable). No temp file: parsed in memory
+// only (assert in review; audio is sensitive). Transcribe-and-discard: bytes
+// never touch a live doc.
 // protocol/core.ts
 settings.setVoiceModel(setting: VoiceModelSetting): Promise<void>  // rejects invalid_request (unknown provider model / provider not connected)
-voice: { options(): Promise<VoiceOptions>; transcribe(input): Promise<{text: string}> }
+// transcribe() dispatches on the STORED setting (like conversations.send uses
+// the stored default model). No mode argument: validation at save time and
+// behavior at transcribe time can never disagree.
+voice: { options(): Promise<VoiceOptions>; transcribe(input: TranscribeInput): Promise<{text: string}> }
 ```
 
-- Old-node reads: `Settings.voiceModel` required like defaultModel; web treats
-  a missing route (`nullWhenMissing`, existing pattern) as "voice unsupported
-  there" and hides the row. No fake `null` default that means two things.
-- Validation (`settings-api.ts`, mirror `setFastModel`): provider flavor
-  requires the provider connected AND modelId in that provider's live
-  catalog (OpenRouter) or hardcoded list (OpenAI, phase 2); local flavor
-  always accepted (availability surfaces via `voice.options()`).
+- Old-node reads: `Settings.voiceModel` is `Optional` like `resources`
+  (NOT required like defaultModel — a required field would fail response
+  validation against old nodes). Web treats a missing field AND a missing
+  route (`nullWhenMissing`, existing pattern) as "voice unsupported there"
+  and hides the row. No fake `null` default that means two things.
+- Validation (`settings-api.ts`, mirror `setFastModel` BUT against the
+  voice catalog, not `provider.lists()` — STT ids are not chat models and
+  `lists()` would reject them all): provider flavor requires the provider
+  connected AND modelId in that provider's voice catalog (OpenRouter live
+  `fetchOpenRouterVoiceModels`, cached; OpenAI hardcoded ×3, phase 2);
+  local flavor always accepted (availability surfaces via `voice.options()`).
+  Needs a voice-model registry in core (`provider/voice-models.ts`), not a
+  `ProviderService` reuse.
 
 ## Components
 
 **core**
 - `provider/voice-models.ts` (new): `fetchOpenRouterVoiceModels(apiKey)`
-  (live catalog query above + modality filter + 15-min cache, port nvm's
-  `transcription-models.ts`), `listProviderOptions(connections)` returns
-  OpenRouter rows when an OpenRouter key is connected. (Phase 2: append
-  the three hardcoded OpenAI ids when an OpenAI key is connected.)
+  (live catalog query above + modality filter + 15-min in-memory cache per
+  Core instance, port nvm's `transcription-models.ts`), `listProviderOptions(connections)`
+  returns OpenRouter rows when an OpenRouter key is connected. Cache lives
+  next to the connections reader and is dropped on `setApiKey` (key rotation
+  must not serve another key's catalog). Fetch failures surface as
+  per-provider `error` in options (403/429 included), never throw.
+  (Phase 2: append the three hardcoded OpenAI ids when an OpenAI key is connected.)
 - `voice/transcriber.ts` (new, port webr's strategy onto WASM): `warm()`
   (download model if needed → start worker → load recognizer into RAM),
   `transcribe(samples, sampleRate)`, idle-unload 5 min.
-  Directory: `<node-home>/models/parakeet-tdt-0.6b-v3-int8`.
-  Worker MUST be a `worker_thread` (extra `bun build --compile` entry —
-  watchdog precedent), not in-process: single-threaded WASM decode blocks
-  ~0.4s per audio-second and would stall the whole server on long takes.
+  Directory: `<node-home>/models/parakeet-tdt-0.6b-v3-int8` (same home root
+  as settings-store, so home migration/reset covers it; note ~670MB × nodes).
+  Worker is a `worker_thread`: single-threaded WASM decode blocks ~0.4s per
+  audio-second and would stall the whole server on long takes. Lifecycle:
+  serialized warm (second call attaches to in-flight), transcribe-before-ready
+  rejects a named AppError the composer maps to a hint (no queueing),
+  idle-unload fires only with refcount 0 AND no in-flight request.
   The worker imports the `sherpa-onnx` WASM binding; model paths cross via
   workerData (plain disk paths, no bundling issues).
+  GATE: foundation's first task re-proves `new Worker()` from a version-dir
+  sidecar entry under the compiled binary (spike 2); if it fails, fall back
+  to in-process transcription with a busy-flag (serializes takes; document
+  the loop stall honestly) rather than blocking the project.
 - `voice/provider-transcribe.ts` (new): multipart POST to
   `{providerBase}/audio/transcriptions` with connection key, file from blob
   bytes; map failures to `invalid_request`/`internal`.
-- `voice-api.ts` (new): `options()` (local availability = can-resolve
-  sherpa module + download state; providers = allowlist ∩ connections),
-  `transcribe()` dispatches on the *stored setting flavor* — no wait:
-  dispatch on the *request*; the setting only picks the default in the UI.
-  Simpler and testable: `transcribe(input, mode)` where mode comes from the
-  caller's setting. Keep core stateless here; settings-store only persists.
+- `voice-api.ts` (new): `options()` (local availability = WASM binding
+  importable + download state [`ready|needs-download|downloading|error` +
+  message]; providers = live catalog ∩ connections, each with `error?`),
+  `transcribe(input)` dispatches on the *stored* voice setting. Transcribe
+  while downloading rejects invalid_request (composer shows "still
+d  downloading" hint); transcribe with unset/null setting rejects
+  invalid_request (composer keeps browser fallback, never calls this).
 - Packaging (SPIKE DONE 2026-10-21, green): `sherpa-onnx-node` (native)
   is OUT — a compiled Bun binary cannot load its `.node` (dlopen fails on
   the bundled copy's missing dylibs). Instead use the pure-WASM `sherpa-onnx`
@@ -116,38 +145,57 @@ voice: { options(): Promise<VoiceOptions>; transcribe(input): Promise<{text: str
   no sidecar. Model files (~670MB) download at runtime to
   `<node-home>/models/parakeet-tdt-0.6b-v3-int8`, never shipped.
 
-**server**: `register-routes.ts` three one-liners; `path-filter.ts` allowlist +
-  body limit for `POST voice/transcribe` (proxy forwards to thread's node).
+**server**: `register-routes.ts` three one-liners. No manual proxy work:
+  `path-filter.ts` builds its allow-table from the route defs automatically;
+  note the hub still buffers the full body (no streaming, same as images).
 
 **web**
 - `settings/SettingsModels.tsx`: third row — "Voice model", custom row (not
   `ModelSetting`: no thinking level): radio Local | Provider; provider
   `<Combobox>` disabled when `options.providers` empty with hint
   "No connected provider offers speech-to-text"; local line shows download
-  state from `options.local.state`. Saves via `api.settings.setVoiceModel`
+  state from `options.local.state`. Download progress polls `GET
+  /api/voice/options` (new query key + `refetchInterval` while
+  `state === "downloading"`). Saves via `api.settings.setVoiceModel`
   + invalidate `queryKeys.settings`. Per-node free via `useApi()`.
-- `setup/ModelStep.tsx`: skip (voice stays unset → browser fallback; no
-  setup friction).
+  Delete button calls a `DELETE`-shaped route (or setVoiceModel(null) +
+  `voice.clearModel`? — foundation picks the smaller: prefer
+  `POST /api/voice/model/remove` only if delete needs server work;
+  else client deletes nothing and core exposes `voice.removeModel()`.
+  Decide in foundation; do NOT overload setVoiceModel(null) to mean delete).
+- `setup/ModelStep.tsx`: skip. Discovery path is the settings row only
+  (a fresh node has no voice setting and gets no prompt — stated product
+  choice, not free friction).
 - `composer/use-dictation.ts` + `Composer.tsx`: if `settings.voiceModel`
   set, mic toggle records with `MediaRecorder` (opus/webm, mp4 fallback)
   instead of SpeechRecognition; the existing AnalyserNode glow loop runs on
   the same stream; on stop: decode via `decodeAudioData` (local) or raw blob
   (provider) → base64 → `api.voice.transcribe` on the thread's node →
   append text (existing append path). `warm()` fires on toggle press so the
-  model loads while the user talks. Null setting = today's behavior,
-  untouched.
+  model loads while the user talks — warm AND transcribe MUST use the same
+  `useApi()` instance per composer mount (switching threads mid-press must
+  not warm node A then transcribe on cold node B). Null setting = today's
+  behavior, untouched.
 - `lib/api.ts` + `lib/transport/fake.ts` + `testkit/fake-core.ts` + contract
   `settings-provider.ts`: mirror the default/fast checklist.
 
 **testkit/contract**: extend `settings-provider.ts` (get/set/validation of
-voiceModel), fake-core in-memory setting + fake `voice.options/transcribe`
-(loopback text), `rest.test.ts` route shape, `SettingsModels.test.tsx` row
-(states: none-connected disabled, openai-connected enabled).
+voiceModel incl. OpenRouter-catalog validation against a stub catalog),
+fake-core: in-memory voice field + validation mirror + seed knob for
+available voice models; `transport/fake.ts` route map additions;
+`lib/api.test.ts`-style route-shape test; `SettingsModels.test.tsx` row
+(states: no-key disabled, openrouter-key lists catalog models).
+Gate e2e on `VITE_FAKE=1` composer test with fake loopback transcribe
+(no headed-mic e2e).
 
 ## Phases (subagent workflow)
 
-0. **Spike** (one agent, fast): sherpa under bun + compiled binary; report
-   which packaging works. Go/no-go for in-process worker vs sidecar.
+0. **Spike — DONE 2026-10-21, green**: WASM `sherpa-onnx` loads + transcribes
+   under `bun run` AND inside `bun build --compile` output (evidence in
+   commit message scope; probe deleted). No sidecar, no native module.
+   Remaining spike 2 (foundation's first task): `new Worker()` from a
+   version-dir entry under the compiled binary; fallback in-process +
+   busy-flag (serialize takes) if it fails.
 1. **Foundation**: freeze contract above + stubs + fake; check+test+build
    green. Adversarial review before fan-out.
 2. **Parallel**: (a) core local pipeline, (b) core provider path + options,
