@@ -127,6 +127,11 @@ export function useDictation(onText: (text: string) => void, onError: (message: 
 
   const start = useCallback(async () => {
     wantListening.current = true;
+    if (!window.SpeechRecognition && !window.webkitSpeechRecognition) {
+      wantListening.current = false;
+      callbacks.current.onError("Dictation needs Chrome or Safari on this device.");
+      return;
+    }
     // Start recognition synchronously in the tap gesture: Chrome rejects
     // start() once transient activation expires (e.g. after awaiting a
     // permission prompt), and it reports nothing when that throw is swallowed.
