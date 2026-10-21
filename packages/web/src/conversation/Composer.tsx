@@ -296,7 +296,7 @@ function ComposerForm({
             bangMode && "pl-7 font-mono",
           )}
         />
-        <div className="flex flex-wrap items-start gap-1 sm:flex-nowrap">
+        <div className="flex flex-wrap items-center gap-1 sm:flex-nowrap">
           {bangMode ? null : toolbarStart}
           {imagesAllowed && !bangMode ? (
             <>
@@ -315,7 +315,7 @@ function ComposerForm({
                   <Button
                     type="button"
                     variant="ghost"
-                    size="icon"
+                    size="icon-sm"
                     aria-label="Attach images"
                     onClick={() => picker.current?.click()}
                   >
@@ -332,16 +332,16 @@ function ComposerForm({
             </div>
           )}
           {hint ? (
-            <div className="ml-auto min-w-0 self-center truncate sm:ml-0 sm:shrink-0">{hint}</div>
+            <div className="ml-auto min-w-0 truncate sm:ml-0 sm:shrink-0">{hint}</div>
           ) : null}
-          <div className="flex shrink-0 gap-1 max-sm:ml-1">
+          <div className="flex shrink-0 items-center gap-1 max-sm:ml-1">
             {busy && onStop ? (
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
                     type="button"
                     variant="outline"
-                    size="icon"
+                    size="icon-sm"
                     aria-label="Stop"
                     disabled={stopping}
                     onClick={stop}
@@ -356,7 +356,7 @@ function ComposerForm({
               <TooltipTrigger asChild>
                 <Button
                   type="submit"
-                  size="icon"
+                  size="icon-sm"
                   aria-label={busy ? "Send as steer" : "Send"}
                   disabled={!canSend}
                 >
