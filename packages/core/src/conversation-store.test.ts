@@ -220,7 +220,11 @@ describe("uploads", () => {
   }
 
   it("admits staged files as quoted path-only context, never bytes", async () => {
-    const ref = await world.uploads.stage({ name: "notes.txt", mimeType: "text/plain", data: toBase64("hello") });
+    const ref = await world.uploads.stage({
+      name: "notes.txt",
+      mimeType: "text/plain",
+      data: toBase64("hello"),
+    });
     const started = startRequest(world, "read this", "with-file");
     const { summary } = await world.store.start({ ...started, input: { ...started.input, files: [ref] } });
     await waitForSummary(world, summary.id, (item) => item.status === "idle", "the answer");
@@ -242,7 +246,9 @@ describe("uploads", () => {
     const { summary } = await world.store.start(startRequest(world, "hello", "no-file"));
     await waitForSummary(world, summary.id, (item) => item.status === "idle", "the answer");
     const before = await userTexts(summary.id);
-    await expect(world.store.send(summary.id, { text: "read this", files: [missing], requestId: "bad-file" }, 2)).rejects.toMatchObject({
+    await expect(
+      world.store.send(summary.id, { text: "read this", files: [missing], requestId: "bad-file" }, 2),
+    ).rejects.toMatchObject({
       code: "file_expired",
     });
     expect(await userTexts(summary.id)).toEqual(before);

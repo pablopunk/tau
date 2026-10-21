@@ -47,7 +47,9 @@ export type PendingFirstInput = {
 };
 
 /** Reads a pending first message tolerantly: legacy docs predate `files`. */
-export function pendingFirstInputOf(doc: { pendingFirstInput?: PendingFirstInput }): SendMessageInput | undefined {
+export function pendingFirstInputOf(doc: {
+  pendingFirstInput?: PendingFirstInput;
+}): SendMessageInput | undefined {
   const pending = doc.pendingFirstInput;
   if (!pending) return undefined;
   return {

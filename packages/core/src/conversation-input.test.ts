@@ -30,15 +30,17 @@ describe("message input", () => {
       { type: "text", text: "read this" },
       { type: "text", text: 'Attached file: "uploads/some-uuid"' },
     ]);
-    expect(toUserInput({ text: "  ", files: [file] }, readFromResolved([{ ref: file, absPath: "/tmp/x" }]))).toEqual([
-      { type: "text", text: 'Attached file: "uploads/some-uuid"\nRead it from: /tmp/x' },
-    ]);
+    expect(
+      toUserInput({ text: "  ", files: [file] }, readFromResolved([{ ref: file, absPath: "/tmp/x" }])),
+    ).toEqual([{ type: "text", text: 'Attached file: "uploads/some-uuid"\nRead it from: /tmp/x' }]);
   });
 
   it("requires text, an image or a file", () => {
     expect(() => requireContent({ text: " " })).toThrow(expect.objectContaining({ code: "invalid_request" }));
     expect(() => requireContent({ text: "", images: [PNG] })).not.toThrow();
-    expect(() => requireContent({ text: "  ", files: [{ name: "a", path: "uploads/x", size: 1 }] })).not.toThrow();
+    expect(() =>
+      requireContent({ text: "  ", files: [{ name: "a", path: "uploads/x", size: 1 }] }),
+    ).not.toThrow();
   });
 
   it("checks magic bytes against the declared type", () => {

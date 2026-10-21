@@ -20,7 +20,6 @@ import {
   type WorkspaceMode,
 } from "@tau/protocol";
 import { Value } from "typebox/value";
-import type { UploadStore } from "./upload-store";
 import type { ArchivedCleanup } from "./archived-cleanup";
 import { type BangCommandDeps, entryOfThread, parseBangCommand, runBangCommand } from "./bang-command";
 import type { ChangeEmitter } from "./change-emitter";
@@ -41,6 +40,7 @@ import { requireName } from "./require-name";
 import type { StatusTracker } from "./status/status-tracker";
 import { cwdOf } from "./terminals/cwd-of";
 import type { TitleService } from "./titles/title-service";
+import type { UploadStore } from "./upload-store";
 import type { WorkspaceService } from "./workspaces/workspace-service";
 
 const FALLBACK_THINKING_LEVEL = "medium";

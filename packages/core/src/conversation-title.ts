@@ -12,9 +12,13 @@ function capTitle(oneLine: string): string {
 
 function safeFileName(name: string): string | undefined {
   const base = name.split(/[\\/]/).pop() ?? "";
+  // biome-ignore lint/suspicious/noControlCharactersInRegex: stripping control characters is the point
   const cleaned = base.replace(/[\0-\x1f\x7f]+/g, "").trim();
   if (cleaned === "") return undefined;
-  const capped = cleaned.length <= MAX_FILE_TITLE_LENGTH ? cleaned : `${cleaned.slice(0, MAX_FILE_TITLE_LENGTH).trimEnd()}…`;
+  const capped =
+    cleaned.length <= MAX_FILE_TITLE_LENGTH
+      ? cleaned
+      : `${cleaned.slice(0, MAX_FILE_TITLE_LENGTH).trimEnd()}…`;
   return capTitle(capped);
 }
 
