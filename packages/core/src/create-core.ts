@@ -87,6 +87,7 @@ import { createTimerToolServices } from "./timers/timer-tool-services";
 import { createTimersApi } from "./timers-api";
 import { createTitleService } from "./titles/title-service";
 import { createUpdateService } from "./updates/update-service";
+import { createUploadStore } from "./upload-store";
 import { CRASH_LOOP_TEXT, recordStart, startRecordFiles } from "./watchdog/start-record";
 import { createWorkspaceService } from "./workspaces/workspace-service";
 
@@ -192,9 +193,11 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
       connectors: () => provider.claudeConnectors(),
     });
     resyncWhenConnectorsChange(changes, provider, connectorOffering);
+    const uploads = createUploadStore({ now: deps.now });
     const conversations = createConversationStore(harness, async (id) => (await projects.require(id)).path, {
       offering: connectorOffering,
       beforeAbort: (id) => approvals.denyAll(id),
+      uploads,
     });
     const shared = { projects, conversations, changes, now: deps.now };
     const titles = createTitleService({ harness, models: provider.models, settings, changes });
@@ -491,6 +494,7 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
       skills: createSkillsApi({ projects }),
       projects: createProjectsApi({ ...shared, clones, icons, present, removalHooks }),
       conversations: createConversationsApi({
+        uploads,
         ...shared,
         provider,
         settings,
@@ -524,6 +528,9 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
       approvals: createApprovalsApi(approvals, conversations),
       timers: timersApi,
       goals: createGoalsApi(goals),
+      uploads: {
+        stage: (input) => uploads.stage(input),
+      },
       mcp: createMcpApi({ settings, mcp, changes }),
       updates: {
         status: () => updates.status(),

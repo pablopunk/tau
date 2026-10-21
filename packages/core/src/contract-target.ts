@@ -81,6 +81,9 @@ async function setUpGithub(root: string): Promise<{ deps: CoreDependencies; code
 export async function makeRealTarget(): Promise<ContractTarget> {
   const root = await realpath(await mkdtemp(join(tmpdir(), "tau-contract-")));
   const home = join(root, "home");
+  // Staged uploads land in this target's own root, never the shared tmp dir.
+  const previousUploadsRoot = process.env.TAU_UPLOADS;
+  process.env.TAU_UPLOADS = join(root, "uploads");
   const { deps, codeFolder } = await setUpGithub(root);
   let core: Core = await createCoreWith({ home, faux: true, ...NO_UPDATE_OPTIONS }, deps);
   await core.settings.setProjectsFolder(codeFolder);
@@ -138,6 +141,8 @@ export async function makeRealTarget(): Promise<ContractTarget> {
     dispose: async () => {
       await core.close();
       await rm(root, { recursive: true, force: true });
+      if (previousUploadsRoot === undefined) delete process.env.TAU_UPLOADS;
+      else process.env.TAU_UPLOADS = previousUploadsRoot;
     },
   };
   return target;
