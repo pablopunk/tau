@@ -42,8 +42,11 @@ SpeechRecognition when unset. Nothing here changes the chat path.
 2. Provider v1 = **OpenRouter live catalog** (nvm proved the endpoints).
    OpenAI direct is phase 2. Dropdown lists every speech model from every
    connected key that yields one.
-3. Local model downloads lazily on first mic press; settings row shows
-   missing / downloading / ready plus a delete button.
+3. Local model downloads lazily on first mic press; picking Local in
+   settings also warms immediately. Settings row shows missing /
+   downloading (with byte progress + bar) / ready plus a delete button.
+   The section is compact: inline radio row, one dynamic description line,
+   provider combobox only when provider is picked.
 4. Build order: local Parakeet first (works in every browser, private),
    provider second. Browser SpeechRecognition stays as the unset fallback
    (already shipped in the composer).

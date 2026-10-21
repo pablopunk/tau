@@ -49,8 +49,7 @@ export function SettingsModels() {
       <VoiceModelRow />
       <p className="text-sm text-muted-foreground">
         The fast model names new threads. The default model and its thinking level are used for new threads;
-        change a thread's model from its composer. Dictation uses the voice model when set, otherwise the
-        browser's built-in recognition.
+        change a thread's model from its composer.
       </p>
       <FormError message={error} />
     </div>

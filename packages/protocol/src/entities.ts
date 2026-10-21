@@ -54,6 +54,13 @@ export const VoiceOptionsSchema = Type.Object({
       Type.Literal("error"),
     ]),
     error: Type.Optional(Type.String()),
+    progress: Type.Optional(
+      Type.Object({
+        file: Type.String(),
+        downloaded: Type.Number({ minimum: 0 }),
+        total: Type.Union([Type.Number({ minimum: 0 }), Type.Null()]),
+      }),
+    ),
   }),
   providers: Type.Array(
     Type.Object({

@@ -73,19 +73,22 @@ describe("Settings models", () => {
     expect(screen.queryByText("Voice model")).not.toBeInTheDocument();
   });
 
-  it("disables the provider picker with no key and saves local, then browser fallback", async () => {
+  it("disables provider choice with no key and saves local, then browser fallback", async () => {
     installFakeBackend(false);
     const user = userEvent.setup();
     wrap(<SettingsModels />);
     await screen.findByText("Voice model");
-    const picker = screen.getByRole("combobox", { name: "Provider voice model" });
-    expect(picker).toBeDisabled();
+    expect(screen.getByRole("radio", { name: /provider/i })).toBeDisabled();
+    expect(screen.queryByRole("combobox", { name: "Provider voice model" })).not.toBeInTheDocument();
     expect(screen.getByText("No connected provider offers speech-to-text.")).toBeInTheDocument();
-    expect(screen.getByText("Not downloaded yet — downloads on first use.")).toBeInTheDocument();
 
+    const warm = vi.spyOn(mocks.api.voice, "warm");
     await user.click(screen.getByRole("radio", { name: /local/i }));
-    expect(await screen.findByText("Not downloaded yet — downloads on first use.")).toBeInTheDocument();
+    expect(
+      await screen.findByText("Not downloaded yet — starts downloading when picked."),
+    ).toBeInTheDocument();
     expect((await mocks.api.settings.get()).voiceModel).toEqual({ kind: "local" });
+    expect(warm).toHaveBeenCalled();
 
     await user.click(screen.getByRole("radio", { name: /browser/i }));
     await vi.waitFor(async () => {
@@ -93,10 +96,36 @@ describe("Settings models", () => {
     });
   });
 
+  it("shows download progress while the local model downloads", async () => {
+    installFakeBackend(false);
+    const voice = mocks.api.voice;
+    mocks.api = {
+      ...mocks.api,
+      voice: {
+        ...voice,
+        options: async () => ({
+          local: {
+            available: true,
+            state: "downloading",
+            progress: { file: "encoder.int8.onnx", downloaded: 326_107_376, total: 652_214_752 },
+          },
+          providers: [],
+        }),
+      },
+    } as Api;
+    wrap(<SettingsModels />);
+    await screen.findByText("Voice model");
+    await userEvent.click(await screen.findByRole("radio", { name: /local/i }));
+    expect(await screen.findByText(/Downloading encoder\.int8\.onnx/)).toBeInTheDocument();
+    expect(screen.getByText(/50% \(311 MB of 622 MB\)/)).toBeInTheDocument();
+  });
+
   it("lists catalog models with an OpenRouter key and saves the chosen provider model", async () => {
     installFakeBackend(true);
     const user = userEvent.setup();
     wrap(<SettingsModels />);
+    await screen.findByText("Voice model");
+    await user.click(await screen.findByRole("radio", { name: /provider/i }));
     const picker = await screen.findByRole("combobox", { name: "Provider voice model" });
     expect(picker).not.toBeDisabled();
     await user.click(picker);

@@ -2,6 +2,7 @@ import { createWriteStream, existsSync } from "node:fs";
 import { mkdir, rename, rm } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
+import { Transform } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { Worker } from "node:worker_threads";
 import { AppError, type VoiceOptions } from "@tau/protocol";
@@ -107,6 +108,7 @@ export class Transcriber {
   >();
   private inFlight = 0;
   private idleTimer: NodeJS.Timeout | undefined;
+  private progress: { file: string; downloaded: number; total: number | null } | undefined;
 
   constructor(options: TranscriberOptions) {
     this.modelDir = options.modelDir;
@@ -127,6 +129,9 @@ export class Transcriber {
 
   /** Current snapshot for `voice.options()`; matches `VoiceOptions["local"]`. */
   getStatus(): LocalVoiceStatus {
+    if (this.status.state === "downloading" && this.progress !== undefined) {
+      return { ...this.status, progress: { ...this.progress } };
+    }
     return { ...this.status };
   }
 
@@ -242,7 +247,7 @@ export class Transcriber {
     for (const name of missing) await this.downloadFile(name);
   }
 
-  /** Atomic partial-file + rename; existing files are skipped by the caller. */
+  /** Atomic partial-file + rename; existing files are skipped by the caller. Reports byte progress. */
   private async downloadFile(name: string): Promise<void> {
     const tmp = join(this.modelDir, `${name}.part-${process.pid}`);
     try {
@@ -250,7 +255,23 @@ export class Transcriber {
       if (!response.ok || response.body === null) {
         throw new Error(`HTTP ${response.status} for ${name}`);
       }
-      await pipeline(response.body, createWriteStream(tmp));
+      const totalHeader = response.headers?.get("content-length");
+      const total = totalHeader === null || totalHeader === undefined ? NaN : Number(totalHeader);
+      let downloaded = 0;
+      const self = this;
+      const counter = new Transform({
+        transform(chunk: unknown, _encoding, callback) {
+          const bytes = chunk as Uint8Array;
+          downloaded += bytes.length;
+          self.progress = {
+            file: name,
+            downloaded,
+            total: Number.isFinite(total) ? total : null,
+          };
+          callback(null, chunk);
+        },
+      });
+      await pipeline(response.body, counter, createWriteStream(tmp));
       await rename(tmp, join(this.modelDir, name));
     } finally {
       await rm(tmp, { force: true }).catch(() => undefined);

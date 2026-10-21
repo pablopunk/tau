@@ -1,6 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
 import type { VoiceModelSetting, VoiceOptions } from "@tau/protocol";
-import { useId } from "react";
 import { FormError } from "@/app/FormError";
 import { useSubmit } from "@/app/use-submit";
 import { Button } from "@/components/ui/button";
@@ -23,7 +22,9 @@ const providerOptions = (options: VoiceOptions): ComboboxOption[] =>
 const keyOf = (setting: Extract<VoiceModelSetting, { kind: "provider" }>) =>
   `${setting.provider}/${setting.modelId}`;
 
-function LocalState({
+const megabytesOf = (bytes: number): string => `${Math.max(1, Math.round(bytes / 1048576))} MB`;
+
+function LocalDescription({
   options,
   onDelete,
   deleting,
@@ -35,16 +36,35 @@ function LocalState({
   const { local } = options;
   if (local.state === "ready")
     return (
-      <span className="flex items-center gap-2">
+      <span className="flex flex-wrap items-center gap-2">
         Downloaded and ready.
         <Button type="button" variant="ghost" size="sm" disabled={deleting} onClick={onDelete}>
           Delete
         </Button>
       </span>
     );
-  if (local.state === "downloading") return <span>Downloading model…</span>;
-  if (local.state === "error") return <span>Download failed{local.error ? `: ${local.error}` : "."}</span>;
-  return <span>Not downloaded yet — downloads on first use.</span>;
+  if (local.state === "downloading") {
+    const progress = local.progress;
+    const total = progress?.total ?? null;
+    const percent = progress && total ? Math.min(99, Math.floor((progress.downloaded / total) * 100)) : null;
+    return (
+      <span className="flex flex-col gap-1">
+        <span>
+          Downloading {progress?.file ?? "model"}…
+          {percent !== null && progress && total
+            ? ` ${percent}% (${megabytesOf(progress.downloaded)} of ${megabytesOf(total)})`
+            : null}
+        </span>
+        {percent !== null ? (
+          <span className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+            <span className="block h-full rounded-full bg-primary" style={{ width: `${percent}%` }} />
+          </span>
+        ) : null}
+      </span>
+    );
+  }
+  if (local.state === "error") return <span>Download failed{local.error ? `: ${local.error}.` : "."}</span>;
+  return <span>Not downloaded yet — starts downloading when picked.</span>;
 }
 
 /**
@@ -56,7 +76,6 @@ function LocalState({
 export function VoiceModelRow() {
   const api = useApi();
   const queryClient = useQueryClient();
-  const radioId = useId();
   const settings = useSettings();
   const voice = useVoiceOptions();
   const save = useSubmit();
@@ -72,11 +91,17 @@ export function VoiceModelRow() {
   const selected = current?.kind === "provider" ? keyOf(current) : null;
   const selectedMissing = selected !== null && !models.some((model) => model.value === selected);
   const noProviderModels = models.length === 0;
+  const value = current === null ? "browser" : current.kind;
 
-  const choose = (setting: VoiceModelSetting) =>
+  const choose = (setting: VoiceModelSetting | null) =>
     void save.run(async () => {
       await api.settings.setVoiceModel(setting);
       await queryClient.invalidateQueries({ queryKey: queryKeys.settings });
+      if (setting?.kind === "local") {
+        // Start the download now so the state below flips to progress.
+        await queryClient.invalidateQueries({ queryKey: queryKeys.voiceOptions });
+        void api.voice.warm().catch(() => undefined);
+      }
     });
 
   const deleteDownload = () =>
@@ -90,50 +115,39 @@ export function VoiceModelRow() {
       <span id="voice-model-label" className="text-sm font-medium">
         Voice model
       </span>
-      <div role="radiogroup" aria-labelledby="voice-model-label" className="flex flex-col gap-2">
-        <label className="flex items-start gap-2 text-sm">
+      <div
+        role="radiogroup"
+        aria-labelledby="voice-model-label"
+        className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm"
+      >
+        <label className="flex items-center gap-1.5">
           <input
             type="radio"
             name="voice-model"
-            className="mt-1 accent-primary"
-            checked={current === null}
+            className="accent-primary"
+            checked={value === "browser"}
             disabled={save.pending}
             onChange={() => choose(null)}
           />
-          <span>
-            Browser
-            <span className="block text-sm text-muted-foreground">
-              Built-in speech recognition, nothing to download.
-            </span>
-          </span>
+          Browser
         </label>
-        <label className="flex items-start gap-2 text-sm">
+        <label className="flex items-center gap-1.5">
           <input
             type="radio"
             name="voice-model"
-            className="mt-1 accent-primary"
-            checked={current?.kind === "local"}
+            className="accent-primary"
+            checked={value === "local"}
             disabled={save.pending || !options?.local.available}
             onChange={() => choose({ kind: "local" })}
           />
-          <span>
-            Local
-            <span className="block text-sm text-muted-foreground">
-              {options ? (
-                <LocalState options={options} onDelete={deleteDownload} deleting={remove.pending} />
-              ) : (
-                "Private on-device transcription."
-              )}
-            </span>
-          </span>
+          Local
         </label>
-        <div className="flex items-start gap-2 text-sm">
+        <label className="flex items-center gap-1.5">
           <input
-            id={`${radioId}-provider`}
             type="radio"
             name="voice-model"
-            className="mt-1 accent-primary"
-            checked={current?.kind === "provider"}
+            className="accent-primary"
+            checked={value === "provider"}
             disabled={save.pending || noProviderModels}
             onChange={() => {
               const first = models[0];
@@ -143,26 +157,37 @@ export function VoiceModelRow() {
               }
             }}
           />
-          <span className="min-w-0 flex-1">
-            <label htmlFor={`${radioId}-provider`}>Provider</label>
-            <span className="block text-sm text-muted-foreground">
-              <Combobox
-                aria-label="Provider voice model"
-                options={models}
-                value={selectedMissing ? null : selected}
-                placeholder="Select a voice model…"
-                disabled={noProviderModels}
-                onChange={(key) => {
-                  const [provider, ...rest] = key.split("/");
-                  choose({ kind: "provider", provider: provider ?? "", modelId: rest.join("/") });
-                }}
-                className="mt-1"
-              />
-              {noProviderModels ? "No connected provider offers speech-to-text." : null}
-            </span>
-          </span>
-        </div>
+          Provider
+        </label>
       </div>
+      <div className="text-sm text-muted-foreground">
+        {value === "browser" ? (
+          <span>Built-in speech recognition, nothing to download.</span>
+        ) : value === "local" ? (
+          options ? (
+            <LocalDescription options={options} onDelete={deleteDownload} deleting={remove.pending} />
+          ) : (
+            <span>Private on-device transcription.</span>
+          )
+        ) : (
+          <span className="flex flex-col gap-1">
+            <Combobox
+              aria-label="Provider voice model"
+              options={models}
+              value={selectedMissing ? null : selected}
+              placeholder="Select a voice model…"
+              disabled={noProviderModels}
+              onChange={(key) => {
+                const [provider, ...rest] = key.split("/");
+                choose({ kind: "provider", provider: provider ?? "", modelId: rest.join("/") });
+              }}
+            />
+          </span>
+        )}
+      </div>
+      {noProviderModels ? (
+        <p className="text-sm text-muted-foreground">No connected provider offers speech-to-text.</p>
+      ) : null}
       {selectedMissing ? (
         <p className="text-sm text-muted-foreground">The saved model is no longer listed — pick another.</p>
       ) : null}

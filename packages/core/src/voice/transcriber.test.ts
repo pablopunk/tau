@@ -144,6 +144,56 @@ describe("Transcriber", () => {
     await transcriber.close();
   });
 
+  it("reports byte progress while downloading", async () => {
+    const root = await tempDir();
+    const modelDir = join(root, "m");
+    const { workers, createWorker } = createFakeWorkerFactory();
+    let controller!: ReadableStreamDefaultController<Uint8Array>;
+    let first = true;
+    const closedFetch = (size: number) => ({
+      ok: true,
+      status: 200,
+      headers: new Headers({ "content-length": String(size) }),
+      body: new ReadableStream<Uint8Array>({
+        start(c) {
+          c.enqueue(new Uint8Array(size));
+          c.close();
+        },
+      }),
+    });
+    const fetchImpl = vi.fn((async () => {
+      if (first) {
+        first = false;
+        return {
+          ok: true,
+          status: 200,
+          headers: new Headers({ "content-length": "10" }),
+          body: new ReadableStream<Uint8Array>({
+            start(c) {
+              controller = c;
+            },
+          }),
+        };
+      }
+      return closedFetch(4);
+    }) as unknown as typeof fetch);
+    const transcriber = new Transcriber({ modelDir, fetchImpl, createWorker });
+    const warming = transcriber.warm();
+    await waitFor(() => transcriber.getStatus().state === "downloading", "downloading state");
+    await waitFor(() => controller !== undefined, "download stream");
+    controller.enqueue(new Uint8Array([1, 2, 3, 4]));
+    await waitFor(
+      () =>
+        JSON.stringify(transcriber.getStatus().progress) ===
+        JSON.stringify({ file: PARAKEET_MODEL_FILES[0], downloaded: 4, total: 10 }),
+      "download progress",
+    );
+    controller.close();
+    await warmWithFakeWorker({ workers, createWorker }, warming);
+    expect(transcriber.getStatus()).toEqual({ available: true, state: "ready" });
+    await transcriber.close();
+  });
+
   it("serializes concurrent warms onto one download + one worker", async () => {
     const root = await tempDir();
     const modelDir = join(root, "m");
