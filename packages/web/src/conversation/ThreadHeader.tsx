@@ -13,10 +13,13 @@ export function ThreadHeader({
   id,
   extras,
   actions,
+  hideMachine,
 }: {
   id: string;
   extras?: ReactNode;
   actions?: ReactNode;
+  /** When the right sidebar is open the machine badge lives there instead. */
+  hideMachine?: boolean;
 }) {
   const title = useAllConversations().data?.find((summary) => summary.id === id)?.title || "Conversation";
   const nodeId = useNodeId();
@@ -34,10 +37,10 @@ export function ThreadHeader({
       <h1 className="min-w-32 flex-1 truncate text-sm font-medium">{title}</h1>
       {actions ? <div className="order-1 flex shrink-0 items-center sm:order-3">{actions}</div> : null}
       <div className="order-2 flex min-w-0 flex-wrap items-center gap-2 max-sm:w-full">
-        {slot ? null : machine}
+        {slot || hideMachine ? null : machine}
         {extras}
       </div>
-      {slot && machine ? createPortal(machine, slot) : null}
+      {slot && machine && !hideMachine ? createPortal(machine, slot) : null}
     </header>
   );
 }

@@ -16,10 +16,13 @@ export function ThreadToolbar({
   id,
   view,
   pickers,
+  sidebarOpen,
 }: {
   id: string;
   view: ConversationView;
   pickers?: Ref<PickersHandle>;
+  /** When the right sidebar is open these chips live there instead. */
+  sidebarOpen?: boolean;
 }) {
   const api = useApi();
   const models = useModels().data;
@@ -44,10 +47,14 @@ export function ThreadToolbar({
         onLevel={(thinkingLevel: ThinkingLevel) => void configure(id, { thinkingLevel })}
       />
       <div className="ml-auto flex items-center gap-2 self-center">
-        {usage ? <ContextMeter used={usage.used} total={usage.total} label={usage.label} /> : null}
-        <GoalChip conversationId={id} />
-        <ProcessesChip conversationId={id} />
-        <TimersChip conversationId={id} />
+        {sidebarOpen ? null : (
+          <>
+            {usage ? <ContextMeter used={usage.used} total={usage.total} label={usage.label} /> : null}
+            <GoalChip conversationId={id} />
+            <ProcessesChip conversationId={id} />
+            <TimersChip conversationId={id} />
+          </>
+        )}
       </div>
     </>
   );

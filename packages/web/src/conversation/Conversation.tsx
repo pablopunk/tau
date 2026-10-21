@@ -1,7 +1,7 @@
 import { readLive } from "@tau/protocol";
 import { ArrowDown } from "lucide-react";
-import { useCallback, useRef } from "react";
-import { Link } from "react-router";
+import { useCallback, useEffect, useRef } from "react";
+import { Link, useMatch } from "react-router";
 import type { PickersHandle } from "@/components/ModelThinkingPickers";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -18,6 +18,9 @@ import { imagesAllowedFor } from "./model/agent";
 import { BusyModeHint } from "./queue/BusyModeHint";
 import { whenBusyOf } from "./queue/queued-mode";
 import { stopAndRestore } from "./queue/stop-restore";
+import { ConversationSidebar } from "./sidebar/ConversationSidebar";
+import { SidebarToggleButton } from "./sidebar/SidebarToggleButton";
+import { useConversationSidebarOpen } from "./sidebar/use-sidebar-open";
 import { ThreadHeader } from "./ThreadHeader";
 import { ThreadToolbar } from "./ThreadToolbar";
 import { Transcript } from "./Transcript";
@@ -83,62 +86,90 @@ function ConversationPanel({ id }: ConversationProps) {
   const messageMode = useSettings().data?.messageMode;
   const whenBusy = messageMode ? whenBusyOf(messageMode) : undefined;
   const parentId = summary?.parentId ?? null;
+  const {
+    open: sidebarWantsOpen,
+    setOpen: setSidebarOpen,
+    toggle: toggleSidebar,
+  } = useConversationSidebarOpen();
+  const localTerminal = useMatch("/p/:projectId/c/:conversationId/terminal/:terminalId");
+  const remoteTerminal = useMatch("/n/:nodeId/p/:projectId/c/:conversationId/terminal/:terminalId");
+  const terminalOpen = localTerminal !== null || remoteTerminal !== null;
+  useEffect(() => {
+    if (terminalOpen && sidebarWantsOpen) setSidebarOpen(false);
+  }, [terminalOpen, sidebarWantsOpen, setSidebarOpen]);
+  const sidebarOpen = sidebarWantsOpen && !terminalOpen;
   return (
     <div data-testid="conversation" className="relative flex h-full min-h-0 flex-col bg-background">
       {view ? (
         <ThreadHeader
           id={id}
+          hideMachine={sidebarOpen}
           extras={
-            <>
-              <GoalChip conversationId={id} />
-              <WorkspaceChip conversationId={id} />
-            </>
+            sidebarOpen ? null : (
+              <>
+                <GoalChip conversationId={id} />
+                <WorkspaceChip conversationId={id} />
+              </>
+            )
           }
-          actions={<ThreadTerminalButton />}
+          actions={
+            <div className="flex items-center gap-1.5">
+              <ThreadTerminalButton />
+              <SidebarToggleButton open={sidebarOpen} onToggle={toggleSidebar} />
+            </div>
+          }
         />
       ) : null}
       {parentId ? <SubagentBanner parentId={parentId} childId={id} /> : null}
-      <div
-        ref={scrollRef}
-        onScroll={onScroll}
-        className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain"
-      >
-        {/* relative: contains absolute descendants (e.g. sr-only) so they can't inflate the outer scroll container */}
-        {/* relative: contains absolute descendants (e.g. sr-only) so they can't inflate the outer scroll container */}
-        <div ref={contentRef} className="relative mx-auto w-full min-w-0 max-w-3xl px-4 py-6">
-          <section aria-label="Conversation" aria-live="polite" aria-relevant="additions">
-            <Body id={id} state={state} onRetry={parentId ? undefined : actions.retry} />
-          </section>
+      <div className="flex min-h-0 flex-1">
+        <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
+          <div
+            ref={scrollRef}
+            onScroll={onScroll}
+            className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain"
+          >
+            {/* relative: contains absolute descendants (e.g. sr-only) so they can't inflate the outer scroll container */}
+            <div ref={contentRef} className="relative mx-auto w-full min-w-0 max-w-3xl px-4 py-6">
+              <section aria-label="Conversation" aria-live="polite" aria-relevant="additions">
+                <Body id={id} state={state} onRetry={parentId ? undefined : actions.retry} />
+              </section>
+            </div>
+          </div>
+          {atBottom ? null : (
+            <Button
+              variant="outline"
+              size="sm"
+              className="absolute bottom-24 left-1/2 -translate-x-1/2 rounded-full bg-background shadow-md"
+              onClick={scrollToBottom}
+            >
+              <ArrowDown /> Jump to latest
+            </Button>
+          )}
+          {state.status === "gone" || parentId ? null : (
+            <div className="mx-auto w-full max-w-3xl px-3 pt-1 pb-3 sm:px-4 sm:pb-4">
+              <Composer
+                target={id}
+                imagesAllowed={imagesAllowedFor(view, models)}
+                busy={busy}
+                whenBusy={whenBusy}
+                hint={<BusyModeHint busy={busy} />}
+                abovePanel={view && !sidebarOpen ? <TodoPanel conversationId={id} view={view} /> : undefined}
+                toolbar={
+                  view ? (
+                    <ThreadToolbar id={id} view={view} pickers={pickers} sidebarOpen={sidebarOpen} />
+                  ) : undefined
+                }
+                commands={thread.commands}
+                projectId={summary?.projectId}
+                onSend={actions.send}
+                onStop={handleStop}
+                onSent={scrollToBottom}
+              />
+            </div>
+          )}
         </div>
+        {sidebarOpen && view ? <ConversationSidebar conversationId={id} view={view} /> : null}
       </div>
-      {atBottom ? null : (
-        <Button
-          variant="outline"
-          size="sm"
-          className="absolute bottom-24 left-1/2 -translate-x-1/2 rounded-full bg-background shadow-md"
-          onClick={scrollToBottom}
-        >
-          <ArrowDown /> Jump to latest
-        </Button>
-      )}
-      {state.status === "gone" || parentId ? null : (
-        <div className="mx-auto w-full max-w-3xl px-3 pt-1 pb-3 sm:px-4 sm:pb-4">
-          <Composer
-            target={id}
-            imagesAllowed={imagesAllowedFor(view, models)}
-            busy={busy}
-            whenBusy={whenBusy}
-            hint={<BusyModeHint busy={busy} />}
-            abovePanel={view ? <TodoPanel conversationId={id} view={view} /> : undefined}
-            toolbar={view ? <ThreadToolbar id={id} view={view} pickers={pickers} /> : undefined}
-            commands={thread.commands}
-            projectId={summary?.projectId}
-            onSend={actions.send}
-            onStop={handleStop}
-            onSent={scrollToBottom}
-          />
-        </div>
-      )}
       {thread.renaming ? (
         <NameDialog
           title="Rename thread"
