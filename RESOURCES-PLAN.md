@@ -132,6 +132,9 @@ the cap, and the way out: `Stopped: memory limit 4096 MB exceeded (resource cont
 at Balanced). To allow more memory, set Subagents to Off in Settings → Agent, or split the work into
 smaller steps.` A timeout under an active level adds `(… run at Background, which slows commands down)`.
 There is deliberately no per-command bypass flag: lifting a cap is the user's call in Settings.
+The default `bash` timeout stretches 5x for Background-governed commands (explicit timeouts are honored
+as-is); bang kill-guards scale the same way, and the exit notice names the real deadline. Monitor kills
+by the cap send a notice with the same text (a quiet monitor death would leave the agent guessing).
 
 ## Design
 

@@ -34,8 +34,8 @@ function endText(ended: NonNullable<MonitorEventData["ended"]>): string {
 }
 
 /**
- * Names a timed-out bang so it reads differently from a plain exit. The timeout is the fixed 120 s kill in
- * `bang-command`; other reasons keep the text their call sites compose (memory names its limit, reaping its risk).
+ * Fallback for a timed-out entry with no `timeoutMs` (older callers). Bang passes its scaled kill-guard,
+ * so the notice names the real deadline; other reasons keep the text their call sites compose.
  */
 export const BANG_TIMEOUT_LINE = "Timed out after 120 s.";
 

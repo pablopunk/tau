@@ -49,6 +49,7 @@ export interface BangCommandDeps {
       readonly env: Record<string, string>;
       readonly governed?: boolean;
       readonly notifyOnExit: true;
+      readonly timeoutMs?: number;
     }): Promise<ProcessInfo>;
     stop(id: string, reason?: StopReason): Promise<void>;
     resourceSettings(): ResourceSettings;
@@ -87,6 +88,10 @@ export async function runBangCommand(
     const scope = await governedScope(deps.processes.resourceSettings(), () => deps.entryOf(conversationId));
     const env: Record<string, string> = {};
     addTauEnvironment(deps.home, env, conversationId);
+    const slow =
+      scope && deps.processes.resourceSettings().levels[scope] === "background"
+        ? BACKGROUND_TIMEOUT_SCALE
+        : 1;
     const info = await deps.processes.start({
       conversationId,
       cwd,
@@ -95,11 +100,8 @@ export async function runBangCommand(
       env,
       ...(scope && { governed: true, scope }),
       notifyOnExit: true,
+      timeoutMs: DEFAULT_TIMEOUT_SECONDS * slow * 1000,
     });
-    const slow =
-      scope && deps.processes.resourceSettings().levels[scope] === "background"
-        ? BACKGROUND_TIMEOUT_SCALE
-        : 1;
     const timer = setTimeout(() => {
       deps.processes.stop(info.id, "timeout").catch(() => undefined);
     }, DEFAULT_TIMEOUT_SECONDS * slow * 1000);
