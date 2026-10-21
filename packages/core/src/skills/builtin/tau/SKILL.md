@@ -48,6 +48,11 @@ tau settings set-default-thinking none
 
 `tau update --check` says whether a newer release exists; `tau update` installs it and restarts tau. Only do it when the user asks.
 
+## Ports
+
+- `tau serve` defaults to `:4317`: pass `--port` explicitly when another session may hold it.
+- Web dev proxies `/api` to `TAU_API` (default `http://127.0.0.1:4317`): always pass it explicitly, the default may be another session's server.
+
 ## Rules
 
 - Destructive commands (`threads delete`, `projects remove`, `workspaces remove`) need `--yes`. Ask the user first.
