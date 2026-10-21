@@ -326,7 +326,7 @@ export const ChangeSchema = Type.Union([
 export type Change = Type.Static<typeof ChangeSchema>;
 
 export const MAX_IMAGE_BASE64_LENGTH = 5 * 1024 * 1024;
-export const MAX_IMAGES_PER_MESSAGE = 8;
+export const MAX_IMAGES_PER_MESSAGE = 16;
 
 export const ImageInputSchema = Type.Object({
   mimeType: Type.Union([
@@ -359,7 +359,7 @@ export type UploadInput = Type.Static<typeof UploadInputSchema>;
 const SendMessageFields = {
   text: Type.String(),
   images: Type.Optional(Type.Array(ImageInputSchema, { maxItems: MAX_IMAGES_PER_MESSAGE })),
-  files: Type.Optional(Type.Array(FileRefSchema, { maxItems: MAX_IMAGES_PER_MESSAGE })),
+  files: Type.Optional(Type.Array(FileRefSchema)),
   requestId: Type.String({ minLength: 1 }),
 };
 

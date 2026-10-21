@@ -5,7 +5,6 @@ import { errorMessage } from "@/lib/error-message";
 import { useApi } from "@/nodes/node-context";
 import {
   type FileAttachment,
-  fileRoomLeft,
   loadFileAttachments,
   newFileAttachment,
   saveFileAttachments,
@@ -34,15 +33,9 @@ export function useFileAttachments(target: string) {
   const stageFiles = useCallback(
     async (selection: File[]) => {
       if (selection.length === 0) return;
-      const room = fileRoomLeft(loadFileAttachments(target));
-      if (room <= 0) {
-        toast.error("You can attach up to 8 files and images per message.");
-        return;
-      }
-      if (selection.length > room) toast.error("You can attach up to 8 files and images per message.");
       setStaging((count) => count + 1);
       try {
-        for (const file of selection.slice(0, Math.max(0, room))) {
+        for (const file of selection) {
           try {
             const ref = await api.uploads.stage(file);
             replace([...loadFileAttachments(target), newFileAttachment(ref)]);

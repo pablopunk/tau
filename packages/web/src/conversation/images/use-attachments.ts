@@ -1,3 +1,4 @@
+import { MAX_IMAGES_PER_MESSAGE } from "@tau/protocol";
 import { useCallback, useState } from "react";
 import { toast } from "sonner";
 import { type Attachment, loadAttachments, newAttachment, roomLeft, saveAttachments } from "./attachments";
@@ -39,7 +40,8 @@ export function useAttachments(target: string, imagesAllowed: boolean) {
       if (images.length === 0) return;
       if (!imagesAllowed) return void toast.error(NO_IMAGES_MESSAGE);
       const room = roomLeft(loadAttachments(target));
-      if (images.length > room) toast.error(`You can attach up to 8 images per message.`);
+      if (images.length > room)
+        toast.error(`You can attach up to ${MAX_IMAGES_PER_MESSAGE} images per message.`);
       setPreparing((count) => count + 1);
       const prepared = await prepareAll(images.slice(0, Math.max(0, room)));
       setPreparing((count) => count - 1);

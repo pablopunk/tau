@@ -1,4 +1,4 @@
-import { MAX_IMAGES_PER_MESSAGE, MAX_UPLOAD_FILE_BYTES, type FileRef } from "@tau/protocol";
+import { type FileRef, MAX_UPLOAD_FILE_BYTES } from "@tau/protocol";
 
 export interface FileAttachment {
   id: number;
@@ -68,10 +68,6 @@ export function saveFileAttachments(target: string, files: FileAttachment[]): vo
 
 export function newFileAttachment(ref: FileRef): FileAttachment {
   return { id: nextId++, ref };
-}
-
-export function fileRoomLeft(files: readonly FileAttachment[]): number {
-  return MAX_IMAGES_PER_MESSAGE - files.length;
 }
 
 const UNITS = ["B", "KB", "MB"] as const;

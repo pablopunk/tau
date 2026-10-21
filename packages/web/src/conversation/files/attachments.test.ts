@@ -1,11 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import {
-  fileRoomLeft,
-  formatFileSize,
-  loadFileAttachments,
-  newFileAttachment,
-  saveFileAttachments,
-} from "./attachments";
+import { formatFileSize, loadFileAttachments, newFileAttachment, saveFileAttachments } from "./attachments";
 
 const ref = (overrides = {}) => ({
   name: "notes.txt",
@@ -18,7 +12,10 @@ beforeEach(() => window.localStorage.clear());
 
 describe("file attachments", () => {
   it("persists only FileRefs under their own key, apart from image attachments", () => {
-    window.localStorage.setItem("tau:attachments:t1", JSON.stringify([{ mimeType: "image/png", data: "AQID" }]));
+    window.localStorage.setItem(
+      "tau:attachments:t1",
+      JSON.stringify([{ mimeType: "image/png", data: "AQID" }]),
+    );
     saveFileAttachments("t1", [newFileAttachment(ref())]);
     expect(window.localStorage.getItem("tau:file-attachments:t1")).toBe(JSON.stringify([ref()]));
     expect(window.localStorage.getItem("tau:attachments:t1")).toContain("AQID");
@@ -32,10 +29,7 @@ describe("file attachments", () => {
   });
 
   it("drops a ref that fails shape validation", () => {
-    window.localStorage.setItem(
-      "tau:file-attachments:t3",
-      JSON.stringify([ref({ size: -1 })]),
-    );
+    window.localStorage.setItem("tau:file-attachments:t3", JSON.stringify([ref({ size: -1 })]));
     expect(loadFileAttachments("t3")).toEqual([]);
   });
 
@@ -57,11 +51,6 @@ describe("file attachments", () => {
       vi.restoreAllMocks();
     }
     expect(loadFileAttachments("t1")).toEqual(files);
-  });
-
-  it("counts room against the shared per-message limit", () => {
-    expect(fileRoomLeft([])).toBe(8);
-    expect(fileRoomLeft([newFileAttachment(ref())])).toBe(7);
   });
 
   it("formats sizes for the chip", () => {
