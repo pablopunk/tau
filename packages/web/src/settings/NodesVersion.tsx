@@ -7,7 +7,7 @@ import type { NodeVersionState } from "@/components/ui/node-row";
 import { useRefreshUpdate, useUpdateStatus } from "@/lib/queries";
 import { agoText, updateCommand } from "@/nodes/node-text";
 
-export const tauUpdateCommand = "tau update";
+export const tauUpdateCommand = updateCommand;
 
 /** Total: an empty or garbage version, or an unknown latest, is "unknown". */
 export function versionState(version: string, latest: string | null | undefined): NodeVersionState {
@@ -25,10 +25,8 @@ export function behindCount(nodes: readonly Node[], ownVersion: string, latest: 
 export function UpdateCommand() {
   return (
     <div className="flex flex-wrap items-center gap-1 text-xs">
-      <code className="rounded-md bg-muted px-2 py-1">{tauUpdateCommand}</code>
-      <CopyButton text={tauUpdateCommand} label="Copy update command" />
-      <span className="text-muted-foreground">or</span>
       <code className="rounded-md bg-muted px-2 py-1">{updateCommand}</code>
+      <CopyButton text={updateCommand} label="Copy update command" />
     </div>
   );
 }
