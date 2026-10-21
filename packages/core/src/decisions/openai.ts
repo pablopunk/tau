@@ -9,16 +9,21 @@ export const OPENAI_DECISIONS_MODEL = "gpt-6-luna";
 /** Own timeout per request; the hook additionally races every call. */
 export const OPENAI_REQUEST_TIMEOUT_MS = 30_000;
 
-/** Request shape for `POST https://api.openai.com/v1/decisions` with a predicate. */
+/** Request shape for `POST /v1/decisions`: content in `input`, questions as an
+ * array (verified live against the API). */
 export function openaiPredicateBody(
   input: string,
   instructions: string,
 ): {
   model: string;
-  predicate: string;
   input: string;
+  questions: { type: "predicate"; name: string; instructions: string }[];
 } {
-  return { model: OPENAI_DECISIONS_MODEL, predicate: instructions, input };
+  return {
+    model: OPENAI_DECISIONS_MODEL,
+    input,
+    questions: [{ type: "predicate", name: "keep", instructions }],
+  };
 }
 
 export interface OpenaiClientOptions {
@@ -38,10 +43,15 @@ function requestError(status: number, detail: string): AppError {
 }
 
 function parseProbability(json: unknown): number {
+  const answers =
+    typeof json === "object" && json !== null ? (json as { answers?: unknown }).answers : undefined;
+  const first = Array.isArray(answers) ? answers[0] : undefined;
   const value =
-    typeof json === "object" && json !== null ? (json as { probability?: unknown }).probability : undefined;
+    typeof first === "object" && first !== null
+      ? (first as { probability?: unknown }).probability
+      : undefined;
   if (typeof value !== "number" || Number.isNaN(value)) {
-    throw new AppError("internal", "OpenAI decisions response had no probability.");
+    throw new AppError("internal", "OpenAI decisions response had no keep probability.");
   }
   return Math.min(1, Math.max(0, value));
 }

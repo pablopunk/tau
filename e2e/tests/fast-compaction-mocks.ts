@@ -64,11 +64,19 @@ export async function startDecisionMock(options: MockOptions): Promise<DecisionM
       } catch {
         body = {};
       }
-      // TypeSafe nests input under questions.keep; OpenAI sends predicate + input flat.
+      // TypeSafe puts content in top-level `state`; OpenAI puts it in `input`
+      // with questions as an array. Fallbacks keep the old shapes parseable.
       const keep = (body.questions as { keep?: { input?: unknown; instructions?: unknown } } | undefined)
         ?.keep;
-      const input = String(keep?.input ?? body.input ?? "");
-      const instructions = String(keep?.instructions ?? body.instructions ?? body.predicate ?? "");
+      const firstQuestion = Array.isArray(body.questions) ? body.questions[0] : undefined;
+      const questionInstructions =
+        typeof firstQuestion === "object" && firstQuestion !== null
+          ? (firstQuestion as { instructions?: unknown }).instructions
+          : undefined;
+      const input = String(keep?.input ?? body.state ?? body.input ?? "");
+      const instructions = String(
+        keep?.instructions ?? questionInstructions ?? body.instructions ?? body.predicate ?? "",
+      );
       const probability = scripted[Math.min(index, scripted.length - 1)] ?? 0.5;
       index += 1;
       hits.push({ backend: options.backend, input, instructions, probability });
@@ -83,6 +91,7 @@ export async function startDecisionMock(options: MockOptions): Promise<DecisionM
           : {
               model: OPENAI_DECISIONS_MODEL,
               probability,
+              answers: [{ type: "predicate", name: "keep", probability }],
               output: [{ type: "predicate_result", probability }],
               data: { probability },
             };

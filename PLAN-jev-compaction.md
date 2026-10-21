@@ -243,14 +243,22 @@ Use only `packages/web/src/components/ui` primitives (shadcn first).
 4. Web row (dimmed/tooltip/enabled states).
 5. e2e + docs copy; announce in release notes as opt-in beta.
 
-## Spike-first validation (load-bearing externals — confirm or kill)
+## Spike-first validation (VALIDATED live 2026-10-21 — keep for the record)
 
-Unverifiable from this repo; the spike confirms before implementation commits:
-
-- TypeSafe `POST /v1/systemone` + `noul` shape + `GET /v1/models` validation + pricing.
-- **OpenAI Decisions `POST /v1/decisions` + `gpt-6-luna` + `predicate → probability`**
-  exists as documented. If not, `openai.ts` dies and `auto` = typesafe-or-nothing.
-- Per-backend threshold semantics (Jev RLCD-calibrated vs OpenAI predicate).
+- TypeSafe `POST /v1/systemone`: real shape is `{ model, state, questions }`
+  (content in top-level `state`, NOT nested in the question — first version was
+  wrong, API returned 422, fixed + verified). Response `answers.keep.noul` as
+  expected. `GET /v1/models` validation works.
+- OpenAI Decisions `POST /v1/decisions` exists: real shape is
+  `{ model, input, questions: [{ type: "predicate", name, instructions }] }`
+  with `answers[]` response (first version was wrong, API returned 400, fixed +
+  verified). `check()` probe returns ready with the corrected shape.
+- Thresholds (live calibration, 6 compaction-like items per backend):
+  TypeSafe scored 0.8/0.51/0.05/0.21/0.11/0 (full spread — truncate band
+  catches exactly the borderline 0.51); OpenAI scored 0.98/0/0/0.02/0/0
+  (near-binary). Shared defaults (`keepThreshold` 0.5, truncate 0.35–0.7)
+  confirmed for BOTH backends — no per-backend tuning needed. Latency
+  ~200–500ms per call on both.
 
 ## Open questions (spike answers)
 

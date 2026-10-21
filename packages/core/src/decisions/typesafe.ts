@@ -9,15 +9,17 @@ export const TYPESAFE_BASE_URL_ENV = "TAU_TYPESAFE_BASE_URL";
 /** Own timeout per request; the hook additionally races every call. */
 export const TYPESAFE_REQUEST_TIMEOUT_MS = 30_000;
 
-/** Request shape for `POST {base}/v1/systemone` with a `noul` keep question. */
+/** Request shape for `POST {base}/v1/systemone`: content in top-level `state`,
+ * question carries `type` + `instructions` (verified live against the API). */
 export function typesafePredicateBody(
   input: string,
   instructions: string,
 ): {
   model: string;
-  questions: { keep: { type: "noul"; input: string; instructions: string } };
+  state: string;
+  questions: { keep: { type: "noul"; instructions: string } };
 } {
-  return { model: TYPESAFE_MODEL, questions: { keep: { type: "noul", input, instructions } } };
+  return { model: TYPESAFE_MODEL, state: input, questions: { keep: { type: "noul", instructions } } };
 }
 
 export interface TypesafeClientOptions {

@@ -86,7 +86,8 @@ describe("typesafe client", () => {
     expect(url).toBe("https://api.typesafe.ai/v1/systemone");
     expect(JSON.parse(init.body as string)).toMatchObject({
       model: "jev-latest",
-      questions: { keep: { type: "noul", input: "call", instructions: "keep?" } },
+      state: "call",
+      questions: { keep: { type: "noul", instructions: "keep?" } },
     });
   });
 
@@ -116,7 +117,9 @@ describe("typesafe client", () => {
 
 describe("openai client", () => {
   it("prefers an explicit endpoint env override (localhost mock seam)", async () => {
-    const fetchFn = vi.fn<typeof fetch>(async () => jsonResponse({ probability: 0.5 }));
+    const fetchFn = vi.fn<typeof fetch>(
+      async () => jsonResponse({ answers: [{ type: "predicate", name: "keep", probability: 0.5 }] }),
+    );
     const client = createOpenaiClient({
       getAuth: async () => ({ auth: { apiKey: "sk-test" } }),
       env: { TAU_OPENAI_DECISIONS_URL: "http://127.0.0.1:9/v1/decisions" },
@@ -155,12 +158,18 @@ describe("openai client", () => {
   });
 
   it("posts a predicate and parses the probability", async () => {
-    const fetchFn = vi.fn<typeof fetch>(async () => jsonResponse({ probability: 0.2 }));
+    const fetchFn = vi.fn<typeof fetch>(
+      async () => jsonResponse({ answers: [{ type: "predicate", name: "keep", probability: 0.2 }] }),
+    );
     const client = createOpenaiClient({ getAuth: async () => ({ auth: { apiKey: "sk-test" } }), fetchFn });
     expect(await client.predicate("call", "keep?")).toBeCloseTo(0.2);
     const [[url, init]] = fetchFn.mock.calls as unknown as [[string, RequestInit]];
     expect(url).toBe("https://api.openai.com/v1/decisions");
-    expect(JSON.parse(init.body as string)).toMatchObject({ model: "gpt-6-luna", input: "call" });
+    expect(JSON.parse(init.body as string)).toMatchObject({
+      model: "gpt-6-luna",
+      input: "call",
+      questions: [{ type: "predicate", name: "keep", instructions: "keep?" }],
+    });
   });
 });
 
