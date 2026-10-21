@@ -33,17 +33,17 @@ export function ConversationSidebar({
     <aside
       data-testid="conversation-sidebar"
       aria-label="Conversation details"
-      className="flex h-full w-80 shrink-0 flex-col gap-2 overflow-y-auto border-l bg-muted/20 p-2"
+      className="hidden h-full w-80 shrink-0 flex-col gap-2 overflow-y-auto border-l bg-muted/20 p-2 md:flex"
     >
       <WorktreeSection conversationId={conversationId} />
       <PullRequestSection conversationId={conversationId} />
       <MachineSection />
       <ContextSection view={view} />
       <ImagesSection view={view} />
-      <GoalSection conversationId={conversationId} />
-      <TodosSection conversationId={conversationId} view={view} />
-      <TimersSection conversationId={conversationId} />
-      <ProcessesSection conversationId={conversationId} />
+      <GoalSection conversationId={conversationId} revealed={reveal === "goal"} />
+      <TodosSection conversationId={conversationId} view={view} revealed={reveal === "todos"} />
+      <TimersSection conversationId={conversationId} revealed={reveal === "timers"} />
+      <ProcessesSection conversationId={conversationId} revealed={reveal === "processes"} />
     </aside>
   );
 }

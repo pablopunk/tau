@@ -2,7 +2,15 @@ import { PanelRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
-export function SidebarToggleButton({ open, onToggle }: { open: boolean; onToggle: () => void }) {
+export function SidebarToggleButton({
+  open,
+  onToggle,
+  disabled,
+}: {
+  open: boolean;
+  onToggle: () => void;
+  disabled?: boolean;
+}) {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
@@ -12,6 +20,7 @@ export function SidebarToggleButton({ open, onToggle }: { open: boolean; onToggl
           aria-label={open ? "Close conversation sidebar" : "Open conversation sidebar"}
           aria-pressed={open}
           onClick={onToggle}
+          disabled={disabled}
         >
           <PanelRight />
         </Button>

@@ -8,11 +8,19 @@ import { doneCount, isFinished, latestTodos } from "../todos/todo-items";
 import { SidebarSection } from "./SidebarSection";
 import { useAutoExpand } from "./use-auto-expand";
 
-export function TodosSection({ conversationId, view }: { conversationId: string; view: ConversationView }) {
+export function TodosSection({
+  conversationId,
+  view,
+  revealed,
+}: {
+  conversationId: string;
+  view: ConversationView;
+  revealed?: boolean;
+}) {
   const todos = latestTodos(view);
   const todosVisible = !isFinished(todos);
   const [editing, setEditing] = useState(false);
-  const expanded = useAutoExpand(todosVisible || editing);
+  const expanded = useAutoExpand(todosVisible || editing || revealed === true);
   if (!todosVisible && !editing) return null;
   return (
     <SidebarSection

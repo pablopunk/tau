@@ -11,6 +11,7 @@ import { errorMessage } from "@/lib/error-message";
 import { useGoal } from "@/lib/queries";
 import { useApi } from "@/nodes/node-context";
 import { SidebarSection } from "./SidebarSection";
+import { useAutoExpand } from "./use-auto-expand";
 
 function GoalEditor({
   conversationId,
@@ -79,22 +80,28 @@ function GoalEditor({
   );
 }
 
-export function GoalSection({ conversationId }: { conversationId: string }) {
+export function GoalSection({ conversationId, revealed }: { conversationId: string; revealed?: boolean }) {
   const api = useApi();
   const queryClient = useQueryClient();
   const goal = useGoal(conversationId).data;
   const now = useNow(15_000);
   const [editing, setEditing] = useState(false);
+  const expanded = useAutoExpand(goal != null || editing || revealed === true);
   if (!goal) return null;
   const clear = () =>
     api.goals
       .clear(conversationId)
-      .then(() => queryClient.invalidateQueries({ queryKey: ["goal"] }))
+      .then(async () => {
+        await queryClient.invalidateQueries({ queryKey: ["goal"] });
+        await queryClient.invalidateQueries({ queryKey: ["conversations"] });
+      })
       .catch((error: unknown) => void toast.error(errorMessage(error)));
   return (
     <SidebarSection
       sectionId="goal"
       title="Goal"
+      open={expanded.open}
+      onOpenChange={expanded.onOpenChange}
       actions={
         editing ? null : (
           <Button

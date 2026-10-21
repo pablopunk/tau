@@ -12,12 +12,17 @@ function srcOf(image: ImageContent): string {
   return `data:${image.mimeType};base64,${image.data}`;
 }
 
+function isImageBlock(block: unknown): block is ImageContent {
+  if (typeof block !== "object" || block === null) return false;
+  const candidate = block as { type?: unknown; mimeType?: unknown; data?: unknown };
+  return (
+    candidate.type === "image" && typeof candidate.mimeType === "string" && typeof candidate.data === "string"
+  );
+}
+
 function imagesIn(content: unknown): readonly ImageContent[] {
   if (!Array.isArray(content)) return [];
-  return content.filter(
-    (block): block is ImageContent =>
-      typeof block === "object" && block !== null && (block as { type?: unknown }).type === "image",
-  );
+  return content.filter(isImageBlock);
 }
 
 /** Every image in the conversation: user-sent plus images the agent read back from tools. */
@@ -28,7 +33,8 @@ export function collectConversationImages(view: ConversationView): readonly Side
     if (!message || typeof message.content === "string") continue;
     const images = imagesIn(message.content);
     if (images.length === 0) continue;
-    if (entry.kind === "pi.tool-result") {
+    const role = (message as { role?: unknown }).role;
+    if (entry.kind === "pi.tool-result" || role !== "user") {
       for (const image of images)
         out.push({
           src: srcOf(image),

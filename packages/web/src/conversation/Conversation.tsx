@@ -87,18 +87,16 @@ function ConversationPanel({ id }: ConversationProps) {
   const messageMode = useSettings().data?.messageMode;
   const whenBusy = messageMode ? whenBusyOf(messageMode) : undefined;
   const parentId = summary?.parentId ?? null;
-  const {
-    open: sidebarWantsOpen,
-    setOpen: setSidebarOpen,
-    toggle: toggleSidebar,
-  } = useConversationSidebarOpen();
+  const { open: sidebarPref, setOpen: setSidebarOpen, toggle: toggleSidebar } = useConversationSidebarOpen();
+  // Terminal masks the sidebar without touching the stored preference.
+  const [terminalMask, setTerminalMask] = useState(false);
   const localTerminal = useMatch("/p/:projectId/c/:conversationId/terminal/:terminalId");
   const remoteTerminal = useMatch("/n/:nodeId/p/:projectId/c/:conversationId/terminal/:terminalId");
   const terminalOpen = localTerminal !== null || remoteTerminal !== null;
   useEffect(() => {
-    if (terminalOpen && sidebarWantsOpen) setSidebarOpen(false);
-  }, [terminalOpen, sidebarWantsOpen, setSidebarOpen]);
-  const sidebarOpen = sidebarWantsOpen && !terminalOpen;
+    setTerminalMask(terminalOpen);
+  }, [terminalOpen]);
+  const sidebarOpen = sidebarPref && !terminalMask;
   const [reveal, setReveal] = useState<SidebarSectionId | null>(null);
   const revealSection = useCallback(
     (section: SidebarSectionId) => {
@@ -107,6 +105,7 @@ function ConversationPanel({ id }: ConversationProps) {
     },
     [setSidebarOpen],
   );
+  const handleRevealed = useCallback(() => setReveal(null), []);
   return (
     <div data-testid="conversation" className="relative flex h-full min-h-0 flex-col bg-background">
       {view ? (
@@ -124,7 +123,9 @@ function ConversationPanel({ id }: ConversationProps) {
           actions={
             <div className="flex items-center gap-1.5">
               <ThreadTerminalButton />
-              <SidebarToggleButton open={sidebarOpen} onToggle={toggleSidebar} />
+              <span className="hidden md:inline-flex">
+                <SidebarToggleButton open={sidebarOpen} onToggle={toggleSidebar} disabled={terminalOpen} />
+              </span>
             </div>
           }
         />
@@ -184,12 +185,7 @@ function ConversationPanel({ id }: ConversationProps) {
           )}
         </div>
         {sidebarOpen && view ? (
-          <ConversationSidebar
-            conversationId={id}
-            view={view}
-            reveal={reveal}
-            onRevealed={() => setReveal(null)}
-          />
+          <ConversationSidebar conversationId={id} view={view} reveal={reveal} onRevealed={handleRevealed} />
         ) : null}
       </div>
       {thread.renaming ? (

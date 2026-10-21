@@ -2,7 +2,7 @@ import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { apiOfNode } from "@/nodes/node-apis";
-import { endOf, renderView } from "../test-utils";
+import { createStubLiveClient, endOf, renderConversation, renderView } from "../test-utils";
 
 const api = apiOfNode();
 
@@ -100,6 +100,36 @@ describe("conversation sidebar", () => {
     await userEvent.click(await screen.findByRole("button", { name: "Goal active" }));
     const sidebar = await screen.findByTestId("conversation-sidebar");
     expect(within(sidebar).getByText("Ship the release")).toBeInTheDocument();
+  });
+
+  it("moves toolbar chips and composer todos into the sidebar when open", async () => {
+    vi.mocked(api.goals.get).mockResolvedValue({
+      id: "g",
+      condition: "Ship the release",
+      state: "active",
+      startedAt: Date.now(),
+      turnsEvaluated: 1,
+      tokensSpent: 100,
+      lastVerdict: null,
+      lastReason: null,
+    });
+    renderView(endOf("todo"));
+    const sidebar = await screen.findByTestId("conversation-sidebar");
+    expect(await within(sidebar).findByText("Ship the release")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Goal active" })).not.toBeInTheDocument();
+    expect(screen.queryByTestId("todo-panel")).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Close conversation sidebar" }));
+    expect(await screen.findByRole("button", { name: "Goal active" })).toBeInTheDocument();
+    expect(screen.getByTestId("todo-panel")).toBeInTheDocument();
+  });
+
+  it("suspends the sidebar on terminal routes without persisting", async () => {
+    window.localStorage.setItem("tau:conversation-sidebar-open", "open");
+    renderConversation(createStubLiveClient(endOf("text")), "2", ["/p/home/c/2/terminal/t1"]);
+    expect(await screen.findByRole("button", { name: "Open conversation sidebar" })).toBeDisabled();
+    expect(screen.queryByTestId("conversation-sidebar")).not.toBeInTheDocument();
+    expect(window.localStorage.getItem("tau:conversation-sidebar-open")).toBe("open");
   });
 
   it("toggles closed and brings the header chips back", async () => {

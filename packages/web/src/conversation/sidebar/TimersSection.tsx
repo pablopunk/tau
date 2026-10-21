@@ -2,7 +2,6 @@ import { useQueryClient } from "@tanstack/react-query";
 import type { Timer } from "@tau/protocol";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Spinner } from "@/components/ui/spinner";
 import { errorMessage } from "@/lib/error-message";
 import { queryKeys, useAllConversations, useTimers } from "@/lib/queries";
 import { useApi } from "@/nodes/node-context";
@@ -11,15 +10,16 @@ import { useNow } from "@/timers/use-now";
 import { SidebarSection } from "./SidebarSection";
 import { useAutoExpand } from "./use-auto-expand";
 
-export function TimersSection({ conversationId }: { conversationId: string }) {
+export function TimersSection({ conversationId, revealed }: { conversationId: string; revealed?: boolean }) {
   const api = useApi();
   const queryClient = useQueryClient();
   const count = useAllConversations().data?.find((item) => item.id === conversationId)?.timers ?? 0;
   const timers = useTimers(conversationId, true);
   const now = useNow(true);
   const list = timers.data ?? [];
-  const expanded = useAutoExpand(list.length > 0);
-  if (list.length === 0 && !timers.isPending && !timers.isError) return null;
+  const expanded = useAutoExpand(list.length > 0 || timers.isError || revealed === true);
+  if (timers.isPending) return null;
+  if (list.length === 0 && !timers.isError) return null;
 
   const remove = async (timer: Timer) => {
     try {
@@ -39,17 +39,13 @@ export function TimersSection({ conversationId }: { conversationId: string }) {
       open={expanded.open}
       onOpenChange={expanded.onOpenChange}
     >
-      {timers.isPending ? (
-        <p className="flex items-center gap-2 text-xs text-muted-foreground">
-          <Spinner /> Loading timers…
-        </p>
-      ) : timers.isError ? (
+      {timers.isError ? (
         <div className="flex flex-col items-start gap-2">
           <p role="alert" className="text-xs text-destructive">
             Could not load timers. {errorMessage(timers.error)}
           </p>
           <Button variant="outline" size="sm" onClick={() => void timers.refetch()}>
-            Retry
+            Retry loading timers
           </Button>
         </div>
       ) : (

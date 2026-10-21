@@ -38,9 +38,9 @@ export function createStubLiveClient(initial?: ConversationView | null): StubLiv
   };
 }
 
-export function renderConversation(client: LiveClient, id = "2") {
+export function renderConversation(client: LiveClient, id = "2", initialEntries: string[] = ["/"]) {
   return render(
-    <MemoryRouter>
+    <MemoryRouter initialEntries={initialEntries}>
       <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
         <NodeApiProvider>
           <TooltipProvider>

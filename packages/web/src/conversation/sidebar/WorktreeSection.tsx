@@ -72,17 +72,11 @@ export function WorktreeSection({ conversationId }: { conversationId: string }) 
             Ask to commit
           </Button>
         ) : null}
-        {workspace.pullRequestUrl ? (
-          <Button variant="outline" size="sm" asChild>
-            <a href={workspace.pullRequestUrl} target="_blank" rel="noreferrer">
-              Open PR
-            </a>
-          </Button>
-        ) : (
+        {!workspace.pullRequestUrl ? (
           <Button variant="outline" size="sm" disabled={actions.pending} onClick={actions.createPullRequest}>
             Create PR
           </Button>
-        )}
+        ) : null}
         <Button variant="ghost" size="sm" onClick={() => setConfirmingRemove(true)}>
           Remove…
         </Button>

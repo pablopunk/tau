@@ -32,6 +32,22 @@ describe("collectConversationImages", () => {
     expect(images[0]).toMatchObject({ source: "agent", entryId: "7" });
   });
 
+  it("labels non-user roles as agent-read and skips malformed blocks", () => {
+    const view = viewWith({
+      id: 4,
+      kind: "pi.assistant",
+      model: [
+        {
+          role: "assistant",
+          content: [screenshot, { type: "image", mimeType: "image/png" }],
+        },
+      ],
+    });
+    const images = collectConversationImages(view);
+    expect(images).toHaveLength(1);
+    expect(images[0]).toMatchObject({ source: "agent", entryId: "4" });
+  });
+
   it("ignores text-only entries", () => {
     const view = viewWith(
       { id: 1, kind: "pi.user", model: [{ role: "user", content: "hi" }] },
