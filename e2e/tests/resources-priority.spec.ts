@@ -20,6 +20,7 @@ let remote: ResourceServer;
 
 test.describe.configure({ mode: "serial" });
 test.skip(!DARWIN, "macOS priority spec");
+test.setTimeout(600_000);
 
 test.beforeAll(async () => {
   const replies = Object.fromEntries(

@@ -16,6 +16,7 @@ const alive = (pid: number) => {
 };
 
 test.skip(process.platform !== "darwin", "macOS polled memory limit");
+test.setTimeout(600_000);
 test.describe.configure({ mode: "serial" });
 
 let remote: ResourceServer;

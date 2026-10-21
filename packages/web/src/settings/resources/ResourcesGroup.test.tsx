@@ -17,6 +17,13 @@ vi.mock("@/lib/api", () => ({
     settings: {
       get: async () => mocks.settings,
       setResources: mocks.setResources,
+      resourceSupport: async () => ({
+        platform: "macos",
+        memoryEnforcement: "polled",
+        prioritySupported: true,
+        sameCgroupOnly: false,
+        note: null,
+      }),
     },
   },
 }));

@@ -46,7 +46,7 @@ export interface StartProcessRequest {
   readonly kind?: ProcessInfo["kind"];
   /** Default true; a plain process tells the thread when it exits by itself. */
   readonly notifyOnExit?: boolean;
-  /** Monitors only. 0 or undefined runs until stopped. */
+  /** Monitors only. 0 or undefined runs until stopped. Also shown if the entry times out; bang scales it for throttled scopes. */
   readonly timeoutMs?: number;
   /** Default `/bin/sh`. */
   readonly shell?: string;
@@ -180,6 +180,7 @@ interface Entry {
   memoryLimitMb?: number | null;
   watch?: WatchHandle;
   governed: boolean;
+  timeoutMs?: number;
   wasForeground: boolean;
 }
 
@@ -293,10 +294,14 @@ export function createProcessService(deps: ProcessDeps): ProcessService {
     const memoryStop = details.stopReason === "memory";
     const timeoutStop = details.stopReason === "timeout";
     if (entry.notifyOnExit && (!details.stopRequested || memoryStop || timeoutStop)) {
+      const timeoutLine =
+        entry.timeoutMs === undefined
+          ? BANG_TIMEOUT_LINE
+          : `Timed out after ${Math.round(entry.timeoutMs / 1000)} s.`;
       const tail = memoryStop
         ? `${memoryStopText(entry.memoryLimitMb ?? null, entry.scope, entry.level)}\n${details.logTail}`
         : timeoutStop
-          ? `${BANG_TIMEOUT_LINE}\n${details.logTail}`
+          ? `${timeoutLine}\n${details.logTail}`
           : details.logTail;
       send(entry, processExitNotification(entry.info, details.exitCode, tail, details.stopReason));
     }
@@ -306,6 +311,16 @@ export function createProcessService(deps: ProcessDeps): ProcessService {
     const batcher = entry.batcher;
     batcher?.flush();
     batcher?.close();
+    // A memory kill is not a quiet stop: the thread must learn why its monitor died.
+    if (details.stopReason === "memory" && !entry.timedOut) {
+      send(
+        entry,
+        noticeNotification(
+          memoryStopText(entry.memoryLimitMb ?? null, entry.scope, entry.level),
+          `notice:${entry.info.id}:memory`,
+        ),
+      );
+    }
     if (details.stopRequested && !entry.timedOut) return;
     const ended = entry.timedOut ? "timeout" : { exitCode: details.exitCode };
     send(entry, monitorEventNotification(entry.info, { lines: [], dropped: 0, ended }, entry.sequence++));
@@ -441,6 +456,7 @@ export function createProcessService(deps: ProcessDeps): ProcessService {
       sequence: 0,
       notifyOnExit: request.notifyOnExit ?? true,
       spawned,
+      timeoutMs: request.timeoutMs,
       governed,
       wasForeground: foreground !== undefined,
       ...(foreground && { foreground, outcome: createDeferred<ForegroundOutcome>() }),
