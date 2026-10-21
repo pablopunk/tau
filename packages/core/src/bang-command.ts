@@ -4,7 +4,7 @@ import { addTauEnvironment } from "./harness/coding-tools";
 import type { IndexedConversation as IndexedEntry } from "./harness/conversation-docs";
 import { indexOf, readMeta } from "./harness/conversation-index";
 import type { NotificationSubmitter } from "./harness/notification-submitter";
-import { bashPath, DEFAULT_TIMEOUT_SECONDS } from "./harness/tools/bash";
+import { bashPath, BACKGROUND_TIMEOUT_SCALE, DEFAULT_TIMEOUT_SECONDS } from "./harness/tools/bash";
 import { governedScope } from "./processes/governor/governed";
 import { noticeNotification } from "./processes/process-notifications";
 import type { StopReason } from "./processes/process-types";
@@ -96,9 +96,13 @@ export async function runBangCommand(
       ...(scope && { governed: true, scope }),
       notifyOnExit: true,
     });
+    const slow =
+      scope && deps.processes.resourceSettings().levels[scope] === "background"
+        ? BACKGROUND_TIMEOUT_SCALE
+        : 1;
     const timer = setTimeout(() => {
       deps.processes.stop(info.id, "timeout").catch(() => undefined);
-    }, DEFAULT_TIMEOUT_SECONDS * 1000);
+    }, DEFAULT_TIMEOUT_SECONDS * slow * 1000);
     // The kill is best-effort; it must not hold the event loop open for tests or shutdown.
     timer.unref?.();
   } catch (error) {
