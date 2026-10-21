@@ -135,6 +135,17 @@ describe("per-scope power", () => {
     await run.release(false);
   });
 
+  it("forwards a non-main scope through runForeground", async () => {
+    const service = make(settings({ levels: { main: "off", worktree: "off", subagent: "background" } }), {
+      support: macSupport(),
+    });
+    const run = await foreground(service, "echo hi", "a", true, "subagent");
+    await run.outcome.catch(() => {});
+    expect(spawnCalls[0]?.file).toBe("/usr/sbin/taskpolicy");
+    expect(spawnCalls[0]?.args[0]).toBe("-b");
+    await run.release(false);
+  });
+
   it("stopResourceCommand always rejects: there is no queue", async () => {
     const service = make(settings({}));
     await expect(service.stopResourceCommand("nope")).rejects.toThrow();

@@ -635,6 +635,7 @@ export function createProcessService(deps: ProcessDeps): ProcessService {
           command: request.command,
           notifyOnExit: false,
           ...(governedOf(request) && { governed: true }),
+          ...(request.scope === undefined ? {} : { scope: request.scope }),
           ...(request.shell === undefined ? {} : { shell: request.shell }),
           ...(request.env === undefined ? {} : { env: request.env }),
         },
