@@ -1,4 +1,9 @@
-import type { AssistantMessage as AssistantMessageData, ConversationView, ToolCall } from "@tau/protocol";
+import type {
+  AssistantMessage as AssistantMessageData,
+  ConversationView,
+  ToolCall,
+  ToolSlot,
+} from "@tau/protocol";
 import { isRetryable, type LiveInfo, readLive } from "@tau/protocol";
 import { Loader2 } from "lucide-react";
 import { Fragment } from "react";
@@ -15,6 +20,7 @@ import { RetryButton } from "./RetryButton";
 import { ToolApproval } from "./ToolApproval";
 import { LatestTodoCallProvider } from "./todos/latest-todo-call";
 import { latestTodoSource } from "./todos/todo-items";
+import { ToolCall as ToolCallView } from "./tools/ToolCall";
 import { ToolConversationProvider } from "./tools/tool-conversation";
 
 function hasVisibleContent(message: AssistantMessageData | undefined): message is AssistantMessageData {
@@ -62,6 +68,51 @@ function isIdleWhileBusy(live: LiveInfo): boolean {
   );
 }
 
+/**
+ * Tool calls the run has started but whose assistant entry hasn't committed
+ * yet (or whose entry ops were missed): without these the transcript can go
+ * blank mid-run — the streaming message hides tool calls, the committed
+ * entries aren't there yet, and the active slots suppress `Working…`.
+ *
+ * This is a visibility fallback, not ordering: without the entry we don't know
+ * the call's position, so these render after the committed items. Once the
+ * entry arrives (e.g. via a resync base) the committed row takes over.
+ */
+function runningCallsWithoutEntry(live: LiveInfo, committedIds: ReadonlySet<string>): ToolCall[] {
+  const streamingById = new Map<string, ToolCall>();
+  for (const block of live.streaming?.content ?? []) {
+    if (block.type === "toolCall" && !committedIds.has(block.id)) streamingById.set(block.id, block);
+  }
+  const calls: ToolCall[] = [];
+  const seen = new Set<string>();
+  const push = (call: ToolCall) => {
+    if (seen.has(call.id)) return;
+    seen.add(call.id);
+    calls.push(call);
+  };
+  for (const slot of live.slots) {
+    if (committedIds.has(slot.callId)) {
+      streamingById.delete(slot.callId);
+      continue;
+    }
+    // Consume the streaming block for any tracked slot — including done ones
+    // — so a finished call can't linger as a phantom pending row while its
+    // streaming block remains.
+    const streamed = streamingById.get(slot.callId);
+    streamingById.delete(slot.callId);
+    if (!isActive(slot.status)) continue;
+    push(streamed ?? synthesizeCall(slot));
+  }
+  // A streaming tool call before its slot exists (sequential round): show it
+  // as pending rather than nothing until the slot/entry commits.
+  for (const call of streamingById.values()) push(call);
+  return calls;
+}
+
+function synthesizeCall(slot: ToolSlot): ToolCall {
+  return { id: slot.callId, name: slot.name, arguments: {} } as ToolCall;
+}
+
 export function Transcript({
   view,
   onRetry,
@@ -80,6 +131,14 @@ export function Transcript({
   const live = readLive(view);
   const resolveTool = (call: ToolCall) =>
     resolveToolCall(call, { results, slots: live.slots, busy: live.busy });
+  const committedIds = new Set<string>();
+  for (const item of items) {
+    if (item.kind !== "assistant") continue;
+    for (const block of item.message.content) {
+      if (block.type === "toolCall") committedIds.add(block.id);
+    }
+  }
+  const runningCalls = runningCallsWithoutEntry(live, committedIds);
   if (items.length === 0 && !live.busy && !live.compacting && live.queued.length === 0)
     return <EmptyTranscript />;
   return (
@@ -118,6 +177,11 @@ export function Transcript({
           {hasVisibleContent(live.streaming) ? (
             <AssistantMessage message={live.streaming} resolveTool={resolveTool} streaming />
           ) : null}
+          {runningCalls.map((call) => (
+            <div key={`running-${call.id}`} className="space-y-2">
+              <ToolCallView state={resolveTool(call)} />
+            </div>
+          ))}
           {live.compacting ? <CompactingNotice /> : null}
           {live.retry ? <RetryNotice retry={live.retry} /> : null}
           {isIdleWhileBusy(live) ? <WorkingIndicator /> : null}
