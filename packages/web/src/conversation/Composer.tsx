@@ -330,12 +330,13 @@ function ComposerForm({
             !showInput && "max-sm:hidden",
           )}
         />
-        {dictation.listening && dictation.preview ? (
+        {dictation.listening && (dictation.preview || dictation.hint) ? (
           <p
             aria-live="polite"
+            data-testid="dictation-preview"
             className="px-4 pt-1 text-center text-sm text-muted-foreground italic sm:hidden"
           >
-            {dictation.preview}…
+            {dictation.preview ? `${dictation.preview}…` : dictation.hint}
           </p>
         ) : null}
         <div className="flex items-center justify-center gap-6 px-6 py-3 sm:hidden">

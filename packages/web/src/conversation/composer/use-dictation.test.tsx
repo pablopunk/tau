@@ -60,6 +60,7 @@ function Harness({ onError = () => undefined }: { onError?: (message: string) =>
     <>
       <output data-testid="text">{text}</output>
       <output data-testid="preview">{dictation.preview}</output>
+      <output data-testid="hint">{dictation.hint}</output>
       <div data-testid="card">
         <div ref={dictation.glowRef} data-testid="glow" />
       </div>
@@ -169,6 +170,18 @@ describe("useDictation", () => {
       expect(onError).toHaveBeenCalledOnce();
     });
     expect(await screen.findByRole("button", { name: "Dictate" })).toBeInTheDocument();
+  });
+
+  it("says it can't hear you after repeated silence", async () => {
+    const user = userEvent.setup();
+    render(<Harness />);
+    await user.click(screen.getByRole("button", { name: "Dictate" }));
+    await screen.findByRole("button", { name: "Stop dictation" });
+    FakeRecognition.instances[0]?.fail("no-speech");
+    FakeRecognition.instances[0]?.fail("no-speech");
+    expect(screen.getByTestId("hint")).toHaveTextContent("");
+    FakeRecognition.instances[0]?.fail("no-speech");
+    expect(await screen.findByTestId("hint")).toHaveTextContent("can't hear you");
   });
 
   it("reports a blocked microphone and stays idle", async () => {

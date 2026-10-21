@@ -40,6 +40,8 @@ export interface Dictation {
   readonly listening: boolean;
   /** The current unfinished sentence, for live feedback while talking. */
   readonly preview: string;
+  /** Hint when the recognizer repeatedly hears silence. */
+  readonly hint: string;
   readonly toggle: () => void;
   /** The glow overlay; the volume loop paints it directly, no re-renders. */
   readonly glowRef: React.RefObject<HTMLDivElement | null>;
@@ -96,6 +98,8 @@ function unpaint(glow: HTMLDivElement | null) {
 export function useDictation(onText: (text: string) => void, onError: (message: string) => void): Dictation {
   const [listening, setListening] = useState(false);
   const [preview, setPreview] = useState("");
+  const [hint, setHint] = useState("");
+  const silentStreak = useRef(0);
   const glowRef = useRef<HTMLDivElement | null>(null);
   const running = useRef<Running | null>(null);
   const wantListening = useRef(false);
@@ -143,10 +147,23 @@ export function useDictation(onText: (text: string) => void, onError: (message: 
           else draft += first.transcript;
         }
         if (text.trim()) callbacks.current.onText(text);
+        if (text.trim() || draft.trim()) {
+          silentStreak.current = 0;
+          setHint("");
+        }
         setPreview(draft.trim());
       };
       recognition.onerror = (event) => {
-        if (event.error === "no-speech" || event.error === "aborted") return;
+        if (event.error === "aborted") return;
+        if (event.error === "no-speech") {
+          // The recognizer hears silence (wrong input device, muted mic,
+          // or exclusive hold elsewhere). Say so instead of spinning mute.
+          silentStreak.current += 1;
+          if (silentStreak.current >= 3) {
+            setHint("I can't hear you — check the microphone and try again.");
+          }
+          return;
+        }
         if (event.error === "network") {
           callbacks.current.onError("Speech service unreachable. Check your connection and try again.");
         } else if (event.error === "audio-capture") {
@@ -217,10 +234,14 @@ export function useDictation(onText: (text: string) => void, onError: (message: 
 
   const toggle = useCallback(() => {
     if (wantListening.current) stop();
-    else void start();
+    else {
+      silentStreak.current = 0;
+      setHint("");
+      void start();
+    }
   }, [start, stop]);
 
   useEffect(() => () => stop(), [stop]);
 
-  return { listening, preview, toggle, glowRef };
+  return { listening, preview, hint, toggle, glowRef };
 }
