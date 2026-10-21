@@ -122,6 +122,12 @@ voice: { options(): Promise<VoiceOptions>; transcribe(input: TranscribeInput): P
   idle-unload fires only with refcount 0 AND no in-flight request.
   The worker imports the `sherpa-onnx` WASM binding; model paths cross via
   workerData (plain disk paths, no bundling issues).
+  RESOLVED (integration): the Emscripten glue does NOT initialize when bundled —
+  `sherpa-onnx` is `neverBundle`d and loaded at runtime via absolute path
+  (`Transcriber` resolves it through node_modules in dev, `<versionDir>/sherpa-onnx`
+  in compiled installs; `build-binary.ts` copies the package there, `smoke-binary`
+  asserts it). The bundled-WASM failure was reproduced and fixed this way; never
+  statically import sherpa into the bundle.
   GATE: foundation's first task re-proves `new Worker()` from a version-dir
   sidecar entry under the compiled binary (spike 2); if it fails, fall back
   to in-process transcription with a busy-flag (serializes takes; document

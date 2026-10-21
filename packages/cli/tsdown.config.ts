@@ -14,7 +14,13 @@ export default defineConfig({
   fixedExtension: false,
   deps: {
     alwaysBundle: [/^@tau\//],
-    neverBundle: ["@anthropic-ai/claude-agent-sdk", "@earendil-works/pi-env", "@opentunnel/client", "effect"],
+    neverBundle: [
+      "@anthropic-ai/claude-agent-sdk",
+      "@earendil-works/pi-env",
+      "@opentunnel/client",
+      "effect",
+      "sherpa-onnx",
+    ],
   },
   copy: [
     { from: "../web/dist", to: "dist/web" },

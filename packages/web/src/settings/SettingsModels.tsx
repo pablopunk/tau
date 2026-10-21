@@ -6,6 +6,7 @@ import { errorMessage } from "@/lib/error-message";
 import { queryKeys, useModels, useSettings } from "@/lib/queries";
 import { useApi } from "@/nodes/node-context";
 import { ModelSetting } from "./ModelSetting";
+import { VoiceModelRow } from "./VoiceModelRow";
 
 export function SettingsModels() {
   const api = useApi();
@@ -45,9 +46,11 @@ export function SettingsModels() {
         clearLabel="Same as thread"
         onClear={() => save(() => api.settings.setFastModel(null))}
       />
+      <VoiceModelRow />
       <p className="text-sm text-muted-foreground">
         The fast model names new threads. The default model and its thinking level are used for new threads;
-        change a thread's model from its composer.
+        change a thread's model from its composer. Dictation uses the voice model when set, otherwise the
+        browser's built-in recognition.
       </p>
       <FormError message={error} />
     </div>

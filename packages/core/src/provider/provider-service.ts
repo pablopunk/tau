@@ -20,6 +20,7 @@ import { loadFauxReplies } from "../testing/faux-replies";
 import { createConnectionReader } from "./connections";
 import { createLoginSessions, type LoginSessions } from "./login-sessions";
 import { createModelLister } from "./model-list";
+import { clearVoiceModelCache } from "./voice-models";
 import {
   type KeyProviderEntry,
   type ProviderEntry,
@@ -160,6 +161,7 @@ export function createProviderService(options: ProviderServiceOptions): Provider
     );
     if (valid === null) connections.markUnchecked(entry);
     else connections.markChecked(entry);
+    clearVoiceModelCache();
     options.changes.emit({ resource: "providers" });
     return infoOf(entry);
   }
@@ -168,6 +170,7 @@ export function createProviderService(options: ProviderServiceOptions): Provider
     const entry = requireKeyProvider(id);
     await credentials.deleteMany(entry.piProviders.map((ref) => ref.piId));
     connections.markChecked(entry);
+    clearVoiceModelCache();
     options.changes.emit({ resource: "providers" });
     return infoOf(entry);
   }

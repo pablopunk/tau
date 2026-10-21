@@ -137,16 +137,18 @@ export function settingsAndProviderCases(make: MakeContractTarget, test: CaseRun
       expect((await core.settings.get()).voiceModel).toBeNull();
       await core.settings.setVoiceModel({ kind: "local" });
       expect((await core.settings.get()).voiceModel).toEqual({ kind: "local" });
-      await core.settings.setVoiceModel({
-        kind: "provider",
-        provider: "openrouter",
-        modelId: "voxtral-small-latest",
-      });
-      expect((await core.settings.get()).voiceModel).toEqual({
-        kind: "provider",
-        provider: "openrouter",
-        modelId: "voxtral-small-latest",
-      });
+      // Neither contract backend connects a key, so a provider flavor
+      // rejects the same way on both. Acceptance with a connected key is
+      // covered per backend (fake-core configured leg via the web suite,
+      // real core via settings-api unit tests with a stubbed catalog).
+      await rejectsWithCode(
+        core.settings.setVoiceModel({
+          kind: "provider",
+          provider: "openrouter",
+          modelId: "voxtral-small-latest",
+        }),
+        "no_provider",
+      );
       await core.settings.setVoiceModel(null);
       expect((await core.settings.get()).voiceModel).toBeNull();
       await rejectsWithCode(

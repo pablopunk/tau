@@ -29,6 +29,7 @@ export const queryKeys = {
   githubStatus: ["github", "status"] as const,
   githubRepos: ["github", "repos"] as const,
   suggestedCodeFolder: ["settings", "suggested-code-folder"] as const,
+  voiceOptions: ["voice", "options"] as const,
   pathSuggestions: (prefix: string) => ["fs", "suggest", prefix] as const,
   iconCandidates: (projectId: string) => ["projects", projectId, "icon-candidates"] as const,
   workspace: (conversationId: string) => ["workspace", conversationId] as const,
@@ -167,6 +168,20 @@ export const useGithubStatus = () => {
 export const useGithubRepos = (enabled: boolean) => {
   const api = useApi();
   return useQuery({ queryKey: queryKeys.githubRepos, queryFn: () => api.github.repos(), enabled });
+};
+
+const VOICE_DOWNLOAD_POLL_MS = 2_000;
+
+/** Polls only while the local model is downloading; `null` data means the node predates voice support. */
+export const useVoiceOptions = (enabled = true) => {
+  const api = useApi();
+  return useQuery({
+    queryKey: queryKeys.voiceOptions,
+    queryFn: () => api.voice.options(),
+    enabled,
+    refetchInterval: (query) =>
+      query.state.data?.local.state === "downloading" ? VOICE_DOWNLOAD_POLL_MS : false,
+  });
 };
 
 export const useSuggestedCodeFolder = () => {

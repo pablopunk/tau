@@ -88,6 +88,7 @@ const handlers: Handlers = {
   getVoiceOptions: (core) => core.voice.options(),
   transcribeVoice: (core, { body }) => core.voice.transcribe(body as never),
   removeVoiceModel: (core) => core.voice.removeModel(),
+  warmVoice: (core) => core.voice.warm(),
   setProjectsFolder: (core, { body }) => core.settings.setProjectsFolder(body.path as string),
   cloneProject: (core, { body }) => core.projects.clone(body as never),
   retryClone: (core, { params }) => core.projects.retryClone(params.id),

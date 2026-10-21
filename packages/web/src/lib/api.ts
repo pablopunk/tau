@@ -100,6 +100,7 @@ export interface Api {
     options(): Promise<VoiceOptions | null>;
     transcribe(input: TranscribeInput): Promise<{ text: string }>;
     removeModel(): Promise<void>;
+    warm(): Promise<void>;
   };
   github: {
     status(): Promise<GithubStatus>;
@@ -298,6 +299,7 @@ export function createApi(transport: Transport): Api {
       options: () => nullWhenMissing(request("getVoiceOptions", {})),
       transcribe: (input) => request("transcribeVoice", { body: input }),
       removeModel: () => request("removeVoiceModel", {}),
+      warm: () => request("warmVoice", {}),
     },
     github: {
       status: () => request("getGithubStatus", {}),

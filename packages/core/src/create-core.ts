@@ -189,6 +189,12 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
     });
     const shared = { projects, conversations, changes, now: deps.now };
     const titles = createTitleService({ harness, models: provider.models, settings, changes });
+    const voiceApi = createVoiceApi({
+      settings,
+      homeRoot: home.root,
+      provider,
+      versionDir: options.assets?.versionDir,
+    });
     const icons = createIconService({ iconsDirectory: home.iconsDirectory, now: deps.now });
     const present = createPresentProject(icons, settings);
     const githubRef: { current?: ReturnType<typeof createGithubService> } = {};
@@ -478,7 +484,7 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
         refreshRepos: () => github.refreshRepos(),
         use: (input) => github.use(input),
       },
-      voice: createVoiceApi({ settings }),
+      voice: voiceApi,
       ...createProvidersApi(provider),
       skills: createSkillsApi({ projects }),
       projects: createProjectsApi({ ...shared, clones, icons, present, removalHooks }),
@@ -538,6 +544,7 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
             await status.settled();
             await mcp.closeAll();
             await harness.close(BACKGROUND);
+            await voiceApi.close();
             await provider.close();
             await github.settled();
           } finally {

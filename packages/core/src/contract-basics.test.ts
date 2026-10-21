@@ -15,6 +15,9 @@ const MODULES: readonly ContractModule[] = [
 ];
 
 describe.skipIf(!REAL_CORE_IMPLEMENTED)("real core", () => {
-  // `[voice-transcribe]` is the foundation stub: agents (a)/(b) implement the pipelines, then drop the tag.
+  // `[voice-transcribe]` stays pending on the real core: local transcription
+  // needs the ~670MB model download, so only the fake loopback runs it here.
+  // Real transcription is covered by transcriber unit tests (injected worker)
+  // plus manual validation against a downloaded model.
   runCoreContract("real core (faux mode)", makeRealTarget, { pending: ["[voice-transcribe]"] }, MODULES);
 });

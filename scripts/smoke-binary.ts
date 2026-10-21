@@ -155,6 +155,13 @@ async function sdkImport(driver: Driver, installDir: string): Promise<void> {
   expect(!refreshed.includes("sdk_missing"), `the compiled server to load the SDK, got ${refreshed}`);
 }
 
+function voiceEnginePackaged(installDir: string): void {
+  const engine = join(installDir, "current", "sherpa-onnx");
+  expect(existsSync(join(engine, "index.js")), "the sherpa binding in sherpa-onnx/");
+  expect(existsSync(join(engine, "sherpa-onnx-wasm-nodejs.wasm")), "the sherpa wasm in sherpa-onnx/");
+  step("voice engine packaged");
+}
+
 async function smoke(installDir: string, binDir: string, home: string, version: string): Promise<void> {
   const bin = join(installDir, "current", "tau");
   const env = { ...process.env, TAU_HOME: home, TAU_NO_UPDATE_CHECK: "1" };
@@ -185,6 +192,7 @@ async function smoke(installDir: string, binDir: string, home: string, version: 
     await writeFile(join(project, "README.md"), "smoke\n");
     const threadId = await fauxThread(driver, project);
     step("faux thread ok");
+    voiceEnginePackaged(installDir);
     await terminalEcho(driver, threadId);
     step("terminal echo ok");
     await sdkImport(driver, installDir);

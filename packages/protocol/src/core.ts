@@ -170,6 +170,8 @@ export interface Core {
     transcribe(input: TranscribeInput): Promise<{ text: string }>;
     /** Deletes the downloaded local model bytes. `setVoiceModel(null)` only unsets the default. */
     removeModel(): Promise<void>;
+    /** Starts loading the local model now (mic-press prefetch). No-op unless the stored setting is local. */
+    warm(): Promise<void>;
   };
   github: {
     /** Cached for a minute. Never rejects for a missing or logged-out `gh`: that is a state. */

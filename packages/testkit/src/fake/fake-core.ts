@@ -536,6 +536,16 @@ export function createFakeCore(options: FakeCoreOptions = {}): FakeCore {
         if (!Value.Check(VoiceModelSettingSchema, setting)) {
           throw new AppError("invalid_request", "The voice setting is invalid.");
         }
+        if (setting !== null && setting.kind === "provider") {
+          // Mirror the real core: needs a connected key, then a catalog hit.
+          const connected = (await connections.providers.list()).some(
+            (provider) => provider.id === setting.provider && provider.connection !== null,
+          );
+          if (!connected) throw new AppError("no_provider", "Connect a provider first.");
+          if (!voiceModels.some((model) => model.modelId === setting.modelId)) {
+            throw new AppError("invalid_request", "This model is not available from your connected providers.");
+          }
+        }
         voiceModel =
           setting === null
             ? null
@@ -585,6 +595,7 @@ export function createFakeCore(options: FakeCoreOptions = {}): FakeCore {
         return { text: `[transcribed ${input.data.length} chars]` };
       },
       async removeModel() {},
+      async warm() {},
     },
     skills: {
       async list(projectId) {

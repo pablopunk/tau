@@ -1,4 +1,4 @@
-import type { ImageInput, WhenBusy } from "@tau/protocol";
+import type { ImageInput, TranscribeInput, WhenBusy } from "@tau/protocol";
 import { ArrowUp, Keyboard, Mic, Paperclip, Square } from "lucide-react";
 import {
   type ChangeEvent,
@@ -18,8 +18,9 @@ import { type MentionItem, MentionMenu } from "@/components/ui/mention-menu";
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { scopeTarget } from "@/lib/node-keys";
+import { useSettings } from "@/lib/queries";
 import { cn } from "@/lib/utils";
-import { useNodeId } from "@/nodes/node-context";
+import { useApi, useNodeId } from "@/nodes/node-context";
 import { AttachmentRow } from "./composer/AttachmentRow";
 import { BANG_EMPTY_ERROR, isBangMode, isBareBang } from "./composer/bang-mode";
 import { loadDraft, saveDraft } from "./composer/drafts";
@@ -156,7 +157,18 @@ function ComposerForm({
     },
     [setText],
   );
-  const dictation = useDictation(appendDictation, setError);
+  // The voice setting lives on the thread's node: transcribe through the
+  // same api instance the row saves with, so node switches can't split them.
+  const api = useApi();
+  const settings = useSettings();
+  const voiceModel = settings.data?.voiceModel ?? null;
+  const transcribe = useCallback((input: TranscribeInput) => api.voice.transcribe(input), [api]);
+  const warm = useCallback(() => api.voice.warm(), [api]);
+  const dictation = useDictation(
+    appendDictation,
+    setError,
+    voiceModel ? { setting: voiceModel, transcribe, warm } : null,
+  );
 
   const runCommand = (name: CommandName, args: string) => {
     setText("");

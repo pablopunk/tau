@@ -48,6 +48,13 @@ export const SETTINGS_INDEX: readonly SettingEntry[] = [
     keywords: ["model", "title", "naming", "cheap", "small model", "thinking", "effort", "reasoning"],
   },
   {
+    id: "voice-model",
+    section: "models",
+    label: "Voice model",
+    description: "Transcribes the dictate button, locally or via a provider.",
+    keywords: ["voice", "dictation", "microphone", "speech", "transcribe", "parakeet", "audio"],
+  },
+  {
     id: "projects-folder",
     section: "projects",
     label: "Projects folder",

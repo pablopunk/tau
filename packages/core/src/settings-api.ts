@@ -1,6 +1,7 @@
 import { mkdir } from "node:fs/promises";
 import { isAbsolute } from "node:path";
 import { clampThinkingLevel } from "@earendil-works/pi-ai/models";
+import { listProviderOptions } from "./provider/voice-models";
 import {
   AppError,
   type Core,
@@ -70,6 +71,21 @@ export function createSettingsApi(deps: {
       throw new AppError("invalid_request", "This model is not available from your connected providers.");
     }
   };
+  // Like `requireListedModel` but against the live voice catalog: STT ids are
+  // not chat models, so `provider.lists()` would reject them all.
+  const requireVoiceModel = async (setting: { provider: string; modelId: string }) => {
+    if (!(await provider.isConfigured())) throw new AppError("no_provider", "Connect a provider first.");
+    const row = (await listProviderOptions(provider)).find((candidate) => candidate.provider === setting.provider);
+    if (!row) {
+      throw new AppError("invalid_request", "This model is not available from your connected providers.");
+    }
+    if (row.error !== undefined) {
+      throw new AppError("invalid_request", "Could not load the speech model list from OpenRouter.");
+    }
+    if (!row.models.some((model) => model.modelId === setting.modelId)) {
+      throw new AppError("invalid_request", "This model is not available from your connected providers.");
+    }
+  };
   const clampForModel = (ref: ModelRef, level: ThinkingLevel | null): ThinkingLevel | null => {
     const model = provider.models.getModel(ref.provider, ref.modelId);
     return level !== null && model ? clampThinkingLevel(model, level) : level;
@@ -119,9 +135,8 @@ export function createSettingsApi(deps: {
       if (!Value.Check(VoiceModelSettingSchema, setting)) {
         throw new AppError("invalid_request", "The voice setting is invalid.");
       }
-      // TODO(agent b): validate the provider flavor against the live voice catalog
-      // (provider connected AND modelId in `listProviderOptions`) and reject `invalid_request`
-      // otherwise. The local flavor is always accepted; availability surfaces via `voice.options()`.
+      // The local flavor is always accepted; availability surfaces via `voice.options()`.
+      if (setting !== null && setting.kind === "provider") await requireVoiceModel(setting);
       await settings.setVoiceModel(setting);
     },
     async setProjectsFolder(path) {

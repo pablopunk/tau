@@ -1,5 +1,5 @@
 /**
- * Compile tau for one platform into a version folder: `tau`, `pi-env`, `claude-sdk/`, `web/`, `skills/`.
+ * Compile tau for one platform into a version folder: `tau`, `pi-env`, `claude-sdk/`, `web/`, `skills/`, `sherpa-onnx/`.
  * Needs `pnpm build` first (it reads packages/cli/dist) and `bun` on PATH.
  *
  *   tsx scripts/build-binary.ts --out <dir> [--target bun-darwin-arm64] [--version <v>] [--no-sdk]
@@ -66,6 +66,19 @@ function copyAssets(out: string): void {
 }
 
 const SDK = "@anthropic-ai/claude-agent-sdk";
+
+/** The pure-JS+WASM speech engine the voice worker loads at runtime (never bundled: Emscripten glue only inits from real files). */
+function copyVoiceEngine(out: string): void {
+  const version = JSON.parse(readFileSync(join(root, "packages", "core", "package.json"), "utf8")) as {
+    dependencies?: Record<string, string>;
+  };
+  const pinned = version.dependencies?.["sherpa-onnx"];
+  if (!pinned) fail("packages/core/package.json does not depend on sherpa-onnx");
+  const store = join(root, "node_modules", ".pnpm");
+  const folder = readdirSync(store).find((name) => name === `sherpa-onnx@${pinned.replace(/^[\^~]/, "")}`);
+  if (!folder) fail("sherpa-onnx is not installed: run `pnpm install`");
+  copyFollowingLinks(join(store, folder, "node_modules", "sherpa-onnx"), join(out, "sherpa-onnx"));
+}
 
 /** The virtual-store folder of the pinned SDK holds the SDK and its dependencies as siblings; `-L` flattens the links. */
 function copyClaudeSdk(platform: Platform, out: string): void {
@@ -154,6 +167,7 @@ function main(): void {
   compile(platform, version, out);
   copyPiEnv(platform, out);
   copyAssets(out);
+  copyVoiceEngine(out);
   if (!values["no-sdk"]) copyClaudeSdk(platform, out);
   console.log(`tau ${version} (${platform}) -> ${out}`);
 }

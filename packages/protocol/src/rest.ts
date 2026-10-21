@@ -283,6 +283,11 @@ export const routes = {
     path: `${API_PREFIX}/voice/model`,
     status: 204,
   },
+  warmVoice: {
+    method: "POST",
+    path: `${API_PREFIX}/voice/warm`,
+    status: 204,
+  },
   setSetupSkipped: {
     method: "PUT",
     path: `${API_PREFIX}/settings/setup-skipped`,
