@@ -330,27 +330,25 @@ function ComposerForm({
             !showInput && "max-sm:hidden",
           )}
         />
-        <div className="flex gap-2 sm:hidden">
+        <div className="flex items-center justify-center gap-6 px-6 py-3 sm:hidden">
           <Button
             type="button"
             variant="outline"
             aria-label={showInput ? "Hide keyboard" : "Show keyboard"}
             aria-pressed={showInput}
             onClick={() => setShowInput((visible) => !visible)}
-            className="h-14 flex-1 rounded-full text-base"
+            className="size-20 rounded-full"
           >
-            <Keyboard className="size-6" />
-            Keyboard
+            <Keyboard className="size-8" />
           </Button>
           <Button
             type="button"
             aria-label={dictation.listening ? "Stop dictation" : "Dictate"}
             aria-pressed={dictation.listening}
             onClick={dictation.toggle}
-            className="h-14 flex-1 rounded-full text-base"
+            className="size-20 rounded-full"
           >
-            {dictation.listening ? <Square className="size-6 fill-current" /> : <Mic className="size-6" />}
-            Dictate
+            {dictation.listening ? <Square className="size-8 fill-current" /> : <Mic className="size-8" />}
           </Button>
         </div>
         <div className="flex flex-wrap items-start gap-1 sm:flex-nowrap">
