@@ -119,7 +119,7 @@ export function AppSidebar() {
   };
   return (
     <Sidebar aria-label="Projects and threads">
-      <SidebarHeader className="gap-4 px-4 py-3">
+      <SidebarHeader className="gap-4 px-4 pt-[calc(0.75rem+env(safe-area-inset-top))] pb-3">
         <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
           <Tooltip>
             <TooltipTrigger asChild>

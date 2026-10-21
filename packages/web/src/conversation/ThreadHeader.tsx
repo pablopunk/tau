@@ -56,7 +56,7 @@ export function ThreadHeader({
         {slot && machine && !hideMachine ? createPortal(machine, slot) : null}
       </div>
       {/* Mobile: a single compact bar; the app bar above stays hidden on thread pages. */}
-      <div className="flex h-12 items-center gap-1 border-b px-1 md:hidden">
+      <div className="flex min-h-12 items-center gap-1 border-b px-1 pt-[env(safe-area-inset-top)] md:hidden">
         <SidebarTrigger aria-label="Open sidebar" />
         <h1 className="min-w-0 flex-1 truncate text-sm font-medium">{title}</h1>
         {actions}

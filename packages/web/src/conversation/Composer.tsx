@@ -141,6 +141,9 @@ function ComposerForm({
   };
 
   useEffect(() => {
+    // Never steal focus on touch devices: it pops the keyboard and iOS
+    // scrolls the page, pushing the header off-screen with no way back.
+    if (window.matchMedia?.("(pointer: coarse)").matches) return;
     const active = document.activeElement;
     if (active && active !== document.body && active.closest("[role=dialog]")) return;
     textarea.current?.focus({ preventScroll: true });
@@ -156,6 +159,7 @@ function ComposerForm({
         setTextState(loadDraft(target));
         replace(loadAttachments(target));
         replaceFiles(loadFileAttachments(target));
+        if (window.matchMedia?.("(pointer: coarse)").matches) return;
         requestAnimationFrame(() => textarea.current?.focus());
       }),
     [target, replace, replaceFiles],
