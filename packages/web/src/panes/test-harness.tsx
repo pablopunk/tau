@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createFakeCore, type FakeCore } from "@tau/testkit";
 import { render } from "@testing-library/react";
 import { MemoryRouter, Route, Routes, useLocation, useMatch, useParams } from "react-router";
+import { SidebarProvider } from "@/components/ui/sidebar";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { LiveClientProvider } from "@/conversation/live-client-context";
 import { createStubLiveClient } from "@/conversation/test-utils";
@@ -60,10 +61,12 @@ export function renderPanes(path: string, core?: FakeCore) {
         <NodeApiProvider>
           <LiveClientProvider client={liveClientOf(core)}>
             <TooltipProvider>
-              <Where />
-              <Routes>
-                <Route path="/p/:projectId/c/:conversationId/*" element={<Route_ />} />
-              </Routes>
+              <SidebarProvider>
+                <Where />
+                <Routes>
+                  <Route path="/p/:projectId/c/:conversationId/*" element={<Route_ />} />
+                </Routes>
+              </SidebarProvider>
             </TooltipProvider>
           </LiveClientProvider>
         </NodeApiProvider>

@@ -81,7 +81,7 @@ export function ToolCard({
       className="group/tool overflow-hidden rounded-lg border bg-card text-card-foreground"
     >
       <div className="flex">
-        <CollapsibleTrigger className="flex min-w-0 flex-1 items-center gap-2 px-3 py-2 text-left text-sm outline-none data-[state=open]:items-start transition-colors hover:bg-muted/50 focus-visible:ring-3 focus-visible:ring-ring/50">
+        <CollapsibleTrigger className="flex min-w-0 flex-1 items-center gap-2 px-3 py-2 text-left text-sm outline-none data-[state=open]:items-start transition-colors hover:bg-muted/50 focus-visible:ring-3 focus-visible:ring-ring/50 max-sm:flex-wrap max-sm:gap-y-1">
           <ChevronRight
             aria-hidden
             className="size-3.5 shrink-0 text-muted-foreground transition-transform group-data-[state=open]/tool:rotate-90"
@@ -89,19 +89,20 @@ export function ToolCard({
           <span aria-hidden className="shrink-0 text-muted-foreground [&_svg]:size-4">
             {icon}
           </span>
-          <span className="shrink-0 font-medium">{title}</span>
+          <span className="shrink-0 font-medium max-sm:py-1">{title}</span>
           {subtitle ? (
             <span
               title={subtitle}
               className={cn(
                 "min-w-0 flex-1 truncate font-mono text-xs leading-5 text-muted-foreground",
+                "max-sm:order-last max-sm:basis-full max-sm:whitespace-normal max-sm:break-all",
                 "group-data-[state=open]/tool:overflow-visible group-data-[state=open]/tool:whitespace-pre-wrap group-data-[state=open]/tool:break-all",
               )}
             >
               {subtitle}
             </span>
           ) : (
-            <span className="flex-1" />
+            <span className="flex-1 max-sm:hidden" />
           )}
           {badge}
           <span className="flex shrink-0 items-center" role="status">

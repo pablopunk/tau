@@ -89,7 +89,8 @@ function DialogHeader({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="dialog-header"
-      className={cn("flex flex-col gap-2", className)}
+      // Clears the absolutely positioned close button (44px on coarse pointers).
+      className={cn("flex flex-col gap-2 pr-10", className)}
       {...props}
     />
   )

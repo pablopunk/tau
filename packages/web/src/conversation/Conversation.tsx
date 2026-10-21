@@ -85,18 +85,17 @@ function ConversationPanel({ id }: ConversationProps) {
   const parentId = summary?.parentId ?? null;
   return (
     <div data-testid="conversation" className="relative flex h-full min-h-0 flex-col bg-background">
-      {view ? (
-        <ThreadHeader
-          id={id}
-          extras={
-            <>
-              <GoalChip conversationId={id} />
-              <WorkspaceChip conversationId={id} />
-            </>
-          }
-          actions={<ThreadTerminalButton />}
-        />
-      ) : null}
+      {/* Always mounted: on mobile it carries the sidebar toggle, even while the view loads. */}
+      <ThreadHeader
+        id={id}
+        extras={
+          <>
+            <GoalChip conversationId={id} />
+            <WorkspaceChip conversationId={id} />
+          </>
+        }
+        actions={<ThreadTerminalButton />}
+      />
       {parentId ? <SubagentBanner parentId={parentId} childId={id} /> : null}
       <div
         ref={scrollRef}
@@ -122,7 +121,7 @@ function ConversationPanel({ id }: ConversationProps) {
         </Button>
       )}
       {state.status === "gone" || parentId ? null : (
-        <div className="mx-auto w-full max-w-3xl px-3 pt-1 pb-3 sm:px-4 sm:pb-4">
+        <div className="mx-auto w-full max-w-3xl px-3 pt-1 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-4 sm:pb-[max(1rem,env(safe-area-inset-bottom))]">
           <Composer
             target={id}
             imagesAllowed={imagesAllowedFor(view, models)}

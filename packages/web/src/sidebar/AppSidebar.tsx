@@ -5,6 +5,7 @@ import {
   ListIcon,
   MessageSquarePlusIcon,
   SettingsIcon,
+  XIcon,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
@@ -21,6 +22,7 @@ import {
   SidebarHeader,
   SidebarRail,
   SidebarTrigger,
+  useSidebar,
 } from "@/components/ui/sidebar";
 import { TauLogo } from "@/components/ui/tau-logo";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -105,6 +107,7 @@ function NodeSections({ mode, showArchived }: { mode: SidebarMode; showArchived:
 }
 
 export function AppSidebar() {
+  const { setOpenMobile } = useSidebar();
   const [mode, setMode] = useSidebarMode();
   const [showArchived, setShowArchived] = useState(() => preferences.getShowArchived());
   const navigate = useNavigate();
@@ -134,6 +137,15 @@ export function AppSidebar() {
           </Tooltip>
           <BrandText className="text-base font-semibold drop-shadow-sm">tau</BrandText>
           <SidebarTrigger className="hidden size-8 shrink-0 justify-self-end md:inline-flex [&_svg:not([class*='size-'])]:size-5" />
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label="Close sidebar"
+            onClick={() => setOpenMobile(false)}
+            className="shrink-0 justify-self-end md:hidden"
+          >
+            <XIcon />
+          </Button>
         </div>
         <div className="flex items-center justify-between gap-2">
           <Button variant="outline" size="sm" className="min-w-0" onClick={() => navigate(newThreadPath())}>

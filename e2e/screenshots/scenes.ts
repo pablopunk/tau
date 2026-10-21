@@ -28,6 +28,8 @@ async function openPage(context: SceneContext, options: Parameters<Browser["newC
   const page = await browserContext.newPage();
   await page.goto(context.environment.url);
   await page.getByRole("button", { name: /sidebar/i }).waitFor();
+  // Tooltips are transient hover UI; never let a stuck one photobomb a shot.
+  await page.addStyleTag({ content: '[data-slot="tooltip-content"]{display:none!important}' });
   return { page, close: () => browserContext.close() };
 }
 
@@ -40,6 +42,9 @@ async function openSidebar(page: Page) {
   const heroThread = page.getByText(HERO_THREAD).first();
   if (!(await heroThread.isVisible())) await page.getByRole("button", { name: /sidebar/i }).click();
   await heroThread.waitFor();
+  // Park the cursor over the backdrop so a stuck hover tooltip from the
+  // drawer buttons can't photobomb the shot.
+  await page.mouse.move(370, 500);
 }
 
 async function openThread(page: Page, title: string, lastWords: string) {

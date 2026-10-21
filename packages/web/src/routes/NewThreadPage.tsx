@@ -120,7 +120,7 @@ export function NewThreadPage() {
   );
 
   return (
-    <div className="flex flex-1 flex-col items-center justify-center gap-4 p-6">
+    <div className="flex flex-1 flex-col items-center justify-center gap-4 p-6 max-md:justify-end max-md:pb-10">
       <h2 className="text-lg font-semibold">New thread</h2>
       {notSetUp ? <NotSetUpNotice nodeId={nodeId} /> : null}
       <div className="w-full max-w-2xl">

@@ -3,6 +3,7 @@ import { type ReactNode, useCallback, useEffect, useRef, useState } from "react"
 import { useNavigate } from "react-router";
 import { PaneSplitter } from "@/components/ui/pane-splitter";
 import { PaneStrip, type PaneTab } from "@/components/ui/pane-strip";
+import { SidebarTrigger } from "@/components/ui/sidebar";
 import { conversationPath, terminalPath } from "@/lib/paths";
 import { useNodeId } from "@/nodes/node-context";
 import { readSplit, SPLIT_DEFAULT, SPLIT_MAX, SPLIT_MIN, writeSplit } from "./split-width";
@@ -104,6 +105,8 @@ export function ThreadPanes({ projectId, conversationId, terminalId, children }:
   const strip = showStrip ? (
     <PaneStrip
       key="strip"
+      // On a phone with a terminal focused the chat (and its toggle) is hidden.
+      leading={narrow && !showChat ? <SidebarTrigger aria-label="Open sidebar" /> : undefined}
       tabs={tabsOf(list, narrow)}
       focusedId={focusedId}
       onFocus={focus}
