@@ -20,7 +20,7 @@ import type { SettingsStore } from "../home/settings-store";
 import { createFauxSetup } from "../testing/faux-provider";
 import { loadFauxReplies } from "../testing/faux-replies";
 import { createConnectionReader } from "./connections";
-import { createDecisionsStatus } from "./decisions-status";
+import { createDecisionsStatus, isDecisionBackend } from "./decisions-status";
 import { createLoginSessions, type LoginSessions } from "./login-sessions";
 import { createModelLister } from "./model-list";
 import {
@@ -191,6 +191,7 @@ export function createProviderService(options: ProviderServiceOptions): Provider
     await credentials.writeMany(keyIds, { type: "api_key", key });
     if (valid === null) connections.markUnchecked(entry);
     else connections.markChecked(entry);
+    if (isDecisionBackend(id)) decisions.invalidate(id);
     options.changes.emit({ resource: "providers" });
     return infoOf(entry);
   }
@@ -201,6 +202,7 @@ export function createProviderService(options: ProviderServiceOptions): Provider
       entry.piProviders.length > 0 ? entry.piProviders.map((ref) => ref.piId) : [primaryPiId(entry)];
     await credentials.deleteMany(keyIds);
     connections.markChecked(entry);
+    if (isDecisionBackend(id)) decisions.invalidate(id);
     options.changes.emit({ resource: "providers" });
     return infoOf(entry);
   }

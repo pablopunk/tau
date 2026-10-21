@@ -28,10 +28,9 @@ interface MockOptions {
 const failNow = (forced: boolean) => forced || process.env.MOCK_FAIL === "500";
 
 /**
- * Localhost stand-in for a calibrated yes/no decision backend. Serves a
- * superset response shape (top-level `probability` plus nested copies) so the
- * hook's parser finds the score wherever it looks; the exact shape the hook
- * settles on is a MUST-AGREE seam, see NOTE-FOR-INTEGRATOR.md.
+ * Localhost stand-in for a calibrated yes/no decision backend. Serves exactly
+ * the live response shapes (`answers.keep.noul` for TypeSafe, `answers[]` for
+ * OpenAI) and rejects anything else, so a client/shape regression fails loudly.
  */
 export async function startDecisionMock(options: MockOptions): Promise<DecisionMock> {
   const hits: MockHit[] = [];
@@ -64,19 +63,28 @@ export async function startDecisionMock(options: MockOptions): Promise<DecisionM
       } catch {
         body = {};
       }
-      // TypeSafe puts content in top-level `state`; OpenAI puts it in `input`
-      // with questions as an array. Fallbacks keep the old shapes parseable.
-      const keep = (body.questions as { keep?: { input?: unknown; instructions?: unknown } } | undefined)
-        ?.keep;
+      // Shapes must match the live clients exactly (see typesafePredicateBody /
+      // openaiPredicateBody); the mock rejects anything else so a regression
+      // back to a wrong shape fails loudly here instead of silently passing.
+      const keep =
+        body.questions !== null &&
+        typeof body.questions === "object" &&
+        !Array.isArray(body.questions)
+          ? (body.questions as { keep?: { instructions?: unknown } }).keep
+          : undefined;
       const firstQuestion = Array.isArray(body.questions) ? body.questions[0] : undefined;
       const questionInstructions =
         typeof firstQuestion === "object" && firstQuestion !== null
           ? (firstQuestion as { instructions?: unknown }).instructions
           : undefined;
-      const input = String(keep?.input ?? body.state ?? body.input ?? "");
-      const instructions = String(
-        keep?.instructions ?? questionInstructions ?? body.instructions ?? body.predicate ?? "",
-      );
+      const input = String(body.state ?? body.input ?? "");
+      const instructions = String(keep?.instructions ?? questionInstructions ?? "");
+      if (input === "" || instructions === "") {
+        response
+          .writeHead(422, { "content-type": "application/json" })
+          .end(JSON.stringify({ error: { message: "mock: unrecognized request shape", code: "mock_shape" } }));
+        return;
+      }
       const probability = scripted[Math.min(index, scripted.length - 1)] ?? 0.5;
       index += 1;
       hits.push({ backend: options.backend, input, instructions, probability });
@@ -84,16 +92,11 @@ export async function startDecisionMock(options: MockOptions): Promise<DecisionM
         options.backend === "typesafe"
           ? {
               model: TYPESAFE_MODEL,
-              probability,
-              answers: { keep: { type: "noul", noul: probability, probability } },
-              data: { keep: { probability } },
+              answers: { keep: { type: "noul", noul: probability } },
             }
           : {
               model: OPENAI_DECISIONS_MODEL,
-              probability,
               answers: [{ type: "predicate", name: "keep", probability }],
-              output: [{ type: "predicate_result", probability }],
-              data: { probability },
             };
       response.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify(payload));
     });

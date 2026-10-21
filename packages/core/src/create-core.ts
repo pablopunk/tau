@@ -36,6 +36,7 @@ import { resyncWhenConnectorsChange } from "./harness/connector-resync";
 import { createConversationForker } from "./harness/conversation-fork";
 import { type ConversationOfSession, createConversationOfSession } from "./harness/conversation-of-session";
 import { createConversationStore } from "./harness/conversation-store";
+import { createAvailabilityCache } from "./decisions/availability";
 import { makeFastCompactionExtension } from "./harness/fast-compaction";
 import { createLiveWork } from "./harness/live-work";
 import { harnessNotificationSubmitter } from "./harness/notification-submitter";
@@ -166,6 +167,8 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
       settingsStore: settings,
       credentials: new FileCredentialStore(home.credentialsFile),
       env: deps.env,
+      // Shared across compactions so backend demotion survives the run.
+      availability: createAvailabilityCache(),
     });
     const harness = await openAgentHarness({
       registry: createAgentRegistry(toolServices, undefined, home.root, [fastCompaction]),

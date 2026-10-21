@@ -15,6 +15,8 @@ export interface DecisionsStatus {
    * read-only: kicks off a background refresh when stale but never blocks.
    */
   decisionsFor(id: ProviderId): DecisionsAvailability | undefined;
+  /** Drop the cached status so the next read re-probes (e.g. after a key change). */
+  invalidate(id: ProviderId): void;
 }
 
 export function createDecisionsStatus(deps: {
@@ -44,6 +46,7 @@ export function createDecisionsStatus(deps: {
   };
 
   return {
+    invalidate: (id) => void cached.delete(id),
     decisionsFor: (id) => {
       if (!isDecisionBackend(id)) return undefined;
       const backend = id as "typesafe" | "openai";

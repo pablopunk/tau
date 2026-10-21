@@ -13,7 +13,6 @@ import type { FileCredentialStore } from "../auth/file-credential-store";
 import {
   type AvailabilityCache,
   createAvailabilityCache,
-  fingerprintKey,
   isDecisionsNotFound,
 } from "../decisions/availability";
 import type { DecideClient } from "../decisions/client";
@@ -348,5 +347,3 @@ export function makeFastCompactionExtension(deps: FastCompactionDeps): Extension
     hooks: [{ task: "pi.compaction", handlers: { beforeCompact } }],
   });
 }
-
-export { fingerprintKey };

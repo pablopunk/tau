@@ -67,7 +67,7 @@ export function providerCases(make: MakeContractTarget, test: CaseRunner): void 
       expect(disconnected).toMatchObject({ id: "typesafe", connection: null });
     });
 
-    test("[providers] isConfigured is false with only typesafe connected", async () => {
+    test("[providers] models list stays empty with only typesafe connected", async () => {
       const { core } = target;
       await core.providers.setApiKey("typesafe", "sk-contract-test");
       expect(await core.models.list()).toEqual([]);

@@ -152,9 +152,10 @@ A `defineExtension` installed in `registry.ts` (`createAgentRegistry`) exposing
 5. Ask `predicate` ×2 per unpinned frame (keep call / keep full result),
    batched + concurrent (Jev evaluates all questions against one state in
    parallel; same for OpenAI).
-6. Decide in code: `p > keepThreshold` (default 0.5, per-backend tunable after
-   spike) keep verbatim; middle → truncate result to `truncateHeadChars`
-   (default 300) + note; low → drop.
+6. Decide in code (two questions per frame — keep call / keep full result):
+   both scores > `keepThreshold` (0.5) keep verbatim; exactly one above
+   truncates the result to `truncateHeadChars` (300) + note; else drop.
+   (Single-threshold cut validated live on both backends; see spike record.)
 7. Render verbatim structured summary (user/assistant text as-is, dropped calls
    omitted, truncated results head + note, `decisions:` diagnostic dump) and
    return `{ summary }`. Respect `minReductionRatio` (default 0.25): below it
@@ -254,11 +255,17 @@ Use only `packages/web/src/components/ui` primitives (shadcn first).
   with `answers[]` response (first version was wrong, API returned 400, fixed +
   verified). `check()` probe returns ready with the corrected shape.
 - Thresholds (live calibration, 6 compaction-like items per backend):
-  TypeSafe scored 0.8/0.51/0.05/0.21/0.11/0 (full spread — truncate band
-  catches exactly the borderline 0.51); OpenAI scored 0.98/0/0/0.02/0/0
-  (near-binary). Shared defaults (`keepThreshold` 0.5, truncate 0.35–0.7)
-  confirmed for BOTH backends — no per-backend tuning needed. Latency
-  ~200–500ms per call on both.
+  TypeSafe scored 0.8/0.51/0.05/0.21/0.11/0 (full spread); OpenAI scored
+  0.98/0/0/0.02/0/0 (near-binary). Separation is wide on both (relevant
+  ≥0.8, irrelevant ≤0.23), so the single `keepThreshold` 0.5 cut is
+  confirmed for both — no per-backend tuning needed. Latency ~200–500ms
+  per call on both.
+  NOTE (post-integration correction): the shipped rule is two-question —
+  both scores > 0.5 keep verbatim, exactly one > 0.5 truncates the result,
+  else drop. There is no 0.35–0.7 single-score band in code; the earlier
+  "band" framing described the calibration spread, not the rule. A
+  0.51/0.51 frame is kept fully (bounded waste; the `minReductionRatio`
+  0.25 floor still guards the overall compaction).
 
 ## Open questions (spike answers)
 

@@ -32,7 +32,7 @@ import { type DecisionMock, repeat, startDecisionMock } from "./fast-compaction-
  * trip per-send steady-state compactions whose windows never escape pinning.
  */
 
-// Env seams read by the live DecideClients (see NOTE-FOR-INTEGRATOR.md):
+// Env seams read by the live DecideClients:
 // TAU_TYPESAFE_BASE_URL overrides the TypeSafe API base (client appends
 // /v1/systemone and /v1/models); TAU_OPENAI_DECISIONS_URL overrides the full
 // decisions endpoint. Single constants to rename in one place.
