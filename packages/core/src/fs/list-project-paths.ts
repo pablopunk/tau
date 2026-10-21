@@ -1,6 +1,7 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import type { FileSuggestion } from "@tau/protocol";
+import { withBackground } from "../system/background";
 import { walkFolder } from "./walk-folder";
 
 export const FILE_LIST_CACHE_MS = 10_000;
@@ -22,7 +23,8 @@ function withDirectories(files: string[]): FileSuggestion[] {
 
 async function gitFiles(folder: string): Promise<string[] | undefined> {
   try {
-    const { stdout } = await run("git", ["ls-files", "-co", "--exclude-standard", "-z"], {
+    const command = withBackground("git", ["ls-files", "-co", "--exclude-standard", "-z"]);
+    const { stdout } = await run(command.file, [...command.args], {
       cwd: folder,
       maxBuffer: GIT_MAX_BUFFER,
     });

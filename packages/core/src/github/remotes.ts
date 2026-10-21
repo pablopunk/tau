@@ -1,4 +1,5 @@
 import { execFile } from "node:child_process";
+import { withBackground } from "../system/background";
 
 const REMOTE_URL_LINE = /^remote\..*\.url\s+(.+)$/;
 
@@ -18,9 +19,10 @@ const parseRemoteUrls = (output: string) =>
 /** Every remote URL of the repository in `directory`; empty when it has none or `git` fails. */
 export function readRemoteUrls(directory: string): Promise<string[]> {
   return new Promise((resolve) => {
+    const command = withBackground("git", ["-C", directory, "config", "--get-regexp", "^remote\\..*\\.url$"]);
     execFile(
-      "git",
-      ["-C", directory, "config", "--get-regexp", "^remote\\..*\\.url$"],
+      command.file,
+      [...command.args],
       { env: withoutRepositoryOverrides(process.env), timeout: 10_000, maxBuffer: 1024 * 1024 },
       (error, stdout) => resolve(error ? [] : parseRemoteUrls(stdout)),
     );
