@@ -63,10 +63,25 @@ function TimersList({ conversationId, open }: { conversationId: string; open: bo
   );
 }
 
-export function TimersChip({ conversationId }: { conversationId: string }) {
+export function TimersChip({
+  conversationId,
+  onReveal,
+}: {
+  conversationId: string;
+  /** When the conversation sidebar owns timers, jump there instead of the popover. */
+  onReveal?: () => void;
+}) {
   const [open, setOpen] = useState(false);
   const count = useAllConversations().data?.find((item) => item.id === conversationId)?.timers ?? 0;
   if (count === 0) return null;
+  if (onReveal) {
+    return (
+      <Button variant="outline" size="sm" aria-label={`${count} timers`} onClick={onReveal}>
+        <TimerIcon />
+        {count}
+      </Button>
+    );
+  }
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>

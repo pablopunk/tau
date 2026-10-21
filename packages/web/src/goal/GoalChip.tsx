@@ -49,12 +49,27 @@ function GoalDetails({ goal, onClear }: { goal: Goal; onClear: () => void }) {
 }
 
 /** The "Goal" chip of a thread, in the header and in the composer; it shows nothing without a goal. */
-export function GoalChip({ conversationId }: { conversationId: string }) {
+export function GoalChip({
+  conversationId,
+  onReveal,
+}: {
+  conversationId: string;
+  /** When the conversation sidebar owns the goal, jump there instead of the popover. */
+  onReveal?: () => void;
+}) {
   const api = useApi();
   const goal = useGoal(conversationId).data;
   const queryClient = useQueryClient();
   if (!goal) return null;
   const Icon = ICONS[goal.state];
+  if (onReveal) {
+    return (
+      <Button variant="outline" size="sm" aria-label={`Goal ${stateLabel(goal.state)}`} onClick={onReveal}>
+        <Icon />
+        {chipText(goal)}
+      </Button>
+    );
+  }
   const clear = () =>
     api.goals
       .clear(conversationId)
