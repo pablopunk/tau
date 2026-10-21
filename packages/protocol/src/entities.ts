@@ -339,9 +339,27 @@ export const ImageInputSchema = Type.Object({
 });
 export type ImageInput = Type.Static<typeof ImageInputSchema>;
 
+/** At most 5 MiB of decoded bytes; the HTTP body limit (`UPLOAD_BODY_LIMIT`) is what bounds `data` on the wire. */
+export const MAX_UPLOAD_FILE_BYTES = 5 * 1024 * 1024;
+
+/** A staged upload: `path` is a virtual path under `uploads/` that only the agent resolves, never bytes on the wire. */
+export const FileRefSchema = Type.Object({
+  name: Type.String({ minLength: 1, maxLength: 255 }),
+  path: Type.String({ minLength: 1, maxLength: 1024 }),
+  size: Type.Integer({ minimum: 0, maximum: MAX_UPLOAD_FILE_BYTES }),
+});
+export type FileRef = Type.Static<typeof FileRefSchema>;
+export const UploadInputSchema = Type.Object({
+  name: Type.String({ minLength: 1, maxLength: 255 }),
+  mimeType: Type.String({ minLength: 1, maxLength: 128 }),
+  data: Type.String({ minLength: 1 }),
+});
+export type UploadInput = Type.Static<typeof UploadInputSchema>;
+
 const SendMessageFields = {
   text: Type.String(),
   images: Type.Optional(Type.Array(ImageInputSchema, { maxItems: MAX_IMAGES_PER_MESSAGE })),
+  files: Type.Optional(Type.Array(FileRefSchema, { maxItems: MAX_IMAGES_PER_MESSAGE })),
   requestId: Type.String({ minLength: 1 }),
 };
 
