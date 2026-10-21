@@ -1,7 +1,7 @@
 import type { Approval, ApprovalDecision } from "@tau/protocol";
 import { Button } from "@/components/ui/button";
-import { AnimatePresence, gentle, motion, rise } from "@/components/ui/motion";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { AnimatePresence, gentle, motion, rise } from "@/components/ui/motion";
 import { useApprovals, useDecideApproval } from "@/lib/queries";
 import { connectorLabel } from "./tools/ClaudeConnectorTool";
 

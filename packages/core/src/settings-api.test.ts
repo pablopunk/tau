@@ -1,7 +1,7 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ProviderInfo, VoiceModelSetting } from "@tau/protocol";
-import type { SettingsStore } from "./home/settings-store";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { CodeFolderDeps } from "./github/code-folder";
+import type { SettingsStore } from "./home/settings-store";
 import type { ProviderService } from "./provider/provider-service";
 import { clearVoiceModelCache } from "./provider/voice-models";
 import { createSettingsApi } from "./settings-api";
@@ -72,7 +72,9 @@ describe("setVoiceModel", () => {
 
   it("rejects shapes outside the schema", async () => {
     const { api, setVoiceModel } = apiOf({ configured: true, connected: true, apiKey: "sk" });
-    await expect(api.setVoiceModel({ kind: "provider" } as unknown as VoiceModelSetting)).rejects.toMatchObject({
+    await expect(
+      api.setVoiceModel({ kind: "provider" } as unknown as VoiceModelSetting),
+    ).rejects.toMatchObject({
       code: "invalid_request",
     });
     expect(setVoiceModel).not.toHaveBeenCalled();

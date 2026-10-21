@@ -2,12 +2,7 @@ import { randomUUID } from "node:crypto";
 import { mkdir, open, readdir, realpath, stat, unlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, dirname, extname, join } from "node:path";
-import {
-  AppError,
-  MAX_UPLOAD_FILE_BYTES,
-  type FileRef,
-  type UploadInput,
-} from "@tau/protocol";
+import { AppError, type FileRef, MAX_UPLOAD_FILE_BYTES, type UploadInput } from "@tau/protocol";
 
 /** Virtual path root the agent sees; only this store resolves it to disk. */
 export const UPLOADS_ROOT_NAME = "uploads/";
@@ -15,8 +10,7 @@ export const UPLOADS_ROOT_NAME = "uploads/";
 export const STAGED_FILE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const MAX_EXTENSION_LENGTH = 12;
 /** Only names this store generated are ever swept or resolved. */
-const GENERATED_NAME =
-  /^file-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.[a-z0-9]{1,12}$/;
+const GENERATED_NAME = /^file-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.[a-z0-9]{1,12}$/;
 const VIRTUAL_PATH = /^uploads\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/;
 const BASE64 = /^[A-Za-z0-9+/]*={0,2}$/;
 
@@ -112,7 +106,7 @@ export function createUploadStore(deps: { now?: () => number; root?: string } = 
       for (;;) {
         const id = randomUUID();
         const full = join(root, `file-${id}.${ext}`);
-        let handle;
+        let handle: Awaited<ReturnType<typeof open>>;
         try {
           handle = await open(full, "wx", 0o600);
         } catch (error) {
@@ -144,10 +138,7 @@ export function createUploadStore(deps: { now?: () => number; root?: string } = 
         files.map(async (file) => {
           const id = VIRTUAL_PATH.exec(file.path)?.[1];
           if (!id) {
-            throw new AppError(
-              "invalid_request",
-              `The file path is outside the uploads root: ${file.path}.`,
-            );
+            throw new AppError("invalid_request", `The file path is outside the uploads root: ${file.path}.`);
           }
           let names: string[];
           try {
@@ -168,18 +159,16 @@ export function createUploadStore(deps: { now?: () => number; root?: string } = 
           }
           // A symlink swapped in after staging must not escape the root.
           if (dirname(real) !== root) {
-            throw new AppError(
-              "invalid_request",
-              `The file path is outside the uploads root: ${file.path}.`,
-            );
+            throw new AppError("invalid_request", `The file path is outside the uploads root: ${file.path}.`);
           }
-          let info;
+          let info: Awaited<ReturnType<typeof stat>>;
           try {
             info = await stat(real);
           } catch {
             throw expired(file.path);
           }
-          const stale = !info.isFile() || info.size !== file.size || now() - info.mtimeMs > STAGED_FILE_TTL_MS;
+          const stale =
+            !info.isFile() || info.size !== file.size || now() - info.mtimeMs > STAGED_FILE_TTL_MS;
           if (stale) {
             await unlink(full).catch(() => undefined);
             throw expired(file.path);

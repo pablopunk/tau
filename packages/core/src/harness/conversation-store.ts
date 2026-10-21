@@ -20,8 +20,8 @@ import {
 import { stripBangPrefix } from "../bang-command";
 import { readFromResolved, toUserInput } from "../conversation-input";
 import { titleFromFirstMessage } from "../conversation-title";
-import type { UploadStore } from "../upload-store";
 import { RETRY_PROMPT } from "../retry-prompt";
+import type { UploadStore } from "../upload-store";
 import type { ConnectorOffering } from "./connector-offering";
 import { compactConversation } from "./conversation-compact";
 import {
@@ -247,7 +247,7 @@ export function createConversationStore(
       );
       if (duplicate) return { projectId, admitted: false };
       // Revalidate staged refs before re-admitting: expiry fails here, before the run.
-      const resolved = await hooks.uploads?.resolveRefs(input.files ?? []) ?? [];
+      const resolved = (await hooks.uploads?.resolveRefs(input.files ?? [])) ?? [];
       const admitted = await submitOnce(harness, conversation, {
         type: "input",
         content: toUserInput(input, readFromResolved(resolved)),

@@ -23,7 +23,6 @@ import { createConnectionReader } from "./connections";
 import { createDecisionsStatus, isDecisionBackend } from "./decisions-status";
 import { createLoginSessions, type LoginSessions } from "./login-sessions";
 import { createModelLister } from "./model-list";
-import { clearVoiceModelCache } from "./voice-models";
 import {
   countsForChat,
   type KeyProviderEntry,
@@ -34,6 +33,7 @@ import {
   visibleProviders,
 } from "./providers-table";
 import { createRealModels, type Environment } from "./real-models";
+import { clearVoiceModelCache } from "./voice-models";
 
 export type { Environment } from "./real-models";
 

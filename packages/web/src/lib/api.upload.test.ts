@@ -15,8 +15,7 @@ function stubTransport() {
   return { transport, request };
 }
 
-const textFile = (text: string, name = "notes.txt") =>
-  new File([text], name, { type: "text/plain" });
+const textFile = (text: string, name = "notes.txt") => new File([text], name, { type: "text/plain" });
 
 describe("api.uploads.stage", () => {
   it("posts name, mimeType and base64 data to stageUpload", async () => {

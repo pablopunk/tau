@@ -1,15 +1,15 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import type { Api } from "@/lib/api";
+import { AppError, type FileRef } from "@tau/protocol";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { AppError, type FileRef } from "@tau/protocol";
 import type { ComponentProps, ReactNode } from "react";
 import { MemoryRouter } from "react-router";
 import { toast } from "sonner";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { Composer } from "./Composer";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import type { Api } from "@/lib/api";
 import { NodeApiProvider } from "@/nodes/node-context";
+import { Composer } from "./Composer";
 
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), info: vi.fn() } }));
 vi.mock("./images/resize-image", () => ({
@@ -49,24 +49,26 @@ function setup({
 } = {}) {
   const stub = api ? undefined : stubApi(stage);
   const usedApi = api ?? stub!.api;
-  const view = render(
-    <Composer target={target} imagesAllowed busy={false} onSend={onSend} {...props} />,
-    {
-      wrapper: ({ children }: { children: ReactNode }) => {
-        const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-        return (
-          <MemoryRouter>
-            <QueryClientProvider client={client}>
-              <NodeApiProvider nodeId={nodeId} api={usedApi}>
-                <TooltipProvider>{children}</TooltipProvider>
-              </NodeApiProvider>
-            </QueryClientProvider>
-          </MemoryRouter>
-        );
-      },
+  const view = render(<Composer target={target} imagesAllowed busy={false} onSend={onSend} {...props} />, {
+    wrapper: ({ children }: { children: ReactNode }) => {
+      const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+      return (
+        <MemoryRouter>
+          <QueryClientProvider client={client}>
+            <NodeApiProvider nodeId={nodeId} api={usedApi}>
+              <TooltipProvider>{children}</TooltipProvider>
+            </NodeApiProvider>
+          </QueryClientProvider>
+        </MemoryRouter>
+      );
     },
-  );
-  return { onSend, uploads: (usedApi.uploads as { stage: ReturnType<typeof vi.fn> }).stage, input: screen.getByLabelText("Message"), view };
+  });
+  return {
+    onSend,
+    uploads: (usedApi.uploads as { stage: ReturnType<typeof vi.fn> }).stage,
+    input: screen.getByLabelText("Message"),
+    view,
+  };
 }
 
 function pasteFiles(input: HTMLElement, files: File[]) {
@@ -110,9 +112,7 @@ describe("<Composer> generic files", () => {
     });
     expect(await screen.findByText("notes.txt")).toBeInTheDocument();
     expect(uploads).toHaveBeenCalledTimes(1);
-    await waitFor(() =>
-      expect(toast.error).toHaveBeenCalledWith("This model does not accept images."),
-    );
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("This model does not accept images."));
   });
 
   it("never uploads on paste, even for non-images", async () => {

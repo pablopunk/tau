@@ -1,12 +1,12 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ProviderInfo } from "@tau/protocol";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { ProviderService } from "./provider-service";
 import {
   clearVoiceModelCache,
   fetchOpenRouterVoiceModels,
   listProviderOptions,
   OPENROUTER_API_BASE,
 } from "./voice-models";
-import type { ProviderService } from "./provider-service";
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -146,7 +146,9 @@ describe("listProviderOptions", () => {
   it("returns no rows when OpenRouter is not connected and never fetches", async () => {
     const requests = stubFetch(() => new Response(JSON.stringify(catalogBody), { status: 200 }));
     expect(await listProviderOptions(sourceOf(null, "sk-test"))).toEqual([]);
-    expect(await listProviderOptions(sourceOf({ ...openrouterInfo(), connection: null }, "sk-test"))).toEqual([]);
+    expect(await listProviderOptions(sourceOf({ ...openrouterInfo(), connection: null }, "sk-test"))).toEqual(
+      [],
+    );
     expect(requests).toHaveLength(0);
   });
 

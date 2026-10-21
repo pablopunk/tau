@@ -61,7 +61,14 @@ import type {
   WorkspaceDefault,
   WorkspaceStatus,
 } from "@tau/protocol";
-import { AppError, fillPath, isAppError, MAX_UPLOAD_FILE_BYTES, routes, terminalStreamPath } from "@tau/protocol";
+import {
+  AppError,
+  fillPath,
+  isAppError,
+  MAX_UPLOAD_FILE_BYTES,
+  routes,
+  terminalStreamPath,
+} from "@tau/protocol";
 import { createHttpTransport } from "./transport/http";
 import { createLazyTransport } from "./transport/lazy";
 import type { LiveTransport, StreamHandlers, StreamSocket, Transport } from "./transport/types";
@@ -293,9 +300,7 @@ const mib = (bytes: number): string => `${(bytes / (1024 * 1024)).toFixed(1)} Mi
 
 /** An older node never heard of this route: the transport reports a plain 404 as `internal` "Request failed (404)". */
 export function isUnknownRoute(error: unknown): boolean {
-  return (
-    isAppError(error) && (error.code === "not_found" || NOT_FOUND_ON_OLD_NODE.test(error.message))
-  );
+  return isAppError(error) && (error.code === "not_found" || NOT_FOUND_ON_OLD_NODE.test(error.message));
 }
 
 export function createApi(transport: Transport): Api {

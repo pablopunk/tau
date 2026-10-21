@@ -553,7 +553,10 @@ export function createFakeCore(options: FakeCoreOptions = {}): FakeCore {
           );
           if (!connected) throw new AppError("no_provider", "Connect a provider first.");
           if (!voiceModels.some((model) => model.modelId === setting.modelId)) {
-            throw new AppError("invalid_request", "This model is not available from your connected providers.");
+            throw new AppError(
+              "invalid_request",
+              "This model is not available from your connected providers.",
+            );
           }
         }
         voiceModel =

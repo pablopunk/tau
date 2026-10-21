@@ -71,15 +71,7 @@ export function NewThreadPage() {
   const notSetUp = models.data.length === 0;
   const cloning = projects.data.find((project) => project.id === projectId)?.status === "cloning";
 
-  const start = async ({
-    text,
-    images,
-    files,
-  }: {
-    text: string;
-    images: ImageInput[];
-    files: FileRef[];
-  }) => {
+  const start = async ({ text, images, files }: { text: string; images: ImageInput[]; files: FileRef[] }) => {
     setBusy(true);
     try {
       const created = await api.conversations.start({

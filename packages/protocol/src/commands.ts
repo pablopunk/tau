@@ -763,7 +763,8 @@ export const COMMAND_EXCLUSIONS = {
   linkNode: "A WebSocket one node's server dials with a node secret; not an HTTP call.",
   signOutAllDevices: "UI only: it signs out every browser and phone, this one included.",
   updateTodos: "UI only: the todo panel sends the edited list; the CLI has no todo surface.",
-  stageUpload: "Raw file bytes go over multipart from the web composer; no agent types those on a command line.",
+  stageUpload:
+    "Raw file bytes go over multipart from the web composer; no agent types those on a command line.",
 } as const satisfies Partial<Record<RouteName, string>>;
 
 export type ExcludedRoute = keyof typeof COMMAND_EXCLUSIONS;

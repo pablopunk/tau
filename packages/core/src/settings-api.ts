@@ -1,7 +1,6 @@
 import { mkdir } from "node:fs/promises";
 import { isAbsolute } from "node:path";
 import { clampThinkingLevel } from "@earendil-works/pi-ai/models";
-import { listProviderOptions } from "./provider/voice-models";
 import {
   AppError,
   type CompactionSettings,
@@ -22,6 +21,7 @@ import { expandHome } from "./fs/expand-home";
 import { type CodeFolderDeps, suggestCodeFolder } from "./github/code-folder";
 import type { SettingsStore } from "./home/settings-store";
 import type { ProviderService } from "./provider/provider-service";
+import { listProviderOptions } from "./provider/voice-models";
 import { resolveProjectFolder } from "./resolve-project-folder";
 
 /** Stub until the governor probes the host. */
@@ -78,7 +78,9 @@ export function createSettingsApi(deps: {
   // not chat models, so `provider.lists()` would reject them all.
   const requireVoiceModel = async (setting: { provider: string; modelId: string }) => {
     if (!(await provider.isConfigured())) throw new AppError("no_provider", "Connect a provider first.");
-    const row = (await listProviderOptions(provider)).find((candidate) => candidate.provider === setting.provider);
+    const row = (await listProviderOptions(provider)).find(
+      (candidate) => candidate.provider === setting.provider,
+    );
     if (!row) {
       throw new AppError("invalid_request", "This model is not available from your connected providers.");
     }

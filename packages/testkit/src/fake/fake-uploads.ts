@@ -1,9 +1,4 @@
-import {
-  AppError,
-  MAX_UPLOAD_FILE_BYTES,
-  type FileRef,
-  type UploadInput,
-} from "@tau/protocol";
+import { AppError, type FileRef, MAX_UPLOAD_FILE_BYTES, type UploadInput } from "@tau/protocol";
 
 /** Staged refs live this long; use past it rejects `file_expired`. */
 export const FAKE_UPLOAD_TTL_MS = 24 * 60 * 60 * 1000;

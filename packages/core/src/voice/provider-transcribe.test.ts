@@ -1,7 +1,7 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
 import { AppError, type TranscribeInput } from "@tau/protocol";
-import { transcribeWithProvider } from "./provider-transcribe";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { OPENROUTER_API_BASE } from "../provider/voice-models";
+import { transcribeWithProvider } from "./provider-transcribe";
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -49,7 +49,12 @@ describe("transcribeWithProvider", () => {
 
   it("maps mp4 blobs to the mp4 format", async () => {
     const requests = stubTranscribe({ text: "hi" });
-    await transcribeWithProvider({ format: "blob", mimeType: "audio/mp4", data: "AAAA" }, "openrouter", "m", "sk");
+    await transcribeWithProvider(
+      { format: "blob", mimeType: "audio/mp4", data: "AAAA" },
+      "openrouter",
+      "m",
+      "sk",
+    );
     expect(requests[0]?.body.input_audio.format).toBe("mp4");
   });
 

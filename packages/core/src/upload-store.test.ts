@@ -1,4 +1,4 @@
-import { mkdtemp, mkdir, readdir, realpath, rm, stat, symlink, utimes, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, realpath, rm, stat, symlink, utimes, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { MAX_UPLOAD_FILE_BYTES } from "@tau/protocol";
@@ -34,16 +34,24 @@ describe("stage", () => {
 
   it("rejects path names, bad base64 and oversize files", async () => {
     const uploads = store();
-    await expect(uploads.stage({ name: "../evil.txt", mimeType: "text/plain", data: toBase64("x") })).rejects.toMatchObject({
+    await expect(
+      uploads.stage({ name: "../evil.txt", mimeType: "text/plain", data: toBase64("x") }),
+    ).rejects.toMatchObject({
       code: "invalid_request",
     });
-    await expect(uploads.stage({ name: "a/b.txt", mimeType: "text/plain", data: toBase64("x") })).rejects.toMatchObject({
+    await expect(
+      uploads.stage({ name: "a/b.txt", mimeType: "text/plain", data: toBase64("x") }),
+    ).rejects.toMatchObject({
       code: "invalid_request",
     });
-    await expect(uploads.stage({ name: "x.txt", mimeType: "text/plain", data: "!!!not-base64!!!" })).rejects.toMatchObject({
+    await expect(
+      uploads.stage({ name: "x.txt", mimeType: "text/plain", data: "!!!not-base64!!!" }),
+    ).rejects.toMatchObject({
       code: "invalid_request",
     });
-    await expect(uploads.stage({ name: "x.txt", mimeType: "text/plain", data: "abcd===" })).rejects.toMatchObject({
+    await expect(
+      uploads.stage({ name: "x.txt", mimeType: "text/plain", data: "abcd===" }),
+    ).rejects.toMatchObject({
       code: "invalid_request",
     });
     await expect(

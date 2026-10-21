@@ -3,7 +3,6 @@ import { createModels } from "@earendil-works/pi-ai/models";
 import type { Harness } from "@earendil-works/pi-durable";
 import type { Change, Project } from "@tau/protocol";
 import { type ChangeEmitter, createChangeEmitter } from "../change-emitter";
-import { type UploadStore, createUploadStore } from "../upload-store";
 import { createConversationRecovery } from "../conversation-recovery";
 import { legacyWorkspace } from "../harness/conversation-index";
 import { type ConversationStore, createConversationStore } from "../harness/conversation-store";
@@ -11,6 +10,7 @@ import { BACKGROUND, openAgentHarness, openSqliteStorage } from "../harness/open
 import { createAgentRegistry } from "../harness/registry";
 import { createStatusTracker, type StatusTracker } from "../status/status-tracker";
 import { createFauxSetup } from "../testing/faux-provider";
+import { createUploadStore, type UploadStore } from "../upload-store";
 import { processToolServices } from "./process-tool-services";
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));

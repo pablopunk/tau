@@ -12,7 +12,7 @@ import { readFromResolved, toUserInput } from "../conversation-input";
 import { titleFromFirstMessage } from "../conversation-title";
 import type { UploadStore } from "../upload-store";
 import type { ConnectorOffering } from "./connector-offering";
-import { ConversationDoc, INDEX_SEED, pendingFirstInputOf, ProjectIndexDoc } from "./conversation-docs";
+import { ConversationDoc, INDEX_SEED, ProjectIndexDoc, pendingFirstInputOf } from "./conversation-docs";
 import {
   indexOf,
   isLive,
@@ -65,7 +65,7 @@ export function createConversationStarter(
     now: number | undefined,
   ): Promise<ConversationSummary> {
     // Revalidate staged refs at admission: a restart may have cut off the first message after expiry.
-    const resolved = await uploads?.resolveRefs(input.files ?? []) ?? [];
+    const resolved = (await uploads?.resolveRefs(input.files ?? [])) ?? [];
     await submitOnce(harness, conversation, {
       type: "input",
       content: toUserInput(input, readFromResolved(resolved)),

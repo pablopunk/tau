@@ -36,12 +36,18 @@ export async function transcribeWithProvider(
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     });
   } catch {
-    throw new AppError("internal", "Could not reach OpenRouter to transcribe the audio. Check your connection.");
+    throw new AppError(
+      "internal",
+      "Could not reach OpenRouter to transcribe the audio. Check your connection.",
+    );
   }
   if (!response.ok) {
     throw response.status >= 500
       ? new AppError("internal", `OpenRouter could not transcribe the audio (HTTP ${response.status}).`)
-      : new AppError("invalid_request", `OpenRouter could not transcribe the audio (HTTP ${response.status}).`);
+      : new AppError(
+          "invalid_request",
+          `OpenRouter could not transcribe the audio (HTTP ${response.status}).`,
+        );
   }
   const body: unknown = await response.json().catch(() => undefined);
   if (typeof (body as { text?: unknown } | null)?.text !== "string") {

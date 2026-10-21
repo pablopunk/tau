@@ -13,9 +13,9 @@ import {
 } from "react";
 import { Button } from "@/components/ui/button";
 import { DropZone } from "@/components/ui/drop-zone";
-import { AnimatePresence, fade, gentle, motion, rise } from "@/components/ui/motion";
 import { Input } from "@/components/ui/input";
 import { type MentionItem, MentionMenu } from "@/components/ui/mention-menu";
+import { AnimatePresence, fade, gentle, motion, rise } from "@/components/ui/motion";
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { scopeTarget } from "@/lib/node-keys";
@@ -25,8 +25,6 @@ import { useApi, useNodeId } from "@/nodes/node-context";
 import { AttachmentRow } from "./composer/AttachmentRow";
 import { BANG_EMPTY_ERROR, isBangMode, isBareBang } from "./composer/bang-mode";
 import { loadDraft, saveDraft } from "./composer/drafts";
-import { loadFileAttachments } from "./files/attachments";
-import { useFileAttachments } from "./files/use-file-attachments";
 import { applyMention } from "./composer/mentions";
 import { menuKeyAction } from "./composer/menu-keys";
 import { onComposerRestore } from "./composer/restore";
@@ -35,6 +33,8 @@ import { commandItemId, useComposerMenu } from "./composer/use-composer-menu";
 import { useDictation } from "./composer/use-dictation";
 import { insertionOf } from "./composer/use-mention-items";
 import { usePageDrag } from "./composer/use-page-drop";
+import { loadFileAttachments } from "./files/attachments";
+import { useFileAttachments } from "./files/use-file-attachments";
 import { loadAttachments } from "./images/attachments";
 import { useAttachments } from "./images/use-attachments";
 
@@ -323,7 +323,13 @@ function ComposerForm({
       ) : null}
       <AnimatePresence initial={false}>
         {error ? (
-          <motion.p key="error" role="alert" {...fade} transition={gentle} className="text-sm text-destructive">
+          <motion.p
+            key="error"
+            role="alert"
+            {...fade}
+            transition={gentle}
+            className="text-sm text-destructive"
+          >
             {error}
           </motion.p>
         ) : null}

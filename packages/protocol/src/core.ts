@@ -88,10 +88,10 @@ export type {
   SuggestDirectoriesInput,
   SuggestedCodeFolder,
   TranscribeInput,
+  UploadInput,
   UseGithubRepoInput,
   VoiceModelSetting,
   VoiceOptions,
-  UploadInput,
   WorkspaceDefault,
   WorkspaceMode,
 } from "./entities";

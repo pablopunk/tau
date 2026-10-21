@@ -113,9 +113,7 @@ describe("images in the thread", () => {
   it("keeps the attach button when the thread model has no image support", async () => {
     withModels(false);
     renderView(endOf("text"));
-    await waitFor(() =>
-      expect(screen.getByRole("button", { name: "Attach files" })).toBeInTheDocument(),
-    );
+    await waitFor(() => expect(screen.getByRole("button", { name: "Attach files" })).toBeInTheDocument());
   });
 
   it("allows images when the model is unknown", () => {
