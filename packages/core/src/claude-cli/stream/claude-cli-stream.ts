@@ -83,7 +83,9 @@ async function runCall(
     stream.push(finalEvent(message, { kind: "aborted" }, null));
     return;
   }
-  const existing = call.sessionId ? (rt.bindings.get(call.sessionId) ?? (await rt.restoreBinding(call.sessionId))) : undefined;
+  const existing = call.sessionId
+    ? (rt.bindings.get(call.sessionId) ?? (await rt.restoreBinding(call.sessionId)))
+    : undefined;
   await existing?.settling;
   if (existing) await closeIfOptionsStale(rt, existing);
   const plan = choosePath({

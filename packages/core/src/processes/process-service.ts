@@ -107,8 +107,6 @@ export interface ForegroundRequest {
   readonly sandboxRoot?: string;
   /** Distinguishes tool-spawned runs in exit delivery; unset preserves follow-up behavior. */
   readonly origin?: ProcessOrigin;
-  /** Trusted sandbox root, as on `StartProcessRequest`. */
-  readonly sandboxRoot?: string;
   /** Every chunk of output while the call still waits. */
   readonly onOutput: (text: string) => void;
 }

@@ -1,6 +1,6 @@
 import type { ClaudeMcpServerStatus, ClaudeSdkPort } from "../sdk-types";
 import type { Binding } from "./binding";
-import { loadBindingSnapshots, saveBindingSnapshots, type BindingSnapshot } from "./binding-store";
+import { type BindingSnapshot, loadBindingSnapshots, saveBindingSnapshots } from "./binding-store";
 import type { ClaudeCliStreamDeps } from "./claude-cli-stream";
 
 /** The shared state of one streamer. */
@@ -63,7 +63,9 @@ export function createRuntime(deps: ClaudeCliStreamDeps): Runtime {
       binding.sdkSessionId = saved.sdkSessionId;
       binding.checkpoints = [...saved.checkpoints];
       binding.head = saved.head ? { ...saved.head } : null;
-      binding.created = new Set(saved.created);
+      saved.created.forEach((sessionId) => {
+        binding.created.add(sessionId);
+      });
       bindings.set(piSessionId, binding);
       return binding;
     },
