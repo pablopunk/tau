@@ -315,6 +315,62 @@ Keep, don't touch: requestId dedup, pi-durable steer-at-boundary, plain Stop +
 shape. `!!`/exclude-from-model-context needs durable context filtering —
 deferred, open risk. Interrupt-mid-answer steer — decided no.
 
+## Measurement track — prove every action is instant (runs with all releases)
+
+Goal: before/after numbers for the remake's core promise, plus a CI guard
+so no action silently gets slow again. Browser *and* server measured — the
+complaint is UI-perceived latency, so every action reports tap-to-confirm
+(button disabled / optimistic row / pending bubble) split into server round
+trip vs render. No new storage service: structured log lines + a committed
+e2e JSON artifact. Budget: <1ms overhead per action when idle, zero added
+network calls, ring dropped if full (never blocks).
+
+What gets measured (both instants required — confirm = the promised
+instant, live-reflect = server-confirmed UI): send idle (bubble by entryId)
+and busy (bubble morphs into queued row by exact `submissionId` — never
+text matching); Send-now (confirm = buttons disabled, reflect = 200 +
+chosen admitted + rest in composer; server logs gate-wait/abort/admit
+split); cancel (confirm = disabled, reflect = 200 + row gone + composer
+restored from server snapshot); steer/mode affordance (assert
+label-correctness/absence, not ms); archive/unarchive/remove/rename + palette
+toggles (row moves instantly, no refetch-flash on spam-click via the
+`isMutating` guard); bang spawn→exit by origin (display row admitted →
+exit write committed, idle starts no turn); retry incl. backoff case;
+model/thinking change with rollback; todo edit; timer/loop ops; workspace
+merge/remove; terminal open to first frame.
+
+How (boring on purpose): new `web/src/lib/timings.ts` (~80 lines, the only
+new web timing code) — `markAction/markConfirm/markLiveReflect`, wraps the
+REST client once so `renderMs = clientMs − serverMs` falls out free, emits
+to `console.debug` + a devtools-only `window.__tauTimings` ring (last 200)
+with a hidden `?timings=1` overlay; no design-system cost. New
+`server/src/timing.ts` (~40 lines) — Fastify `onRequest`/`onResponse`
+hooks log `{action, serverMs, gateWaitMs?, conversationId?, requestId?,
+submissionId?}` through pino (already ships). Correlation reuses
+`requestId` + the R3.6 `{submissionId, entryId?}` receipts — no new ids.
+Aggregation is the CI artifact, not the app: p95 computed in the test.
+
+Baseline (agent-runnable, comparable — capture BEFORE R1 lands):
+`pnpm build` at the pre-remake commit (SHA recorded), `VITE_FAKE=1` fake
+transport, new `e2e/timings.spec.ts` drives the real UI per action
+(15 runs each, seeded fake, workers: 1), server `serverMs` scraped from
+pino JSON by `submissionId`. Output: committed `e2e/timings-baseline.json`
+`{action: {p50, p95, n, confirmP95, serverP95}}`. The remake re-runs the
+identical spec; the diff is the proof. Guard thresholds (fake transport):
+p95 tap-to-confirm < 100ms, p95 tap-to-live-reflect for local actions
+< 500ms, no action regresses > 20% vs baseline (fail + print diff).
+Unit tests cover the ring math, confirm-before-reflect ordering, and
+synchronous disable-hooks; contract tests cover receipt shape + duplicate
+`requestId` returning identical ids. Timings module + server hook land
+first (independent of R1–R4); baseline captured immediately after; releases
+must not regress it. One manual real-server spot-check per release,
+recorded in this doc.
+
+Ownership: foundation freezes `timings.ts` shape + receipt fields + log-line
+schema with the protocol freeze; web agent owns the marks; server agent
+owns the hooks + `sendNow` breakdown; one agent owns `timings.spec.ts` +
+baseline capture; integrator re-captures post-merge.
+
 ## Verification
 
 Must-keep-green: `conversation-submit.test.ts`, `queue.test.tsx`,
