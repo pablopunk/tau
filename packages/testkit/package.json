@@ -6,7 +6,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./contract": "./src/contract/index.ts",
-    "./runtime-contract": "./src/runtime/runtime-contract.ts"
+    "./runtime-contract": "./src/runtime/runtime-contract.ts",
+    "./runtime-fake": "./src/runtime/fake-runtime-executor.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

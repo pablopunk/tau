@@ -20,8 +20,3 @@ export {
 } from "./fixtures/index";
 export { fixtureForMessage, triggerOf } from "./fixtures/triggers";
 export { finalView, fixtureViews } from "./fixtures/views";
-export {
-  createFakeRuntimeExecutor,
-  type FakeRuntimeExecutor,
-  type FakeRuntimeExecutorOptions,
-} from "./runtime/fake-runtime-executor";
