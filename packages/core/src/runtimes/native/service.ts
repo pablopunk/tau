@@ -8,6 +8,7 @@ import {
   type RuntimeCapabilities,
   type RuntimeLifecycle,
   type SendMessageInput,
+  type WriterState,
 } from "@tau/protocol";
 import type { Approvals } from "../../approvals/approvals-port";
 import {
@@ -45,6 +46,7 @@ import type { NativeRunPolicy } from "./launch-policy";
 import type { NativeSettingSource } from "./native-options";
 import { NATIVE_SHELL_CAPABILITIES } from "./native-shell-executor";
 import { createNativePermissionBroker, type NativePermissionBroker } from "./permissions";
+import { stillPumping, writerStateOfInspection } from "./writer-state";
 
 export interface NativeServiceDeps {
   readonly harness: Harness;
@@ -69,6 +71,8 @@ export interface NativeServiceDeps {
   readonly onChange: (projectId: string) => void;
   readonly now?: () => number;
   readonly createStore?: (threadId: string) => RuntimeStore;
+  /** The shared workspace writer barrier: no run is admitted or launched into a workspace being merged or removed. */
+  readonly workspaceFence?: { assertOpen(workspaceKey: string, thread: string): void };
 }
 
 export type NativeCancelResult =
@@ -87,6 +91,8 @@ export interface NativeService {
   /** Startup only: applies persisted state to every native thread and never relaunches. */
   reconcileAll(): Promise<readonly NativeReconciled[]>;
   isNative(threadId: string): Promise<boolean>;
+  /** Read-only. Anything that cannot be read is `unknown`, never `settled`. */
+  writerStateOf(threadId: string): Promise<WriterState>;
   /** Resolves once no pump is running. */
   settled(): Promise<void>;
   /** The thread is gone: denies what waits for the user and stops its run. */
@@ -117,6 +123,9 @@ const STARTABLE_LIFECYCLES: readonly (RuntimeLifecycle | undefined)[] = [
   "cancelled",
   "interrupted",
 ];
+
+const WORKSPACE_FENCED =
+  "This workspace is being changed (merge/remove). Nothing was started and your message is kept.";
 
 const describeError = (error: unknown): string => (error instanceof Error ? error.message : String(error));
 
@@ -162,6 +171,15 @@ export function createNativeService(deps: NativeServiceDeps): NativeService {
     return { cwd: summary.workspace.path, projectId: summary.projectId };
   }
 
+  const isFenced = (workspaceKey: string, threadId: string): boolean => {
+    try {
+      deps.workspaceFence?.assertOpen(workspaceKey, threadId);
+      return false;
+    } catch {
+      return true;
+    }
+  };
+
   function permissionsFor(runtime: ThreadRuntime, cwd: string): NativePermissionBroker | undefined {
     if (!deps.approvals) return undefined;
     const { id, projectId } = runtime.thread;
@@ -181,6 +199,7 @@ export function createNativeService(deps: NativeServiceDeps): NativeService {
     const policy = deps.policyFor?.(id, cwd);
     const prepare: NativeControllerDeps["prepare"] = async (item) => {
       if (runtime.cancelRequested) return { ok: false, reason: "The run was cancelled before it started." };
+      if (isFenced(cwd, id)) return { ok: false, reason: WORKSPACE_FENCED };
       const launchable = policy ? await policy.prepare() : { ok: true as const };
       if (!launchable.ok) return launchable;
       return finalizer.checkpointBefore(id, item.requestId);
@@ -228,10 +247,15 @@ export function createNativeService(deps: NativeServiceDeps): NativeService {
     return created;
   }
 
-  async function resolveThread(threadId: string): Promise<NativeThreadRef> {
+  async function resolveSummary(threadId: string): Promise<ConversationSummary> {
     const summary = await conversations.find(threadId);
     if (!summary) throw new AppError("not_found", "Conversation not found.");
-    return { id: threadId, projectId: summary.projectId };
+    return summary;
+  }
+
+  async function resolveThread(threadId: string): Promise<NativeThreadRef> {
+    const { projectId } = await resolveSummary(threadId);
+    return { id: threadId, projectId };
   }
 
   function serialized<T>(runtime: ThreadRuntime, body: () => Promise<T>): Promise<T> {
@@ -357,6 +381,7 @@ export function createNativeService(deps: NativeServiceDeps): NativeService {
 
   async function startThread(request: NativeStartRequest): Promise<ConversationSummary> {
     requireNativeInput(request.input);
+    deps.workspaceFence?.assertOpen(request.workspace.path, request.input.requestId);
     await deps.ensureFormat?.();
     const { summary } = await createNativeConversation(harness, request);
     knownNative.add(summary.id);
@@ -369,7 +394,9 @@ export function createNativeService(deps: NativeServiceDeps): NativeService {
 
   async function send(threadId: string, input: SendMessageInput): Promise<AdmissionReceipt> {
     requireNativeInput(input);
-    const thread = await resolveThread(threadId);
+    const summary = await resolveSummary(threadId);
+    deps.workspaceFence?.assertOpen(summary.workspace.path, threadId);
+    const thread = { id: threadId, projectId: summary.projectId };
     const runtime = await runtimeOf(thread);
     const receipt = await admitAndSchedule(runtime, input);
     await touchNativeConversation(harness, thread, now());
@@ -420,6 +447,18 @@ export function createNativeService(deps: NativeServiceDeps): NativeService {
     return native;
   }
 
+  async function writerStateOf(threadId: string): Promise<WriterState> {
+    try {
+      const runtime = await runtimes.get(threadId)?.catch(() => undefined);
+      const store =
+        runtime?.store ?? (deps.createStore ?? ((id) => createRuntimeStore(harness, id, { now })))(threadId);
+      const state = writerStateOfInspection(await store.inspect());
+      return stillPumping(state, runtime?.pump !== undefined);
+    } catch {
+      return "unknown";
+    }
+  }
+
   async function settled(): Promise<void> {
     while (pumps.size > 0) await Promise.all([...pumps]);
   }
@@ -450,6 +489,7 @@ export function createNativeService(deps: NativeServiceDeps): NativeService {
     cancel,
     reconcileAll,
     isNative,
+    writerStateOf,
     settled,
     onConversationRemoved,
     close,

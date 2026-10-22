@@ -88,6 +88,7 @@ import {
 import { nativeLaunchPolicy } from "./runtimes/native/launch-policy";
 import { withNativeThreads } from "./runtimes/native/permissions";
 import { createNativeService, type NativeService } from "./runtimes/native/service";
+import { nativeWriterPort } from "./runtimes/native/writer-state";
 import { createRuntimesApi } from "./runtimes-api";
 import { createSettingsApi } from "./settings-api";
 import { useBundledSkills } from "./skills/discover-skills";
@@ -276,8 +277,12 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
       now: deps.now,
     });
     const workspaceBarrier = createWriterBarrier();
+    const nativeForWorkspaces: { current?: NativeService } = {};
     const workspaces = createWorkspaceService({
       writerBarrier: workspaceBarrier,
+      ...(nativeEnabledIn(deps.env) && {
+        writerStateOf: nativeWriterPort(() => nativeForWorkspaces.current),
+      }),
       home: home.root,
       closeTerminalsOf: (conversationId) => terminals.closeAllOf(conversationId),
       conversations,
@@ -460,6 +465,7 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
             find: (id) => conversations.find(id),
           }),
           ensureFormat: () => ensureRuntimeFormat(home.root, deps.now),
+          workspaceFence: workspaceBarrier,
           policyFor: nativeLaunchPolicy({
             sandbox: {
               settings: async () => (await settings.get()).sandbox,
@@ -476,6 +482,7 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
           now: deps.now,
         })
       : undefined;
+    nativeForWorkspaces.current = native;
     const isNativeThread = async (id: string) => (await native?.isNative(id)) ?? false;
     await status.recoverAtStartup();
     await clones.recoverAtStartup();
