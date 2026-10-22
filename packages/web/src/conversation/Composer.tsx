@@ -408,11 +408,7 @@ function ComposerForm({
           </p>
         ) : null}
         {coarse ? (
-          <div
-            className="flex items-center justify-center gap-4 py-2"
-            role="group"
-            aria-label="Composer actions"
-          >
+          <div className="flex items-center justify-center gap-4 py-2">
             {bangMode ? null : (
               <Tooltip>
                 <TooltipTrigger asChild>

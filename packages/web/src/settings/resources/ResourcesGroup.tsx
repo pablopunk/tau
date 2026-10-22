@@ -2,8 +2,8 @@ import type { ResourceScope, ResourceSettings } from "@tau/protocol";
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { Switch } from "@/components/ui/switch";
 import { useResourceSupport, useSetResources, useSettings } from "@/lib/queries";
-import { ScopeRow } from "./ScopeRow";
 import { isControlOn, MEMORY_CAP_NOTE, NEEDS_UPDATE, NEW_COMMANDS_ONLY, SCOPES } from "./resources-text";
+import { ScopeRow } from "./ScopeRow";
 
 const ON_DEFAULT: ResourceSettings["levels"] = { main: "off", worktree: "off", subagent: "balanced" };
 const ALL_OFF: ResourceSettings["levels"] = { main: "off", worktree: "off", subagent: "off" };
@@ -37,10 +37,10 @@ export function ResourcesGroup() {
           <Switch aria-label="Resource control" disabled={disabled} checked={on} onCheckedChange={toggle} />
         </div>
         <FieldDescription>
-        {enforceable
-          ? "Subagents run at a lower CPU priority. Off is today's behavior."
-          : "Resource control is not available on this node."}
-      </FieldDescription>
+          {enforceable
+            ? "Subagents run at a lower CPU priority. Off is today's behavior."
+            : "Resource control is not available on this node."}
+        </FieldDescription>
       </Field>
       {on && (
         <div className="flex flex-col gap-4">

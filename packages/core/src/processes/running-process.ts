@@ -96,7 +96,7 @@ export function spawnRunning(request: SpawnRequest): RunningProcess {
     // `exit` can come before the last output is read from the pipes: finish on `close`, which comes after them.
     // A background child of the command can keep the pipes open, so finish at most PIPE_DRAIN_MS after `exit`.
     let exit: { code: number | null; signal: NodeJS.Signals | null } | undefined;
-    let settling: Promise<void> | undefined;
+    let _settling: Promise<void> | undefined;
     const classify = async (found: NonNullable<typeof exit>) => {
       const reason = await request.classifyExit?.(found).catch(() => undefined);
       if (reason && !running.stopReason) running.stopReason = reason;
@@ -106,7 +106,7 @@ export function spawnRunning(request: SpawnRequest): RunningProcess {
     const done = () => {
       if (exit === undefined) return;
       if (details) return resolve();
-      settling ??= classify(exit);
+      _settling ??= classify(exit);
     };
     child.once("exit", (code, signal) => {
       exit = { code, signal };

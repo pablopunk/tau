@@ -15,7 +15,7 @@ export function WorktreeSection({ conversationId }: { conversationId: string }) 
   const status = useWorkspaceStatus(conversationId, isWorktree).data;
   const actions = useWorkspaceActions(conversationId);
   const [confirmingRemove, setConfirmingRemove] = useState(false);
-  if (!workspace || workspace.mode !== "worktree") return null;
+  if (workspace?.mode !== "worktree") return null;
   if (workspace.state === "removed") return null;
 
   const dirty = status?.dirtyFiles ?? [];

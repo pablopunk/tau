@@ -13,7 +13,6 @@ import { useOpenConversation } from "@/activity";
 import { useOpenSettings } from "@/app/settings-dialog";
 import { BrandText } from "@/components/ui/brand-text";
 import { Button } from "@/components/ui/button";
-import { NodeName } from "@/components/ui/node-name";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import {
   Sidebar,
