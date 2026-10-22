@@ -22,7 +22,13 @@ import {
 } from "@tau/protocol";
 import { Value } from "typebox/value";
 import type { ArchivedCleanup } from "./archived-cleanup";
-import { type BangCommandDeps, entryOfThread, parseBangCommand, runBangCommand } from "./bang-command";
+import {
+  admitAndDispatchBang,
+  type BangCommandDeps,
+  dispatchBang,
+  entryOfThread,
+  parseBangCommand,
+} from "./bang-command";
 import type { ChangeEmitter } from "./change-emitter";
 import type { CheckpointService } from "./checkpoints/checkpoint-service";
 import { requireContent, requireImageBytesMatchTheirType, requireImagesAllowed } from "./conversation-input";
@@ -39,7 +45,6 @@ import type { SettingsStore } from "./home/settings-store";
 import type { ProviderService } from "./provider/provider-service";
 import { requireName } from "./require-name";
 import type { StatusTracker } from "./status/status-tracker";
-import { cwdOf } from "./terminals/cwd-of";
 import type { TitleService } from "./titles/title-service";
 import type { UploadStore } from "./upload-store";
 import type { WorkspaceService } from "./workspaces/workspace-service";
@@ -105,15 +110,31 @@ export function createConversationsApi(deps: {
     if ((input.files ?? []).length > 0) await deps.uploads?.resolveRefs(input.files ?? []);
   }
 
+  const bangDeps = () => ({
+    threads: conversations,
+    processes: deps.bang.processes,
+    notifications: deps.bang.notifications,
+    home: deps.bang.home,
+    entryOf: (conversationId: string) => entryOfThread(deps.harness, conversationId),
+    harness: deps.harness,
+    ...(deps.uploads === undefined ? {} : { uploads: deps.uploads }),
+  });
+
   async function sendOnce(id: string, input: SendMessageInput): Promise<SendReceipt> {
     await validateMessage(input, await modelOfThread(id));
     const bang = parseBangCommand(input.text);
+    if (bang.kind === "command") {
+      // Display-only admission + dispatch under one gate: no checkpoint (nothing will ever anchor it),
+      // no exec without a folder, and a concurrent bang refuses before any row is admitted.
+      const admission = await admitAndDispatchBang(bangDeps(), id, input, now());
+      announce(admission.projectId);
+      if (admission.titleText !== undefined) nameTheThread(id, admission.titleText);
+      return { submissionId: admission.submissionId, ...(admission.entryId === undefined ? {} : { entryId: admission.entryId }) };
+    }
     // The server strips one `!`; web sends verbatim so every client behaves the same.
     const effective = bang.kind === "escaped" ? { ...input, text: bang.text } : input;
-    // A bang command resolves its workspace before admission: no exec without a folder.
-    if (bang.kind === "command") await cwdOf(conversations, id);
     await checkpoints.snapshotBefore(id, input.requestId).catch(reportCheckpointFailure);
-    const { projectId, titleText, admitted, submissionId, entryId } = await conversations.send(
+    const { projectId, titleText, submissionId, entryId } = await conversations.send(
       id,
       effective,
       now(),
@@ -121,20 +142,6 @@ export function createConversationsApi(deps: {
     );
     announce(projectId);
     if (titleText !== undefined) nameTheThread(id, titleText);
-    // Only the admitted winner spawns: losers deduped by `requestId` never exec. The exit is never awaited.
-    if (admitted && bang.kind === "command") {
-      await runBangCommand(
-        {
-          threads: conversations,
-          processes: deps.bang.processes,
-          notifications: deps.bang.notifications,
-          home: deps.bang.home,
-          entryOf: (conversationId) => entryOfThread(deps.harness, conversationId),
-        },
-        id,
-        bang.command,
-      );
-    }
     return { submissionId, entryId };
   }
 
@@ -155,6 +162,7 @@ export function createConversationsApi(deps: {
     const model = lookUp(ref);
     if (!model) throw new AppError("invalid_request", "This model is not available.");
     await validateMessage(input, ref);
+    const bang = parseBangCommand(input.text);
     const thinkingLevel = clampThinkingLevel(model, input.thinkingLevel ?? (await defaultLevel()));
     const workspace = await workspaces.create({
       project,
@@ -168,12 +176,23 @@ export function createConversationsApi(deps: {
       thinkingLevel,
       input,
       workspace,
-      beforeFirstInput: (id) =>
-        checkpoints.snapshotBefore(id, input.requestId).catch(reportCheckpointFailure),
+      // Bang sends never anchor a rewind: skip the snapshot on both admission paths.
+      beforeFirstInput:
+        bang.kind === "command"
+          ? undefined
+          : (id) => checkpoints.snapshotBefore(id, input.requestId).catch(reportCheckpointFailure),
       now: now(),
     });
     announce(project.id);
-    if (created && input.text.trim() !== "") nameTheThread(summary.id, input.text);
+    // A bang titles from the stripped command; the stored entry keeps its display row, never model text.
+    if (created && input.text.trim() !== "") {
+      nameTheThread(summary.id, bang.kind === "command" ? bang.command : input.text);
+    }
+    if (bang.kind === "command") {
+      // The first message admitted as a display-only row above; dispatch it. A retried start
+      // re-admits under the same `requestId` and the marker makes the second dispatch a no-op.
+      await dispatchBang(bangDeps(), summary.id, bang.command, input.requestId);
+    }
     return summary;
   }
 
@@ -303,8 +322,10 @@ export function createConversationsApi(deps: {
       announce(projectId);
       return { submissionId, entryId };
     },
-    async sendNow() {
-      throw new AppError("internal", "sendNow is not implemented yet");
+    async sendNow(id, itemId) {
+      const { projectId, ...result } = await conversations.sendNow(id, itemId);
+      announce(projectId);
+      return result;
     },
     watch: (id, onOps) => conversations.watch(id, onOps),
     ...createConversationsMvp5Api({

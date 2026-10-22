@@ -4,12 +4,18 @@ import {
   AppError,
   type ConversationSummary,
   type ProcessInfo,
+  type ProcessOrigin,
   type ResourceCommand,
   type ResourcePriority,
   type ResourceSettings,
   type ResourceSupport,
 } from "@tau/protocol";
-import type { Notification, NotificationSubmitter } from "../harness/notification-submitter";
+import type {
+  Notification,
+  NotificationSubmitter,
+  PassiveWrite,
+} from "../harness/notification-submitter";
+import { releaseBangSlot } from "../harness/conversation-submit";
 import { createDeferred, type Deferred } from "./deferred";
 import { type Exec, systemdEnv } from "./governor/exec";
 import type { ThreadClass } from "./governor/governed";
@@ -26,6 +32,7 @@ import { createProcessFiles } from "./process-files";
 import { groupIsAlive, sleep, terminateGroup } from "./process-group";
 import {
   BANG_TIMEOUT_LINE,
+  bangExitWrite,
   monitorEventNotification,
   noisyNoticeText,
   noticeNotification,
@@ -44,6 +51,8 @@ export interface StartProcessRequest {
   readonly name?: string;
   /** Default `process`. A monitor turns each stdout line into a notification. */
   readonly kind?: ProcessInfo["kind"];
+  /** Who ran it: a bang exit appends without starting a turn. Everything else stays a follow-up. */
+  readonly origin?: ProcessOrigin;
   /** Default true; a plain process tells the thread when it exits by itself. */
   readonly notifyOnExit?: boolean;
   /** Monitors only. 0 or undefined runs until stopped. Also shown if the entry times out; bang scales it for throttled scopes. */
@@ -252,6 +261,22 @@ export function createProcessService(deps: ProcessDeps): ProcessService {
     entry.delivery = entry.delivery.then(() => notify(conversationId, notification)).catch(() => undefined);
   };
 
+  const sendWrite = (entry: Entry, write: PassiveWrite) => {
+    const conversationId = entry.info.conversationId;
+    const submitWrite = deps.notifications?.submitWrite.bind(deps.notifications);
+    if (!submitWrite) {
+      // No harness-backed notifier: fall back so the exit still lands.
+      send(entry, {
+        kind: write.kind,
+        data: write.data,
+        text: write.text,
+        requestId: write.requestId,
+      });
+      return;
+    }
+    entry.delivery = entry.delivery.then(() => submitWrite(conversationId, write)).catch(() => undefined);
+  };
+
   const monitorBatcherFor = (entry: Entry): MonitorBatcher => {
     return createMonitorBatcher({
       batchMs: deps.batchMs,
@@ -276,6 +301,9 @@ export function createProcessService(deps: ProcessDeps): ProcessService {
 
   /** Deletes the entry and its files after the queued notifications go out. Finished processes leave no rows. */
   async function pruneEntry(entry: Entry) {
+    // The one-at-a-time bang slot is held until the exit: a user stop posts
+    // no exit notice but still prunes, so release on every terminal path.
+    if (entry.info.origin === "bang") releaseBangSlot(entry.info.conversationId);
     entry.removed = true;
     // Bounded: a hung notifier must not hang `stop()`/`stopAll()`/shutdown forever.
     await Promise.race([entry.delivery, sleep(grace)]);
@@ -303,6 +331,10 @@ export function createProcessService(deps: ProcessDeps): ProcessService {
         : timeoutStop
           ? `${timeoutLine}\n${details.logTail}`
           : details.logTail;
+      if (entry.info.origin === "bang") {
+        sendWrite(entry, bangExitWrite(entry.info, details.exitCode, tail, details.stopReason));
+        return;
+      }
       send(entry, processExitNotification(entry.info, details.exitCode, tail, details.stopReason));
     }
   }
@@ -334,6 +366,7 @@ export function createProcessService(deps: ProcessDeps): ProcessService {
   });
 
   function cancelQueued(entry: Entry, reason: StopReason) {
+    if (entry.info.origin === "bang") releaseBangSlot(entry.info.conversationId);
     entry.cancelled = true;
     entry.stopReason = reason;
     if (entry.timeout) clearTimeout(entry.timeout);
@@ -445,6 +478,7 @@ export function createProcessService(deps: ProcessDeps): ProcessService {
       startedAt: Date.now(),
       urls: [],
       kind,
+      ...(request.origin === undefined ? {} : { origin: request.origin }),
     };
     const spawned = createDeferred<void>();
     spawned.promise.catch(noop);
@@ -607,6 +641,7 @@ export function createProcessService(deps: ProcessDeps): ProcessService {
 
   function fail(entry: Entry, error: unknown, request: StartProcessRequest) {
     const message = error instanceof Error ? error.message : String(error);
+    if (entry.info.origin === "bang") releaseBangSlot(entry.info.conversationId);
     if (entry.cancelled) {
       entry.spawned.resolve();
       return;
