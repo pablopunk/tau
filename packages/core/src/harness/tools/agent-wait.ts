@@ -1,4 +1,5 @@
 import type { ConversationId, ToolExecutionApi } from "@earendil-works/pi-durable";
+import { withAdmissionGate } from "../conversation-submit";
 import { setAgentStatus } from "../subagent-status";
 import { finalAnswerOf } from "./task-answer";
 
@@ -13,9 +14,12 @@ export async function runAndWait(
   childId: ConversationId,
   prompt: string,
 ) {
-  const child = await api.conversation(childId, context);
-  const request = { type: "input", content: prompt, requestId: `agent:${api.callId}` } as const;
-  const settled = await (await child?.submit(request, context))?.wait(context);
+  // Child submits go through the gate keyed by the target child conversation.
+  const settled = await withAdmissionGate(String(childId), async () => {
+    const child = await api.conversation(childId, context);
+    const request = { type: "input", content: prompt, requestId: `agent:${api.callId}` } as const;
+    return (await child?.submit(request, context))?.wait(context);
+  });
   const status = settled?.status === "done" ? "done" : "failed";
   const report = await api.commit(async (tx) => {
     await setAgentStatus(tx, childId, status);

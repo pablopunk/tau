@@ -1,6 +1,8 @@
+import { execFile } from "node:child_process";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { promisify } from "node:util";
 import {
   type ConversationSummary,
   type ConversationView,
@@ -17,7 +19,6 @@ import {
 } from "./bang-command";
 import { createConversationsApi } from "./conversations-api";
 import type { IndexedConversation } from "./harness/conversation-docs";
-import type { ConversationStore } from "./harness/conversation-store";
 import type { Notification } from "./harness/notification-submitter";
 import { bashPath, DEFAULT_TIMEOUT_SECONDS } from "./harness/tools/bash";
 import { createProcessService } from "./processes/process-service";
@@ -27,6 +28,17 @@ import {
   startRequest,
 } from "./test-support/conversation-harness";
 import { openFauxWorld, setUpConversation, trackView, waitUntil } from "./test-support/faux-core";
+import type { Harness } from "@earendil-works/pi-durable";
+import { admitAndDispatchBang, recoverBangs } from "./bang-command";
+import { legacyWorkspace } from "./harness/conversation-index";
+import { BACKGROUND, openAgentHarness, openSqliteStorage } from "./harness/open";
+import { createConversationStore } from "./harness/conversation-store";
+import { harnessNotificationSubmitter } from "./harness/notification-submitter";
+import type { NotificationSubmitter } from "./harness/notification-submitter";
+import { createAgentRegistry } from "./harness/registry";
+import { createFauxSetup } from "./testing/faux-provider";
+import { createUploadStore } from "./upload-store";
+import type { UploadStore } from "./upload-store";
 import { useTempDir } from "./test-support/temp-dir";
 
 const rejectsWithCode = (promise: Promise<unknown>, code: string) =>
@@ -97,6 +109,7 @@ function fakeNotifications() {
     notify: vi.fn(async (conversationId: string, notification: Notification) => {
       sent.push({ conversationId, notification });
     }),
+    submitWrite: vi.fn(async () => undefined),
   };
 }
 
@@ -133,7 +146,7 @@ describe("runBangCommand", () => {
   it("spawns with the tool's shell, cwd, env and governed parity", async () => {
     const processes = fakeProcesses();
     const deps = depsFor({ home: "/home", entryOf: async () => undefined, processes });
-    await runBangCommand(deps, "c1", "echo hi");
+    await expect(runBangCommand(deps, "c1", "echo hi")).resolves.toBe(true);
     expect(processes.start).toHaveBeenCalledTimes(1);
     const request = processes.start.mock.calls[0]?.[0];
     expect(request).toMatchObject({
@@ -141,6 +154,7 @@ describe("runBangCommand", () => {
       cwd: directory,
       command: "echo hi",
       shell: bashPath(),
+      origin: "bang",
       notifyOnExit: true,
     });
     expect(request?.env).toMatchObject({ TAU_THREAD_ID: "c1", TAU_HOME: "/home" });
@@ -163,13 +177,13 @@ describe("runBangCommand", () => {
     expect(processes.start.mock.calls[0]?.[0]).toMatchObject({ governed: true, scope: "main" });
   });
 
-  it("submits an app.notice and resolves when the spawn throws", async () => {
+  it("submits an app.notice and reports failure when the spawn throws", async () => {
     const notifications = fakeNotifications();
     const deps = depsFor({
       notifications,
       processes: { ...fakeProcesses(), start: vi.fn(async () => Promise.reject(new Error("boom"))) },
     });
-    await runBangCommand(deps, "c1", "echo hi");
+    await expect(runBangCommand(deps, "c1", "echo hi")).resolves.toBe(false);
     expect(notifications.notify).toHaveBeenCalledTimes(1);
     const [conversationId, notice] = notifications.notify.mock.calls[0] ?? [];
     expect(conversationId).toBe("c1");
@@ -183,135 +197,9 @@ describe("runBangCommand", () => {
       notifications,
       threads: { find: async () => undefined },
     });
-    await runBangCommand(deps, "c1", "echo hi");
+    await expect(runBangCommand(deps, "c1", "echo hi")).resolves.toBe(false);
     expect(deps.processes.start).not.toHaveBeenCalled();
     expect(notifications.notify).toHaveBeenCalledTimes(1);
-  });
-});
-
-describe("conversations-api send with bang", () => {
-  let directory = "";
-
-  beforeEach(async () => {
-    directory = await mkdtemp(join(tmpdir(), "tau-bang-api-"));
-  });
-
-  afterEach(async () => {
-    await rm(directory, { recursive: true, force: true });
-  });
-
-  const summaryFor = () =>
-    ({ id: "1", workspace: { state: "ready", path: directory } }) as unknown as ConversationSummary;
-
-  function makeApi(
-    overrides: {
-      store?: {
-        modelOf?: ConversationStore["modelOf"];
-        find?: ConversationStore["find"];
-        send?: ConversationStore["send"];
-      };
-      start?: () => Promise<never>;
-      titles?: { generateFor: (...args: unknown[]) => void };
-    } = {},
-  ) {
-    const store = {
-      modelOf: overrides.store?.modelOf ?? (async () => ({ provider: "faux", modelId: "faux-1" })),
-      find: overrides.store?.find ?? (async () => summaryFor()),
-      send:
-        overrides.store?.send ??
-        (async () => ({ projectId: "p1", admitted: true as const, titleText: "echo hi", submissionId: 1 })),
-    } as unknown as ConversationStore;
-    const processes = fakeProcesses(overrides.start);
-    const notifications = fakeNotifications();
-    const api = createConversationsApi({
-      conversations: store,
-      projects: {},
-      provider: { models: { getModel: () => ({ input: [] }) } },
-      settings: { get: async () => ({}) },
-      titles: overrides.titles ?? { generateFor: () => undefined },
-      status: {},
-      workspaces: {},
-      checkpoints: { snapshotBefore: async () => undefined },
-      forker: {},
-      harness: {},
-      removal: {},
-      archivedCleanup: {},
-      changes: { emit: () => undefined },
-      now: () => 1,
-      closeClaudeCliThread: async () => undefined,
-      bang: { processes, notifications, home: undefined },
-    } as unknown as Parameters<typeof createConversationsApi>[0]);
-    return { api, store, processes, notifications };
-  }
-
-  it("spawns for the admitted winner and titles from the stripped command", async () => {
-    const generateFor = vi.fn();
-    const { api, processes } = makeApi({ titles: { generateFor } });
-    await api.send("1", { text: "! echo hi", requestId: "r1" });
-    expect(processes.start).toHaveBeenCalledTimes(1);
-    expect(generateFor).toHaveBeenCalledWith("1", "echo hi");
-  });
-
-  it("spawns for the admitted winner only", async () => {
-    const { api, processes } = makeApi({
-      store: { send: async () => ({ projectId: "p1", admitted: false, submissionId: 1 }) },
-    });
-    await api.send("1", { text: "! echo hi", requestId: "r1" });
-    expect(processes.start).not.toHaveBeenCalled();
-  });
-
-  it("validates before exec: no provider means no spawn call", async () => {
-    const send = vi.fn(async () => ({ projectId: "p1", admitted: true as const, submissionId: 1 }));
-    const { api, processes } = makeApi({
-      store: {
-        modelOf: async () => {
-          throw Object.assign(new Error("Connect a provider first."), { code: "no_provider" });
-        },
-        send,
-      },
-    });
-    await rejectsWithCode(api.send("1", { text: "! echo hi", requestId: "r1" }), "no_provider");
-    expect(send).not.toHaveBeenCalled();
-    expect(processes.start).not.toHaveBeenCalled();
-  });
-
-  it("rejects a missing workspace before admission", async () => {
-    const send = vi.fn(async () => ({ projectId: "p1", admitted: true as const, submissionId: 1 }));
-    const { api, processes } = makeApi({ store: { find: async () => undefined, send } });
-    await rejectsWithCode(api.send("1", { text: "! echo hi", requestId: "r1" }), "not_found");
-    expect(send).not.toHaveBeenCalled();
-    expect(processes.start).not.toHaveBeenCalled();
-  });
-
-  it("spawn failure submits a notice and still resolves", async () => {
-    const { api, notifications, processes } = makeApi({
-      start: async () => Promise.reject(new Error("boom")),
-    });
-    await api.send("1", { text: "! echo hi", requestId: "r1" });
-    expect(processes.start).toHaveBeenCalledTimes(1);
-    expect(notifications.notify).toHaveBeenCalledTimes(1);
-    expect(notifications.sent[0]?.notification.text).toContain("Command failed to start: boom");
-  });
-
-  it("sends `!!` stripped as literal text without spawning", async () => {
-    const send = vi.fn(async (_id: string, _input: { text: string }) => ({
-      projectId: "p1",
-      admitted: true as const,
-      submissionId: 1,
-    }));
-    const { api, processes } = makeApi({ store: { send } });
-    await api.send("1", { text: "!!wow", requestId: "r1" });
-    expect(send).toHaveBeenCalledTimes(1);
-    expect(send.mock.calls[0]?.[1]).toMatchObject({ text: "!wow" });
-    expect(processes.start).not.toHaveBeenCalled();
-  });
-
-  it("rejects a bare `!` before admission", async () => {
-    const send = vi.fn(async () => ({ projectId: "p1", admitted: true as const, submissionId: 1 }));
-    const { api, processes } = makeApi({ store: { send } });
-    await rejectsWithCode(api.send("1", { text: "!", requestId: "r1" }), "invalid_request");
-    expect(send).not.toHaveBeenCalled();
-    expect(processes.start).not.toHaveBeenCalled();
   });
 });
 
@@ -351,7 +239,10 @@ describe("stop reason threading", () => {
       home,
       emitChange: () => undefined,
       stopGraceMs: 300,
-      notifications: { notify: async (_id, notification) => void sent.push(notification) },
+      notifications: {
+        notify: async (_id, notification) => void sent.push(notification),
+        submitWrite: async () => undefined,
+      },
     });
     try {
       const info = await service.start({ conversationId: "c1", cwd, command: "sleep 30", name: "nap" });
@@ -370,7 +261,10 @@ describe("stop reason threading", () => {
       home,
       emitChange: () => undefined,
       stopGraceMs: 300,
-      notifications: { notify: async (_id, notification) => void sent.push(notification) },
+      notifications: {
+        notify: async (_id, notification) => void sent.push(notification),
+        submitWrite: async () => undefined,
+      },
     });
     try {
       await service.start({ conversationId: "c1", cwd, command: "echo hi", name: "greet" });
@@ -400,6 +294,7 @@ const userTexts = (view: ConversationView | null): string[] =>
     );
   });
 
+
 describe("bang admission in the conversation store", () => {
   const tempDir = useTempDir();
   let world: ConversationHarness;
@@ -414,35 +309,156 @@ describe("bang admission in the conversation store", () => {
 
   it("admits once per requestId", async () => {
     const { summary } = await world.store.start(startRequest(world, "hello", "start-1"));
-    const first = await world.store.send(
-      String(summary.id),
-      { text: "! echo hi", requestId: "bang-1" },
-      Date.now(),
-      "steer",
-    );
+    const first = await world.store.send(String(summary.id), { text: "hello again", requestId: "bang-1" }, Date.now(), "steer");
     expect(first).toMatchObject({ projectId: world.project.id, admitted: true });
-    const loser = await world.store.send(
-      String(summary.id),
-      { text: "! echo hi", requestId: "bang-1" },
-      Date.now(),
-      "steer",
-    );
+    const loser = await world.store.send(String(summary.id), { text: "hello again", requestId: "bang-1" }, Date.now(), "steer");
     expect(loser).toMatchObject({ projectId: world.project.id, admitted: false });
     expect(loser).not.toHaveProperty("titleText");
   });
 });
 
+const bangRows = (view: ConversationView | null) =>
+  (view?.entries ?? []).filter((entry) => entry.kind === "app.bang");
+const exitRows = (view: ConversationView | null) =>
+  (view?.entries ?? []).filter((entry) => entry.kind === "app.process_exit");
+const noticeRows = (view: ConversationView | null) =>
+  (view?.entries ?? []).filter((entry) => entry.kind === "app.notice");
+const assistantRows = (view: ConversationView | null) =>
+  (view?.entries ?? []).filter((entry) => entry.kind === "pi.assistant");
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+const runExec = promisify(execFile);
+
+async function runGit(command: string, cwd: string, args: readonly string[] = []) {
+  await runExec("git", [command, ...args], { cwd });
+  await runExec("git", ["config", "user.email", "tau@test"], { cwd }).catch(() => undefined);
+  await runExec("git", ["config", "user.name", "tau"], { cwd }).catch(() => undefined);
+}
+
+async function waitForAsync(condition: () => Promise<boolean>, what: string, timeoutMs = 20_000) {
+  const deadline = Date.now() + timeoutMs;
+  while (!(await condition())) {
+    if (Date.now() > deadline) throw new Error(`Timed out waiting for ${what}`);
+    await sleep(10);
+  }
+}
+
+const modelTextOf = (entry: { model?: unknown }): string => {
+  const content = (entry.model as Array<{ content?: unknown }> | undefined)?.[0]?.content;
+  if (typeof content === "string") return content;
+  if (!Array.isArray(content)) return "";
+  return content
+    .map((part) =>
+      typeof part === "object" && part !== null && (part as { type?: unknown }).type === "text"
+        ? String((part as { text?: unknown }).text ?? "")
+        : "",
+    )
+    .join("");
+};
+
 describe("bang commands on the real core", () => {
   const tempDir = useTempDir();
 
-  it("stores `! cmd` verbatim", async () => {
+  it("admits `! cmd` display-only: one execution, one output, never as model text", async () => {
+    const world = await openFauxWorld(await tempDir(), () => 1);
+    try {
+      const { conversation } = await setUpConversation(world, "hello");
+      const before = await trackView(world.core, conversation.id);
+      const answersBefore = assistantRows(before.view()).length;
+      await before.stop();
+      const tracker = await trackView(world.core, conversation.id);
+      await world.core.conversations.send(conversation.id, { text: "! echo hi", requestId: "bang-1" });
+      await waitUntil(() => exitRows(tracker.view()).length === 1, "the bang exit");
+      // Exactly one display row carrying the stripped command ...
+      expect(bangRows(tracker.view())).toHaveLength(1);
+      expect(bangRows(tracker.view())[0]?.data).toMatchObject({ command: "echo hi" });
+      // ... and the model learns it only from the exit, prefixed with the command and its origin ...
+      const [exit] = exitRows(tracker.view());
+      expect(exit?.data).toMatchObject({ command: "echo hi", exitCode: 0, origin: "bang" });
+      expect(modelTextOf(exit ?? {})).toMatch(/^You ran: echo hi\n/);
+      expect(modelTextOf(exit ?? {})).toContain("hi");
+      // ... never as `!` model text, and the exit starts no run when idle.
+      expect(userTexts(tracker.view()).some((text) => text.includes("! echo hi"))).toBe(false);
+      expect(userTexts(tracker.view()).some((text) => text.includes("!"))).toBe(false);
+      expect(assistantRows(tracker.view())).toHaveLength(answersBefore);
+      await tracker.stop();
+    } finally {
+      await world.core.close();
+    }
+  });
+
+  it("a new bang succeeds after the previous one exits", async () => {
     const world = await openFauxWorld(await tempDir(), () => 1);
     try {
       const { conversation } = await setUpConversation(world, "hello");
       const tracker = await trackView(world.core, conversation.id);
-      await world.core.conversations.send(conversation.id, { text: "! echo hi", requestId: "bang-1" });
-      await waitUntil(() => userTexts(tracker.view()).includes("! echo hi"), "the verbatim bang entry");
+      await world.core.conversations.send(conversation.id, { text: "! echo one", requestId: "bang-2a" });
+      await waitUntil(() => exitRows(tracker.view()).length === 1, "the first exit");
+      await world.core.conversations.send(conversation.id, { text: "! echo two", requestId: "bang-2b" });
+      await waitUntil(() => exitRows(tracker.view()).length === 2, "the second exit");
+      expect(bangRows(tracker.view())).toHaveLength(2);
       await tracker.stop();
+    } finally {
+      await world.core.close();
+    }
+  });
+
+  it("refuses a second bang while one runs: no row, then runs after the exit", async () => {
+    const world = await openFauxWorld(await tempDir(), () => 1);
+    try {
+      const { conversation } = await setUpConversation(world, "hello");
+      const tracker = await trackView(world.core, conversation.id);
+      await world.core.conversations.send(conversation.id, { text: "! sleep 30", requestId: "bang-3a" });
+      await waitForAsync(async () => (await world.core.processes.list(conversation.id)).length === 1, "the bang to run");
+      await rejectsWithCode(
+        world.core.conversations.send(conversation.id, { text: "! echo hi", requestId: "bang-3b" }),
+        "invalid_request",
+      );
+      expect(await world.core.processes.list(conversation.id)).toHaveLength(1);
+      expect(bangRows(tracker.view())).toHaveLength(1);
+      const [running] = await world.core.processes.list(conversation.id);
+      await world.core.processes.stop(running?.id ?? "");
+      await waitForAsync(async () => (await world.core.processes.list(conversation.id)).length === 0, "the stop");
+      await world.core.conversations.send(conversation.id, { text: "! echo hi", requestId: "bang-3c" });
+      await waitUntil(() => exitRows(tracker.view()).length === 1, "the exit");
+      await tracker.stop();
+    } finally {
+      await world.core.close();
+    }
+  });
+
+  it("a first-message `!` spawns instead of landing as model text", async () => {
+    const world = await openFauxWorld(await tempDir(), () => 1);
+    try {
+      const { project } = await setUpConversation(world, "hello");
+      const summary = await world.core.conversations.start({
+        projectId: project.id,
+        text: "! echo first",
+        requestId: "bang-first-1",
+      });
+      const tracker = await trackView(world.core, summary.id);
+      await waitUntil(() => exitRows(tracker.view()).length === 1, "the first-message exit");
+      expect(bangRows(tracker.view())).toHaveLength(1);
+      expect(bangRows(tracker.view())[0]?.data).toMatchObject({ command: "echo first" });
+      expect(userTexts(tracker.view()).some((text) => text.includes("! echo first"))).toBe(false);
+      await tracker.stop();
+    } finally {
+      await world.core.close();
+    }
+  });
+
+  it("skips the snapshot checkpoint on bang sends but keeps it for plain ones", async () => {
+    const world = await openFauxWorld(await tempDir(), () => 1);
+    try {
+      const { conversation, project } = await setUpConversation(world, "hello");
+      await runGit("init", project.path);
+      await world.core.conversations.send(conversation.id, { text: "plain hello", requestId: "cp-plain" });
+      await world.core.conversations.send(conversation.id, { text: "! echo hi", requestId: "cp-bang" });
+      const checkpoints = await world.core.conversations.checkpoints(conversation.id);
+      const before = checkpoints.filter((checkpoint) => checkpoint.kind === "before");
+      expect(before.some((checkpoint) => checkpoint.requestId === "cp-plain")).toBe(true);
+      expect(before.some((checkpoint) => checkpoint.requestId === "cp-bang")).toBe(false);
+      expect(checkpoints.some((checkpoint) => checkpoint.requestId === "cp-bang")).toBe(false);
     } finally {
       await world.core.close();
     }
@@ -480,6 +496,26 @@ describe("bang commands on the real core", () => {
     }
   });
 
+  it("rejects attachments on `!` instead of dropping them silently", async () => {
+    const world = await openFauxWorld(await tempDir(), () => 1);
+    try {
+      const { conversation } = await setUpConversation(world, "hello");
+      await rejectsWithCode(
+        world.core.conversations.send(conversation.id, {
+          text: "! echo hi",
+          files: [{ name: "n.txt", path: "uploads/n.txt", size: 1 }],
+          requestId: "bang-files",
+        }),
+        "invalid_request",
+      );
+      const tracker = await trackView(world.core, conversation.id);
+      expect(bangRows(tracker.view())).toHaveLength(0);
+      await tracker.stop();
+    } finally {
+      await world.core.close();
+    }
+  });
+
   it("rejects a bare `!`", async () => {
     const world = await openFauxWorld(await tempDir(), () => 1);
     try {
@@ -490,6 +526,187 @@ describe("bang commands on the real core", () => {
       );
     } finally {
       await world.core.close();
+    }
+  });
+});
+
+describe("bang restart recovery", () => {
+  const tempDir = useTempDir();
+
+  interface BangWorld {
+    readonly dir: string;
+    readonly harness: import("@earendil-works/pi-durable").Harness;
+    readonly store: import("./harness/conversation-store").ConversationStore;
+    readonly processes: import("./processes/process-service").ProcessService;
+    readonly notifications: import("./harness/notification-submitter").NotificationSubmitter;
+    readonly uploads: import("./upload-store").UploadStore;
+    close(): Promise<void>;
+  }
+
+  const FAUX_MODEL = { provider: "faux", modelId: "faux-1" };
+
+  async function openBangWorld(dir: string): Promise<BangWorld> {
+    const harness = await openAgentHarness({
+      storage: await openSqliteStorage(join(dir, "agent.sqlite")),
+      models: createFauxSetup().models,
+      registry: createAgentRegistry(),
+    });
+    const uploads = createUploadStore({ now: Date.now, root: join(dir, "uploads") });
+    const store = createConversationStore(harness, async () => dir, { uploads });
+    const notifications = harnessNotificationSubmitter(harness);
+    const processes = createProcessService({
+      home: dir,
+      notifications,
+      emitChange: () => undefined,
+      stopGraceMs: 300,
+    });
+    return {
+      dir,
+      harness,
+      store,
+      processes,
+      notifications,
+      uploads,
+      close: () => harness.close(BACKGROUND),
+    };
+  }
+
+  const bangDepsFor = (world: BangWorld) => ({
+    harness: world.harness,
+    threads: world.store,
+    uploads: world.uploads,
+    processes: world.processes,
+    notifications: world.notifications,
+    home: world.dir,
+    entryOf: (conversationId: string) => entryOfThread(world.harness, conversationId),
+  });
+
+  async function startIdleThread(world: BangWorld, requestId: string) {
+    const { summary } = await world.store.start({
+      project: {
+        id: "p1",
+        name: "main",
+        path: world.dir,
+        createdAt: 0,
+        kind: "folder",
+        status: "ready",
+        isGitRepo: false,
+      },
+      model: FAUX_MODEL,
+      thinkingLevel: "off",
+      input: { text: "hello", requestId },
+      workspace: legacyWorkspace(world.dir),
+      now: Date.now(),
+    });
+    const conversation = await world.harness.conversation(Number(summary.id) as never, BACKGROUND);
+    await conversation?.waitForIdle(BACKGROUND);
+    return summary;
+  }
+
+  async function transcriptOf(world: BangWorld, id: string) {
+    const conversation = await world.harness.conversation(Number(id) as never, BACKGROUND);
+    const { entries } = await conversation!.context(BACKGROUND);
+    return entries;
+  }
+
+  async function waitForAsync(condition: () => Promise<boolean>, what: string, timeoutMs = 30_000) {
+    const deadline = Date.now() + timeoutMs;
+    while (!(await condition())) {
+      if (Date.now() > deadline) throw new Error(`Timed out waiting for ${what}`);
+      await sleep(25);
+    }
+  }
+
+  it("a marked bang without an exit gets an interruption notice and never replays", async () => {
+    const dir = await tempDir();
+    const first = await openBangWorld(dir);
+    let threadId = "";
+    try {
+      const summary = await startIdleThread(first, "restart-1");
+      threadId = summary.id;
+      await admitAndDispatchBang(bangDepsFor(first), summary.id, { text: "! sleep 30", requestId: "restart-bang" }, Date.now());
+      await waitForAsync(async () => (await first.processes.list(summary.id)).length === 1, "the bang to run");
+    } finally {
+      await first.close();
+    }
+    // A fresh boot: the stale group is reaped, then the sweep owns the marker.
+    const second = await openBangWorld(dir);
+    try {
+      await second.processes.reapStaleAtStartup();
+      expect(await second.processes.list(threadId)).toEqual([]);
+      const result = await recoverBangs(bangDepsFor(second));
+      expect(result).toMatchObject({ redispatched: 0, interrupted: 1 });
+      // Never re-run: no process, still exactly one bang row, one interruption notice.
+      expect(await second.processes.list(threadId)).toEqual([]);
+      const entries = await transcriptOf(second, threadId);
+      expect(entries.filter((entry) => entry.kind === "app.bang")).toHaveLength(1);
+      const notices = entries.filter((entry) => entry.kind === "app.notice");
+      expect(notices.length).toBeGreaterThan(0);
+      expect(JSON.stringify(notices.at(-1)?.data)).toContain("was interrupted by a restart");
+    } finally {
+      await second.close();
+    }
+  });
+
+  it("a marked bang with an exit is silently dropped: completed-and-pruned never replays", async () => {
+    const dir = await tempDir();
+    const first = await openBangWorld(dir);
+    let threadId = "";
+    try {
+      const summary = await startIdleThread(first, "restart-2");
+      threadId = summary.id;
+      await admitAndDispatchBang(bangDepsFor(first), summary.id, { text: "! echo hi", requestId: "restart-done" }, Date.now());
+      await waitForAsync(
+        async () =>
+          (await first.processes.list(summary.id)).length === 0 &&
+          (await transcriptOf(first, summary.id)).some((entry) => entry.kind === "app.process_exit"),
+        "the bang to exit",
+      );
+    } finally {
+      await first.close();
+    }
+    const second = await openBangWorld(dir);
+    try {
+      await second.processes.reapStaleAtStartup();
+      const before = (await transcriptOf(second, threadId)).filter((entry) => entry.kind === "app.notice").length;
+      const result = await recoverBangs(bangDepsFor(second));
+      expect(result).toMatchObject({ redispatched: 0, interrupted: 0 });
+      expect(await second.processes.list(threadId)).toEqual([]);
+      const entries = await transcriptOf(second, threadId);
+      expect(entries.filter((entry) => entry.kind === "app.bang")).toHaveLength(1);
+      expect(entries.filter((entry) => entry.kind === "app.notice")).toHaveLength(before);
+    } finally {
+      await second.close();
+    }
+  });
+
+  it("an unmarked bang is dispatched exactly once, then owned by its marker", async () => {
+    const dir = await tempDir();
+    const world = await openBangWorld(dir);
+    try {
+      const summary = await startIdleThread(world, "restart-3");
+      // A crash between admission and the marker: the row exists, the marker does not.
+      const conversation = await world.harness.conversation(Number(summary.id) as never, BACKGROUND);
+      await conversation!.submit(
+        { type: "write", entry: { kind: "app.bang", data: { command: "echo direct" } }, requestId: "unmarked-1" },
+        BACKGROUND,
+      );
+      const first = await recoverBangs(bangDepsFor(world));
+      expect(first.redispatched).toBe(1);
+      await waitForAsync(
+        async () =>
+          (await world.processes.list(summary.id)).length === 0 &&
+          (await transcriptOf(world, summary.id)).some((entry) => entry.kind === "app.process_exit"),
+        "the re-dispatched bang to exit",
+      );
+      // Now marked with an exit: silent, no second spawn.
+      const second = await recoverBangs(bangDepsFor(world));
+      expect(second).toMatchObject({ redispatched: 0, interrupted: 0 });
+      const entries = await transcriptOf(world, summary.id);
+      expect(entries.filter((entry) => entry.kind === "app.bang")).toHaveLength(1);
+      expect(entries.filter((entry) => entry.kind === "app.process_exit")).toHaveLength(1);
+    } finally {
+      await world.close();
     }
   });
 });

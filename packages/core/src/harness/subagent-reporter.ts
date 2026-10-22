@@ -1,6 +1,7 @@
 import type { AssistantMessage } from "@earendil-works/pi-ai";
 import { AssistantEntry, type ConversationId, defineTask } from "@earendil-works/pi-durable";
 import type { SubagentNotificationData } from "@tau/protocol";
+import { withAdmissionGate } from "./conversation-submit";
 import { ConversationDoc } from "./conversation-docs";
 import { createNotificationSubmitter } from "./notification-submitter";
 import { subagentNotification } from "./subagent-notification";
@@ -22,12 +23,12 @@ export const Reporter = defineTask<ReporterInput, ReporterState, null>({
   phases: {
     deliver: async (reporter, runtime, taskContext) => {
       const { childId, message, followUp } = reporter.input;
-      const child = (await runtime.conversation(childId, taskContext))!;
       const request = { type: "input", content: message, whenBusy: followUp ? "followUp" : "steer" } as const;
-      const submission = await child.submit(
-        { ...request, requestId: `subagent:${reporter.id}` },
-        taskContext,
-      );
+      // Child submits go through the gate keyed by the target child conversation.
+      const submission = await withAdmissionGate(String(childId), async () => {
+        const child = (await runtime.conversation(childId, taskContext))!;
+        return child.submit({ ...request, requestId: `subagent:${reporter.id}` }, taskContext);
+      });
       const settled = await submission.wait(taskContext);
       await runtime.commit(async (tx) => {
         const next = async (notification?: SubagentNotificationData) => {

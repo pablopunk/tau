@@ -8,9 +8,11 @@ import {
   type ThinkingLevel,
   type ThreadWorkspace,
 } from "@tau/protocol";
+import { parseBangCommand, stripBangPrefix } from "../bang-command";
 import { readFromResolved, toUserInput } from "../conversation-input";
 import { titleFromFirstMessage } from "../conversation-title";
 import type { UploadStore } from "../upload-store";
+import { BANG_KIND } from "@tau/protocol";
 import type { ConnectorOffering } from "./connector-offering";
 import { ConversationDoc, INDEX_SEED, ProjectIndexDoc, pendingFirstInputOf } from "./conversation-docs";
 import {
@@ -21,7 +23,7 @@ import {
   toSummary,
   updateLiveConversation,
 } from "./conversation-index";
-import { submitOnce } from "./conversation-submit";
+import { rememberUserItem, submitOnce } from "./conversation-submit";
 import { BACKGROUND } from "./open";
 
 export type StartRequest = {
@@ -64,14 +66,38 @@ export function createConversationStarter(
     input: SendMessageInput,
     now: number | undefined,
   ): Promise<ConversationSummary> {
+    // A bare `!` never reaches here through the API (it rejects first); treat it as literal text defensively.
+    const bang = (() => {
+      try {
+        const parsed = parseBangCommand(input.text);
+        return parsed.kind === "command" ? parsed : undefined;
+      } catch {
+        return undefined;
+      }
+    })();
     // Revalidate staged refs at admission: a restart may have cut off the first message after expiry.
     const resolved = (await uploads?.resolveRefs(input.files ?? [])) ?? [];
-    await submitOnce(harness, conversation, {
-      type: "input",
-      content: toUserInput(input, readFromResolved(resolved)),
-      requestId: input.requestId,
-      whenBusy: "steer",
-    });
+    if (bang?.kind === "command") {
+      // A first-message `! cmd` is display-only like any other bang: it never reaches the model as text.
+      // The spawn happens in `conversations-api.startOnce` (or the boot sweep after a crash in between).
+      const receipt = await submitOnce(harness, conversation, {
+        type: "write",
+        entry: { kind: BANG_KIND, data: { command: bang.command } },
+        requestId: input.requestId,
+      });
+      if (receipt.admitted)
+        rememberUserItem(input.requestId, receipt.submissionId, {
+          text: input.text,
+          files: [...(input.files ?? [])],
+        });
+    } else {
+      await submitOnce(harness, conversation, {
+        type: "input",
+        content: toUserInput(input, readFromResolved(resolved)),
+        requestId: input.requestId,
+        whenBusy: "steer",
+      });
+    }
     await updateLiveConversation(harness, conversation.id, project.id, (meta, entry) => {
       delete meta.pendingFirstInput;
       delete entry.pendingStart;
@@ -104,7 +130,7 @@ export function createConversationStarter(
             (entry) => entry.startRequestId === input.requestId && isLive(entry),
           );
           if (existing) throw new ExistingStart(existing.conversationId);
-          const title = titleFromFirstMessage(input.text, input.files);
+          const title = titleFromFirstMessage(stripBangPrefix(input.text), input.files);
           const meta = await tx.doc(ConversationDoc, conversationId);
           meta.projectId = project.id;
           meta.title = title;
