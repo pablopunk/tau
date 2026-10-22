@@ -36,6 +36,7 @@ import {
   SendNowInputSchema,
   SendNowResultSchema,
   SendReceiptSchema,
+  SetQueuedModeResultSchema,
   SettingsSchema,
   SkillSchema,
   StartConversationInputSchema,
@@ -47,6 +48,7 @@ import {
   UseGithubRepoInputSchema,
   VoiceModelSettingSchema,
   VoiceOptionsSchema,
+  WhenBusySchema,
   WorkspaceDefaultSchema,
 } from "./entities";
 import { ICON_BODY_LIMIT } from "./icons";
@@ -727,6 +729,14 @@ export const routes = {
     status: 200,
     params: QueueItemParams,
     response: CancelQueuedResultSchema,
+  },
+  setQueuedMode: {
+    method: "PATCH",
+    path: `${API_PREFIX}/conversations/:id/queue/:itemId`,
+    status: 200,
+    params: QueueItemParams,
+    body: Type.Object({ mode: WhenBusySchema }),
+    response: SetQueuedModeResultSchema,
   },
   listCheckpoints: {
     method: "GET",

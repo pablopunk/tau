@@ -5,14 +5,18 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NodeApiProvider } from "@/nodes/node-context";
 import { QueuedMessages } from "./QueuedMessages";
 
-const mocks = vi.hoisted(() => ({ send: vi.fn(), sendNow: vi.fn(), cancelQueued: vi.fn() }));
+const mocks = vi.hoisted(() => ({
+  sendNow: vi.fn(),
+  cancelQueued: vi.fn(),
+  setQueuedMode: vi.fn(),
+}));
 
 vi.mock("@/lib/api", () => ({
   api: {
     conversations: {
-      send: mocks.send,
       sendNow: mocks.sendNow,
       cancelQueued: mocks.cancelQueued,
+      setQueuedMode: mocks.setQueuedMode,
       listAll: async () => [],
     },
   },
@@ -47,14 +51,38 @@ function renderInbox() {
 }
 
 describe("<QueuedMessages>", () => {
-  it("splits the inbox into Up next and Will steer", () => {
+  it("splits the inbox into Up next and Will steer within one animated list", () => {
     renderInbox();
     expect(screen.getByRole("heading", { name: "Up next" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Will steer" })).toBeInTheDocument();
-    const upNext = screen.getByRole("region", { name: "Up next" });
-    expect(upNext).toHaveTextContent("first");
-    expect(upNext).toHaveTextContent("notification");
-    expect(screen.getByRole("region", { name: "Will steer" })).toHaveTextContent("nudge");
+    const list = screen.getByRole("list", { name: "Queued messages" });
+    // Follow-ups (user + notification) render under Up next, steers under Will steer, in order.
+    expect(list.textContent).toMatch(/Up next.*first.*notification.*Will steer.*nudge/s);
+  });
+
+  it("moves a mode-switched row across sections through one in-place RPC", async () => {
+    mocks.setQueuedMode.mockResolvedValue({ switched: true });
+    const view = render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <NodeApiProvider>
+          <QueuedMessages conversationId="c1" items={[user(1, "followUp", "first")]} />
+        </NodeApiProvider>
+      </QueryClientProvider>,
+    );
+    const [steer] = screen.getAllByRole("button", { name: "Steer" });
+    await userEvent.click(steer as HTMLElement);
+    expect(mocks.setQueuedMode).toHaveBeenCalledWith("c1", "1", "steer");
+    // The server flips the mode under the same id: the row re-renders under Will steer.
+    view.rerender(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <NodeApiProvider>
+          <QueuedMessages conversationId="c1" items={[user(1, "steer", "first")]} />
+        </NodeApiProvider>
+      </QueryClientProvider>,
+    );
+    const list = screen.getByRole("list", { name: "Queued messages" });
+    expect(list.textContent).toMatch(/Will steer.*first/s);
+    expect(screen.queryByRole("heading", { name: "Up next" })).not.toBeInTheDocument();
   });
 
   it("gives notification rows no action buttons", () => {

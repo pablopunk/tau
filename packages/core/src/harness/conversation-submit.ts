@@ -7,7 +7,14 @@ import type {
   UserInput,
 } from "@earendil-works/pi-durable";
 import { InboxDoc } from "@earendil-works/pi-durable";
-import { AppError, type CancelQueuedResult, type SendReceipt, type UserItemSnapshot } from "@tau/protocol";
+import {
+  AppError,
+  type CancelQueuedResult,
+  type SendReceipt,
+  type SetQueuedModeResult,
+  type UserItemSnapshot,
+  type WhenBusy,
+} from "@tau/protocol";
 import { isBusy } from "./live-state";
 import { BACKGROUND } from "./open";
 
@@ -259,6 +266,38 @@ export async function abortAndRestore(
     }
     return { restored };
   });
+}
+
+export async function setQueuedMode(
+  harness: Harness,
+  conversation: Conversation,
+  itemId: string,
+  mode: WhenBusy,
+): Promise<SetQueuedModeResult> {
+  const queued = await snapshotQueued(harness, conversation.id);
+  const item = queued.find((candidate) => String(candidate.id) === itemId);
+  // A notification id never switches mode: the composer could not restore it and the queue would lose it.
+  if (item && !isUserItem(item)) throw new AppError("invalid_request", "Only user messages can be switched.");
+  if (!item) {
+    // Scoped by conversation: a foreign item id reports `not_found`, while an item this thread
+    // already delivered reports `switched: false` so the client can toast "too late" instead.
+    const submission = await harness.submission(Number(itemId) as never, BACKGROUND).catch(() => undefined);
+    const record = await submission?.status(BACKGROUND).catch(() => undefined);
+    if (record && record.conversationId === conversation.id) return { switched: false };
+    throw new AppError("not_found", `No queued item ${itemId}.`);
+  }
+  if (item.mode === mode) return { switched: true };
+  // In-place mutation: the boundary reads `mode` lazily, so no abort or re-admission is needed and
+  // the item keeps its submission id (and inbox position). Atomic with boundary commits either way.
+  await harness.commit(async (tx) => {
+    const inbox = await tx.doc(InboxDoc, conversation.id);
+    const target = inbox.items.find((candidate) => candidate.id === (Number(itemId) as never));
+    if (!target) throw new AppError("not_found", `No queued item ${itemId}.`);
+    if (target.mode !== "steer" && target.mode !== "followUp")
+      throw new AppError("invalid_request", "Only user messages can be switched.");
+    target.mode = mode;
+  }, BACKGROUND);
+  return { switched: true };
 }
 
 export async function cancelQueued(

@@ -34,6 +34,7 @@ import type {
   SendMessageInput,
   SendNowResult,
   SendReceipt,
+  SetQueuedModeResult,
   Settings,
   Skill,
   StartConversationInput,
@@ -45,6 +46,7 @@ import type {
   UseGithubRepoInput,
   VoiceModelSetting,
   VoiceOptions,
+  WhenBusy,
   WorkspaceDefault,
 } from "./entities";
 import type {
@@ -92,6 +94,7 @@ export type {
   SendNowInput,
   SendNowResult,
   SendReceipt,
+  SetQueuedModeResult,
   Settings,
   Skill,
   StartConversationInput,
@@ -103,6 +106,7 @@ export type {
   UserItemSnapshot,
   VoiceModelSetting,
   VoiceOptions,
+  WhenBusy,
   WorkspaceDefault,
   WorkspaceMode,
 } from "./entities";
@@ -327,6 +331,13 @@ export interface Core {
     rewind(id: string, entryId: string): Promise<{ conversation: ConversationSummary; draft: string }>;
     /** `{ cancelled: false, restored: [] }` when the queued item was already delivered. Rejects `not_found`, and `invalid_request` for a notification item or another thread's item. */
     cancelQueued(id: string, itemId: string): Promise<CancelQueuedResult>;
+    /**
+     * Switches one queued user item between steer and followUp in place: the item keeps its id
+     * (and its inbox position), so the row updates without unmounting. `{ switched: false }` when
+     * the item was already delivered. Rejects `not_found`, and `invalid_request` for a
+     * notification item or another thread's item.
+     */
+    setQueuedMode(id: string, itemId: string, mode: WhenBusy): Promise<SetQueuedModeResult>;
     /**
      * Atomically delivers one queued user item now: snapshots the queued user items, aborts the run, then
      * re-admits the chosen item ahead of every other surviving item. The other user items return to the

@@ -1,7 +1,14 @@
 import { type ConversationView, type InboxState, readLive } from "@tau/protocol";
 import { afterEach, beforeEach, describe, expect } from "vitest";
 import type { CaseRunner } from "./case-runner";
-import { nextRequestId, rejectsWithCode, startConversation, trackView, waitFor } from "./helpers";
+import {
+  nextRequestId,
+  rejectsWithCode,
+  startConversation,
+  trackView,
+  waitFor,
+  waitForFast,
+} from "./helpers";
 import type { ContractTarget, MakeContractTarget } from "./types";
 
 const inboxOf = (view: ConversationView | null) =>
@@ -184,6 +191,94 @@ export function queueCases(make: MakeContractTarget, test: CaseRunner): void {
       expect(result.restored[0]?.files).toMatchObject([{ name: "notes.txt", path: ref.path }]);
       await tracker.stop();
       await core.conversations.abort(conversation.id);
+    });
+
+    test("[queue] [mode-switch] switches a queued item between steer and queue in place", async () => {
+      const { core } = target;
+      const { conversation, tracker } = await busyThread();
+      await core.conversations.send(conversation.id, {
+        text: "later",
+        requestId: nextRequestId(),
+        whenBusy: "followUp",
+      });
+      // Tight poll throughout: the fake core's busy window is milliseconds, so a 10ms
+      // sleep between polls could let the run drain the queue before an observation lands.
+      await waitForFast(() => inboxOf(tracker.view()).length === 1, "the queued message");
+      const before = inboxOf(tracker.view())[0];
+      const itemId = String(before?.id);
+      expect(await core.conversations.setQueuedMode(conversation.id, itemId, "steer")).toEqual({
+        switched: true,
+      });
+      await waitForFast(() => inboxOf(tracker.view())[0]?.mode === "steer", "the mode to switch");
+      // The switch is in place: the submission id (and inbox position) is preserved.
+      expect(inboxOf(tracker.view())).toHaveLength(1);
+      expect(inboxOf(tracker.view())[0]?.id).toBe(before?.id);
+      expect(await core.conversations.setQueuedMode(conversation.id, itemId, "followUp")).toEqual({
+        switched: true,
+      });
+      await waitForFast(() => inboxOf(tracker.view())[0]?.mode === "followUp", "the mode to switch back");
+      expect(inboxOf(tracker.view())[0]?.id).toBe(before?.id);
+      // Already in the desired mode: converged, still switched.
+      expect(await core.conversations.setQueuedMode(conversation.id, itemId, "followUp")).toEqual({
+        switched: true,
+      });
+      await tracker.stop();
+      await core.conversations.abort(conversation.id);
+    });
+
+    test("[queue] [mode-switch] reports switched false once the item delivered", async () => {
+      const { core } = target;
+      const { conversation, tracker } = await busyThread();
+      await core.conversations.send(conversation.id, {
+        text: "later",
+        requestId: nextRequestId(),
+        whenBusy: "followUp",
+      });
+      const [itemId] = await queuedIds(tracker);
+      await core.conversations.abort(conversation.id);
+      await waitFor(() => inboxOf(tracker.view()).length === 0, "the queue to drain");
+      expect(await core.conversations.setQueuedMode(conversation.id, itemId as string, "steer")).toEqual({
+        switched: false,
+      });
+      await tracker.stop();
+    });
+
+    test("[queue] [mode-switch] rejects unknown, notification and foreign items", async () => {
+      const { core } = target;
+      const { conversation, tracker } = await busyThread();
+      await core.conversations.send(conversation.id, {
+        text: "later",
+        requestId: nextRequestId(),
+        whenBusy: "followUp",
+      });
+      await core.conversations.updateTodos(conversation.id, {
+        requestId: nextRequestId(),
+        todos: [{ content: "a todo", status: "pending" as const }],
+      });
+      await waitFor(() => inboxOf(tracker.view()).length === 2, "the notification to queue");
+      const notificationId = String(
+        inboxOf(tracker.view()).find((item) => queuedText(item).includes("todos"))?.id,
+      );
+      await rejectsWithCode(
+        core.conversations.setQueuedMode(conversation.id, "999999", "steer"),
+        "not_found",
+      );
+      await rejectsWithCode(
+        core.conversations.setQueuedMode(conversation.id, notificationId, "steer"),
+        "invalid_request",
+      );
+      const other = await startConversation(target, {
+        text: "bash sleep 30",
+        projectId: conversation.projectId,
+      });
+      const [itemId] = await queuedIds(tracker);
+      await rejectsWithCode(
+        core.conversations.setQueuedMode(other.conversation.id, itemId as string, "steer"),
+        "not_found",
+      );
+      await tracker.stop();
+      await core.conversations.abort(conversation.id);
+      await core.conversations.abort(other.conversation.id);
     });
 
     test("[queue] [cancel-validation] cancel rejects notification items and foreign items", async () => {

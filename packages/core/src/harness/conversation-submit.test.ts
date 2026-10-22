@@ -17,7 +17,13 @@ import type { UploadStore } from "../upload-store";
 import { createUploadStore } from "../upload-store";
 import { legacyWorkspace } from "./conversation-index";
 import { type ConversationStore, createConversationStore } from "./conversation-store";
-import { cancelQueued, snapshotQueued, snapshotUserItem, withAdmissionGate } from "./conversation-submit";
+import {
+  cancelQueued,
+  setQueuedMode,
+  snapshotQueued,
+  snapshotUserItem,
+  withAdmissionGate,
+} from "./conversation-submit";
 import { createNotificationSubmitter } from "./notification-submitter";
 import { BACKGROUND, openAgentHarness, openSqliteStorage } from "./open";
 import { createAgentRegistry } from "./registry";
@@ -223,6 +229,86 @@ describe("cancelQueued", () => {
     const { conversation } = await viewOf(second);
     await rejectsWithCode(cancelQueued(harness, conversation as never, second, itemId), "not_found");
     expect(await inboxOf(first)).toHaveLength(1);
+  });
+});
+
+describe("setQueuedMode", () => {
+  it("switches a queued item in place, preserving its id", async () => {
+    const id = await startBusyThread();
+    await send(id, "later", "followUp", "switch-me");
+    const itemId = String((await inboxOf(id))[0]?.id);
+    const { conversation } = await viewOf(id);
+    expect(await setQueuedMode(harness, conversation as never, itemId, "steer")).toEqual({
+      switched: true,
+    });
+    const items = await inboxOf(id);
+    expect(items).toHaveLength(1);
+    expect(String(items[0]?.id)).toBe(itemId);
+    expect(items[0]?.mode).toBe("steer");
+    expect(await setQueuedMode(harness, conversation as never, itemId, "followUp")).toEqual({
+      switched: true,
+    });
+    expect((await inboxOf(id))[0]?.mode).toBe("followUp");
+    await store.abort(id);
+  });
+
+  it("answers switched true when already in the desired mode", async () => {
+    const id = await startBusyThread();
+    await send(id, "later", "followUp", "switch-same");
+    const itemId = String((await inboxOf(id))[0]?.id);
+    const { conversation } = await viewOf(id);
+    expect(await setQueuedMode(harness, conversation as never, itemId, "followUp")).toEqual({
+      switched: true,
+    });
+    expect((await inboxOf(id))[0]?.mode).toBe("followUp");
+    await store.abort(id);
+  });
+
+  it("answers switched false for an item already delivered", async () => {
+    const id = await startBusyThread();
+    await send(id, "later", "followUp", "switch-delivered");
+    const itemId = String((await inboxOf(id))[0]?.id);
+    await userEntryKinds(id);
+    const { conversation } = await viewOf(id);
+    expect(await setQueuedMode(harness, conversation as never, itemId, "steer")).toEqual({
+      switched: false,
+    });
+  });
+
+  it("rejects unknown ids with not_found", async () => {
+    const id = await startBusyThread();
+    const { conversation } = await viewOf(id);
+    await rejectsWithCode(setQueuedMode(harness, conversation as never, "999999", "steer"), "not_found");
+    await store.abort(id);
+  });
+
+  it("rejects notification items with invalid_request and keeps them queued", async () => {
+    const id = await startBusyThread();
+    await send(id, "later", "followUp", "switch-user");
+    await notifyTodos(id, [{ content: "a todo", status: "pending" }], "switch-notice");
+    await waitForAsync(async () => (await inboxOf(id)).length === 2, "both items to queue");
+    const notificationId = String(
+      (await inboxOf(id)).find((item) => (item.entry?.kind ?? "pi.user") !== "pi.user")?.id,
+    );
+    const { conversation } = await viewOf(id);
+    await rejectsWithCode(
+      setQueuedMode(harness, conversation as never, notificationId, "steer"),
+      "invalid_request",
+    );
+    expect(await inboxOf(id)).toHaveLength(2);
+    await store.abort(id);
+  });
+
+  it("rejects a foreign thread's item with not_found", async () => {
+    const first = await startBusyThread("bash sleep 30");
+    const second = await startBusyThread("bash sleep 30");
+    await send(first, "later", "followUp", "switch-foreign");
+    const itemId = String((await inboxOf(first))[0]?.id);
+    const { conversation } = await viewOf(second);
+    await rejectsWithCode(setQueuedMode(harness, conversation as never, itemId, "steer"), "not_found");
+    expect(await inboxOf(first)).toHaveLength(1);
+    await store.abort(first).catch(() => undefined);
+    await store.abort(second).catch(() => undefined);
   });
 });
 

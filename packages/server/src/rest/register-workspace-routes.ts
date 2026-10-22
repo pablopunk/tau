@@ -16,6 +16,9 @@ function registerThreadRoutes(app: FastifyInstance, core: Core): void {
   );
   defineRoute(app, routes.stopAgent, ({ params }) => conversations.stopAgent(params.id));
   defineRoute(app, routes.cancelQueued, ({ params }) => conversations.cancelQueued(params.id, params.itemId));
+  defineRoute(app, routes.setQueuedMode, ({ params, body }) =>
+    conversations.setQueuedMode(params.id, params.itemId, body.mode),
+  );
   defineRoute(app, routes.listCheckpoints, ({ params }) => conversations.checkpoints(params.id));
   defineRoute(app, routes.getCheckpointDiff, async ({ params, query }) => ({
     diff: await conversations.checkpointDiff(params.id, params.cid, query.path),

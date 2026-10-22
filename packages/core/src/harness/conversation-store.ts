@@ -16,6 +16,7 @@ import {
   type RetryInput,
   type SendMessageInput,
   type SendNowResult,
+  type SetQueuedModeResult,
   type ThinkingLevel,
   type ThreadWorkspace,
   type WhenBusy,
@@ -52,6 +53,7 @@ import {
   mintServerRequestId,
   type QueuedSnapshot,
   rememberUserItem,
+  setQueuedMode,
   snapshotQueued,
   snapshotUserItem,
   submitOnce,
@@ -124,6 +126,12 @@ export interface ConversationStore
    * notification items.
    */
   cancelQueued(id: string, itemId: string): Promise<CancelQueuedResult>;
+  /**
+   * Switches one queued user item between steer and followUp in place: the id (and inbox
+   * position) is preserved. `{ switched: false }` once it was delivered. Rejects `not_found`
+   * for unknown or foreign items, `invalid_request` for notification items.
+   */
+  setQueuedMode(id: string, itemId: string, mode: WhenBusy): Promise<SetQueuedModeResult>;
   /**
    * Atomically delivers one queued user item now: snapshots the queued user
    * items, aborts, then re-admits the chosen item ahead of every other
@@ -250,6 +258,11 @@ export function createConversationStore(
     async cancelQueued(id, itemId) {
       const { conversation, id: conversationId } = await known(id);
       return cancelQueued(harness, conversation, String(conversationId), itemId);
+    },
+
+    async setQueuedMode(id, itemId, mode) {
+      const { conversation } = await known(id);
+      return setQueuedMode(harness, conversation, itemId, mode);
     },
 
     async sendNow(id, itemId, hooks) {

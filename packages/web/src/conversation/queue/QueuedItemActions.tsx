@@ -8,7 +8,6 @@ import { scopeTarget } from "@/lib/node-keys";
 import { markAction, markConfirm, markLiveReflect } from "@/lib/timings";
 import { useApi, useNodeId } from "@/nodes/node-context";
 import { restoreSnapshotsToComposer, restoreToComposer } from "../composer/restore";
-import { newRequestId } from "../use-conversation-actions";
 import { isUserItem, STEER_COPY } from "./queued-mode";
 
 const DELIVERED_NOTICE = "Too late to change: the agent already received that message.";
@@ -20,10 +19,10 @@ const DELIVERED_NOTICE = "Too late to change: the agent already received that me
  * ordering lives server-side (abort/withdraw/re-admit may not honor a faked
  * order).
  *
- * Mode switch (Steer/Queue) is cancel + re-send with the other `whenBusy`:
- * the cancel snapshot carries FileRefs the row alone lacks, so content comes
- * from the cancel response with row-content fallback. A failed re-send puts
- * the cancelled content back in the composer so nothing is lost.
+ * Mode switch (Steer/Queue) is one in-place `setQueuedMode` RPC: the server
+ * flips the inbox item's mode under its own id, so the row updates without
+ * unmounting (no cancel + re-send, no new submission, no reorder). Nothing
+ * is withdrawn, so a failure loses nothing and restores nothing.
  *
  * One busy flag disables every queued-item button while any action is in
  * flight: no double-click double-admit (F3). Unselected user items come back
@@ -93,31 +92,12 @@ export function QueuedItemActions({
     if (item.mode === mode) return;
     return run(async (rpc) => {
       const token = markAction("queue-mode-change");
-      const target = scopeTarget(conversationId, nodeId);
-      const cancelled = await rpc.cancelQueued(conversationId, String(item.id));
-      if (!cancelled.cancelled) {
+      const result = await rpc.setQueuedMode(conversationId, String(item.id), mode);
+      if (!result.switched) {
         toast.info(DELIVERED_NOTICE);
         return;
       }
-      const snapshot = cancelled.restored[0];
-      const text = snapshot ? snapshot.text : item.text;
-      const files = snapshot ? [...snapshot.files] : [];
-      const images = item.images.map(toImageInput);
-      try {
-        const receipt = await rpc.send(conversationId, {
-          text,
-          ...(images.length > 0 && { images }),
-          ...(files.length > 0 && { files }),
-          whenBusy: mode,
-          requestId: newRequestId(),
-        });
-        markConfirm(token, receipt, "queue-mode-change");
-      } catch (error) {
-        // Cancel already withdrew the row: don't lose it, put it back in the composer.
-        if (snapshot) restoreSnapshotsToComposer(target, [snapshot]);
-        else restoreToComposer(target, { text: item.text, images });
-        throw error;
-      }
+      markConfirm(token, {}, "queue-mode-change");
       markLiveReflect("queue-mode-change", {}, token);
     });
   };

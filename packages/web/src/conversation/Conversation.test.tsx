@@ -229,13 +229,13 @@ describe("<Conversation> errors, retries and the inbox", () => {
       JSON.stringify(view.docs["pi.inbox"]).includes("steered.txt"),
     );
     const { unmount } = renderView(queued);
-    const section = screen.getByRole("region", { name: "Will steer" });
-    const list = within(section).getByRole("list", { name: "Will steer messages" });
+    const section = screen.getByRole("region", { name: "Queued messages" });
+    const list = within(section).getByRole("list", { name: "Queued messages" });
     expect(within(list).getByText("write steered.txt steered")).toBeInTheDocument();
+    expect(within(list).getByRole("heading", { name: "Will steer" })).toBeInTheDocument();
     unmount();
     renderView(endOf("steer"));
-    expect(screen.queryByRole("region", { name: "Will steer" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("region", { name: "Up next" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Queued messages" })).not.toBeInTheDocument();
     expect(screen.getByText("write steered.txt steered")).toBeInTheDocument();
   });
 

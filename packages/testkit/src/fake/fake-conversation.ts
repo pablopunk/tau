@@ -20,6 +20,7 @@ import {
   RETIRED_OPS,
   type SendNowResult,
   type SendReceipt,
+  type SetQueuedModeResult,
   type ThinkingLevel,
   type ThreadWorkspace,
   TODOS_UPDATED_KIND,
@@ -359,6 +360,28 @@ export class FakeConversation {
     return this.queued.some((item) => String(item.id) === itemId);
   }
 
+  /**
+   * In-place mode switch: the item keeps its id (and inbox position), so the row updates
+   * without unmounting. `{ switched: false }` once the item already delivered.
+   */
+  setQueuedMode(itemId: string, mode: WhenBusy): SetQueuedModeResult {
+    const item = this.queued.find((candidate) => String(candidate.id) === itemId);
+    if (item && !isUserItem(item))
+      throw new AppError("invalid_request", "Only user messages can be switched.");
+    if (!item) {
+      const delivered = [...this.receipts.values()].some(
+        (receipt) => String(receipt.submissionId) === itemId,
+      );
+      if (delivered) return { switched: false };
+      throw new AppError("not_found", `Unknown queued item: ${itemId}`);
+    }
+    if (item.mode === mode) return { switched: true };
+    const index = this.queued.indexOf(item);
+    this.queued.splice(index, 1, { ...item, mode });
+    this.publishQueue();
+    return { switched: true };
+  }
+
   cancelQueued(itemId: string): CancelQueuedResult {
     const index = this.queued.findIndex((item) => String(item.id) === itemId);
     if (index < 0) return { cancelled: false, restored: [] };
@@ -524,6 +547,19 @@ export class FakeConversation {
 
   private publish(next: ConversationView): void {
     const withQueue = withInbox(next, [...inboxOf(next), ...this.queuedInbox()]);
+    const ops = diffViews(this.view, withQueue);
+    if (ops.length === 0) return;
+    this.view = withQueue;
+    for (const watcher of this.watchers) this.deliver(watcher, ops);
+  }
+
+  /**
+   * Exact inbox re-publish for the in-place mode switch: the row must read
+   * under its new mode at once, not converge through later fixture frames
+   * (admit/cancel keep the append form, which heals the same way).
+   */
+  private publishQueue(): void {
+    const withQueue = withInbox(this.view, this.queuedInbox());
     const ops = diffViews(this.view, withQueue);
     if (ops.length === 0) return;
     this.view = withQueue;

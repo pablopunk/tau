@@ -481,6 +481,11 @@ export const SendNowResultSchema = Type.Object({
 });
 export type SendNowResult = Type.Static<typeof SendNowResultSchema>;
 
+export const SetQueuedModeResultSchema = Type.Object({
+  switched: Type.Boolean(),
+});
+export type SetQueuedModeResult = Type.Static<typeof SetQueuedModeResultSchema>;
+
 export const GithubStatusSchema = Type.Union([
   Type.Object({
     state: Type.Literal("connected"),

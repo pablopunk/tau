@@ -10,6 +10,7 @@ type Mvp5Methods =
   | "rewindPreview"
   | "rewind"
   | "cancelQueued"
+  | "setQueuedMode"
   | "checkpoints"
   | "checkpointDiff";
 
@@ -27,6 +28,7 @@ export function createConversationsMvp5Api(deps: {
     rewindPreview: (id, entryId) => checkpoints.preview(id, entryId),
     rewind: (id, entryId) => checkpoints.rewind(id, entryId),
     cancelQueued: (id, itemId) => conversations.cancelQueued(id, itemId),
+    setQueuedMode: (id, itemId, mode) => conversations.setQueuedMode(id, itemId, mode),
     checkpoints: (id) => checkpoints.list(id),
     checkpointDiff: (id, checkpointId, path) => checkpoints.diff(id, checkpointId, path),
   };

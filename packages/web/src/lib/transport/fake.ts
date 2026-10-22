@@ -120,6 +120,8 @@ const handlers: Handlers = {
   rewindConversation: (core, { params, body }) =>
     core.conversations.rewind(params.id, body.entryId as string),
   cancelQueued: (core, { params }) => core.conversations.cancelQueued(params.id, params.itemId),
+  setQueuedMode: (core, { params, body }) =>
+    core.conversations.setQueuedMode(params.id, params.itemId, body.mode as never),
   listCheckpoints: (core, { params }) => core.conversations.checkpoints(params.id),
   getCheckpointDiff: async (core, { params, query }) => ({
     diff: await core.conversations.checkpointDiff(params.id, params.cid, query.path),

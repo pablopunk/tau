@@ -443,6 +443,13 @@ export const commands: readonly CommandDef[] = [
     destructive: false,
   },
   {
+    command: "threads set-queued-mode",
+    route: "setQueuedMode",
+    summary: "Switch a queued message between steer and queue",
+    positionals: ["params.id", "params.itemId", "body.mode"],
+    destructive: false,
+  },
+  {
     command: "workspaces get",
     route: "getWorkspace",
     summary: "Show the workspace state of a thread",

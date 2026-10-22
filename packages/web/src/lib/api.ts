@@ -48,6 +48,7 @@ import type {
   SendMessageInput,
   SendNowResult,
   SendReceipt,
+  SetQueuedModeResult,
   Settings,
   Skill,
   StartConversationInput,
@@ -63,6 +64,7 @@ import type {
   UseGithubRepoInput,
   VoiceModelSetting,
   VoiceOptions,
+  WhenBusy,
   WorkspaceDefault,
   WorkspaceStatus,
 } from "@tau/protocol";
@@ -185,6 +187,7 @@ export interface Api {
     stopAgent(id: string): Promise<void>;
     cancelQueued(id: string, itemId: string): Promise<CancelQueuedResult>;
     sendNow(id: string, itemId: string): Promise<SendNowResult>;
+    setQueuedMode(id: string, itemId: string, mode: WhenBusy): Promise<SetQueuedModeResult>;
     checkpoints(id: string): Promise<Checkpoint[]>;
     checkpointDiff(id: string, checkpointId: string, path: string): Promise<string>;
     configure(id: string, input: ConfigureConversationInput): Promise<void>;
@@ -408,6 +411,8 @@ export function createApi(transport: Transport): Api {
       stopAgent: (id) => request("stopAgent", { params: { id } }),
       cancelQueued: (id, itemId) => request("cancelQueued", { params: { id, itemId } }),
       sendNow: (id, itemId) => request("sendNow", { params: { id }, body: { itemId } }),
+      setQueuedMode: (id, itemId, mode) =>
+        request("setQueuedMode", { params: { id, itemId }, body: { mode } }),
       checkpoints: (id) => request("listCheckpoints", { params: { id } }),
       checkpointDiff: async (id, cid, path) =>
         (await request("getCheckpointDiff", { params: { id, cid }, query: { path } })).diff,

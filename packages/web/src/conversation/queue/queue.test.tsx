@@ -11,9 +11,9 @@ import { BusyModeHint } from "./BusyModeHint";
 import { QueuedItemActions } from "./QueuedItemActions";
 
 const mocks = vi.hoisted(() => ({
-  send: vi.fn(),
   sendNow: vi.fn(),
   cancelQueued: vi.fn(),
+  setQueuedMode: vi.fn(),
   abort: vi.fn(),
   messageMode: "steer",
 }));
@@ -22,9 +22,9 @@ vi.mock("sonner", () => ({ toast: { info: vi.fn(), error: vi.fn() } }));
 vi.mock("@/lib/api", () => ({
   api: {
     conversations: {
-      send: mocks.send,
       sendNow: mocks.sendNow,
       cancelQueued: mocks.cancelQueued,
+      setQueuedMode: mocks.setQueuedMode,
       abort: mocks.abort,
     },
     settings: { get: async () => ({ messageMode: mocks.messageMode }) },
@@ -104,39 +104,32 @@ describe("<QueuedItemActions>", () => {
     await vi.waitFor(() => expect(onBusyChange).toHaveBeenCalledWith(false));
   });
 
-  it("moves a queued row to steer with cancel + re-send", async () => {
-    mocks.cancelQueued.mockResolvedValue({
-      cancelled: true,
-      restored: [{ text: "later", files: [] }],
-    });
-    mocks.send.mockResolvedValue({ submissionId: 9 });
+  it("switches a queued row to steer in place with one RPC", async () => {
+    mocks.setQueuedMode.mockResolvedValue({ switched: true });
     renderActions();
     await userEvent.click(screen.getByRole("button", { name: "Steer" }));
-    expect(mocks.cancelQueued).toHaveBeenCalledWith("c1", "7");
-    expect(mocks.send).toHaveBeenCalledTimes(1);
-    const [, input] = mocks.send.mock.calls[0] as [string, { whenBusy: string; text: string }];
-    expect(input.whenBusy).toBe("steer");
-    expect(input.text).toBe("later");
+    expect(mocks.setQueuedMode).toHaveBeenCalledTimes(1);
+    expect(mocks.setQueuedMode).toHaveBeenCalledWith("c1", "7", "steer");
+    // No withdraw + re-send: nothing is cancelled and nothing is re-admitted.
+    expect(mocks.cancelQueued).not.toHaveBeenCalled();
   });
 
-  it("moves a steer row back to queue", async () => {
-    mocks.cancelQueued.mockResolvedValue({ cancelled: true, restored: [] });
-    mocks.send.mockResolvedValue({ submissionId: 10 });
+  it("switches a steer row back to queue", async () => {
+    mocks.setQueuedMode.mockResolvedValue({ switched: true });
     renderActions({ ...item, mode: "steer" as const });
     await userEvent.click(screen.getByRole("button", { name: "Queue" }));
-    const [, input] = mocks.send.mock.calls[0] as [string, { whenBusy: string; text: string }];
-    expect(input.whenBusy).toBe("followUp");
-    expect(input.text).toBe("later");
+    expect(mocks.setQueuedMode).toHaveBeenCalledWith("c1", "7", "followUp");
+    expect(mocks.cancelQueued).not.toHaveBeenCalled();
   });
 
   it("marks the active mode and toasts when the row already delivered", async () => {
-    mocks.cancelQueued.mockResolvedValue({ cancelled: false, restored: [] });
+    mocks.setQueuedMode.mockResolvedValue({ switched: false });
     renderActions();
     expect(screen.getByRole("button", { name: "Queue" })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByRole("button", { name: "Steer" })).toHaveAttribute("aria-pressed", "false");
     await userEvent.click(screen.getByRole("button", { name: "Steer" }));
     expect(toast.info).toHaveBeenCalled();
-    expect(mocks.send).not.toHaveBeenCalled();
+    expect(mocks.cancelQueued).not.toHaveBeenCalled();
   });
 
   it("cancels and restores files from the server snapshot", async () => {
