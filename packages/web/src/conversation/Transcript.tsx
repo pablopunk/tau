@@ -4,7 +4,7 @@ import type {
   ToolCall,
   ToolSlot,
 } from "@tau/protocol";
-import { isRetryable, type LiveInfo, readLive } from "@tau/protocol";
+import { isRetryable, type LiveInfo, readRuntimeLive, todosProjectionOf } from "@tau/protocol";
 import { Loader2 } from "lucide-react";
 import { Fragment, useEffect } from "react";
 import { toast } from "sonner";
@@ -25,7 +25,6 @@ import { hasReceipt, noteSending, resolvePending, usePendingSends } from "./queu
 import { RetryButton } from "./RetryButton";
 import { ToolApproval } from "./ToolApproval";
 import { LatestTodoCallProvider } from "./todos/latest-todo-call";
-import { latestTodoSource } from "./todos/todo-items";
 import { ToolCall as ToolCallView } from "./tools/ToolCall";
 import { ToolConversationProvider } from "./tools/tool-conversation";
 import { newRequestId } from "./use-conversation-actions";
@@ -138,7 +137,7 @@ export function Transcript({
     conversationId
       ? { conversationId, entryId, role, text, startsConversation: entryId === firstEntryId }
       : undefined;
-  const live = readLive(view);
+  const live = readRuntimeLive(view, undefined);
   const api = useApi();
   const pendings = usePendingSends(conversationId);
   const resolveTool = (call: ToolCall) =>
@@ -213,7 +212,7 @@ export function Transcript({
     return <EmptyTranscript />;
   return (
     <ToolConversationProvider value={conversationId}>
-      <LatestTodoCallProvider value={latestTodoSource(view)}>
+      <LatestTodoCallProvider value={todosProjectionOf(view).source}>
         <div className="space-y-5">
           {items.map((item, index) => {
             if (item.kind === "compaction") return <CompactedDivider key={item.key} />;

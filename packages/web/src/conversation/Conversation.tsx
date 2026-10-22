@@ -1,4 +1,4 @@
-import { readLive } from "@tau/protocol";
+import { readRuntimeLive } from "@tau/protocol";
 import { ArrowDown } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useMatch } from "react-router";
@@ -82,8 +82,8 @@ function ConversationPanel({ id }: ConversationProps) {
   const pickers = useRef<PickersHandle>(null);
   const thread = useThreadCommands({ conversationId: id, projectId: summary?.projectId, pickers });
   const view = state.status === "ready" ? state.view : undefined;
-  const busy = state.status === "ready" && readLive(state.view).busy;
-  const queued = view ? readLive(view).queued : [];
+  const busy = state.status === "ready" && readRuntimeLive(state.view, undefined).busy;
+  const queued = view ? readRuntimeLive(view, undefined).queued : [];
   const handleStop = useCallback(() => stopAndRestore(api, id, nodeId, queued), [api, id, nodeId, queued]);
   const messageMode = useSettings().data?.messageMode;
   const whenBusy = messageMode ? whenBusyOf(messageMode) : undefined;

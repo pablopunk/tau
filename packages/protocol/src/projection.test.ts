@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { agentInfoOf, contextUsageInputOf, imageRefsOf } from "./projection";
+import { agentInfoOf, contextUsageInputOf, imageRefsOf, todosProjectionOf } from "./projection";
+import { TODOS_UPDATED_KIND } from "./todos";
 import type { ConversationView, EntryRecord } from "./view";
 
 const viewOf = (entries: unknown[] = [], docs: Record<string, unknown> = {}) =>
@@ -108,5 +109,40 @@ describe("imageRefsOf", () => {
       { id: 3, kind: "pi.user" },
     ]);
     expect(imageRefsOf(view)).toEqual([]);
+  });
+});
+
+describe("todosProjectionOf", () => {
+  const agentTodos = [{ content: "a", status: "pending" }];
+  const userTodos = [{ content: "b", status: "completed" }];
+  const todoWrite = (id: number, todos: unknown) =>
+    ({
+      id,
+      kind: "pi.assistant",
+      model: [
+        {
+          role: "assistant",
+          content: [{ type: "toolCall", id: "t", name: "todo_write", arguments: { todos } }],
+        },
+      ],
+    }) as unknown as EntryRecord;
+  const todosEdit = (id: number, todos: unknown) =>
+    ({ id, kind: TODOS_UPDATED_KIND, data: { todos } }) as unknown as EntryRecord;
+
+  it("reads the items and source of the agent todo_write call", () => {
+    expect(todosProjectionOf(viewOf([todoWrite(1, agentTodos)]))).toEqual({
+      items: agentTodos,
+      source: "call:t",
+    });
+  });
+
+  it("lets a newer user edit win over the agent list", () => {
+    const view = viewOf([todoWrite(1, agentTodos), todosEdit(2, userTodos)]);
+    expect(todosProjectionOf(view)).toEqual({ items: userTodos, source: "edit:2" });
+  });
+
+  it("is empty without any todo event", () => {
+    expect(todosProjectionOf(viewOf([user(1, "hi")]))).toEqual({ items: [], source: undefined });
+    expect(todosProjectionOf(viewOf())).toEqual({ items: [], source: undefined });
   });
 });

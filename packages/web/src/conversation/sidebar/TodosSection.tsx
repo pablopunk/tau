@@ -1,10 +1,10 @@
-import type { ConversationView } from "@tau/protocol";
+import { type ConversationView, todosProjectionOf } from "@tau/protocol";
 import { Pencil } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { TodoEditor } from "../todos/TodoEditor";
 import { TodoList } from "../todos/TodoList";
-import { doneCount, isFinished, latestTodos } from "../todos/todo-items";
+import { doneCount, isFinished } from "../todos/todo-items";
 import { SidebarSection } from "./SidebarSection";
 import { useAutoExpand } from "./use-auto-expand";
 
@@ -17,7 +17,7 @@ export function TodosSection({
   view: ConversationView;
   revealed?: boolean;
 }) {
-  const todos = latestTodos(view);
+  const { items: todos } = todosProjectionOf(view);
   const todosVisible = !isFinished(todos);
   const [editing, setEditing] = useState(false);
   const expanded = useAutoExpand(todosVisible || editing || revealed === true);

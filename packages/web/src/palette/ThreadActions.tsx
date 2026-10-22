@@ -1,4 +1,4 @@
-import { readLive } from "@tau/protocol";
+import { readRuntimeLive } from "@tau/protocol";
 import { useNavigate } from "react-router";
 import { CommandGroup, CommandItem } from "@/components/ui/command";
 import { stopAndRestore } from "@/conversation/queue/stop-restore";
@@ -37,7 +37,7 @@ export function ThreadActions({
   const canThink = useThreadAgent(conversationId).model?.thinkingLevels.some((level) => level !== "off");
   const openTerminal = useOpenAndFocusTerminal(projectId, conversationId);
   const state = useConversationView(conversationId);
-  const queued = state.status === "ready" ? readLive(state.view).queued : [];
+  const queued = state.status === "ready" ? readRuntimeLive(state.view, undefined).queued : [];
   const stop = () => stopAndRestore(api, conversationId, nodeId, queued);
 
   const archiveMutation = useThreadListMutation({

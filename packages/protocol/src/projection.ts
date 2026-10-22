@@ -1,4 +1,5 @@
 import type { ThinkingLevel } from "./entities";
+import { latestTodoSource, latestTodos, type TodoItem } from "./todos";
 import type { AgentState, ConversationView, EntryRecord, ImageContent } from "./view";
 
 export interface AgentInfo {
@@ -17,6 +18,11 @@ export interface ImageRef {
   /** User-attached vs read back by the agent (tool results, e.g. Read with images). */
   readonly source: "user" | "agent";
   readonly src: string;
+}
+
+export interface TodosProjection {
+  readonly items: TodoItem[];
+  readonly source: string | undefined;
 }
 
 export function agentInfoOf(view: ConversationView): AgentInfo {
@@ -99,4 +105,8 @@ export function imageRefsOf(view: ConversationView): readonly ImageRef[] {
     }
   }
   return out;
+}
+
+export function todosProjectionOf(view: ConversationView): TodosProjection {
+  return { items: latestTodos(view), source: latestTodoSource(view) };
 }
