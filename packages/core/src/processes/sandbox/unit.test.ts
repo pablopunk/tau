@@ -15,7 +15,9 @@ describe("cacheEnvAdditions", () => {
     expect(cacheEnvAdditions("/wt")).toEqual({
       PNPM_STORE_DIR: "/wt/.tau-caches/pnpm-store",
       CARGO_TARGET_DIR: "/wt/.tau-caches/cargo-target",
-      MISE_DATA_DIR: "/wt/.tau-caches/mise-data",
+      MISE_STATE_DIR: "/wt/.tau-caches/mise-state",
+      MISE_TMP_DIR: "/wt/.tau-caches/mise-tmp",
+      MISE_EXEC_AUTO_INSTALL: "false",
       MISE_CACHE_DIR: "/wt/.tau-caches/mise-cache",
     });
   });
@@ -69,8 +71,10 @@ describe("buildSystemdSandboxPrefix", () => {
       "--property=PrivateTmp=yes",
       "--setenv=PNPM_STORE_DIR=/wt/.tau-caches/pnpm-store",
       "--setenv=CARGO_TARGET_DIR=/wt/.tau-caches/cargo-target",
-      "--setenv=MISE_DATA_DIR=/wt/.tau-caches/mise-data",
+      "--setenv=MISE_STATE_DIR=/wt/.tau-caches/mise-state",
       "--setenv=MISE_CACHE_DIR=/wt/.tau-caches/mise-cache",
+      "--setenv=MISE_TMP_DIR=/wt/.tau-caches/mise-tmp",
+      "--setenv=MISE_EXEC_AUTO_INSTALL=false",
       "--setenv=GIT_SSH_COMMAND=ssh -o UserKnownHostsFile=/wt/.tau-caches/known_hosts",
       "--",
     ]);
@@ -81,14 +85,14 @@ describe("buildSystemdSandboxPrefix", () => {
       ...base,
       adminPaths: ["/main/.git/objects"],
       sshSocket: "/tmp/ssh-AAA/agent.1",
-      env: { FOO: "bar", MISE_DATA_DIR: "/custom" },
+      env: { FOO: "bar", MISE_STATE_DIR: "/custom" },
     });
     expect(prefix.args).toContain("--property=ReadWritePaths=/main/.git/objects");
     expect(prefix.args).toContain("--property=BindReadOnlyPaths=/tmp/ssh-AAA/agent.1");
     expect(prefix.args).toContain("--setenv=SSH_AUTH_SOCK=/tmp/ssh-AAA/agent.1");
     expect(prefix.args).toContain("--setenv=FOO=bar");
     // The request's deliberate value wins over the cache default.
-    expect(prefix.args).toContain("--setenv=MISE_DATA_DIR=/custom");
+    expect(prefix.args).toContain("--setenv=MISE_STATE_DIR=/custom");
     expect(prefix.args.at(-1)).toBe("--");
   });
 

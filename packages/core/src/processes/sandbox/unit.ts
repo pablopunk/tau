@@ -12,14 +12,27 @@ export function serviceUnit(unit: string): string {
   return name.endsWith(".service") ? name : `${name}.service`;
 }
 
-/** Cache writes redirect into the worktree so tools work without touching home. */
+/**
+ * Cache writes redirect into the worktree so tools work without touching home.
+ * Callers spread these UNDER the request env, so an explicit caller value wins: that is
+ * safe because a bypassed redirect only breaks the tool itself (its writes still hit
+ * the sandbox wall) — it cannot escape confinement.
+ */
 export function cacheEnvAdditions(root: string): Record<string, string> {
   const caches = cacheDirFor(root);
   return {
     PNPM_STORE_DIR: join(caches, "pnpm-store"),
     CARGO_TARGET_DIR: join(caches, "cargo-target"),
-    MISE_DATA_DIR: join(caches, "mise-data"),
+    // NOTE: MISE_DATA_DIR (installs) stays shared and read-only so mise sees the real
+    // toolchain; only STATE (locks, bookkeeping) and CACHE (exec_env files) redirect.
+    // Redirecting DATA blinds mise to installs and triggers per-worktree reinstalls.
+    MISE_STATE_DIR: join(caches, "mise-state"),
     MISE_CACHE_DIR: join(caches, "mise-cache"),
+    // mise's temp root ($TMPDIR/mise) is not covered by STATE/CACHE; Seatbelt denies it.
+    MISE_TMP_DIR: join(caches, "mise-tmp"),
+    // With DATA shared read-only, installs must never be attempted inside: `mise exec`
+    // auto-installs missing tools by default, which would die with EPERM on the data tree.
+    MISE_EXEC_AUTO_INSTALL: "false",
   };
 }
 
