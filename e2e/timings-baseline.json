@@ -1,0 +1,28 @@
+{
+  "meta": {
+    "sha": "54ec2ec",
+    "capturedAt": "2026-10-22T11:01:49.010Z",
+    "runsPerAction": 15
+  },
+  "send-idle": {
+    "p50": 200,
+    "p95": 210,
+    "n": 15,
+    "confirmP95": 14,
+    "serverP95": null
+  },
+  "rename": {
+    "p50": 176,
+    "p95": 282,
+    "n": 15,
+    "confirmP95": 11,
+    "serverP95": null
+  },
+  "archive": {
+    "p50": 10,
+    "p95": 43,
+    "n": 15,
+    "confirmP95": 43,
+    "serverP95": null
+  }
+}
