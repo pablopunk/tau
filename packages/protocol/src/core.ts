@@ -61,6 +61,7 @@ import type { DirectoryNode, Expulsion, NodeGroup } from "./node-group";
 import type { Node, NodeLinkDirection, NodeLinkReport, NodePeerInfo, NodeSelf, NodeSummary } from "./nodes";
 import type { RemoteStatus } from "./remote";
 import type { ResourceActivity, ResourceSettings, ResourceSupport } from "./resources";
+import type { SandboxSettings } from "./sandbox";
 import type { OpenTerminalInput, TerminalInfo } from "./terminals";
 import type { UpdaterPort, UpdateStartBody, UpdateStatus } from "./updates";
 import type { Op } from "./view";
@@ -169,6 +170,11 @@ export interface Core {
     setSetupSkipped(skipped: boolean): Promise<void>;
     /** Replaces the node's resource settings. Priority and memory apply to the next spawned command; slots apply at once. */
     setResources(value: ResourceSettings): Promise<void>;
+    /**
+     * Replaces the node's sandbox switch. Phase 1: persisted only, never enforced
+     * (staging gate: everything stays off until phase 2).
+     */
+    setSandbox(value: SandboxSettings): Promise<void>;
     /** Replaces the node's compaction preference. Enabling `fast` with no available backend rejects `invalid_request`. */
     setCompaction(value: CompactionSettings): Promise<void>;
     /** What this node can enforce. Lazy: may probe the host. */

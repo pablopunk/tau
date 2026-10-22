@@ -48,6 +48,7 @@ import { createFakeNodes, FAKE_NODE_SEEDS, type FakeNodes } from "./fake-nodes";
 import { createFakeProviders } from "./fake-providers";
 import { createFakeRemote, type FakeRemote } from "./fake-remote";
 import { createFakeResources, type FakeResources } from "./fake-resources";
+import { createFakeSandbox, type FakeSandbox } from "./fake-sandbox";
 import { suggestFakeDirectories } from "./fake-suggest";
 import { createFakeTerminals } from "./fake-terminals";
 import type { SpawnParams } from "./fake-thread-ops";
@@ -325,6 +326,7 @@ export function createFakeCore(options: FakeCoreOptions = {}): FakeCore {
   const mvp8 = createFakeMvp8({ emit, now, requireConversation });
   const connectors = createFakeConnectors({ emit, now, requireConversation });
   const resources = createFakeResources({ emit });
+  const sandbox = createFakeSandbox({ emit });
 
   function workspaceModeFor(projectId: string, requested: WorkspaceMode | undefined): WorkspaceMode {
     if (requested) {
@@ -509,11 +511,13 @@ export function createFakeCore(options: FakeCoreOptions = {}): FakeCore {
           claudeConnectors: connectors.settings(),
           remote: { enabled: remote.status().state !== "off" },
           resources: resources.settings(),
+          sandbox: sandbox.settings(),
           compaction: { ...compaction },
           setupSkipped,
         };
       },
       ...resources.api,
+      ...sandbox.api,
       async setSetupSkipped(skipped) {
         setupSkipped = skipped;
       },

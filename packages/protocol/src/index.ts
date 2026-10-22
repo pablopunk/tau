@@ -24,6 +24,7 @@ export * from "./rest";
 export * from "./retry";
 export * from "./routing";
 export * from "./running-work";
+export * from "./sandbox";
 export * from "./terminal-stream";
 export * from "./terminals";
 export * from "./todos";

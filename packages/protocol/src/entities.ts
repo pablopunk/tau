@@ -3,6 +3,7 @@ import { Type } from "typebox";
 import { GoalSummarySchema } from "./mvp8";
 import { RemoteSettingsSchema } from "./remote";
 import { ResourceSettingsSchema } from "./resources";
+import { SandboxSettingsSchema } from "./sandbox";
 
 export const ModelRefSchema = Type.Object({ provider: Type.String(), modelId: Type.String() });
 export type ModelRef = Type.Static<typeof ModelRefSchema>;
@@ -138,6 +139,8 @@ export const SettingsSchema = Type.Object({
   remote: RemoteSettingsSchema,
   /** Optional only so a web can read an older node (the response is validated): absent means "not supported there". A current node always sends it. */
   resources: Type.Optional(ResourceSettingsSchema),
+  /** Phase 1: persisted only, never enforced (staging gate: all false). Absent means "not supported there", like `resources`. */
+  sandbox: Type.Optional(SandboxSettingsSchema),
   /** Which speech-to-text the composer uses; `null`/absent is the browser fallback. Absent means "not supported there", like `resources`. */
   voiceModel: Type.Optional(VoiceModelSettingSchema),
   /** Fast-compaction preference. Optional so an older node still validates; a current node always sends it. */

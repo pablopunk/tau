@@ -12,6 +12,8 @@ import {
   type ResourceSettings,
   ResourceSettingsSchema,
   type ResourceSupport,
+  type SandboxSettings,
+  SandboxSettingsSchema,
   type ThinkingLevel,
   type VoiceModelSetting,
   VoiceModelSettingSchema,
@@ -118,6 +120,12 @@ export function createSettingsApi(deps: {
       }
       await settings.setResources(value);
       onResourcesChanged?.(value);
+    },
+    async setSandbox(value: SandboxSettings) {
+      if (!Value.Check(SandboxSettingsSchema, value)) {
+        throw new AppError("invalid_request", "Each sandbox scope is on or off.");
+      }
+      await settings.setSandbox(value);
     },
     async setCompaction(value: CompactionSettings) {
       if (!Value.Check(CompactionSettingsSchema, value)) {

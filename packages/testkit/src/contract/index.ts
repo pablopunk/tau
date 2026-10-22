@@ -28,6 +28,7 @@ import { queueCases } from "./queue";
 import { remoteCases } from "./remote";
 import { resourceCases } from "./resources";
 import { retryCases } from "./retry";
+import { sandboxCases } from "./sandbox";
 import { settingsAndProviderCases } from "./settings-provider";
 import { sidebarDataCases } from "./sidebar-data";
 import { skillCases } from "./skills";
@@ -51,6 +52,7 @@ type CaseModule = (makeTarget: MakeContractTarget, test: CaseRunner) => void;
 export const CONTRACT_MODULES = {
   settings: settingsAndProviderCases,
   resources: resourceCases,
+  sandbox: sandboxCases,
   projects: projectCases,
   fs: fsCases,
   conversations: conversationCases,

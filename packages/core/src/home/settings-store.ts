@@ -4,6 +4,7 @@ import {
   type CompactionSettings,
   CompactionSettingsSchema,
   DEFAULT_RESOURCE_SETTINGS,
+  DEFAULT_SANDBOX_SETTINGS,
   type McpServerConfig,
   McpServerConfigSchema,
   type MessageMode,
@@ -14,6 +15,8 @@ import {
   RemoteSettingsSchema,
   ResourcePrioritySchema,
   type ResourceSettings,
+  type SandboxSettings,
+  SandboxSettingsSchema,
   type Settings,
   type ThinkingLevel,
   ThinkingLevelSchema,
@@ -44,6 +47,7 @@ type StoredSettings = {
   mcpServers?: McpServerConfig[];
   remote?: RemoteSettings;
   resources?: ResourceSettings;
+  sandbox?: SandboxSettings;
   compaction?: CompactionSettings;
   setupSkipped?: boolean;
 };
@@ -168,6 +172,22 @@ const copyResources = (value: ResourceSettings): ResourceSettings => ({
   levels: { ...value.levels },
 });
 
+const validSandboxFlag = (value: unknown): boolean =>
+  Value.Check(SandboxSettingsSchema.properties.main, value) ? (value as boolean) : false;
+
+/** Each field on its own: a missing or invalid one falls back to false (staging gate: all off). */
+export function parseSandboxSettings(value: unknown): SandboxSettings | undefined {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return undefined;
+  const raw = value as Record<string, unknown>;
+  return {
+    main: validSandboxFlag(raw.main),
+    worktree: validSandboxFlag(raw.worktree),
+    subagent: validSandboxFlag(raw.subagent),
+  };
+}
+
+const copySandbox = (value: SandboxSettings): SandboxSettings => ({ ...value });
+
 const validMcpServers = (value: unknown): McpServerConfig[] =>
   Array.isArray(value)
     ? value.filter((item): item is McpServerConfig => Value.Check(McpServerConfigSchema, item))
@@ -204,6 +224,8 @@ function parseStored(text: string | undefined): StoredSettings {
   if (raw.mcpServers !== undefined) stored.mcpServers = validMcpServers(raw.mcpServers);
   const resources = parseResourceSettings(raw.resources);
   if (resources) stored.resources = resources;
+  const sandbox = parseSandboxSettings(raw.sandbox);
+  if (sandbox) stored.sandbox = sandbox;
   if (raw.setupSkipped === true) stored.setupSkipped = true;
   return stored;
 }
@@ -221,6 +243,7 @@ const withDefaults = (stored: StoredSettings, defaultProjectsFolder: string): Se
   claudeConnectors: stored.claudeConnectors ?? { disabled: [], alwaysAllow: [], askBeforeWrites: false },
   remote: stored.remote ?? { enabled: false },
   resources: stored.resources ? copyResources(stored.resources) : copyResources(DEFAULT_RESOURCE_SETTINGS),
+  sandbox: stored.sandbox ? copySandbox(stored.sandbox) : copySandbox(DEFAULT_SANDBOX_SETTINGS),
   compaction: stored.compaction ?? { mode: "summary", backend: "auto" },
   setupSkipped: stored.setupSkipped ?? false,
 });
@@ -244,6 +267,8 @@ export interface SettingsStore {
   setClaudeConnectors(value: ClaudeConnectorSettings): Promise<void>;
   /** The caller has already validated the value. */
   setResources(value: ResourceSettings): Promise<void>;
+  /** The caller has already validated the value. Phase 1: persisted only, never enforced. */
+  setSandbox(value: SandboxSettings): Promise<void>;
   /** The caller has already validated the value. */
   setCompaction(value: CompactionSettings): Promise<void>;
   setRemoteEnabled(enabled: boolean): Promise<void>;
@@ -312,6 +337,7 @@ export function createSettingsStore(settingsFile: string, defaultProjectsFolder:
         claudeConnectors: copyConnectorSettings(value),
       })),
     setResources: (value) => update((stored) => ({ ...stored, resources: copyResources(value) })),
+    setSandbox: (value) => update((stored) => ({ ...stored, sandbox: copySandbox(value) })),
     setCompaction: (value) =>
       update((stored) => ({ ...stored, compaction: { mode: value.mode, backend: value.backend } })),
     setRemoteEnabled: (enabled) => update((stored) => ({ ...stored, remote: { enabled } })),

@@ -22,6 +22,7 @@ const DEFAULTS = {
   resources: {
     levels: { main: "off", worktree: "off", subagent: "off" },
   },
+  sandbox: { main: false, worktree: false, subagent: false },
   compaction: { mode: "summary", backend: "auto" },
 };
 const ref = { provider: "openrouter", modelId: "x/y" };
@@ -244,6 +245,38 @@ describe("resources", () => {
       mode: "fast",
       backend: "typesafe",
     });
+  });
+
+  it("defaults sandbox to all-false when the field is missing", async () => {
+    const path = join(await tempDir(), "settings.json");
+    await writeFile(path, JSON.stringify({}));
+    expect((await createSettingsStore(path, PROJECTS).get()).sandbox).toEqual(DEFAULTS.sandbox);
+  });
+
+  it("keeps each valid sandbox field and defaults each invalid or missing one on its own", async () => {
+    const readSandbox = async (stored: unknown) => {
+      const path = join(await tempDir(), "settings.json");
+      await writeFile(path, JSON.stringify({ sandbox: stored }));
+      return (await createSettingsStore(path, PROJECTS).get()).sandbox;
+    };
+    expect(await readSandbox({ main: true })).toEqual({
+      main: true,
+      worktree: false,
+      subagent: false,
+    });
+    expect(await readSandbox({ main: "yes", worktree: true, subagent: 1 })).toEqual({
+      main: false,
+      worktree: true,
+      subagent: false,
+    });
+    expect(await readSandbox("garbage")).toEqual(DEFAULTS.sandbox);
+  });
+
+  it("stores the sandbox value whole and reads it back", async () => {
+    const path = join(await tempDir(), "settings.json");
+    const value = { main: true, worktree: false, subagent: true };
+    await createSettingsStore(path, PROJECTS).setSandbox(value);
+    expect((await createSettingsStore(path, PROJECTS).get()).sandbox).toEqual(value);
   });
 
   it("migrates a legacy {priority, appliesTo} setting to per-scope levels", async () => {

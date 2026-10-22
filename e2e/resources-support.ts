@@ -33,6 +33,19 @@ export async function freePort(): Promise<number> {
 
 export type Power = "off" | "balanced" | "background";
 
+/** Phase 1: persisted only, never enforced. Staging gate: everything stays off. */
+export interface SandboxValues {
+  main: boolean;
+  worktree: boolean;
+  subagent: boolean;
+}
+
+export const SANDBOX_OFF: SandboxValues = {
+  main: false,
+  worktree: false,
+  subagent: false,
+};
+
 export interface ResourceValues {
   levels: { main: Power; worktree: Power; subagent: Power };
 }

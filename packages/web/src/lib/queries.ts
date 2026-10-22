@@ -5,16 +5,18 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
-import type {
-  ApprovalDecision,
-  ClaudeConnectorSettings,
-  CompactionSettings,
-  ConversationSummary,
-  MintPairingInput,
-  ProviderId,
-  RemoteStatus,
-  ResourceSettings,
-  UpdateStatus,
+import {
+  type ApprovalDecision,
+  type ClaudeConnectorSettings,
+  type CompactionSettings,
+  type ConversationSummary,
+  DEFAULT_SANDBOX_SETTINGS,
+  type MintPairingInput,
+  type ProviderId,
+  type RemoteStatus,
+  type ResourceSettings,
+  type SandboxSettings,
+  type UpdateStatus,
 } from "@tau/protocol";
 import { isJobActive } from "@/lib/updates";
 import { useApi } from "@/nodes/node-context";
@@ -293,6 +295,30 @@ export function useSetCompaction() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (value: CompactionSettings) => api.settings.setCompaction(value),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.settings }),
+  });
+}
+
+/**
+ * Phase 1 stub: reads the persisted sandbox switch from `useSettings` (real data path
+ * via `settings.get`); there is no visible UI yet. Phase 2 adds the setter route,
+ * the capability probe, and the Agent settings row.
+ */
+export const useSandboxSettings = () => {
+  const settings = useSettings();
+  return { ...settings, data: settings.data?.sandbox ?? DEFAULT_SANDBOX_SETTINGS };
+};
+
+/**
+ * Phase 2 stub: no `settings.setSandbox` core route yet, so this rejects until the
+ * REST route (`PUT /api/settings/sandbox`) and `api.settings.setSandbox` land.
+ */
+export function useSetSandbox() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (_value: SandboxSettings): Promise<void> => {
+      throw new Error("setSandbox is not wired yet (phase 2: core route + REST + api client).");
+    },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.settings }),
   });
 }
