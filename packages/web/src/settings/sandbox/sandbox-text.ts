@@ -1,7 +1,11 @@
 import type { SandboxSettings, SandboxSupport } from "@tau/protocol";
 
-/** Which threads a sandbox flag belongs to: its own on/off switch confines that kind of thread. */
-export type SandboxScope = keyof SandboxSettings;
+/**
+ * Which threads a sandbox flag belongs to: its own on/off switch confines that kind
+ * of thread. Only the three boolean scopes, never `mcpAllowlist`.
+ */
+export const SANDBOX_SCOPE_KEYS = ["main", "worktree", "subagent"] as const;
+export type SandboxScope = (typeof SANDBOX_SCOPE_KEYS)[number];
 
 export const SANDBOX_SCOPES: { key: SandboxScope; rowId: string; label: string }[] = [
   {
