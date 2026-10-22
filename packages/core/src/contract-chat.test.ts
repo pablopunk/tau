@@ -16,5 +16,7 @@ const MODULES: readonly ContractModule[] = [
 ];
 
 describe.skipIf(!REAL_CORE_IMPLEMENTED)("real core", () => {
-  runCoreContract("real core (faux mode)", makeRealTarget, {}, MODULES);
+  // `[bang]`: real core admits `!` as a display-only app.bang entry, never a
+  // verbatim pi.user entry (the fake keeps the legacy behavior).
+  runCoreContract("real core (faux mode)", makeRealTarget, { pending: ["[bang]"] }, MODULES);
 });

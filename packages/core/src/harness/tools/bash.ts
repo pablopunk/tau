@@ -137,6 +137,7 @@ export const createTauBashTool = ({ services, prepare }: TauBashOptions) =>
         command: execution.command,
         env: execution.env,
         shell: bashPath(),
+        origin: "tool",
         ...(scope && { governed: true, scope }),
         // A command's stragglers can write after the call settled; the call no longer takes output then.
         onOutput: (text) => {

@@ -166,6 +166,18 @@ describe("<Conversation> tools", () => {
     expect(screen.getByText("Stopped")).toBeInTheDocument();
   });
 
+  it("renders a display-only bang row for an app.bang entry", () => {
+    const view = endOf("text");
+    renderView({
+      ...view,
+      entries: [
+        ...view.entries,
+        { kind: "app.bang", id: 999, conversationId: 2, data: { command: "echo hi" } },
+      ],
+    } as typeof view);
+    expect(screen.getByTestId("bang")).toHaveTextContent("echo hi");
+  });
+
   it("previews long output and expands it on demand", async () => {
     renderView(endOf("overflow"));
     await userEvent.click(screen.getByText("Bash"));

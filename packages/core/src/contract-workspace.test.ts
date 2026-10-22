@@ -15,12 +15,5 @@ const MODULES: readonly ContractModule[] = [
 ];
 
 describe.skipIf(!REAL_CORE_IMPLEMENTED)("real core", () => {
-  // Queue-remake receipts land per release: the real core returns the frozen
-  // shapes with stub snapshots until R2 implements the server-side behavior.
-  runCoreContract(
-    "real core (faux mode)",
-    makeRealTarget,
-    { pending: ["[send-now]", "[cancel-restore]", "[cancel-refs]", "[cancel-validation]"] },
-    MODULES,
-  );
+  runCoreContract("real core (faux mode)", makeRealTarget, {}, MODULES);
 });

@@ -10,12 +10,8 @@ import {
   type ResourceSettings,
   type ResourceSupport,
 } from "@tau/protocol";
-import type {
-  Notification,
-  NotificationSubmitter,
-  PassiveWrite,
-} from "../harness/notification-submitter";
 import { releaseBangSlot } from "../harness/conversation-submit";
+import type { Notification, NotificationSubmitter, PassiveWrite } from "../harness/notification-submitter";
 import { createDeferred, type Deferred } from "./deferred";
 import { type Exec, systemdEnv } from "./governor/exec";
 import type { ThreadClass } from "./governor/governed";
@@ -80,6 +76,8 @@ export interface ForegroundRequest {
   readonly governed?: boolean;
   /** The calling thread's scope; picks the command's power level. Set with `governed`. */
   readonly scope?: ThreadClass;
+  /** Distinguishes tool-spawned runs in exit delivery; unset preserves follow-up behavior. */
+  readonly origin?: ProcessOrigin;
   /** Every chunk of output while the call still waits. */
   readonly onOutput: (text: string) => void;
 }
@@ -685,6 +683,7 @@ export function createProcessService(deps: ProcessDeps): ProcessService {
           cwd: request.cwd,
           command: request.command,
           notifyOnExit: false,
+          ...(request.origin === undefined ? {} : { origin: request.origin }),
           ...(governedOf(request) && { governed: true }),
           ...(request.scope === undefined ? {} : { scope: request.scope }),
           ...(request.shell === undefined ? {} : { shell: request.shell }),
