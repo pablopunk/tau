@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { readLive } from "./live-info";
+import type { RuntimeLifecycle } from "./runtime";
 import { isThreadIdle, type RuntimeLiveInfo, readRuntimeLive, waitOutcomeOf } from "./runtime-live";
 import type { ConversationView } from "./view";
 
@@ -83,6 +84,97 @@ describe("readRuntimeLive for claude-code", () => {
     const info = readRuntimeLive(busyView, "claude-code");
     expect(info.busy).toBe(false);
     expect(info.writer).toBe("unknown");
+  });
+});
+
+const nativeEntry = (id: number, data: Record<string, unknown>) => ({ id, kind: "native.event", data });
+
+const lifecycleEntry = (id: number, lifecycle: RuntimeLifecycle) =>
+  nativeEntry(id, { type: "lifecycle", key: `thread:${lifecycle}:${id}`, lifecycle });
+
+const userEntry = (id: number, requestId: string, text: string) =>
+  nativeEntry(id, {
+    type: "user",
+    key: `${requestId}:user`,
+    requestId,
+    receiptId: `1:0:${id}`,
+    text,
+    delivery: "queue",
+    attachmentCount: 0,
+  });
+
+const queueEntry = (id: number, requestId: string, disposition: string) =>
+  nativeEntry(id, { type: "queue", key: `${requestId}:${disposition}`, requestId, disposition });
+
+const nativeView = (...entries: unknown[]) => ({ entries, docs: {} }) as unknown as ConversationView;
+
+describe("readRuntimeLive for claude-code from native events", () => {
+  it.each([
+    ["accepted", false, "running", "pending"],
+    ["preparing", true, "running", "pending"],
+    ["ready", true, "running", "pending"],
+    ["starting", true, "running", "pending"],
+    ["running", true, "running", "pending"],
+    ["cancelling", true, "cancelling", "pending"],
+    ["reconciling", true, "reconciling", "pending"],
+    ["blocked", false, "settled", "pending"],
+    ["completed", false, "settled", "done"],
+    ["failed", false, "settled", "done"],
+    ["cancelled", false, "settled", "done"],
+    ["interrupted", false, "settled", "done"],
+    ["outcome-unknown", false, "unknown", "unknown"],
+  ] as const)("maps the %s lifecycle (busy %s, writer %s, wait %s)", (lifecycle, busy, writer, wait) => {
+    const info = readRuntimeLive(nativeView(lifecycleEntry(1, lifecycle)), "claude-code");
+    expect(info).toMatchObject({ executor: "claude-code", lifecycle, busy, writer });
+    expect(info.streaming).toBeUndefined();
+    expect(info.slots).toEqual([]);
+    expect(waitOutcomeOf(info)).toBe(wait);
+  });
+
+  it("follows the last lifecycle event, not the first", () => {
+    const view = nativeView(lifecycleEntry(1, "running"), lifecycleEntry(2, "completed"));
+    expect(readRuntimeLive(view, "claude-code")).toMatchObject({ lifecycle: "completed", writer: "settled" });
+    expect(isThreadIdle(readRuntimeLive(view, "claude-code"))).toBe(true);
+  });
+
+  it("stays unknown for a native view with entries but no lifecycle event", () => {
+    const info = readRuntimeLive(nativeView(userEntry(1, "r1", "hi")), "claude-code");
+    expect(info).toMatchObject({ lifecycle: undefined, writer: "unknown", busy: false });
+    expect(waitOutcomeOf(info)).toBe("unknown");
+  });
+
+  it("ignores malformed lifecycle events", () => {
+    const view = nativeView(
+      lifecycleEntry(1, "running"),
+      nativeEntry(2, { type: "lifecycle", key: "x", lifecycle: "dancing" }),
+    );
+    expect(readRuntimeLive(view, "claude-code").lifecycle).toBe("running");
+  });
+
+  it("queues the user events whose latest queue disposition is queued", () => {
+    const view = nativeView(
+      lifecycleEntry(1, "accepted"),
+      userEntry(2, "r1", "first"),
+      queueEntry(3, "r1", "queued"),
+      userEntry(4, "r2", "second"),
+      queueEntry(5, "r2", "queued"),
+      userEntry(6, "r3", "third"),
+      queueEntry(7, "r3", "queued"),
+      queueEntry(8, "r1", "delivered"),
+      queueEntry(9, "r3", "cancelled"),
+    );
+    expect(readRuntimeLive(view, "claude-code").queued).toEqual([
+      { id: 2, mode: "followUp", entryKind: "native.user", text: "second", images: [] },
+    ]);
+  });
+
+  it("does not queue a user event that never got a queued disposition", () => {
+    expect(readRuntimeLive(nativeView(userEntry(1, "r1", "hi")), "claude-code").queued).toEqual([]);
+  });
+
+  it("ignores native events for a Pi thread", () => {
+    const view = nativeView(lifecycleEntry(1, "running"));
+    expect(readRuntimeLive(view, "pi")).toEqual(readRuntimeLive(idleView, "pi"));
   });
 });
 

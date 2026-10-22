@@ -26,6 +26,7 @@ import {
   type TimerFiredData,
   TimerFiredDataSchema,
 } from "./mvp8";
+import { nativeTranscriptOf } from "./native-transcript";
 import { latestTodoSource, latestTodos, type TodoItem } from "./todos";
 import type {
   AgentState,
@@ -284,7 +285,7 @@ function toolResultOf(entry: EntryRecord): [string, ToolResultInfo] | undefined 
   return [message.toolCallId, { message, diagnostics: diagnosticsOf(entry) }];
 }
 
-/** `pi.system` entries and the head marker are bookkeeping and never shown. */
+/** `pi.system` entries and the head marker are bookkeeping and never shown. Native events follow the Pi items. */
 export function transcriptOf(view: ConversationView): Transcript {
   const items: TranscriptItem[] = [];
   const results = new Map<string, ToolResultInfo>();
@@ -294,5 +295,8 @@ export function transcriptOf(view: ConversationView): Transcript {
     const result = toolResultOf(entry);
     if (result) results.set(result[0], result[1]);
   }
-  return { items, results };
+  const native = nativeTranscriptOf(view);
+  if (native.items.length === 0 && native.results.size === 0) return { items, results };
+  for (const [callId, info] of native.results) results.set(callId, info);
+  return { items: [...items, ...native.items], results };
 }

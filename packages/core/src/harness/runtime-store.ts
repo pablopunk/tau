@@ -38,6 +38,14 @@ import {
   summaryOf,
 } from "./runtime-docs";
 import { nextLifecycle, settleOperation } from "./runtime-lifecycle";
+import {
+  acknowledgedNotice,
+  entryDraftOf,
+  type LifecycleDetails,
+  lifecycleEvent,
+  queueEvent,
+  userEvent,
+} from "./runtime-store-events";
 
 export type StoreInspection = {
   lifecycle: RuntimeLifecycle | undefined;
@@ -186,6 +194,28 @@ export function createRuntimeStore(
     eventLog: await tx.doc(NativeEventsDoc, id),
   });
   type Docs = Awaited<ReturnType<typeof docs>>;
+  type Emit = (event: NativeEvent) => void;
+
+  async function mutate<T>(body: (state: Docs, emit: Emit) => T | Promise<T>): Promise<T> {
+    return commit(async (tx) => {
+      const pending: NativeEvent[] = [];
+      const result = await body(await docs(tx), (event) => void pending.push(event));
+      for (const event of pending) await tx.appendEntry(id, entryDraftOf(event));
+      return result;
+    });
+  }
+
+  const emitLifecycle = (
+    { projection }: Docs,
+    emit: Emit,
+    lifecycle: RuntimeLifecycle,
+    details?: LifecycleDetails,
+  ): void => emit(lifecycleEvent(projection.revision, lifecycle, details));
+
+  const currentOperationId = (state: Docs): LifecycleDetails => {
+    const operationId = state.operation.operation?.operationId;
+    return operationId === undefined ? {} : { operationId };
+  };
 
   function itemOf(inbox: Docs["inbox"], requestId: string): InboxItem {
     const item = inbox.items.find((candidate) => candidate.requestId === requestId);
@@ -193,10 +223,11 @@ export function createRuntimeStore(
     return item;
   }
 
-  function admitNew(state: Docs, req: AdmitRequest, fingerprint: string): InboxItem {
+  function admitNew(state: Docs, emit: Emit, req: AdmitRequest, fingerprint: string): InboxItem {
     const { thread, inbox, projection } = state;
     if (thread.createdAt === 0) thread.createdAt = now();
-    if (thread.lifecycle === undefined) thread.lifecycle = "accepted";
+    const firstAdmission = thread.lifecycle === undefined;
+    if (firstAdmission) thread.lifecycle = "accepted";
     const seq = inbox.items.length + 1;
     inbox.items.push({
       requestId: req.requestId,
@@ -211,20 +242,23 @@ export function createRuntimeStore(
       disposition: "queued",
     });
     appendFrame(projection, 1);
-    return plainItem(inbox.items[seq - 1] as InboxItem);
+    const item = plainItem(inbox.items[seq - 1] as InboxItem);
+    if (firstAdmission) emitLifecycle(state, emit, "accepted");
+    emit(userEvent(item));
+    emit(queueEvent(item.requestId, "queued"));
+    return item;
   }
 
   async function admit(req: AdmitRequest): Promise<AdmissionReceipt> {
     assertDeliverySupported(req);
     const fingerprint = fingerprintOf(req.payload);
-    return commit(async (tx) => {
-      const state = await docs(tx);
+    return mutate((state, emit) => {
       const existing = state.inbox.items.find((item) => item.requestId === req.requestId);
       if (existing) {
         assertSamePayload(existing, fingerprint);
         return receiptOf(threadId, plainItem(existing));
       }
-      return receiptOf(threadId, admitNew(state, req, fingerprint));
+      return receiptOf(threadId, admitNew(state, emit, req, fingerprint));
     });
   }
 
@@ -236,8 +270,7 @@ export function createRuntimeStore(
   }
 
   async function resolve(requestId: string, to: "delivered" | "cancelled"): Promise<void> {
-    await commit(async (tx) => {
-      const { inbox, projection } = await docs(tx);
+    await mutate(({ inbox, projection, operation }, emit) => {
       const item = itemOf(inbox, requestId);
       if (item.disposition === to) return;
       if (item.disposition !== "queued") {
@@ -245,6 +278,8 @@ export function createRuntimeStore(
       }
       item.disposition = to;
       appendFrame(projection, 1);
+      const announcedByDeliveredOnce = operation.operation?.deliveredRequestId === requestId;
+      if (to === "cancelled" || !announcedByDeliveredOnce) emit(queueEvent(requestId, to));
     });
   }
 
@@ -280,11 +315,12 @@ export function createRuntimeStore(
   }
 
   async function setLifecycle(lifecycle: RuntimeLifecycle, options: SetLifecycleOptions = {}): Promise<void> {
-    await commit(async (tx) => {
-      const { thread, projection } = await docs(tx);
+    await mutate((state, emit) => {
+      const { thread, projection } = state;
       assertLifecycleChange(thread.lifecycle, lifecycle, options);
       thread.lifecycle = lifecycle;
       appendFrame(projection, 1);
+      emitLifecycle(state, emit, lifecycle, currentOperationId(state));
     });
   }
 
@@ -297,21 +333,22 @@ export function createRuntimeStore(
   }
 
   async function beginOperation(): Promise<void> {
-    await commit(async (tx) => {
-      const { thread, projection, operation } = await docs(tx);
+    await mutate((state, emit) => {
+      const { thread, projection, operation } = state;
       const plan = planBegin(operation, thread.lifecycle);
       if (plan === "continue") return;
       if (plan === "archive") archiveCurrent(operation);
       thread.lifecycle = "accepted";
       if (thread.createdAt === 0) thread.createdAt = now();
       appendFrame(projection, 1);
+      emitLifecycle(state, emit, "accepted");
     });
   }
 
   async function acknowledgeUnknown(input: { operationId: string; note: string }): Promise<void> {
     if (!input.note.trim()) throw invalidRequest("An acknowledgement needs a note.");
-    await commit(async (tx) => {
-      const { projection, operation } = await docs(tx);
+    await mutate((state, emit) => {
+      const { projection, operation } = state;
       const current = operation.operation;
       if (current?.operationId !== input.operationId) {
         throw new AppError("not_found", `Operation ${input.operationId} is not the current operation.`);
@@ -322,6 +359,11 @@ export function createRuntimeStore(
       if (isAcknowledged(operation, current)) return;
       operation.acknowledgement = { operationId: current.operationId, note: input.note, at: now() };
       appendFrame(projection, 1);
+      emitLifecycle(state, emit, "outcome-unknown", {
+        operationId: current.operationId,
+        reason: `acknowledged: ${input.note}`,
+      });
+      emit(acknowledgedNotice(current.operationId, input.note));
     });
   }
 
@@ -331,20 +373,19 @@ export function createRuntimeStore(
   }
 
   async function recordCancel(operationId: string): Promise<CancelState> {
-    return commit(async (tx) => {
-      const { thread, projection, cancels } = await docs(tx);
+    return mutate((docsState, emit) => {
+      const { thread, projection, cancels } = docsState;
       const known = cancels.operations[operationId];
       if (known !== undefined) return known;
       const state = cancelStateFor(thread.lifecycle);
       cancels.operations[operationId] = state;
-      if (
+      const startsCancelling =
         state === "stopping" &&
         thread.lifecycle !== undefined &&
-        nextLifecycle(thread.lifecycle, "cancelling")
-      ) {
-        thread.lifecycle = "cancelling";
-      }
+        nextLifecycle(thread.lifecycle, "cancelling");
+      if (startsCancelling) thread.lifecycle = "cancelling";
       appendFrame(projection, 1);
+      if (startsCancelling) emitLifecycle(docsState, emit, "cancelling", { operationId });
       return state;
     });
   }
@@ -365,8 +406,8 @@ export function createRuntimeStore(
     outcome === "outcome-unknown" ? "unknown" : "stopped";
 
   async function settleCancels(outcome: CancelSettlement = "stopped", reason?: string): Promise<void> {
-    await commit(async (tx) => {
-      const { thread, projection, cancels, operation } = await docs(tx);
+    await mutate((state, emit) => {
+      const { thread, projection, cancels, operation } = state;
       const closed = closeStoppingCancels(cancels, outcome);
       if (closed === 0) return;
       const terminal = OUTCOME_OF_CANCEL[outcome];
@@ -381,14 +422,18 @@ export function createRuntimeStore(
         };
       }
       appendFrame(projection, closed);
+      if (settled?.ok) {
+        const details = { ...currentOperationId(state), ...(reason !== undefined && { reason }) };
+        emitLifecycle(state, emit, settled.lifecycle, details);
+      }
     });
   }
 
   async function recordLaunchIntent(intent: LaunchIntent): Promise<void> {
     if (!intent.operationId || !intent.nonce)
       throw invalidRequest("A launch intent needs an operation id and a nonce.");
-    await commit(async (tx) => {
-      const { thread, projection, operation } = await docs(tx);
+    await mutate((state, emit) => {
+      const { thread, projection, operation } = state;
       const previous = operation.operation;
       if (previous && isUnresolved(previous)) {
         throw invalidRequest(`Operation ${previous.operationId} is still unresolved.`);
@@ -399,6 +444,7 @@ export function createRuntimeStore(
       thread.lifecycle = "starting";
       operation.operation = { operationId: intent.operationId, nonce: intent.nonce, launchIntentAt: now() };
       appendFrame(projection, 1);
+      emitLifecycle(state, emit, "starting", { operationId: intent.operationId });
     });
   }
 
@@ -439,8 +485,7 @@ export function createRuntimeStore(
 
   async function markDeliveredOnce(requestId: string): Promise<void> {
     if (!requestId) throw invalidRequest("A delivered request id cannot be empty.");
-    await commit(async (tx) => {
-      const { projection, operation } = await docs(tx);
+    await mutate(({ inbox, projection, operation }, emit) => {
       const current = assertUnresolved(operation.operation);
       if (current.deliveredRequestId === requestId) return;
       if (current.deliveredRequestId !== undefined) {
@@ -450,23 +495,26 @@ export function createRuntimeStore(
       }
       current.deliveredRequestId = requestId;
       appendFrame(projection, 1);
+      const alreadyAnnounced =
+        inbox.items.find((item) => item.requestId === requestId)?.disposition === "delivered";
+      if (!alreadyAnnounced) emit(queueEvent(requestId, "delivered"));
     });
   }
 
   async function appendEvent(event: NativeEvent): Promise<{ revision: number }> {
-    return commit(async (tx) => {
-      const { projection, eventLog } = await docs(tx);
+    return mutate(({ projection, eventLog }, emit) => {
       const existing = eventLog.entries.find((entry) => entry.key === event.key);
       if (existing) return { revision: existing.revision };
       appendFrame(projection, 1);
       eventLog.entries.push({ revision: projection.revision, key: event.key, event: plainJson(event) });
+      emit(event);
       return { revision: projection.revision };
     });
   }
 
   async function settle(outcome: SettleOutcome, reason?: string): Promise<void> {
-    await commit(async (tx) => {
-      const { thread, projection, operation, cancels } = await docs(tx);
+    await mutate((state, emit) => {
+      const { thread, projection, operation, cancels } = state;
       const current = operation.operation;
       if (current === undefined) throw invalidRequest("No native operation has recorded a launch intent.");
       assertSettleAllowed(thread.lifecycle, outcome);
@@ -474,6 +522,10 @@ export function createRuntimeStore(
       closeStoppingCancels(cancels, cancelStateOfOutcome(outcome));
       current.terminal = { lifecycle: outcome, at: now(), ...(reason !== undefined && { reason }) };
       appendFrame(projection, 1);
+      emitLifecycle(state, emit, outcome, {
+        operationId: current.operationId,
+        ...(reason !== undefined && { reason }),
+      });
     });
   }
 
