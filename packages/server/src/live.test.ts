@@ -8,6 +8,7 @@ import {
   LIVE_PATH,
   type OpsFrame,
   type ServerFrame,
+  type WatchFailedFrame,
   WS_MAX_PAYLOAD_BYTES,
 } from "@tau/protocol";
 import { createFakeCore } from "@tau/testkit";
@@ -281,10 +282,10 @@ describe("R4 live sync you can trust", () => {
       .map((raw) => decodeServerFrame(raw))
       .filter((frame): frame is OpsFrame => frame?.type === "ops");
 
-  const watchFailedFrames = (socket: MockSocket): { conversationId: string }[] =>
+  const watchFailedFrames = (socket: MockSocket): WatchFailedFrame[] =>
     socket.sent
       .map((raw) => decodeServerFrame(raw))
-      .filter((frame): frame is { conversationId: string } => frame?.type === "watch-failed");
+      .filter((frame): frame is WatchFailedFrame => frame?.type === "watch-failed");
 
   const subscribe = (socket: MockSocket, conversationId: string) => {
     socket.emit("message", encodeFrame({ type: "subscribe", conversationId }));
