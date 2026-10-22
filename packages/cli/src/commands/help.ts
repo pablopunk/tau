@@ -13,6 +13,7 @@ const LIFECYCLE = [
   "  serve           Run the server in the foreground (for debugging; bare `tau` installs and starts the service)",
   "  update          Install the latest tau and restart the server (--check, --yes, --force, --no-restart)",
   "  skill           Print the tau skill for agents",
+  "  metrics         Show Tau process CPU/memory and local request metrics (--json)",
 ];
 
 const UPDATE_FLAGS = [

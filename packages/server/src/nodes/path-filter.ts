@@ -15,6 +15,7 @@ const DENIED_FIRST_SEGMENTS: ReadonlySet<string> = new Set([
   "update",
   "pair",
   "health",
+  "metrics",
   "n",
 ]);
 const FASTIFY_DEFAULT_BODY_LIMIT = 1024 * 1024;

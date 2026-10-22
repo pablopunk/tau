@@ -775,6 +775,7 @@ export const COMMAND_EXCLUSIONS = {
   redeemPairing:
     "Called by the pair page and `tau connect` with a one-time code, never by an agent or the CLI.",
   getHealth: "A probe for the watchdog and the service manager; `tau status` shows the same facts.",
+  getMetrics: "Handled by the dedicated `tau metrics` command with human-readable output.",
   recreateRemote: "UI only: it clears every linked device, so it needs the confirmation dialog.",
   linkNode: "A WebSocket one node's server dials with a node secret; not an HTTP call.",
   signOutAllDevices: "UI only: it signs out every browser and phone, this one included.",
