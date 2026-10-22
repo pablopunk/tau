@@ -408,11 +408,7 @@ function ComposerForm({
           </p>
         ) : null}
         {coarse ? (
-          <div
-            className="flex items-center justify-center gap-4 py-2"
-            role="group"
-            aria-label="Composer actions"
-          >
+          <fieldset className="flex items-center justify-center gap-4 py-2" aria-label="Composer actions">
             {bangMode ? null : (
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -465,7 +461,7 @@ function ComposerForm({
               </TooltipTrigger>
               <TooltipContent side="top">{busy ? "Send as steer" : "Send"}</TooltipContent>
             </Tooltip>
-          </div>
+          </fieldset>
         ) : null}
         <div className="flex flex-wrap items-center gap-1 max-sm:justify-center sm:flex-nowrap">
           {bangMode ? null : toolbarStart}
