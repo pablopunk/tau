@@ -44,6 +44,7 @@ import type {
   ResourceSupport,
   RestorePreview,
   RetryInput,
+  RuntimeDescriptorList,
   SandboxSettings,
   SendMessageInput,
   SendNowResult,
@@ -149,6 +150,9 @@ export interface Api {
   };
   models: {
     list(): Promise<ModelInfo[]>;
+  };
+  runtimes: {
+    list(): Promise<RuntimeDescriptorList>;
   };
   skills: {
     list(projectId: string | null): Promise<Skill[]>;
@@ -375,6 +379,9 @@ export function createApi(transport: Transport): Api {
     },
     models: {
       list: () => request("listModels", {}),
+    },
+    runtimes: {
+      list: () => request("listRuntimes", {}),
     },
     skills: {
       list: (projectId) => request("listSkills", { query: projectId ? { projectId } : {} }),

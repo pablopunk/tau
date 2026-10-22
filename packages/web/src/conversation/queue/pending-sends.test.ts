@@ -16,6 +16,11 @@ describe("pending sends", () => {
     expect(result.current.map((item) => item.submissionId)).toEqual([42]);
   });
 
+  it("keeps the request id a receipt carries, and none when it carries none", () => {
+    expect(noteSending("c1", { submissionId: 1, requestId: "req-1" }, message).requestId).toBe("req-1");
+    expect(Object.keys(noteSending("c1", { submissionId: 2 }, message))).not.toContain("requestId");
+  });
+
   it("scopes pending bubbles per conversation", () => {
     noteSending("c1", { submissionId: 1 }, message);
     noteSending("c2", { submissionId: 2 }, message);

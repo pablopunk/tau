@@ -21,10 +21,13 @@ import {
 import { isJobActive } from "@/lib/updates";
 import { useApi } from "@/nodes/node-context";
 
+const RUNTIMES_STALE_MS = 60_000;
+
 export const queryKeys = {
   providers: ["providers"] as const,
   settings: ["settings"] as const,
   models: ["models"] as const,
+  runtimes: ["runtimes"] as const,
   skills: (projectId: string | null) => ["skills", projectId] as const,
   projects: ["projects"] as const,
   conversations: (projectId: string) => ["conversations", projectId] as const,
@@ -79,6 +82,17 @@ export const useProjects = () => {
 export const useModels = () => {
   const api = useApi();
   return useQuery({ queryKey: queryKeys.models, queryFn: () => api.models.list() });
+};
+
+/** Which engines this node offers a new thread. A failing or old node just has no answer: callers fall back to Pi. */
+export const useRuntimes = () => {
+  const api = useApi();
+  return useQuery({
+    queryKey: queryKeys.runtimes,
+    queryFn: () => api.runtimes.list(),
+    retry: false,
+    staleTime: RUNTIMES_STALE_MS,
+  });
 };
 
 export const useSkills = (projectId: string | null) => {

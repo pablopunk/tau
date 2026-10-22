@@ -1,11 +1,12 @@
 import { readRuntimeLive } from "@tau/protocol";
 import { useNavigate } from "react-router";
 import { CommandGroup, CommandItem } from "@/components/ui/command";
+import { isNativeExecutor, threadExecutorOf } from "@/conversation/model/executor";
 import { stopAndRestore } from "@/conversation/queue/stop-restore";
 import { useThreadListMutation } from "@/conversation/queue/thread-list-mutations";
 import { useConversationView } from "@/conversation/use-conversation-view";
 import { conversationPath, terminalPath } from "@/lib/paths";
-import { queryKeys } from "@/lib/queries";
+import { queryKeys, useAllConversations } from "@/lib/queries";
 import { useApi, useNodeId } from "@/nodes/node-context";
 import { useOpenAndFocusTerminal, useTerminals, useTerminalsAvailable } from "@/panes/use-terminals";
 import { attempt } from "./attempt";
@@ -37,7 +38,11 @@ export function ThreadActions({
   const canThink = useThreadAgent(conversationId).model?.thinkingLevels.some((level) => level !== "off");
   const openTerminal = useOpenAndFocusTerminal(projectId, conversationId);
   const state = useConversationView(conversationId);
-  const queued = state.status === "ready" ? readRuntimeLive(state.view, undefined).queued : [];
+  const summary = useAllConversations().data?.find((item) => item.id === conversationId);
+  const view = state.status === "ready" ? state.view : undefined;
+  const executor = threadExecutorOf(summary, view);
+  const native = isNativeExecutor(executor);
+  const queued = view ? readRuntimeLive(view, executor).queued : [];
   const stop = () => stopAndRestore(api, conversationId, nodeId, queued);
 
   const archiveMutation = useThreadListMutation({
@@ -69,8 +74,10 @@ export function ThreadActions({
           Go to chat
         </CommandItem>
       ) : null}
-      <CommandItem onSelect={onChangeModel}>Change model…</CommandItem>
-      {canThink ? <CommandItem onSelect={onChangeThinking}>Change thinking level…</CommandItem> : null}
+      {native ? null : <CommandItem onSelect={onChangeModel}>Change model…</CommandItem>}
+      {canThink && !native ? (
+        <CommandItem onSelect={onChangeThinking}>Change thinking level…</CommandItem>
+      ) : null}
       <CommandItem onSelect={run(attempt(stop))}>Stop agent</CommandItem>
       <CommandItem onSelect={run(attempt(toggleArchive))}>
         {archived ? "Unarchive thread" : "Archive thread"}

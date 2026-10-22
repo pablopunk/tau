@@ -1,6 +1,7 @@
 import type {
   AssistantMessage as AssistantMessageData,
   ConversationView,
+  ExecutorKind,
   ToolCall,
   ToolSlot,
 } from "@tau/protocol";
@@ -14,9 +15,12 @@ import { markLiveReflect } from "@/lib/timings";
 import { useApi } from "@/nodes/node-context";
 import { TurnChanges } from "./checkpoints/TurnChanges";
 import { AssistantMessage, markdownOf } from "./messages/AssistantMessage";
+import { NativeNotice } from "./messages/NativeNotice";
 import { CompactedDivider, CompactingNotice, RetriedDivider, RetryNotice } from "./messages/notices";
 import { QueuedMessages } from "./messages/QueuedMessages";
 import { UserMessage } from "./messages/UserMessage";
+import { isNativeExecutor } from "./model/executor";
+import { nativeNoticeOf, nativeRequestIdsOf, queuedNativeUserKeysOf } from "./model/native-thread";
 import { isActive, resolveToolCall } from "./model/tool-state";
 import { buildTranscript } from "./model/transcript";
 import { isMvpNotificationItem, MvpNotificationRow } from "./notifications/MvpNotificationRow";
@@ -126,18 +130,29 @@ export function Transcript({
   view,
   onRetry,
   conversationId,
+  executor,
 }: {
   view: ConversationView;
   onRetry?: (requestId: string) => Promise<unknown>;
   conversationId?: string;
+  /** Names a native thread: its busy/queue state and notices come from native entries, and Pi-only rows stay off. */
+  executor?: ExecutorKind;
 }) {
-  const { items, results } = buildTranscript(view);
+  const native = isNativeExecutor(executor);
+  const transcript = buildTranscript(view);
+  const queuedKeys = native ? queuedNativeUserKeysOf(view) : undefined;
+  const items = queuedKeys
+    ? transcript.items.filter((item) => item.kind !== "user" || !queuedKeys.has(item.entryId))
+    : transcript.items;
+  const { results } = transcript;
+  const notice = native ? nativeNoticeOf(view) : undefined;
+  const nativeRequestIds = native ? nativeRequestIdsOf(view) : undefined;
   const firstEntryId = firstMessageEntryId(items);
   const entryOf = (entryId: string, role: "user" | "assistant", text: string) =>
-    conversationId
+    conversationId && !native
       ? { conversationId, entryId, role, text, startsConversation: entryId === firstEntryId }
       : undefined;
-  const live = readRuntimeLive(view, undefined);
+  const live = readRuntimeLive(view, executor);
   const api = useApi();
   const pendings = usePendingSends(conversationId);
   const resolveTool = (call: ToolCall) =>
@@ -158,41 +173,37 @@ export function Transcript({
   // Reconcile pending sends against live state on exact ids only — never
   // text or entry-count. A sending bubble whose submission landed in the
   // queue morphs into that row (the row renders it); a placed entryId drops
-  // the bubble. Never mutate cached live data: only drop our own rows.
+  // the bubble; a native send drops it once the native user event echoes its
+  // requestId. Never mutate cached live data: only drop our own rows.
+  const isReflected = (pending: (typeof pendings)[number]) =>
+    (pending.submissionId !== undefined && !native && queuedIds.has(pending.submissionId)) ||
+    (pending.entryId !== undefined && !native && entryIds.has(String(pending.entryId))) ||
+    (pending.requestId !== undefined && nativeRequestIds?.has(pending.requestId) === true);
   useEffect(() => {
     if (conversationId === undefined) return;
     for (const pending of pendings) {
-      if (pending.status !== "sending") continue;
-      if (pending.submissionId !== undefined && queuedIds.has(pending.submissionId)) {
-        markLiveReflect("send", pending);
-        resolvePending(conversationId, pending.key);
-      } else if (pending.entryId !== undefined && entryIds.has(String(pending.entryId))) {
-        markLiveReflect("send", pending);
-        resolvePending(conversationId, pending.key);
-      }
+      if (pending.status !== "sending" || !isReflected(pending)) continue;
+      markLiveReflect("send", pending);
+      resolvePending(conversationId, pending.key);
     }
   });
-  const visiblePendings = pendings.filter((pending) => {
-    if (pending.status === "failed") return true;
-    if (pending.submissionId !== undefined && queuedIds.has(pending.submissionId)) return false;
-    if (pending.entryId !== undefined && entryIds.has(String(pending.entryId))) return false;
-    return true;
-  });
+  const visiblePendings = pendings.filter((pending) => pending.status === "failed" || !isReflected(pending));
   const retryPending = (key: string) => async () => {
     if (conversationId === undefined) return;
     const pending = pendings.find((item) => item.key === key);
     if (!pending) return;
     try {
+      const requestId = newRequestId();
       const receipt = await api.conversations.send(conversationId, {
         text: pending.text,
         ...(pending.images.length > 0 && { images: [...pending.images] }),
         ...(pending.files.length > 0 && { files: [...pending.files] }),
         ...(pending.whenBusy && { whenBusy: pending.whenBusy }),
-        requestId: newRequestId(),
+        requestId,
       });
       resolvePending(conversationId, key);
       // Pre-contract nodes resolve `void`: keep the failed bubble so the message never vanishes silently.
-      if (hasReceipt(receipt)) noteSending(conversationId, receipt, pending);
+      if (hasReceipt(receipt)) noteSending(conversationId, { ...receipt, requestId }, pending);
     } catch (error) {
       toast.error(errorMessage(error));
     }
@@ -207,7 +218,8 @@ export function Transcript({
     !live.compacting &&
     live.queued.length === 0 &&
     visiblePendings.length === 0 &&
-    unplacedCalls.length === 0
+    unplacedCalls.length === 0 &&
+    !notice
   )
     return <EmptyTranscript />;
   return (
@@ -237,7 +249,7 @@ export function Transcript({
                   resolveTool={resolveTool}
                   entry={entryOf(item.entryId, "assistant", markdownOf(item.message))}
                 />
-                {conversationId && turnEntryId ? (
+                {conversationId && turnEntryId && !native ? (
                   <TurnChanges conversationId={conversationId} entryId={turnEntryId} />
                 ) : null}
               </Fragment>
@@ -282,9 +294,10 @@ export function Transcript({
           {live.compacting ? <CompactingNotice /> : null}
           {live.retry ? <RetryNotice retry={live.retry} /> : null}
           {isIdleWhileBusy(live) ? <WorkingIndicator /> : null}
-          {onRetry && isRetryable(view) ? <RetryButton onRetry={onRetry} /> : null}
-          {conversationId ? <ToolApproval conversationId={conversationId} /> : null}
-          <QueuedMessages items={live.queued} conversationId={conversationId} />
+          {notice ? <NativeNotice notice={notice} /> : null}
+          {onRetry && !native && isRetryable(view) ? <RetryButton onRetry={onRetry} /> : null}
+          {conversationId && !native ? <ToolApproval conversationId={conversationId} /> : null}
+          <QueuedMessages items={live.queued} conversationId={native ? undefined : conversationId} />
         </div>
       </LatestTodoCallProvider>
     </ToolConversationProvider>
