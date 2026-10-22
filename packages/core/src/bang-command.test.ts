@@ -8,6 +8,7 @@ import {
   type ConversationSummary,
   type ConversationView,
   DEFAULT_RESOURCE_SETTINGS,
+  DEFAULT_SANDBOX_SETTINGS,
   type ProcessInfo,
 } from "@tau/protocol";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -98,6 +99,7 @@ function fakeProcesses(impl?: (request: StartRequest) => Promise<never>) {
     }),
     stop: vi.fn(async () => undefined),
     resourceSettings: () => DEFAULT_RESOURCE_SETTINGS,
+    sandboxSettings: () => DEFAULT_SANDBOX_SETTINGS,
   };
 }
 
@@ -174,6 +176,46 @@ describe("runBangCommand", () => {
     const deps = depsFor({ entryOf: async () => entry, processes });
     await runBangCommand(deps, "c1", "echo hi");
     expect(processes.start.mock.calls[0]?.[0]).toMatchObject({ governed: true, scope: "main" });
+  });
+
+  const worktreeEntry = {
+    parentId: null,
+    workspace: { mode: "worktree" },
+  } as unknown as IndexedConversation;
+
+  it("carries the worktree sandbox scope while its resource level is Off", async () => {
+    const processes = fakeProcesses();
+    processes.sandboxSettings = () => ({ main: false, worktree: true, subagent: false });
+    const deps = depsFor({ entryOf: async () => worktreeEntry, processes });
+    await runBangCommand(deps, "c1", "echo hi");
+    const request = processes.start.mock.calls[0]?.[0];
+    expect(request).toMatchObject({ sandboxScope: "worktree" });
+    expect(request).not.toHaveProperty("governed");
+    expect(request).not.toHaveProperty("scope");
+  });
+
+  it("keeps the governor scope and the sandbox scope when both apply", async () => {
+    const processes = fakeProcesses();
+    processes.resourceSettings = () => ({
+      ...DEFAULT_RESOURCE_SETTINGS,
+      levels: { main: "off", worktree: "balanced", subagent: "off" },
+    });
+    processes.sandboxSettings = () => ({ main: false, worktree: true, subagent: false });
+    const deps = depsFor({ entryOf: async () => worktreeEntry, processes });
+    await runBangCommand(deps, "c1", "echo hi");
+    expect(processes.start.mock.calls[0]?.[0]).toMatchObject({
+      governed: true,
+      scope: "worktree",
+      sandboxScope: "worktree",
+    });
+  });
+
+  it("marks an unresolved thread's sandbox scope unknown instead of main", async () => {
+    const processes = fakeProcesses();
+    processes.sandboxSettings = () => ({ main: false, worktree: true, subagent: false });
+    const deps = depsFor({ entryOf: async () => undefined, processes });
+    await runBangCommand(deps, "c1", "echo hi");
+    expect(processes.start.mock.calls[0]?.[0]).toMatchObject({ sandboxScope: "unknown" });
   });
 
   it("submits an app.notice and reports failure when the spawn throws", async () => {

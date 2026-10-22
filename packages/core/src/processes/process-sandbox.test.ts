@@ -206,6 +206,90 @@ describe("sandbox spawn integration", () => {
   });
 });
 
+describe("sandbox scope is independent of resource eligibility", () => {
+  const WORKTREE_ONLY: SandboxSettings = { main: false, worktree: true, subagent: true };
+  const macSandbox = {
+    spawn: hangingSpawn,
+    sandboxPlatform: "macos" as const,
+    sandboxBinaries: { sandboxExec: "/usr/bin/sandbox-exec" },
+    resolveSandboxRoot: () => ({ kind: "worktree" as const, root: cwd }),
+  };
+
+  it("sandboxes a worktree thread by its own switch although main is off and it is ungoverned", async () => {
+    const service = make({ ...macSandbox, sandbox: WORKTREE_ONLY });
+    await service.start({ conversationId: "c1", cwd, command: "echo hi", sandboxScope: "worktree" });
+    expect(spawnCalls[0]?.file).toBe("/usr/bin/sandbox-exec");
+  });
+
+  it("sandboxes a subagent thread by its own switch although main is off", async () => {
+    const service = make({ ...macSandbox, sandbox: WORKTREE_ONLY });
+    await service.start({ conversationId: "c1", cwd, command: "echo hi", sandboxScope: "subagent" });
+    expect(spawnCalls[0]?.file).toBe("/usr/bin/sandbox-exec");
+  });
+
+  it("leaves a main thread alone when only worktree and subagent are on", async () => {
+    const service = make({ ...macSandbox, sandbox: WORKTREE_ONLY });
+    await service.start({ conversationId: "c1", cwd, command: "echo hi", sandboxScope: "main" });
+    expect(spawnCalls[0]?.file).toBe("/bin/sh");
+  });
+
+  it("leaves a worktree thread alone when its switch is off although main is on", async () => {
+    const service = make({ ...macSandbox, sandbox: { main: true, worktree: false, subagent: false } });
+    await service.start({ conversationId: "c1", cwd, command: "echo hi", sandboxScope: "worktree" });
+    expect(spawnCalls[0]?.file).toBe("/bin/sh");
+  });
+
+  it("prefers the sandbox scope over the governor scope", async () => {
+    const service = make({ ...macSandbox, sandbox: WORKTREE_ONLY });
+    await service.start({
+      conversationId: "c1",
+      cwd,
+      command: "echo hi",
+      governed: true,
+      scope: "main",
+      sandboxScope: "worktree",
+    });
+    expect(spawnCalls[0]?.file).toBe("/usr/bin/sandbox-exec");
+  });
+
+  it("denies an unresolved thread fail-closed when any scope is on, without a trusted root", async () => {
+    const service = make({ ...macSandbox, sandbox: WORKTREE_ONLY, resolveSandboxRoot: () => undefined });
+    await expect(
+      service.start({ conversationId: "c1", cwd, command: "echo hi", sandboxScope: "unknown" }),
+    ).rejects.toMatchObject({ code: "forbidden" });
+    expect(spawnCalls).toHaveLength(0);
+  });
+
+  it("sandboxes an unresolved thread when its root still resolves", async () => {
+    const service = make({ ...macSandbox, sandbox: WORKTREE_ONLY });
+    await service.start({ conversationId: "c1", cwd, command: "echo hi", sandboxScope: "unknown" });
+    expect(spawnCalls[0]?.file).toBe("/usr/bin/sandbox-exec");
+  });
+
+  it("runs an unresolved thread plainly while every scope is off", async () => {
+    const service = make({ ...macSandbox });
+    await service.start({ conversationId: "c1", cwd, command: "echo hi", sandboxScope: "unknown" });
+    expect(spawnCalls[0]?.file).toBe("/bin/sh");
+  });
+
+  it("forwards the sandbox scope for foreground runs", async () => {
+    const service = make({ ...macSandbox, sandbox: WORKTREE_ONLY });
+    const run = await service.runForeground({
+      conversationId: "c1",
+      callId: "call-1",
+      cwd,
+      command: "echo hi",
+      sandboxScope: "worktree",
+      onOutput: () => {},
+    });
+    await run.admitted;
+    expect(spawnCalls[0]?.file).toBe("/usr/bin/sandbox-exec");
+    await run.stop("user");
+    await run.outcome;
+    await run.release(false);
+  });
+});
+
 describe("sandbox unit lifecycle", () => {
   it("persists a stable unit id and stops/kills the UNIT explicitly", async () => {
     const service = make({

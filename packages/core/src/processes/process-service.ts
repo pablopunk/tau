@@ -17,7 +17,7 @@ import { releaseBangSlot } from "../harness/conversation-submit";
 import type { Notification, NotificationSubmitter, PassiveWrite } from "../harness/notification-submitter";
 import { createDeferred, type Deferred } from "./deferred";
 import { type Exec, execCommand, systemdEnv } from "./governor/exec";
-import type { ThreadClass } from "./governor/governed";
+import type { SandboxScope, ThreadClass } from "./governor/governed";
 import { createGovernor, type Governor, type Plan } from "./governor/governor";
 import { memoryStopText } from "./governor/governor-text";
 import type { WatchHandle } from "./governor/memory-watch";
@@ -80,6 +80,12 @@ export interface StartProcessRequest {
   readonly governed?: boolean;
   /** The calling thread's scope; picks the command's power level. Set with `governed`. */
   readonly scope?: ThreadClass;
+  /**
+   * The thread's real scope for sandbox planning, independent of `scope`/`governed` (resource eligibility).
+   * `unknown` means the thread could not be resolved: sandboxed fail-closed when any scope is on.
+   * Unset falls back to `scope`, then `main`, for direct callers.
+   */
+  readonly sandboxScope?: SandboxScope;
   /** Added to the environment of the process. */
   readonly env?: Readonly<Record<string, string>>;
   /**
@@ -103,6 +109,12 @@ export interface ForegroundRequest {
   readonly governed?: boolean;
   /** The calling thread's scope; picks the command's power level. Set with `governed`. */
   readonly scope?: ThreadClass;
+  /**
+   * The thread's real scope for sandbox planning, independent of `scope`/`governed` (resource eligibility).
+   * `unknown` means the thread could not be resolved: sandboxed fail-closed when any scope is on.
+   * Unset falls back to `scope`, then `main`, for direct callers.
+   */
+  readonly sandboxScope?: SandboxScope;
   /** Trusted sandbox root, as on `StartProcessRequest`. */
   readonly sandboxRoot?: string;
   /** Distinguishes tool-spawned runs in exit delivery; unset preserves follow-up behavior. */
@@ -136,6 +148,8 @@ export interface ProcessService {
   setResources(next: ResourceSettings): void;
   /** Applies the sandbox switch to the next spawn. */
   setSandbox(next: SandboxSettings): void;
+  /** The node's sandbox switch, read synchronously. */
+  sandboxSettings(): SandboxSettings;
   /** What the host can enforce; probes the cgroup lazily on Linux. */
   resourceSupport(): Promise<ResourceSupport>;
   /** No queue: always empty. Kept so the API shape stays stable. */
@@ -258,6 +272,8 @@ interface SandboxPlan {
 }
 
 const noop = () => undefined;
+
+const SANDBOX_SCOPES: readonly ThreadClass[] = ["main", "worktree", "subagent"];
 
 export function createProcessService(deps: ProcessDeps): ProcessService {
   const files = createProcessFiles(deps.home);
@@ -696,15 +712,25 @@ export function createProcessService(deps: ProcessDeps): ProcessService {
   };
 
   /**
+   * The scope whose sandbox switch applies to this spawn, or `null` when none does. An unresolved thread is
+   * sandboxed whenever any scope is on, under the first enabled scope: never assumed `main`.
+   */
+  function sandboxPolicyScope(request: StartProcessRequest, settings: SandboxSettings): ThreadClass | null {
+    const requested = request.sandboxScope ?? request.scope ?? "main";
+    if (requested !== "unknown") return sandboxEnabled(settings, requested) ? requested : null;
+    return SANDBOX_SCOPES.find((scope) => sandboxEnabled(settings, scope)) ?? null;
+  }
+
+  /**
    * The Layer-1 sandbox plan for one spawn, keyed by the resolved root.
    * Fail-closed: sandbox on with no trusted root, a cwd outside the root, or
    * no enforcement path on this host rejects the spawn (`forbidden`) — never
    * a silent cwd substitution or an unenforced run.
    */
   async function planSandbox(request: StartProcessRequest, entryId: string): Promise<SandboxPlan | null> {
-    const scope: ThreadClass = request.scope ?? "main";
     const settings = sandboxSettings ?? DEFAULT_SANDBOX_SETTINGS;
-    if (!sandboxEnabled(settings, scope)) return null;
+    const scope = sandboxPolicyScope(request, settings);
+    if (scope === null) return null;
     const trusted: TrustInput | undefined =
       request.sandboxRoot !== undefined
         ? { kind: "worktree", root: request.sandboxRoot }
@@ -894,6 +920,7 @@ export function createProcessService(deps: ProcessDeps): ProcessService {
           ...(request.origin === undefined ? {} : { origin: request.origin }),
           ...(governedOf(request) && { governed: true }),
           ...(request.scope === undefined ? {} : { scope: request.scope }),
+          ...(request.sandboxScope === undefined ? {} : { sandboxScope: request.sandboxScope }),
           ...(request.shell === undefined ? {} : { shell: request.shell }),
           ...(request.env === undefined ? {} : { env: request.env }),
           ...(request.sandboxRoot === undefined ? {} : { sandboxRoot: request.sandboxRoot }),
@@ -1007,6 +1034,7 @@ export function createProcessService(deps: ProcessDeps): ProcessService {
     setSandbox: (next) => {
       sandboxSettings = next;
     },
+    sandboxSettings: () => sandboxSettings ?? DEFAULT_SANDBOX_SETTINGS,
     resourceActivity() {
       return { holders: [], waiting: [] };
     },
