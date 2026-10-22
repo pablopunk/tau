@@ -36,13 +36,12 @@ Dependencies point one way: `protocol` <- `testkit` <- `core`, `server`, `web`. 
 ## Subagent workflow
 
 1. Talk with the user. Agree on scope.
-2. Write a plan doc.
+2. Write a plan doc in `plans/`.
 3. Adversarial review rounds with evidence (`file:line`, command output). Repeat until approved.
 4. One foundation agent freezes the contract, stubs and fake. Done when check, test and build pass.
 5. Parallel agents, each owning folders. The plan lists who owns what. Nobody edits files they do not own. Needed changes go in a note for the integrator.
 6. One integration agent applies the notes and merges each branch as it finishes. It runs check and test after each merge.
 7. Verify for real: run the built app in a browser and use it with real user actions.
 
-* Agents run on Sonnet with low effort.
 * Never work around git hooks. If a hook blocks git, leave work uncommitted and say so.
 * Announce each finished step with `say`.

@@ -11,3 +11,4 @@ playwright-report/
 *.tsbuildinfo
 .claude/
 logs/
+/plans/
