@@ -2,6 +2,7 @@ import { defineDoc, defineDocFamily } from "@earendil-works/pi-durable";
 import type {
   AgentStatus,
   ConversationStatus,
+  ExecutorKind,
   FileRef,
   GoalSummary,
   ImageInput,
@@ -35,6 +36,7 @@ export type IndexedConversation = {
   goal?: GoalSummary;
   background?: boolean;
   unmergedWarning?: string;
+  executor?: ExecutorKind;
 };
 
 export type TitleSource = "first-message" | "generated" | "user";
@@ -66,6 +68,7 @@ export type ConversationMeta = {
   titleSource: TitleSource;
   pendingFirstInput?: PendingFirstInput;
   deletedAt?: number;
+  executor?: ExecutorKind;
 };
 
 /** Keyed by project id: `scanConversations` cannot filter by project and also returns subagent children. */

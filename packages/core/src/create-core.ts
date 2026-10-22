@@ -63,7 +63,7 @@ import { createNodes } from "./nodes/create-nodes";
 import { createDirectory } from "./nodes/directory";
 import { createSelfThreadCount } from "./nodes/self-thread-count";
 import { createFilePeersStore, migrateHubFile, migrateSummaryDirectory } from "./peers/peers-store";
-import { classifyThread } from "./processes/governor/governed";
+import { classifyThread, type SandboxScope } from "./processes/governor/governed";
 import { createResourceState } from "./processes/governor/resource-state";
 import { createProcessService } from "./processes/process-service";
 import { resourceActivityOf } from "./processes/resource-activity";
@@ -77,6 +77,9 @@ import { createOpenTunnelAdapter } from "./remote/opentunnel-adapter";
 import type { RemoteAdapter, RemoteAdapterDeps } from "./remote/ports";
 import { createRemoteService } from "./remote/remote-service";
 import { conversationRemovedInOrder, type RemovalHooks } from "./removal-hooks";
+import type { NativeQueryFn } from "./runtimes/native/controller";
+import { nativeLaunchPolicy } from "./runtimes/native/launch-policy";
+import { createNativeService, type NativeService } from "./runtimes/native/service";
 import { createSettingsApi } from "./settings-api";
 import { useBundledSkills } from "./skills/discover-skills";
 import { createSkillsApi } from "./skills/skills-api";
@@ -114,6 +117,18 @@ export interface CoreDependencies {
   /** Tests replace the tunnel with the fake adapter. Default: the OpenTunnel adapter. */
   readonly remoteAdapter?: (deps: RemoteAdapterDeps) => RemoteAdapter;
   readonly terminalService?: (deps: TerminalServiceDeps) => TerminalService;
+  /** Tests replace the Agent SDK behind native threads. Used only while the native flag is on. */
+  readonly nativeQuery?: NativeQueryFn;
+}
+
+const NATIVE_FLAG = "TAU_EXPERIMENTAL_NATIVE_CLAUDE";
+
+const nativeEnabledIn = (env: Environment): boolean => env[NATIVE_FLAG] === "1";
+
+/** Loaded only when the flag is on, so a default start never imports the Agent SDK. */
+async function loadAgentSdkQuery(): Promise<NativeQueryFn> {
+  const { query } = await import("@anthropic-ai/claude-agent-sdk");
+  return ({ prompt, options }) => query({ prompt, options });
 }
 
 const exitAfterLogging = (error: unknown) => {
@@ -417,9 +432,31 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
       announce: (projectId) => changes.emit({ resource: "conversations", projectId }),
     });
     const recovery = createConversationRecovery({ harness, conversations, changes });
+    const native: NativeService | undefined = nativeEnabledIn(deps.env)
+      ? createNativeService({
+          harness,
+          conversations,
+          query: deps.nativeQuery ?? (await loadAgentSdkQuery()),
+          policyFor: nativeLaunchPolicy({
+            sandbox: {
+              settings: async () => (await settings.get()).sandbox,
+              scopeOf: async (id): Promise<SandboxScope> => {
+                const thread = await sandboxThreadOf(id);
+                return thread
+                  ? classifyThread({ parentId: thread.parentId ?? undefined, workspace: thread.workspace })
+                  : "unknown";
+              },
+              trustOf: sandboxTrustOf,
+            },
+          }).forThread,
+          onChange: (projectId) => changes.emit({ resource: "conversations", projectId }),
+          now: deps.now,
+        })
+      : undefined;
     await status.recoverAtStartup();
     await clones.recoverAtStartup();
     await recovery.recoverAtStartup();
+    await native?.reconcileAll();
     await processes.reapStaleAtStartup();
     // Dispatch admitted-but-unspawned bangs; stale groups are dead by now,
     // so a redispatch can't double-run a live process.
@@ -592,6 +629,7 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
         forker,
         harness,
         notifications,
+        ...(native && { native }),
         removal,
         archivedCleanup,
         closeClaudeCliThread,
@@ -638,6 +676,7 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
             await processes.stopAll();
             await terminals.close();
             await status.settled();
+            await native?.close();
             await mcp.closeAll();
             await harness.close(BACKGROUND);
             await voiceApi.close();
