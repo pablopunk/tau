@@ -18,6 +18,7 @@ export * from "./node-link-routing";
 export * from "./node-rules";
 export * from "./nodes";
 export * from "./ops";
+export * from "./projection";
 export * from "./protocol-hash";
 export * from "./remote";
 export * from "./resources";

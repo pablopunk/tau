@@ -1,6 +1,7 @@
-import type { EntryRecord } from "@tau/protocol";
+import type { ConversationView, EntryRecord } from "@tau/protocol";
+import { contextUsageInputOf } from "@tau/protocol";
 import { describe, expect, it } from "vitest";
-import { contextUsage } from "./context-usage";
+import { contextUsage as contextUsageOf } from "./context-usage";
 
 const user = (id: string, text: string) =>
   ({ id, kind: "pi.user", model: [{ role: "user", content: text }] }) as unknown as EntryRecord;
@@ -14,6 +15,9 @@ const assistant = (id: string, usage: object) =>
 
 const compaction = (id: string, head: string) =>
   ({ id, kind: "pi.compaction", head, data: { reason: "manual" }, model: [] }) as unknown as EntryRecord;
+
+const contextUsage = (entries: readonly EntryRecord[], contextWindow: number) =>
+  contextUsageOf(contextUsageInputOf({ entries, docs: {} } as unknown as ConversationView), contextWindow);
 
 describe("contextUsage", () => {
   it("is null without any usage", () => {

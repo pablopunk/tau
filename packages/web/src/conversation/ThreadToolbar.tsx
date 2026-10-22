@@ -1,4 +1,5 @@
 import type { ConfigureConversationInput, ConversationView, ModelRef, ThinkingLevel } from "@tau/protocol";
+import { contextUsageInputOf } from "@tau/protocol";
 import type { Ref } from "react";
 import { toast } from "sonner";
 import { ModelThinkingPickers, type PickersHandle } from "@/components/ModelThinkingPickers";
@@ -38,7 +39,7 @@ export function ThreadToolbar({
   if (!models) return null;
   const current = findModel(agent, models);
   const model: ModelRef | null = current ? { provider: current.provider, modelId: current.modelId } : null;
-  const usage = current ? contextUsage(view.entries, current.contextWindow) : null;
+  const usage = current ? contextUsage(contextUsageInputOf(view), current.contextWindow) : null;
   return (
     <>
       <ModelThinkingPickers

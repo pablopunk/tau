@@ -1,57 +1,14 @@
-import type { ConversationView, ImageContent } from "@tau/protocol";
+import type { ConversationView, ImageRef } from "@tau/protocol";
+import { imageRefsOf } from "@tau/protocol";
 
-export interface SidebarImage {
-  readonly src: string;
+export interface SidebarImage extends ImageRef {
   readonly alt: string;
-  readonly entryId: string;
-  /** User-attached vs read back by the agent (tool results, e.g. Read with images). */
-  readonly source: "user" | "agent";
 }
 
-function srcOf(image: ImageContent): string {
-  return `data:${image.mimeType};base64,${image.data}`;
+function altOf(ref: ImageRef, index: number): string {
+  return `${ref.source === "agent" ? "Gallery agent image" : "Gallery image"} ${index + 1}`;
 }
 
-function isImageBlock(block: unknown): block is ImageContent {
-  if (typeof block !== "object" || block === null) return false;
-  const candidate = block as { type?: unknown; mimeType?: unknown; data?: unknown };
-  return (
-    candidate.type === "image" && typeof candidate.mimeType === "string" && typeof candidate.data === "string"
-  );
-}
-
-function imagesIn(content: unknown): readonly ImageContent[] {
-  if (!Array.isArray(content)) return [];
-  return content.filter(isImageBlock);
-}
-
-/** Every image in the conversation: user-sent plus images the agent read back from tools. */
 export function collectConversationImages(view: ConversationView): readonly SidebarImage[] {
-  const out: SidebarImage[] = [];
-  for (const entry of view.entries) {
-    const message = entry.model?.[0] as { role?: string; content?: unknown } | undefined;
-    if (!message || typeof message.content === "string") continue;
-    const images = imagesIn(message.content);
-    if (images.length === 0) continue;
-    const role = (message as { role?: unknown }).role;
-    if (entry.kind === "pi.tool-result" || role !== "user") {
-      for (const image of images)
-        out.push({
-          src: srcOf(image),
-          alt: `Gallery agent image ${out.length + 1}`,
-          entryId: String(entry.id),
-          source: "agent",
-        });
-    } else {
-      for (const image of images) {
-        out.push({
-          src: srcOf(image),
-          alt: `Gallery image ${out.length + 1}`,
-          entryId: String(entry.id),
-          source: "user",
-        });
-      }
-    }
-  }
-  return out;
+  return imageRefsOf(view).map((ref, index) => ({ ...ref, alt: altOf(ref, index) }));
 }
