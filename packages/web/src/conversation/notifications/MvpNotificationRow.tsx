@@ -16,8 +16,15 @@ export function MvpNotificationRow({ item }: { item: MvpNotificationItem }) {
   return <NoticeRow data={item.data} />;
 }
 
-const MVP_KINDS: readonly string[] = ["bang", "process-exit", "timer-fired", "notice", "goal-verdict"];
+const MVP_KINDS: Record<MvpNotificationItem["kind"], true> = {
+  bang: true,
+  "monitor-event": true,
+  "process-exit": true,
+  "timer-fired": true,
+  notice: true,
+  "goal-verdict": true,
+};
 
 export const isMvpNotificationItem = <T extends { readonly kind: string }>(
   item: T,
-): item is Extract<T, MvpNotificationItem> => MVP_KINDS.includes(item.kind);
+): item is Extract<T, MvpNotificationItem> => Object.hasOwn(MVP_KINDS, item.kind);

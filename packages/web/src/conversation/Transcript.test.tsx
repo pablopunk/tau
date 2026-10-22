@@ -92,6 +92,22 @@ describe("<Transcript> pending sends", () => {
   });
 });
 
+describe("<Transcript> notifications", () => {
+  it("renders monitor events without treating them as assistant messages", () => {
+    renderTranscript({
+      ...empty,
+      entries: [
+        {
+          kind: "app.monitor_event",
+          id: 1,
+          data: { processId: "monitor-1", description: "release", lines: ["published"], dropped: 0 },
+        },
+      ],
+    } as unknown as ConversationView);
+    expect(screen.getByText("published")).toBeInTheDocument();
+  });
+});
+
 describe("<Transcript> done slots without entries", () => {
   it("renders a finished tool call from the slot until the entry commits", () => {
     const { container } = renderTranscript(
