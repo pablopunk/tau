@@ -56,8 +56,7 @@ export function createFakeWorkspaces(ctx: WorkspacesContext): Core["workspaces"]
       const conversation = ctx.require(conversationId);
       requireWorktree(conversation);
       // Like the real service, `force` skips the running check but never the dirty one.
-      if (conversation.isBusy() && !force)
-        throw new AppError("thread_busy", "The thread is running.");
+      if (conversation.isBusy() && !force) throw new AppError("thread_busy", "The thread is running.");
       if (conversation.changes.dirtyFiles.length > 0)
         throw new AppError("worktree_dirty", "The worktree has uncommitted changes.");
       conversation.changes.unmergedCommits = 0;
