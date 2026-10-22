@@ -1,6 +1,7 @@
 import { decodeServerFrame, encodeFrame, LIVE_PATH, nextViewState, type ViewState } from "@tau/protocol";
 import type { Server } from "./client";
 import type { CommandEnv, SocketLike } from "./command-env";
+import { createNativeLineCursor, type NativeLineCursor } from "./native-text";
 
 export interface LiveClient {
   subscribe(conversationId: string): void;
@@ -73,3 +74,17 @@ class NodeLiveClient implements LiveClient {
 
 /** A Node WebSocket client for `subscribe`, `ops` and `changed` frames, with Bearer auth on upgrade. */
 export const connectLive = (server: Server, env: CommandEnv): LiveClient => new NodeLiveClient(server, env);
+
+/** Emits each native entry's lines once. Pass the same cursor to a reconnected client to repeat nothing. */
+export function followNativeLines(
+  live: LiveClient,
+  conversationId: string,
+  emit: (line: string) => void,
+  cursor: NativeLineCursor = createNativeLineCursor(),
+): void {
+  live.onFrame(() => {
+    const view = live.view(conversationId);
+    if (!view) return;
+    for (const line of cursor.take(view)) emit(line);
+  });
+}
