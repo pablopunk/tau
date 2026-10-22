@@ -281,6 +281,11 @@ describe("R4 live sync you can trust", () => {
       .map((raw) => decodeServerFrame(raw))
       .filter((frame): frame is OpsFrame => frame?.type === "ops");
 
+  const watchFailedFrames = (socket: MockSocket): { conversationId: string }[] =>
+    socket.sent
+      .map((raw) => decodeServerFrame(raw))
+      .filter((frame): frame is { conversationId: string } => frame?.type === "watch-failed");
+
   const subscribe = (socket: MockSocket, conversationId: string) => {
     socket.emit("message", encodeFrame({ type: "subscribe", conversationId }));
   };
@@ -301,8 +306,9 @@ describe("R4 live sync you can trust", () => {
     const errors: unknown[] = [];
     new LiveConnection(socket as unknown as WebSocket, ctx.core, (e) => errors.push(e));
     subscribe(socket, id);
-    // The failure must be terminal and visible: the client gets a retired view, never silence.
-    await vi.waitFor(() => expect(opsFrames(socket).some((f) => isRetiredOps(f.ops))).toBe(true));
+    // The failure must be terminal and visible: the client gets a distinct
+    // watch-failure frame (not a retired view — the thread still exists), never silence.
+    await vi.waitFor(() => expect(watchFailedFrames(socket)).toHaveLength(1));
     // And the dead subscription must be gone: resubscribing recovers with a fresh base.
     subscribe(socket, id);
     await vi.waitFor(() => expect(opsFrames(socket).some((f) => isBaseOps(f.ops))).toBe(true));

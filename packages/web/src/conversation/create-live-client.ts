@@ -1,5 +1,5 @@
 import type { Change, ClientFrame, ConversationView, Op, ServerFrame } from "@tau/protocol";
-import { nextViewState, type ViewState } from "@tau/protocol";
+import { isBaseOps, nextViewState, type ViewState } from "@tau/protocol";
 import type { LiveHandlers, LiveSocket, LiveTransport } from "@/lib/api";
 import type { LiveClient, LiveStatus } from "./live-client";
 import { reconnectDelayMs } from "./reconnect-delay";
@@ -9,6 +9,8 @@ type ViewListener = (view: ConversationView | null) => void;
 interface Subscription {
   view: ViewState;
   readonly listeners: Set<ViewListener>;
+  /** Last applied ops `seq`; undefined until the first sequenced frame. Gaps trigger a resync. */
+  lastSeq: number | undefined;
 }
 
 function addListener<T>(set: Set<T>, listener: T): () => void {
@@ -86,13 +88,28 @@ export function createLiveClient(transport: LiveTransport): LiveClient {
     }
   };
 
-  const applyOps = (conversationId: string, ops: readonly Op[]) => {
+  const applyOps = (conversationId: string, ops: readonly Op[], seq: number | undefined) => {
     const subscription = subscriptions.get(conversationId);
     if (!subscription) return;
+    if (seq !== undefined && !isBaseOps(ops)) {
+      // A base frame replaces the whole view, so it resets the counter;
+      // anything else must continue it. A skipped number means frames were
+      // lost in transit — drop this batch and resync for a fresh base
+      // rather than risk applying a delta onto a diverged view.
+      if (subscription.lastSeq !== undefined && seq !== subscription.lastSeq + 1) {
+        console.error("ops gap for conversation, resubscribing", conversationId);
+        resync(conversationId);
+        return;
+      }
+    }
     try {
       const next = nextViewState(subscription.view, ops);
-      if (next === subscription.view) return;
+      if (next === subscription.view) {
+        if (seq !== undefined) subscription.lastSeq = seq;
+        return;
+      }
       subscription.view = next;
+      if (seq !== undefined) subscription.lastSeq = seq;
       if (next !== undefined) notify(subscription.listeners, next);
     } catch (error) {
       console.error("bad ops for conversation, resubscribing", error);
@@ -100,22 +117,10 @@ export function createLiveClient(transport: LiveTransport): LiveClient {
     }
   };
 
-  // Frozen-contract frames the local protocol union doesn't declare yet:
-  // `ping` (heartbeat, answered with `pong`) and `watch-failed` (dead
-  // watcher, terminal and visible — INTEGRATOR: drop the casts post-merge).
-  type ExtendedServerFrame =
-    | ServerFrame
-    | { type: "ping"; at: number }
-    | { type: "watch-failed"; conversationId: string; error?: string };
-  type ExtendedClientFrame = ClientFrame | { type: "pong" };
-  const safeSendExtended = (target: LiveSocket | undefined, frame: ExtendedClientFrame): boolean =>
-    safeSend(target, frame as ClientFrame);
-
-  const handleFrame = (incoming: ServerFrame) => {
-    const frame = incoming as ExtendedServerFrame;
-    if (frame.type === "ops") applyOps(frame.conversationId, frame.ops);
+  const handleFrame = (frame: ServerFrame) => {
+    if (frame.type === "ops") applyOps(frame.conversationId, frame.ops, frame.seq);
     else if (frame.type === "changed") notify(changedListeners, frame);
-    else if (frame.type === "ping") safeSendExtended(socket, { type: "pong" });
+    else if (frame.type === "ping") sendIfOpen({ type: "pong" });
     else if (frame.type === "watch-failed") {
       // The watcher died while the socket stayed healthy: the subscription is
       // removed server-side, so resubscribe that conversation for a fresh
@@ -190,7 +195,7 @@ export function createLiveClient(transport: LiveTransport): LiveClient {
     subscribe(conversationId, onView) {
       let subscription = subscriptions.get(conversationId);
       if (!subscription) {
-        subscription = { view: undefined, listeners: new Set() };
+        subscription = { view: undefined, listeners: new Set(), lastSeq: undefined };
         subscriptions.set(conversationId, subscription);
         sendIfOpen({ type: "subscribe", conversationId });
       }

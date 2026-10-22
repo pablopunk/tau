@@ -10,6 +10,7 @@ import {
   type Op,
   RETIRED_OPS,
   type ServerFrame,
+  watchFailedFrame,
 } from "@tau/protocol";
 import type { WebSocket } from "ws";
 import { logStage, STAGE } from "../timing";
@@ -22,18 +23,14 @@ interface Subscription {
 }
 
 /**
- * R4 wire extras. The protocol freeze (protocol/src/live.ts) has no
- * ping/pong, sequence or watch-failure frames yet, so these ride on the
- * existing frames in a backward-compatible way until the foundation agent
- * freezes them:
+ * R4 wire extras, all in the frozen protocol (protocol/src/live.ts):
  * - heartbeat uses the WebSocket protocol ping/pong (no app frame at all);
- * - every `ops` frame carries an extra per-conversation `seq` (unknown props
- *   are ignored by older decoders; the client gap→resync half lives in
- *   `web/.../create-live-client.ts`, owned by another agent — see note);
- * - watcher failure is terminal and visible via RETIRED_OPS (a distinct
- *   watch-failure frame needs the protocol freeze — see note).
+ * - every `ops` frame carries a per-conversation `seq` (optional so old
+ *   decoders still validate; the client gap→resync half lives in
+ *   `web/.../create-live-client.ts`);
+ * - watcher failure is terminal and visible: RETIRED_OPS for unknown
+ *   conversations, the distinct watch-failure frame otherwise.
  */
-export type OpsFrameWithSeq = ServerFrame & { seq?: number };
 
 export interface LiveConnectionOptions {
   /** Defaults to 30s (R4.1). Injectable for tests. */
@@ -143,7 +140,13 @@ export class LiveConnection {
         this.subscriptions.delete(conversationId);
       }
       logStage({ action: "live", stage: STAGE.watchFailure, conversationId });
-      if (!subscription.cancelled) this.sendOps(conversationId, RETIRED_OPS);
+      if (!subscription.cancelled) {
+        // Unknown conversation: the retired view is the truth (it is gone).
+        // Anything else: a distinct failure frame so the client resubscribes
+        // for a fresh base instead of showing the thread as deleted.
+        if (isAppError(error) && error.code === "not_found") this.sendOps(conversationId, RETIRED_OPS);
+        else this.send(watchFailedFrame(conversationId));
+      }
       if (!isAppError(error)) this.onError(error);
     }
     return undefined;
