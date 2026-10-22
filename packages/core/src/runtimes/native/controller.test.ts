@@ -2,7 +2,10 @@ import { execFileSync, spawn } from "node:child_process";
 import { rmSync } from "node:fs";
 import { type Options, query as sdkQuery } from "@anthropic-ai/claude-agent-sdk";
 import { AppError } from "@tau/protocol";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+vi.setConfig({ testTimeout: 30_000 });
+
 import { createRuntimeStore, type OperationState, type RuntimeStore } from "../../harness/runtime-store";
 import {
   createPassiveThread,

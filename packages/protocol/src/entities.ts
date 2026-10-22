@@ -440,6 +440,8 @@ export const StartConversationInputSchema = Type.Object({
   model: Type.Optional(ModelRefSchema),
   thinkingLevel: Type.Optional(ThinkingLevelSchema),
   workspace: Type.Optional(WorkspaceModeSchema),
+  /** Omitted means Pi. `claude-code` is refused with `invalid_request` unless the node enables it. */
+  executor: Type.Optional(ExecutorKindSchema),
 });
 export type StartConversationInput = Type.Static<typeof StartConversationInputSchema>;
 

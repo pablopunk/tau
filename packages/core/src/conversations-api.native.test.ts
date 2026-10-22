@@ -161,6 +161,88 @@ async function startPiThread(world: World, api: ReturnType<typeof createConversa
   return summary;
 }
 
+const nativeStart = (overrides: Record<string, unknown> = {}) => ({
+  projectId: "p1",
+  text: "hello native",
+  requestId: "wire-1",
+  executor: "claude-code" as const,
+  ...overrides,
+});
+
+const expectNoSideEffects = async (world: World) => {
+  expect(await world.store.list("p1")).toHaveLength(0);
+  expect(await submissionCount(world)).toBe(0);
+  expect(modelCallsOf(world.runtime.setup)).toBe(0);
+  expect(world.spies.calls).toEqual([]);
+};
+
+describe("conversations api start with an explicit executor", () => {
+  it("rejects claude-code when native is off, creating nothing and calling no model", async () => {
+    const world = await openWorld();
+
+    await expect(world.api(false).start(nativeStart())).rejects.toMatchObject({
+      code: "invalid_request",
+      message: "native Claude is not enabled on this node",
+    });
+
+    await expectNoSideEffects(world);
+  });
+
+  it("starts a native thread from the wire start when native is on", async () => {
+    const world = await openWorld();
+    const api = world.api(true);
+
+    const summary = await api.start(nativeStart({ model: FAUX_MODEL, thinkingLevel: "high" }));
+
+    expect(summary).toMatchObject({ executor: "claude-code", model: null, title: "hello native" });
+    await waitForResultCount(world, summary.id, 1);
+    expect((await api.start(nativeStart())).id).toBe(summary.id);
+    expect(await world.store.list("p1")).toHaveLength(1);
+    expect(modelCallsOf(world.runtime.setup)).toBe(0);
+    expect(await submissionCount(world)).toBe(0);
+  });
+
+  it.each([
+    ["images", { images: [{ mimeType: "image/png", data: "AAAA" }] }],
+    ["files", { files: [{ name: "a.txt", path: "uploads/a.txt", size: 1 }] }],
+  ])("rejects %s on a native start before any side effect", async (_name, attachment) => {
+    const world = await openWorld();
+
+    await expect(world.api(true).start(nativeStart(attachment))).rejects.toMatchObject({
+      code: "invalid_request",
+      message: "attachments are not supported for native threads yet",
+    });
+
+    await expectNoSideEffects(world);
+  });
+
+  it.each([
+    ["omitted", {}],
+    ["pi", { executor: "pi" }],
+  ])("keeps the legacy Pi start when the executor is %s, with native on or off", async (_name, extra) => {
+    for (const withNative of [false, true]) {
+      const world = await openWorld();
+      const api = world.api(withNative);
+      const summary = await api.start({
+        projectId: "p1",
+        text: "hello pi",
+        requestId: "pi-start",
+        model: FAUX_MODEL,
+        ...extra,
+      } as never);
+      await waitUntilTrue(
+        async () =>
+          modelCallsOf(world.runtime.setup) > 0 &&
+          !(await isBusy(world.runtime.harness, Number(summary.id) as never)),
+        "the Pi run to end",
+      );
+
+      expect(summary.executor).toBeUndefined();
+      expect(summary.model).not.toBeNull();
+    }
+  });
+});
+
 describe("conversations api with the native flag off", () => {
   it("exposes no native entry point and leaves a Pi thread untouched", async () => {
     const world = await openWorld();

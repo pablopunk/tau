@@ -12,7 +12,7 @@ import { NATIVE_EXECUTOR, resetReasonOf } from "../../harness/runtime-docs";
 import type { RuntimeStore, StoreInspection } from "../../harness/runtime-store";
 import type { CancelRequest, RuntimeExecutor, RuntimeInspection } from "../types";
 
-const NO_CONTROLLER = "The native shell has no controller yet.";
+const NO_CONTROLLER = "Not supported for native Claude threads yet.";
 const STEER_UNSUPPORTED = "Native steer delivery is not supported yet.";
 
 export const NATIVE_SHELL_CAPABILITIES: RuntimeCapabilities = {

@@ -77,6 +77,7 @@ const handlers: Handlers = {
   submitLoginUrl: (core, { params, body }) => core.providers.submitLoginUrl(params.sid, body.url as string),
   cancelLogin: (core, { params }) => core.providers.cancelLogin(params.sid),
   listModels: (core) => core.models.list(),
+  listRuntimes: (core) => core.runtimes.list(),
   listSkills: (core, { query }) => core.skills.list(query?.projectId ?? null),
   suggestProjectFiles: (core, { params, body }) =>
     core.projects.suggestFiles(params.id, body.query as string),

@@ -82,6 +82,7 @@ export function registerRoutes(app: FastifyInstance, core: Core, sockets: Device
   );
   defineRoute(app, routes.cancelLogin, ({ params }) => core.providers.cancelLogin(params.sid));
   defineRoute(app, routes.listModels, () => core.models.list());
+  defineRoute(app, routes.listRuntimes, () => core.runtimes.list());
   defineRoute(app, routes.listSkills, ({ query }) => core.skills.list(query.projectId ?? null));
   defineRoute(app, routes.suggestProjectFiles, ({ params, body }) =>
     core.projects.suggestFiles(params.id, body.query),

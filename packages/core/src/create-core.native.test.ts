@@ -70,6 +70,98 @@ const finishedRun = async (core: Core, projectId: string, id: string) =>
     return found === undefined || found.lastRunEndedAt === null ? undefined : found;
   }, "the native run to end");
 
+const executorsOf = async (core: Core) =>
+  Object.fromEntries((await core.runtimes.list()).executors.map((entry) => [entry.executor, entry]));
+
+describe("createCore wire start and runtimes.list", () => {
+  it("lists claude-code disabled with a reason when the flag is off", async () => {
+    const core = await openCore(await tempDir(), {}, countedAnswer().query);
+
+    const executors = await executorsOf(core);
+
+    expect(Object.keys(executors)).toEqual(["pi", "claude-code"]);
+    expect(executors.pi).toMatchObject({ enabled: true });
+    expect(executors["claude-code"]).toMatchObject({
+      enabled: false,
+      reason: "native Claude is not enabled on this node",
+    });
+    expect(executors["claude-code"]?.capabilities.followUp).toEqual({
+      supported: false,
+      reason: "executor-disabled",
+    });
+  });
+
+  it("lists claude-code enabled with the native capabilities when the flag is on", async () => {
+    const core = await openCore(await tempDir(), FLAG_ON, countedAnswer().query);
+
+    const executors = await executorsOf(core);
+
+    expect(executors["claude-code"]).toMatchObject({ enabled: true });
+    expect(executors["claude-code"]?.capabilities.followUp).toEqual({ supported: true });
+    expect(executors["claude-code"]?.capabilities.steer.supported).toBe(false);
+    expect(executors["claude-code"]?.reason).toBeUndefined();
+  });
+
+  it("refuses a claude-code start with the flag off and never starts a Pi thread instead", async () => {
+    const root = await tempDir();
+    const counted = countedAnswer();
+    const core = await openCore(root, {}, counted.query);
+    await core.providers.setApiKey("openrouter", "sk-test");
+    await core.settings.setDefaultModel({ provider: "faux", modelId: "faux-1" });
+    const project = await core.projects.add({ path: root });
+
+    await expect(
+      core.conversations.start({
+        projectId: project.id,
+        text: "hello",
+        requestId: "w-1",
+        executor: "claude-code",
+      }),
+    ).rejects.toMatchObject({
+      code: "invalid_request",
+      message: "native Claude is not enabled on this node",
+    });
+
+    expect(await core.conversations.list(project.id)).toEqual([]);
+    expect(counted.runs()).toBe(0);
+  });
+
+  it("starts a native thread from conversations.start with the flag on, and Pi when the executor is omitted or pi", async () => {
+    const root = await tempDir();
+    const counted = countedAnswer();
+    const core = await openCore(root, FLAG_ON, counted.query);
+    await core.providers.setApiKey("openrouter", "sk-test");
+    await core.settings.setDefaultModel({ provider: "faux", modelId: "faux-1" });
+    const project = await core.projects.add({ path: root });
+
+    const native = await core.conversations.start({
+      projectId: project.id,
+      text: "hello native",
+      requestId: "w-1",
+      executor: "claude-code",
+    });
+    await finishedRun(core, project.id, native.id);
+    const omitted = await core.conversations.start({
+      projectId: project.id,
+      text: "pi one",
+      requestId: "w-2",
+    });
+    const explicit = await core.conversations.start({
+      projectId: project.id,
+      text: "pi two",
+      requestId: "w-3",
+      executor: "pi",
+    });
+
+    expect(native).toMatchObject({ executor: "claude-code", model: null });
+    expect(counted.runs()).toBe(1);
+    for (const pi of [omitted, explicit]) {
+      expect(pi.executor).toBeUndefined();
+      expect(pi.model).not.toBeNull();
+    }
+  });
+});
+
 describe("createCore and the native flag", () => {
   it.each<Record<string, string>>([
     {},

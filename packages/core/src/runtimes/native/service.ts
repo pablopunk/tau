@@ -5,6 +5,7 @@ import {
   type ConversationStatus,
   type ConversationSummary,
   type ReconcileOutcome,
+  type RuntimeCapabilities,
   type RuntimeLifecycle,
   type SendMessageInput,
 } from "@tau/protocol";
@@ -33,6 +34,7 @@ import {
   type RunResult,
 } from "./controller";
 import type { NativeRunPolicy } from "./launch-policy";
+import { NATIVE_SHELL_CAPABILITIES } from "./native-shell-executor";
 
 export interface NativeServiceDeps {
   readonly harness: Harness;
@@ -59,6 +61,8 @@ export type NativeCancelResult =
 export type NativeReconciled = { readonly threadId: string; readonly outcome: ReconcileOutcome };
 
 export interface NativeService {
+  /** What a native thread supports today; listed on the wire so clients never guess. */
+  readonly capabilities: RuntimeCapabilities;
   startThread(request: NativeStartRequest): Promise<ConversationSummary>;
   send(threadId: string, input: SendMessageInput): Promise<AdmissionReceipt>;
   cancel(threadId: string): Promise<NativeCancelResult>;
@@ -369,5 +373,14 @@ export function createNativeService(deps: NativeServiceDeps): NativeService {
     await settled();
   }
 
-  return { startThread, send, cancel, reconcileAll, isNative, settled, close };
+  return {
+    capabilities: NATIVE_SHELL_CAPABILITIES,
+    startThread,
+    send,
+    cancel,
+    reconcileAll,
+    isNative,
+    settled,
+    close,
+  };
 }

@@ -80,6 +80,7 @@ import { conversationRemovedInOrder, type RemovalHooks } from "./removal-hooks";
 import type { NativeQueryFn } from "./runtimes/native/controller";
 import { nativeLaunchPolicy } from "./runtimes/native/launch-policy";
 import { createNativeService, type NativeService } from "./runtimes/native/service";
+import { createRuntimesApi } from "./runtimes-api";
 import { createSettingsApi } from "./settings-api";
 import { useBundledSkills } from "./skills/discover-skills";
 import { createSkillsApi } from "./skills/skills-api";
@@ -608,6 +609,7 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
       },
       voice: voiceApi,
       ...createProvidersApi(provider),
+      runtimes: createRuntimesApi(native),
       skills: createSkillsApi({ projects }),
       projects: createProjectsApi({
         ...shared,

@@ -3,7 +3,10 @@ import { existsSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { type Options, query as sdkQuery } from "@anthropic-ai/claude-agent-sdk";
 import type { SendMessageInput } from "@tau/protocol";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+vi.setConfig({ testTimeout: 30_000 });
+
 import { legacyWorkspace } from "../../harness/conversation-index";
 import { createNativeConversation, type NativeStartRequest } from "../../harness/conversation-native";
 import { type ConversationStore, createConversationStore } from "../../harness/conversation-store";

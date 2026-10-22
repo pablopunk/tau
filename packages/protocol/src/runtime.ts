@@ -1,4 +1,5 @@
 import { type Static, Type } from "typebox";
+import { AppError } from "./errors";
 
 export const EXECUTOR_KINDS = ["pi", "claude-code"] as const;
 export const ExecutorKindSchema = Type.Union([Type.Literal("pi"), Type.Literal("claude-code")]);
@@ -198,3 +199,51 @@ export const RuntimeDescriptorSchema = Type.Object({
 export type RuntimeDescriptor = Static<typeof RuntimeDescriptorSchema>;
 
 export const RUNTIME_UNSUPPORTED_REASON = "executor-disabled";
+
+export const NATIVE_DISABLED_REASON = "native Claude is not enabled on this node";
+
+export const nativeDisabledError = (): AppError => new AppError("invalid_request", NATIVE_DISABLED_REASON);
+
+export const nativeAttachmentsError = (): AppError =>
+  new AppError("invalid_request", "attachments are not supported for native threads yet");
+
+export const ExecutorAvailabilitySchema = Type.Object({
+  executor: ExecutorKindSchema,
+  enabled: Type.Boolean(),
+  reason: Type.Optional(Type.String()),
+  capabilities: RuntimeCapabilitiesSchema,
+});
+export type ExecutorAvailability = Static<typeof ExecutorAvailabilitySchema>;
+
+export const RuntimeDescriptorListSchema = Type.Object({ executors: Type.Array(ExecutorAvailabilitySchema) });
+export type RuntimeDescriptorList = Static<typeof RuntimeDescriptorListSchema>;
+
+const NOT_DESCRIBED_YET = "not described yet";
+
+export const PI_RUNTIME_CAPABILITIES: RuntimeCapabilities = {
+  followUp: { supported: true },
+  steer: { supported: true },
+  approvals: { supported: true },
+  compact: { supported: true },
+  nativeFork: { supported: true },
+  contextualHandoff: { supported: false, reason: NOT_DESCRIBED_YET },
+  fileRewind: { supported: true },
+  background: { supported: true },
+  timers: { supported: true },
+  delegation: { supported: true },
+};
+
+/** `native` is the capability table of the claude-code executor, or `undefined` while the node has it off. */
+export function describeExecutors(native: RuntimeCapabilities | undefined): RuntimeDescriptorList {
+  const claudeCode: ExecutorAvailability = native
+    ? { executor: "claude-code", enabled: true, capabilities: native }
+    : {
+        executor: "claude-code",
+        enabled: false,
+        reason: NATIVE_DISABLED_REASON,
+        capabilities: unsupportedCapabilities(RUNTIME_UNSUPPORTED_REASON),
+      };
+  return {
+    executors: [{ executor: "pi", enabled: true, capabilities: PI_RUNTIME_CAPABILITIES }, claudeCode],
+  };
+}

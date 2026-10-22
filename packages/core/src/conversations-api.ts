@@ -9,6 +9,8 @@ import {
   diffTodos,
   latestTodos,
   type ModelRef,
+  nativeAttachmentsError,
+  nativeDisabledError,
   type SendMessageInput,
   type SendReceipt,
   type StartConversationInput,
@@ -277,6 +279,17 @@ export function createConversationsApi(deps: {
     return native.startThread({ project, input: { text, requestId }, workspace, now: now() });
   }
 
+  const hasAttachments = (input: StartConversationInput) =>
+    (input.images ?? []).length > 0 || (input.files ?? []).length > 0;
+
+  async function startOnNativeExecutor(input: StartConversationInput): Promise<ConversationSummary> {
+    const { native } = deps;
+    if (!native) throw nativeDisabledError();
+    if (hasAttachments(input)) throw nativeAttachmentsError();
+    const { projectId, text, requestId, workspace } = input;
+    return startNative(native, { projectId, text, requestId, ...(workspace && { workspace }) });
+  }
+
   function startNative(native: NativeService, input: NativeStartInput): Promise<ConversationSummary> {
     const pending = startsInFlight.get(input.requestId) ?? startNativeOnce(native, input);
     startsInFlight.set(input.requestId, pending);
@@ -350,6 +363,7 @@ export function createConversationsApi(deps: {
       return perProject.flat().sort((a, b) => b.updatedAt - a.updatedAt || Number(b.id) - Number(a.id));
     },
     start(input) {
+      if (input.executor === "claude-code") return startOnNativeExecutor(input);
       const pending = startsInFlight.get(input.requestId) ?? startOnce(input);
       startsInFlight.set(input.requestId, pending);
       return pending.finally(() => {
