@@ -151,7 +151,7 @@ async function setup(options: Options = {}) {
 type Setup = Awaited<ReturnType<typeof setup>>;
 const installCalls = (s: Setup) => s.commands.filter((c) => c.command === "tar");
 const restartCalls = (s: Setup) => s.commands.filter((c) => c.args[1] === "restart");
-const NEW: LockInfo = { ...OLD, version: "1.1.0" };
+const _NEW: LockInfo = { ...OLD, version: "1.1.0" };
 
 describe("tau update --check", () => {
   it("exits 0 when current and 10 when an update exists, touching nothing", async () => {

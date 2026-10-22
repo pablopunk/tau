@@ -48,7 +48,8 @@ function setup({
   target?: string;
 } = {}) {
   const stub = api ? undefined : stubApi(stage);
-  const usedApi = api ?? stub!.api;
+  const usedApi = api ?? stub?.api;
+  if (!usedApi) throw new Error("Composer test needs an api or a stage for the fake");
   const view = render(<Composer target={target} imagesAllowed busy={false} onSend={onSend} {...props} />, {
     wrapper: ({ children }: { children: ReactNode }) => {
       const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });

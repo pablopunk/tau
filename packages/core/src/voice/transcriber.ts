@@ -294,7 +294,7 @@ export class Transcriber {
       };
       worker.on("message", (message: unknown) => {
         if (!isRecord(message)) return;
-        if (message["type"] === "ready") {
+        if (message.type === "ready") {
           if (settled) return;
           settled = true;
           clearTimeout(timer);
@@ -302,20 +302,16 @@ export class Transcriber {
           resolve();
           return;
         }
-        if (message["type"] === "load-error" && !settled) {
-          fail(
-            new Error(
-              typeof message["error"] === "string" ? message["error"] : "Voice worker failed to load",
-            ),
-          );
+        if (message.type === "load-error" && !settled) {
+          fail(new Error(typeof message.error === "string" ? message.error : "Voice worker failed to load"));
           return;
         }
-        const id = message["id"];
+        const id = message.id;
         if (typeof id !== "number") return;
         const entry = this.pending.get(id);
         if (entry === undefined) return;
-        if (typeof message["error"] === "string") entry.reject(new AppError("internal", message["error"]));
-        else entry.resolve(typeof message["text"] === "string" ? message["text"] : "");
+        if (typeof message.error === "string") entry.reject(new AppError("internal", message.error));
+        else entry.resolve(typeof message.text === "string" ? message.text : "");
       });
       const onWorkerError = (value: unknown): void => {
         const error = value instanceof Error ? value : new Error(asErrorMessage(value));

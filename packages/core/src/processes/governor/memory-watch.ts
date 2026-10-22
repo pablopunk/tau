@@ -103,7 +103,7 @@ export function createMemoryWatch(deps: WatchDeps): MemoryWatch {
   /** RSS over-counts shared pages: a tree whose footprint is within the limit is left alone. */
   const confirmThenKill = async (
     item: Item,
-    rows: readonly ProcRow[],
+    _rows: readonly ProcRow[],
     members: readonly ProcRow[],
     limit: number,
     footprintOf: Footprint,

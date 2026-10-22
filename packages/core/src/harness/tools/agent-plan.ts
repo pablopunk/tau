@@ -81,8 +81,8 @@ function resolveThinking(model: ModelRef, type: AgentType | undefined, input: Pl
 
 export async function planChild(input: PlanInput): Promise<ChildPlan> {
   const fork = input.subagentType === FORK;
-  const type =
-    fork || isDefaultType(input.subagentType) ? undefined : await typeNamed(input.subagentType!, input);
+  const customType = !fork && !isDefaultType(input.subagentType) ? input.subagentType : undefined;
+  const type = customType === undefined ? undefined : await typeNamed(customType, input);
   const model = await resolveChildModel(type, input);
   return {
     type: fork ? FORK : (type?.name ?? GENERAL_PURPOSE),

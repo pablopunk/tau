@@ -58,7 +58,7 @@ const foreground = (
     ...(governed && { governed, scope }),
   });
 
-async function waitFor(check: () => boolean) {
+async function _waitFor(check: () => boolean) {
   for (let attempt = 0; attempt < 300 && !check(); attempt++) await sleep(50);
   expect(check()).toBe(true);
 }

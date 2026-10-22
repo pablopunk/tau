@@ -1,5 +1,5 @@
 // Item 5: polled (non-cgroup) memory watcher on Linux: forced by a dead user bus.
-import { existsSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { ALL_ON, bash, log, sh, sleep, startTau } from "./linux-harness.mjs";
 
 const P = "/tmp/vl5.pids";
@@ -62,8 +62,8 @@ try {
   // CPU cost of the sweep: tau + reaped children CPU ticks over a 20 s window, with and without a limited command
   const clk = Number(sh("getconf CLK_TCK"));
   const window = async (prompt) => {
-    const a = cpuTicks(t.pid);
-    const w0 = Date.now();
+    const _a = cpuTicks(t.pid);
+    const _w0 = Date.now();
     const th = await t.thread(prompt);
     await sleep(1000);
     const b0 = cpuTicks(t.pid);
