@@ -2,8 +2,8 @@ import { mkdir, mkdtemp, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Harness, InboxState, LiveState } from "@earendil-works/pi-durable";
-import { TODOS_UPDATED_KIND, type TodoItem } from "@tau/protocol";
 import type { ConversationView } from "@tau/protocol";
+import { TODOS_UPDATED_KIND, type TodoItem } from "@tau/protocol";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   openFauxWorld,
@@ -14,18 +14,13 @@ import {
 } from "../test-support/faux-core";
 import { createFauxSetup } from "../testing/faux-provider";
 import type { UploadStore } from "../upload-store";
+import { createUploadStore } from "../upload-store";
 import { legacyWorkspace } from "./conversation-index";
 import { type ConversationStore, createConversationStore } from "./conversation-store";
-import {
-  cancelQueued,
-  snapshotQueued,
-  snapshotUserItem,
-  withAdmissionGate,
-} from "./conversation-submit";
+import { cancelQueued, snapshotQueued, snapshotUserItem, withAdmissionGate } from "./conversation-submit";
 import { createNotificationSubmitter } from "./notification-submitter";
 import { BACKGROUND, openAgentHarness, openSqliteStorage } from "./open";
 import { createAgentRegistry } from "./registry";
-import { createUploadStore } from "../upload-store";
 
 const FAUX = { provider: "faux", modelId: "faux-1" };
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -110,24 +105,21 @@ async function entryTexts(id: string, kind: string) {
   const { conversation } = await viewOf(id);
   await conversation?.waitForIdle(BACKGROUND);
   const entries = await conversation?.entries({}, 100, undefined, BACKGROUND);
-  return (entries?.items ?? [])
-    .filter((entry) => entry.kind === kind)
-    .map((entry) => JSON.stringify(entry));
+  return (entries?.items ?? []).filter((entry) => entry.kind === kind).map((entry) => JSON.stringify(entry));
 }
 
 const send = (id: string, text: string, whenBusy: "steer" | "followUp", requestId?: string) =>
   store.send(id, { text, requestId: requestId ?? `req-${text}-${Date.now()}` }, Date.now(), whenBusy);
 
 const notifyTodos = (id: string, todos: TodoItem[], requestId: string) =>
-  createNotificationSubmitter((conversationId, context) => harness.conversation(conversationId, context)).notify(
-    id,
-    {
-      kind: TODOS_UPDATED_KIND,
-      data: { todos, diff: [], requestId },
-      text: `<todos-updated>${requestId}</todos-updated>`,
-      requestId,
-    },
-  );
+  createNotificationSubmitter((conversationId, context) =>
+    harness.conversation(conversationId, context),
+  ).notify(id, {
+    kind: TODOS_UPDATED_KIND,
+    data: { todos, diff: [], requestId },
+    text: `<todos-updated>${requestId}</todos-updated>`,
+    requestId,
+  });
 
 beforeEach(async () => {
   root = await realpath(await mkdtemp(join(tmpdir(), "tau-submit-")));
@@ -211,10 +203,7 @@ describe("cancelQueued", () => {
     const id = await startBusyThread();
     await send(id, "later", "followUp", "cancel-user");
     await notifyTodos(id, [{ content: "a todo", status: "pending" }], "cancel-notice");
-    await waitForAsync(
-      async () => (await inboxOf(id)).length === 2,
-      "both items to queue",
-    );
+    await waitForAsync(async () => (await inboxOf(id)).length === 2, "both items to queue");
     const notificationId = String(
       (await inboxOf(id)).find((item) => (item.entry?.kind ?? "pi.user") !== "pi.user")?.id,
     );
@@ -259,11 +248,16 @@ describe("sendNow", () => {
     await send(id, "later", "followUp", "sendnow-raced");
     await waitForAsync(async () => (await inboxOf(id)).length === 1, "the message to queue");
     const itemId = String((await inboxOf(id))[0]?.id);
-    const raced = notifyTodos(id, [{ content: "raced todo", status: "pending" }], "sendnow-raced-notice").catch(
-      () => undefined,
-    );
+    const raced = notifyTodos(
+      id,
+      [{ content: "raced todo", status: "pending" }],
+      "sendnow-raced-notice",
+    ).catch(() => undefined);
     const result = await store.sendNow(id, itemId, {
-      afterSnapshot: () => void notifyTodos(id, [{ content: "hook todo", status: "pending" }], "sendnow-hook").catch(() => undefined),
+      afterSnapshot: () =>
+        void notifyTodos(id, [{ content: "hook todo", status: "pending" }], "sendnow-hook").catch(
+          () => undefined,
+        ),
     });
     // The raced notification was not in the snapshot: nothing returns to the composer for it.
     expect(result.restored).toEqual([]);
@@ -300,9 +294,7 @@ describe("sendNow", () => {
     await send(id, "second", "followUp", "sendnow-rb-second");
     await waitForAsync(async () => (await inboxOf(id)).length === 2, "both to queue");
     const before = (await inboxOf(id)).map((item) => String(item.id));
-    const secondId = String(
-      (await inboxOf(id)).find((item) => textOf(item) === "second")?.id,
-    );
+    const secondId = String((await inboxOf(id)).find((item) => textOf(item) === "second")?.id);
     await rejectsWithCode(store.sendNow(id, secondId, { failChosenAdmit: true }), "internal");
     // The rollback re-admits under fresh ids while idle, so the run delivers
     // them instead of queueing: nothing is lost and nothing runs twice.
@@ -389,9 +381,7 @@ function textOf(item: unknown): string {
     .join("");
 }
 const queuedItems = (tracker: ViewTracker) =>
-  ((tracker.view()?.docs["pi.inbox"] as InboxState | undefined)?.items ?? []);
-
-const queuedTexts = (tracker: ViewTracker) => queuedItems(tracker).map(textOf);
+  (tracker.view()?.docs["pi.inbox"] as InboxState | undefined)?.items ?? [];
 
 describe("queue files on the real core", () => {
   it("cancel returns staged FileRefs of the queued item", async () => {
@@ -457,9 +447,7 @@ describe("queue files on the real core", () => {
         whenBusy: "followUp",
       });
       await waitUntil(() => queuedItems(tracker).length === 2, "both to queue");
-      const secondId = String(
-        queuedItems(tracker).find((item) => textOf(item).startsWith("read this"))?.id,
-      );
+      const secondId = String(queuedItems(tracker).find((item) => textOf(item).startsWith("read this"))?.id);
       const result = await world.core.conversations.sendNow(conversation.id, secondId);
       expect(result.restored).toEqual([{ text: "first", files: [] }]);
       // The chosen item re-admits content as-is: the flattened file path survives with no protocol change.
