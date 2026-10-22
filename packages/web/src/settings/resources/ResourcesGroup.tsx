@@ -28,7 +28,7 @@ export function ResourcesGroup() {
         <FieldLabel>Resource control</FieldLabel>
         <FieldDescription>
           {enforceable
-            ? "Subagents run at a lower CPU priority. Off is today's behavior."
+            ? "Off = no limits, Balanced = lower priority, Background = only uses spare CPU."
             : "Resource control is not available on this node."}
         </FieldDescription>
       </Field>
