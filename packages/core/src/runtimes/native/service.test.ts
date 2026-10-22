@@ -32,6 +32,7 @@ import {
 } from "../testing/offline-sandbox";
 import type { NativeQueryFn } from "./controller";
 import type { NativeEvent } from "./events";
+import type { NativeCheckpointPort } from "./finalize";
 import { type NativeRunPolicy, type NativeSpawn, nativeLaunchPolicy } from "./launch-policy";
 import { buildNativeOptions } from "./native-options";
 import { withNativeThreads } from "./permissions";
@@ -159,6 +160,7 @@ interface SdkRigOptions {
   readonly query?: NativeQueryFn;
   /** Runs with `default` permissions: Claude Code's own tools, every ask goes to canUseTool. */
   readonly asking?: { readonly approvals?: Approvals };
+  readonly checkpoints?: NativeCheckpointPort;
 }
 
 interface SdkWorld {
@@ -173,7 +175,10 @@ interface SdkWorld {
 function assemble(
   runtime: RuntimeWorld,
   projectPath: string,
-  deps: Pick<NativeServiceDeps, "query" | "policyFor" | "buildOptions" | "supervisor" | "approvals">,
+  deps: Pick<
+    NativeServiceDeps,
+    "query" | "policyFor" | "buildOptions" | "supervisor" | "approvals" | "checkpoints"
+  >,
 ): Rig {
   const conversations = createConversationStore(runtime.harness, async () => projectPath);
   const changes: string[] = [];
@@ -267,6 +272,7 @@ async function sdkWorld(
       policyFor,
       buildOptions,
       ...(options.asking?.approvals && { approvals: options.asking.approvals }),
+      ...(options.checkpoints && { checkpoints: options.checkpoints }),
     });
   const rig = make(runtime);
   cleanups.push(() => rig.service.close());
@@ -310,6 +316,47 @@ describe.skipIf(!sandboxExecAvailable())(
       expect((await rig.conversations.find(threadId))?.lastRunEndedAt).toEqual(expect.any(Number));
       expect(new Set(rig.changes)).toEqual(new Set(["p1"]));
       expect(modelCallsOf(sdk.runtime.setup)).toBe(0);
+    });
+
+    it("spawns no child while the checkpoint before the run fails, keeps the input, then runs it after recovery", async () => {
+      let working = false;
+      const recorded = new Set<string>();
+      const afters: string[] = [];
+      const checkpoints: NativeCheckpointPort = {
+        applies: async () => true,
+        snapshotBefore: async (_threadId, requestId) => {
+          if (working) recorded.add(requestId);
+        },
+        hasBefore: async (_threadId, requestId) => recorded.has(requestId),
+        snapshotAfter: async (_threadId, operationId) => void afters.push(operationId),
+      };
+      const sdk = await sdkWorld(() => [finalTurn(FIRST_ANSWER), finalTurn(SECOND_ANSWER)], {
+        checkpoints,
+      });
+      const { rig } = sdk;
+
+      const threadId = await rig.start();
+      await waitForLifecycle(rig, threadId, "blocked");
+      await rig.service.settled();
+
+      expect(spawnedPids).toEqual([]);
+      expect(spawnedFiles).toEqual([]);
+      expect(sdk.server.messageRequests).toHaveLength(0);
+      expect((await rig.storeOf(threadId).pending()).map((item) => item.requestId)).toEqual(["start-1"]);
+      expect(await eventsOf(rig.storeOf(threadId))).toContainEqual(
+        expect.objectContaining({ type: "notice", code: "blocked" }),
+      );
+      expect(afters).toEqual([]);
+
+      working = true;
+      await rig.service.send(threadId, input(SECOND_PROMPT, "send-2"));
+      await waitUntil(async () => (await rig.storeOf(threadId).pending()).length === 0, "the queue to drain");
+      await rig.service.settled();
+
+      expect(sdk.server.violations, context(sdk)).toEqual([]);
+      expect(spawnedPids.length).toBeGreaterThan(0);
+      expect(await lifecycleOf(rig, threadId)).not.toBe("blocked");
+      expect(afters.length).toBeGreaterThan(0);
     });
 
     it("runs a second send after completion on the same SDK session", async () => {

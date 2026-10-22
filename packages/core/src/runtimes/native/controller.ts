@@ -41,7 +41,8 @@ export interface NativeControllerDeps {
   readonly settingSources?: readonly NativeSettingSource[];
   readonly permissions?: NativePermissionBroker;
   readonly launch?: Launch;
-  readonly prepare?: () => Promise<PrepareResult>;
+  /** Runs before the SDK is initialised; receives the queued message the run would deliver. */
+  readonly prepare?: (item: InboxItem) => Promise<PrepareResult>;
   readonly supervisor?: Partial<SupervisorDeps>;
   readonly stop?: StopOptions;
   readonly interruptGraceMs?: number;
@@ -140,9 +141,9 @@ export function createNativeController(deps: NativeControllerDeps): NativeContro
     return oldest;
   }
 
-  async function prepared(): Promise<PrepareResult> {
+  async function prepared(item: InboxItem): Promise<PrepareResult> {
     try {
-      return await prepare();
+      return await prepare(item);
     } catch (error) {
       return { ok: false, reason: describeError(error) };
     }
@@ -388,7 +389,7 @@ export function createNativeController(deps: NativeControllerDeps): NativeContro
     await store.beginOperation();
     const lifecycle = await assertStartable();
     if (lifecycle === "accepted" || lifecycle === "blocked") await store.setLifecycle("preparing");
-    const outcome = await prepared();
+    const outcome = await prepared(item);
     if (!outcome.ok) return block(item, outcome.reason);
     if (lifecycle !== "ready") await store.setLifecycle("ready");
     const query = await startQueryOrFail(run, item, {

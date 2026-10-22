@@ -23,6 +23,7 @@ import { FileCredentialStore } from "./auth/file-credential-store";
 import { entryOfThread, recoverBangs } from "./bang-command";
 import { createChangeEmitter } from "./change-emitter";
 import { createCheckpointService } from "./checkpoints/checkpoint-service";
+import { createCheckpointStore } from "./checkpoints/checkpoint-store";
 import { createConnectorToolServices } from "./claude-cli/connectors/connector-tool-services";
 import { writeTauShim } from "./cli-shim/write-shim";
 import { createConversationRecovery } from "./conversation-recovery";
@@ -54,6 +55,7 @@ import { clampThinkingFor } from "./harness/tools/agent-thinking";
 import { createToolServicesRef } from "./harness/tools/tool-file";
 import { openDataHome } from "./home/data-home";
 import { acquireHomeLock } from "./home/lock";
+import { ensureRuntimeFormat, guardRuntimeFormatAtStartup } from "./home/runtime-format-file";
 import { createSettingsStore } from "./home/settings-store";
 import { createIconService } from "./icons/icon-service";
 import { createNodeIdentityStore } from "./identity/node-identity";
@@ -78,6 +80,11 @@ import type { RemoteAdapter, RemoteAdapterDeps } from "./remote/ports";
 import { createRemoteService } from "./remote/remote-service";
 import { conversationRemovedInOrder, type RemovalHooks } from "./removal-hooks";
 import type { NativeQueryFn } from "./runtimes/native/controller";
+import {
+  createNativeCheckpointPort,
+  refuseGoalsOnNative,
+  refuseLoopsOnNative,
+} from "./runtimes/native/finalize";
 import { nativeLaunchPolicy } from "./runtimes/native/launch-policy";
 import { withNativeThreads } from "./runtimes/native/permissions";
 import { createNativeService, type NativeService } from "./runtimes/native/service";
@@ -164,6 +171,7 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
   const home = await openDataHome(options.home);
   const lock = await acquireHomeLock(home.lockFile);
   try {
+    await guardRuntimeFormatAtStartup(home.root);
     useBundledSkills(options.assets?.versionDir);
     if (options.cliCommand !== undefined) await writeTauShim(home.root, options.cliCommand);
     const changes = createChangeEmitter();
@@ -443,6 +451,12 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
           conversations,
           query: deps.nativeQuery ?? (await loadAgentSdkQuery()),
           approvals,
+          checkpoints: createNativeCheckpointPort({
+            checkpoints,
+            store: createCheckpointStore(harness),
+            find: (id) => conversations.find(id),
+          }),
+          ensureFormat: () => ensureRuntimeFormat(home.root, deps.now),
           policyFor: nativeLaunchPolicy({
             sandbox: {
               settings: async () => (await settings.get()).sandbox,
@@ -459,6 +473,7 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
           now: deps.now,
         })
       : undefined;
+    const isNativeThread = async (id: string) => (await native?.isNative(id)) ?? false;
     await status.recoverAtStartup();
     await clones.recoverAtStartup();
     await recovery.recoverAtStartup();
@@ -658,8 +673,8 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
       },
       terminals: terminals.api,
       approvals: createApprovalsApi(approvals, conversations),
-      timers: timersApi,
-      goals: createGoalsApi(goals),
+      timers: refuseLoopsOnNative(timersApi, isNativeThread),
+      goals: refuseGoalsOnNative(createGoalsApi(goals), isNativeThread),
       uploads: {
         stage: (input) => uploads.stage(input),
       },

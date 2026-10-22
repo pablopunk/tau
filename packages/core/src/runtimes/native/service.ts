@@ -20,6 +20,7 @@ import {
   touchNativeConversation,
 } from "../../harness/conversation-native";
 import type { ConversationStore } from "../../harness/conversation-store";
+import { isUnresolved } from "../../harness/runtime-docs";
 import {
   createRuntimeStore,
   type OperationState,
@@ -34,6 +35,12 @@ import {
   type NativeQueryFn,
   type RunResult,
 } from "./controller";
+import {
+  createNativeFinalizer,
+  type NativeCheckpointPort,
+  type NativeFinalizer,
+  statusOfOutcome,
+} from "./finalize";
 import type { NativeRunPolicy } from "./launch-policy";
 import type { NativeSettingSource } from "./native-options";
 import { NATIVE_SHELL_CAPABILITIES } from "./native-shell-executor";
@@ -51,6 +58,10 @@ export interface NativeServiceDeps {
   readonly approvals?: Approvals;
   readonly permissionTimeoutMs?: number;
   readonly settingSources?: readonly NativeSettingSource[];
+  /** Absent means checkpoints are off: nothing is snapshotted and nothing can block a run. */
+  readonly checkpoints?: NativeCheckpointPort;
+  /** Runs before the first native record of a new thread exists (writes the store format manifest). */
+  readonly ensureFormat?: () => Promise<void>;
   readonly supervisor?: Partial<SupervisorDeps>;
   readonly stop?: StopOptions;
   readonly interruptGraceMs?: number;
@@ -127,17 +138,12 @@ const mayStartRun = (state: OperationState): boolean =>
   STARTABLE_LIFECYCLES.includes(state.lifecycle) || isUnknownAcknowledged(state);
 
 const statusAfter = (result: RunResult): ConversationStatus =>
-  result.status === "settled" && (result.outcome === "completed" || result.outcome === "cancelled")
-    ? "idle"
-    : "error";
+  result.status === "settled" ? statusOfOutcome(result.outcome) : "error";
 
 const CONTINUING_OUTCOMES: readonly SettleOutcome[] = ["completed", "failed"];
 
 const stopsPump = (result: RunResult): boolean =>
   result.status === "blocked" || !CONTINUING_OUTCOMES.includes(result.outcome);
-
-const statusOfReconciled = (outcome: ReconcileOutcome): ConversationStatus | undefined =>
-  outcome === "outcome-unknown" || outcome === "interrupted" ? "error" : undefined;
 
 export function createNativeService(deps: NativeServiceDeps): NativeService {
   const { harness, conversations, onChange } = deps;
@@ -145,6 +151,10 @@ export function createNativeService(deps: NativeServiceDeps): NativeService {
   const runtimes = new Map<string, Promise<ThreadRuntime>>();
   const knownNative = new Set<string>();
   const pumps = new Set<Promise<void>>();
+  const finalizer: NativeFinalizer = createNativeFinalizer({
+    ...(deps.checkpoints && { checkpoints: deps.checkpoints }),
+    publish: (thread, status) => mirrorThread(thread, status, true),
+  });
 
   async function cwdOf(threadId: string): Promise<{ cwd: string; projectId: string }> {
     const summary = await conversations.find(threadId);
@@ -169,9 +179,11 @@ export function createNativeService(deps: NativeServiceDeps): NativeService {
   function controllerFor(runtime: ThreadRuntime, cwd: string): NativeController {
     const { id } = runtime.thread;
     const policy = deps.policyFor?.(id, cwd);
-    const prepare: NativeControllerDeps["prepare"] = async () => {
+    const prepare: NativeControllerDeps["prepare"] = async (item) => {
       if (runtime.cancelRequested) return { ok: false, reason: "The run was cancelled before it started." };
-      return policy ? policy.prepare() : { ok: true };
+      const launchable = policy ? await policy.prepare() : { ok: true as const };
+      if (!launchable.ok) return launchable;
+      return finalizer.checkpointBefore(id, item.requestId);
     };
     const permissions = permissionsFor(runtime, cwd);
     runtime.permissions = permissions;
@@ -228,17 +240,30 @@ export function createNativeService(deps: NativeServiceDeps): NativeService {
     return result;
   }
 
-  async function mirror(
-    runtime: ThreadRuntime,
+  async function mirrorThread(
+    thread: NativeThreadRef,
     status: ConversationStatus,
     endedRun: boolean,
   ): Promise<void> {
     try {
-      await recordNativeActivity(harness, runtime.thread, { status, at: now(), endedRun });
-      onChange(runtime.thread.projectId);
+      await recordNativeActivity(harness, thread, { status, at: now(), endedRun });
+      onChange(thread.projectId);
     } catch (error) {
       console.error("tau: could not record a native run on the sidebar", error);
     }
+  }
+
+  const mirror = (runtime: ThreadRuntime, status: ConversationStatus, endedRun: boolean): Promise<void> =>
+    mirrorThread(runtime.thread, status, endedRun);
+
+  async function finalizeIfSettled(runtime: ThreadRuntime): Promise<void> {
+    const { operation } = await runtime.store.operationState();
+    const terminal = operation?.terminal;
+    if (!operation || !terminal) return;
+    await finalizer.finalize(runtime.thread, {
+      operationId: operation.operationId,
+      outcome: terminal.lifecycle as SettleOutcome,
+    });
   }
 
   async function reportPumpError(runtime: ThreadRuntime, error: unknown): Promise<void> {
@@ -271,7 +296,11 @@ export function createNativeService(deps: NativeServiceDeps): NativeService {
       await reportPumpError(runtime, error);
       return true;
     }
-    await mirror(runtime, statusAfter(result), true);
+    if (result.status === "settled") {
+      await finalizer.finalize(runtime.thread, { operationId: result.operationId, outcome: result.outcome });
+    } else {
+      await mirror(runtime, statusAfter(result), true);
+    }
     return stopsPump(result);
   }
 
@@ -328,6 +357,7 @@ export function createNativeService(deps: NativeServiceDeps): NativeService {
 
   async function startThread(request: NativeStartRequest): Promise<ConversationSummary> {
     requireNativeInput(request.input);
+    await deps.ensureFormat?.();
     const { summary } = await createNativeConversation(harness, request);
     knownNative.add(summary.id);
     const thread = { id: summary.id, projectId: summary.projectId };
@@ -356,15 +386,16 @@ export function createNativeService(deps: NativeServiceDeps): NativeService {
       return { status: "cancel-before-launch" };
     }
     const outcome = await runtime.controller.cancel(threadId, operation.operationId);
+    await finalizeIfSettled(runtime);
     return { status: "cancelled", outcome };
   }
 
   async function reconcileOne(thread: NativeThreadRef): Promise<NativeReconciled | undefined> {
     try {
       const runtime = await runtimeOf(thread);
+      const { operation } = await runtime.store.operationState();
       const outcome = await runtime.controller.reconcile(thread.id);
-      const status = statusOfReconciled(outcome);
-      if (status) await mirror(runtime, status, true);
+      if (isUnresolved(operation)) await finalizeIfSettled(runtime);
       return { threadId: thread.id, outcome };
     } catch (error) {
       console.error(`tau: could not reconcile native thread ${thread.id}`, error);
