@@ -6,7 +6,8 @@ import { toolResultsOf } from "./connector-results";
 import { API_KEY_STOPPED_TEXT, neutralText, planLimitText } from "./errors";
 import { closeQuery, noteResultSeen } from "./lifecycle";
 import type { Runtime } from "./runtime";
-import type { Turn } from "./turn";
+import { isStaleSessionError } from "./stale-session";
+import type { FailureKind, Turn } from "./turn";
 
 function stopForApiKey(rt: Runtime, binding: Binding): void {
   const listener = binding.listener;
@@ -86,6 +87,7 @@ function noteConnectorCalls(binding: Binding, message: ClaudeSdkMessage): void {
 }
 
 function onApiPart(binding: Binding, message: ClaudeSdkMessage): void {
+  binding.apiPartSeen = true;
   noteConnectorCalls(binding, message);
   if (message.type === "assistant") binding.connectorTail = false;
   const listener = activeListener(binding);
@@ -114,19 +116,19 @@ const errorText = (error: unknown): string =>
 /** Reads a query until it ends and hands each message to the binding's current turn. */
 export function pump(rt: Runtime, binding: Binding, query: ClaudeQuery): void {
   void (async () => {
-    let failure: string | null = null;
+    let failure: { readonly text: string; readonly kind: FailureKind } | null = null;
     try {
       for await (const message of query) {
         if (binding.query !== query) return;
         dispatch(rt, binding, message);
       }
     } catch (error) {
-      failure = errorText(error);
+      failure = { text: errorText(error), kind: isStaleSessionError(error) ? "stale" : "other" };
     }
     if (binding.query !== query) return;
     const listener = binding.listener;
     closeQuery(rt, binding);
     if (failure === null) listener?.end();
-    else listener?.fail(failure);
+    else listener?.fail(failure.text, failure.kind);
   })();
 }
