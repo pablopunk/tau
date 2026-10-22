@@ -1,11 +1,8 @@
-import type { ResourceScope, ResourceSettings } from "@tau/protocol";
+import type { ResourceScope } from "@tau/protocol";
 
 export const NEW_COMMANDS_ONLY = "Applies to new commands only.";
 export const NEEDS_UPDATE = "This node needs an update";
 export const MEMORY_CAP_NOTE = "Every capped command gets the same memory cap, sized for this host.";
-
-export const isControlOn = (value: ResourceSettings): boolean =>
-  value.levels.main !== "off" || value.levels.worktree !== "off" || value.levels.subagent !== "off";
 
 export const SCOPES: { key: ResourceScope; rowId: string; label: string }[] = [
   {

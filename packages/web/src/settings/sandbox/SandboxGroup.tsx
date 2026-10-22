@@ -1,20 +1,27 @@
 import type { SandboxSettings } from "@tau/protocol";
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
-import { Switch } from "@/components/ui/switch";
+import { SegmentedControl, type SegmentedOption } from "@/components/ui/segmented-control";
+import { SettingRow } from "@/components/ui/settings-layout";
 import { useResourceSupport, useSetSandbox, useSettings } from "@/lib/queries";
 import { NEEDS_UPDATE, NEW_COMMANDS_ONLY } from "../resources/resources-text";
-import { SandboxScopeRow } from "./SandboxScopeRow";
 import {
-  isSandboxOn,
-  SANDBOX_ALL_OFF,
+  PRESET_SETTINGS,
+  presetOf,
   SANDBOX_BLURB,
-  SANDBOX_ON_DEFAULT,
-  SANDBOX_SCOPES,
   SANDBOX_UNENFORCED_BLURB,
-  type SandboxScope,
+  type SandboxPreset,
   scopeStatus,
 } from "./sandbox-text";
 
+const option = (value: SandboxPreset, label: string): SegmentedOption<SandboxPreset> => ({
+  value,
+  label,
+  icon: <span className="px-1">{label}</span>,
+});
+
+const OPTIONS = [option("no", "No"), option("worktrees", "Worktrees"), option("all", "All")];
+
+/** One preset row: No confines nothing, Worktrees confines worktree threads and their subagents, All confines everything. */
 export function SandboxGroup() {
   const settings = useSettings();
   const save = useSetSandbox();
@@ -23,13 +30,11 @@ export function SandboxGroup() {
   if (!settings.data) return null;
   const supported = value !== undefined;
   const capability = support.data?.sandbox;
-  // `none` (or an unknown capability) enforces nothing: the toggle would be a lie.
+  // `none` (or an unknown capability) enforces nothing: an editable row would be a lie.
   const enforceable = capability !== undefined && capability.mechanism !== "none";
   const disabled = !supported || !enforceable || save.isPending;
-  const on = value ? isSandboxOn(value) : false;
-  const update = (scope: SandboxScope, next: boolean) => value && save.mutate({ ...value, [scope]: next });
-  const toggle = (next: boolean) =>
-    value && save.mutate(next ? { ...SANDBOX_ON_DEFAULT } : { ...SANDBOX_ALL_OFF });
+  const preset = value ? presetOf(value) : "no";
+  const update = (next: SandboxPreset) => value && save.mutate({ ...value, ...PRESET_SETTINGS[next] });
   const unenforcedNote = capability?.note ? ` ${capability.note}` : "";
 
   return (
@@ -39,32 +44,24 @@ export function SandboxGroup() {
           {NEEDS_UPDATE}
         </p>
       )}
-      <Field>
-        <div className="flex items-center justify-between gap-3">
-          <FieldLabel>Sandbox</FieldLabel>
-          <Switch aria-label="Sandbox" disabled={disabled} checked={on} onCheckedChange={toggle} />
-        </div>
-        <FieldDescription>
-          {supported && !enforceable ? `${SANDBOX_UNENFORCED_BLURB}${unenforcedNote}` : SANDBOX_BLURB}
-        </FieldDescription>
-      </Field>
-      <div className="flex flex-col gap-4">
-        {SANDBOX_SCOPES.map(({ key, rowId, label }) => (
-          <SandboxScopeRow
-            key={key}
-            id={rowId}
-            label={label}
-            scope={key}
-            value={value?.[key] ?? false}
-            status={scopeStatus(value?.[key] ?? false, capability)}
-            disabled={disabled}
-            onChange={update}
-          />
-        ))}
-        {supported && enforceable && on && (
-          <p className="text-xs text-muted-foreground">{NEW_COMMANDS_ONLY}</p>
-        )}
-      </div>
+      <SettingRow id="sandbox">
+        <Field>
+          <div className="flex items-center justify-between gap-3">
+            <FieldLabel>Sandbox</FieldLabel>
+            <SegmentedControl
+              aria-label="Sandbox"
+              value={preset}
+              options={OPTIONS}
+              onChange={(next) => !disabled && update(next)}
+            />
+          </div>
+          <FieldDescription>
+            {supported && !enforceable ? `${SANDBOX_UNENFORCED_BLURB}${unenforcedNote}` : SANDBOX_BLURB}
+          </FieldDescription>
+          <FieldDescription>{scopeStatus(preset !== "no", capability)}</FieldDescription>
+        </Field>
+      </SettingRow>
+      {supported && enforceable && <p className="text-xs text-muted-foreground">{NEW_COMMANDS_ONLY}</p>}
     </div>
   );
 }

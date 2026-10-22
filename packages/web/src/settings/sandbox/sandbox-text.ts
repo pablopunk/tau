@@ -1,36 +1,26 @@
-import type { SandboxSettings, SandboxSupport } from "@tau/protocol";
+import type { SandboxSupport } from "@tau/protocol";
 
 /**
- * Which threads a sandbox flag belongs to: its own on/off switch confines that kind
- * of thread. Only the three boolean scopes, never `mcpAllowlist`.
+ * One sandbox preset: which threads are confined to their own worktree.
+ * Subagents run inside worktrees, so "worktrees" confines them too.
  */
-export const SANDBOX_SCOPE_KEYS = ["main", "worktree", "subagent"] as const;
-export type SandboxScope = (typeof SANDBOX_SCOPE_KEYS)[number];
+export type SandboxPreset = "no" | "worktrees" | "all";
 
-export const SANDBOX_SCOPES: { key: SandboxScope; rowId: string; label: string }[] = [
-  {
-    key: "main",
-    rowId: "sandbox-main",
-    label: "Main threads",
-  },
-  {
-    key: "worktree",
-    rowId: "sandbox-worktree",
-    label: "Worktree threads",
-  },
-  {
-    key: "subagent",
-    rowId: "sandbox-subagent",
-    label: "Subagents",
-  },
-];
+export const SANDBOX_PRESETS: readonly SandboxPreset[] = ["no", "worktrees", "all"] as const;
 
-/** Shipped default: subagents and worktree threads are confined, main-checkout threads are not. */
-export const SANDBOX_ON_DEFAULT: SandboxSettings = { main: false, worktree: true, subagent: true };
-export const SANDBOX_ALL_OFF: SandboxSettings = { main: false, worktree: false, subagent: false };
+export const PRESET_SETTINGS: Record<SandboxPreset, { main: boolean; worktree: boolean; subagent: boolean }> =
+  {
+    no: { main: false, worktree: false, subagent: false },
+    worktrees: { main: false, worktree: true, subagent: true },
+    all: { main: true, worktree: true, subagent: true },
+  };
 
-export const isSandboxOn = (value: SandboxSettings): boolean =>
-  value.main || value.worktree || value.subagent;
+/** Legacy or hand-edited combos collapse to the closest preset: main wins, else any worktree scope. */
+export function presetOf(value: { main: boolean; worktree: boolean; subagent: boolean }): SandboxPreset {
+  if (value.main) return "all";
+  if (value.worktree || value.subagent) return "worktrees";
+  return "no";
+}
 
 export const SANDBOX_BLURB =
   "Confined threads may read anywhere but only write inside their own worktree. Off is today's behavior.";
@@ -42,7 +32,7 @@ export const SCOPE_UNENFORCED = "Unenforced";
 export const SCOPE_ON_UNENFORCED = "On but unenforced";
 
 /**
- * One scope's status word. Unsupported (or unknown) support is explicit "unenforced",
+ * The preset's status word. Unsupported (or unknown) support is explicit "unenforced",
  * never silent; on plus a verified probe is "confined"; off is "staged".
  */
 export function scopeStatus(on: boolean, capability: SandboxSupport | undefined): string {

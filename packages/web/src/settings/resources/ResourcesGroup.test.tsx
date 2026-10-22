@@ -41,10 +41,6 @@ function setup(...args: [unknown?]) {
 
 const group = async (name: string) => within(await screen.findByRole("radiogroup", { name: name }));
 
-async function turnOn() {
-  await userEvent.click(await screen.findByRole("switch", { name: "Resource control" }));
-}
-
 beforeEach(() => {
   vi.resetAllMocks();
   mocks.setResources.mockResolvedValue(undefined);
@@ -62,15 +58,6 @@ describe("<ResourcesGroup>", () => {
     for (const id of ["levels-main", "levels-worktree", "levels-subagent"]) {
       expect(document.querySelector(`[data-setting-id="resources-${id}"]`)).not.toBeNull();
     }
-  });
-
-  it("toggles on with subagents balanced, off again to all off", async () => {
-    setup();
-    await turnOn();
-    expect(mocks.setResources).toHaveBeenCalledWith({
-      ...DEFAULT_RESOURCE_SETTINGS,
-      levels: { main: "off", worktree: "off", subagent: "balanced" },
-    });
   });
 
   it("saves a scope's level", async () => {

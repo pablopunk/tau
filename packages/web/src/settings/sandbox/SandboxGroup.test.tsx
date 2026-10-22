@@ -5,7 +5,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NodeApiProvider } from "@/nodes/node-context";
 import { SETTINGS_INDEX, searchSettings } from "../settings-index";
 import { SandboxGroup } from "./SandboxGroup";
-import { SANDBOX_ALL_OFF, SANDBOX_ON_DEFAULT } from "./sandbox-text";
+
+const ALL_OFF = { main: false, worktree: false, subagent: false };
+const WORKTREES = { main: false, worktree: true, subagent: true };
+const ALL_ON = { main: true, worktree: true, subagent: true };
 
 const mocks = vi.hoisted(() => ({
   sandbox: { main: false, worktree: false, subagent: false } as
@@ -44,79 +47,90 @@ function setup() {
   );
 }
 
-/** The whole setting row (control plus status line), waited into existence via its control. */
-const row = async (rowId: string, name: string) => {
-  await screen.findByRole("radiogroup", { name });
-  const el = document.querySelector(`[data-setting-id="${rowId}"]`);
-  if (!el) throw new Error(`missing row ${rowId}`);
-  return within(el as HTMLElement);
+/** The single preset row (control plus status line), waited into existence via its control. */
+const presetRow = async () => {
+  const group = within(await screen.findByRole("radiogroup", { name: "Sandbox" }));
+  const el = document.querySelector('[data-setting-id="sandbox"]');
+  if (!el) throw new Error("missing row sandbox");
+  return { group, row: within(el as HTMLElement) };
 };
-const mainRow = () => row("sandbox-main", "Main threads sandbox");
-const worktreeRow = () => row("sandbox-worktree", "Worktree threads sandbox");
-const subagentRow = () => row("sandbox-subagent", "Subagents sandbox");
 
 beforeEach(() => {
   vi.resetAllMocks();
-  mocks.sandbox = { main: false, worktree: false, subagent: false };
+  mocks.sandbox = { ...ALL_OFF };
   mocks.capability = { enforced: true, mechanism: "seatbelt", tested: true, note: null };
   mocks.setSandbox.mockImplementation(async (value: unknown) => {
-    mocks.sandbox = { ...(value as typeof SANDBOX_ALL_OFF) };
+    mocks.sandbox = { ...(value as typeof ALL_OFF) };
   });
 });
 
 describe("<SandboxGroup>", () => {
-  it("renders one sandbox row per scope, even while off", async () => {
+  it("renders one No/Worktrees/All preset", async () => {
     setup();
-    for (const name of ["Main threads sandbox", "Worktree threads sandbox", "Subagents sandbox"]) {
-      expect(await screen.findByRole("radiogroup", { name })).toBeInTheDocument();
+    const { group } = await presetRow();
+    for (const name of ["No", "Worktrees", "All"]) {
+      expect(group.getByRole("radio", { name })).toBeInTheDocument();
     }
-    for (const id of ["sandbox-main", "sandbox-worktree", "sandbox-subagent"]) {
-      expect(document.querySelector(`[data-setting-id="${id}"]`)).not.toBeNull();
-    }
+    expect(document.querySelector('[data-setting-id="sandbox"]')).not.toBeNull();
   });
 
-  it("toggles on with worktrees and subagents, off again to all off", async () => {
+  it("saves the Worktrees preset, confining worktrees and their subagents", async () => {
     setup();
-    await userEvent.click(await screen.findByRole("switch", { name: "Sandbox" }));
-    expect(mocks.setSandbox).toHaveBeenCalledWith(SANDBOX_ON_DEFAULT);
-    expect(await screen.findByRole("switch", { name: "Sandbox" })).toBeChecked();
-    await userEvent.click(screen.getByRole("switch", { name: "Sandbox" }));
-    expect(mocks.setSandbox).toHaveBeenLastCalledWith(SANDBOX_ALL_OFF);
+    await userEvent.click((await presetRow()).group.getByRole("radio", { name: "Worktrees" }));
+    expect(mocks.setSandbox).toHaveBeenCalledWith(WORKTREES);
   });
 
-  it("saves a scope's flag alone", async () => {
+  it("saves All and back to No", async () => {
+    mocks.sandbox = { ...WORKTREES };
     setup();
-    await userEvent.click((await mainRow()).getByRole("radio", { name: "On" }));
-    expect(mocks.setSandbox).toHaveBeenCalledWith({ ...SANDBOX_ALL_OFF, main: true });
+    await userEvent.click((await presetRow()).group.getByRole("radio", { name: "All" }));
+    expect(mocks.setSandbox).toHaveBeenCalledWith(ALL_ON);
   });
 
-  it("shows staged while off and confined while on and enforced", async () => {
+  it("shows the current preset as pressed", async () => {
+    mocks.sandbox = { ...ALL_ON };
     setup();
-    expect((await mainRow()).getByText("Staged")).toBeInTheDocument();
-    await userEvent.click(await screen.findByRole("switch", { name: "Sandbox" }));
-    expect((await worktreeRow()).getByText("Confined")).toBeInTheDocument();
-    expect((await subagentRow()).getByText("Confined")).toBeInTheDocument();
+    expect((await presetRow()).group.getByRole("radio", { name: "All" })).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
+  });
+
+  it("collapses a legacy main-only combo to All", async () => {
+    mocks.sandbox = { main: true, worktree: false, subagent: false };
+    setup();
+    expect((await presetRow()).group.getByRole("radio", { name: "All" })).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
+  });
+
+  it("shows staged while off", async () => {
+    setup();
+    expect((await presetRow()).row.getByText("Staged")).toBeInTheDocument();
+  });
+
+  it("shows confined while on and enforced", async () => {
+    mocks.sandbox = { ...WORKTREES };
+    setup();
+    expect((await presetRow()).row.getByText("Confined")).toBeInTheDocument();
   });
 
   it("says unenforced, never silent, when the mechanism is none", async () => {
     mocks.capability = { enforced: false, mechanism: "none", tested: true, note: null };
     setup();
     expect(await screen.findByText(/unenforced on this node/i)).toBeInTheDocument();
-    expect(await screen.findByRole("switch", { name: "Sandbox" })).toBeDisabled();
-    expect((await mainRow()).getByText("Unenforced")).toBeInTheDocument();
+    expect((await presetRow()).row.getByText("Unenforced")).toBeInTheDocument();
   });
 
-  it("finds each row by search", () => {
+  it("finds the row by search", () => {
     const hits = searchSettings("sandbox", SETTINGS_INDEX).map((r) => r.id);
-    for (const id of ["sandbox-main", "sandbox-worktree", "sandbox-subagent"]) {
-      expect(hits).toContain(id);
-    }
+    expect(hits).toContain("sandbox");
   });
 
   it("asks for a node update when sandbox settings are missing", async () => {
     mocks.sandbox = undefined;
     setup();
     expect(await screen.findByText("This node needs an update")).toBeInTheDocument();
-    expect(await screen.findByRole("switch", { name: "Sandbox" })).toBeDisabled();
   });
 });
