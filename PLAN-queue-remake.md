@@ -343,18 +343,26 @@ How (boring on purpose): new `web/src/lib/timings.ts` (~80 lines, the only
 new web timing code) — `markAction/markConfirm/markLiveReflect`, wraps the
 REST client once so `renderMs = clientMs − serverMs` falls out free, emits
 to `console.debug` + a devtools-only `window.__tauTimings` ring (last 200)
-with a hidden `?timings=1` overlay; no design-system cost. New
-`server/src/timing.ts` (~40 lines) — Fastify `onRequest`/`onResponse`
-hooks log `{action, serverMs, gateWaitMs?, conversationId?, requestId?,
-submissionId?}` through pino (already ships). Correlation reuses
+with a hidden `?timings=1` overlay; no design-system cost. Server side:
+stamp `Date.now()` at each owned stage and emit one
+`console.info(JSON.stringify({action, stage, serverMs, gateWaitMs?,
+conversationId?, requestId?, submissionId?}))` line per stage. The CLI
+already mirrors console into `<home>/logs/server.log` with 10MB rotation
+keeping one old generation (`cli/src/logging/`) — retention exists, and
+any agent (or you) inspects a full action trace with
+grep `requestId|submissionId` on that file, so keep keys stable and the
+line greppable (no pino/Fastify-logger dependency — Fastify's logger is
+off by default, don't rely on `request.log`). Correlation reuses
 `requestId` + the R3.6 `{submissionId, entryId?}` receipts — no new ids.
-Aggregation is the CI artifact, not the app: p95 computed in the test.
+Volume: ~200B × ~6 stages per action — thousands of actions fit in
+rotation. Aggregation is the CI artifact, not the app: p95 computed in
+the test.
 
 Baseline (agent-runnable, comparable — capture BEFORE R1 lands):
 `pnpm build` at the pre-remake commit (SHA recorded), `VITE_FAKE=1` fake
 transport, new `e2e/timings.spec.ts` drives the real UI per action
-(15 runs each, seeded fake, workers: 1), server `serverMs` scraped from
-pino JSON by `submissionId`. Output: committed `e2e/timings-baseline.json`
+(15 runs each, seeded fake, workers: 1), server stages scraped from the
+rotating log file by `submissionId`. Output: committed `e2e/timings-baseline.json`
 `{action: {p50, p95, n, confirmP95, serverP95}}`. The remake re-runs the
 identical spec; the diff is the proof. Guard thresholds (fake transport):
 p95 tap-to-confirm < 100ms, p95 tap-to-live-reflect for local actions
@@ -379,7 +387,7 @@ Time-to-first-visible-response is tracked per run (client marks first
 streaming/tool output against the run's submission).
 Server logs each transition it owns (admission, gate wait, abort
 start/end, run start, exit, notification delivery) with
-`{requestId, submissionId, entryId?}` through pino; the client ring
+`{requestId, submissionId, entryId?}` in both places; the client ring
 covers tap + first-visible-output + reflect. E2E joins both sides by
 `submissionId` into the same baseline JSON (`serverP50/P95` per stage,
 `queueDwellP95`, `timeToFirstResponseP95`); guard thresholds apply per
