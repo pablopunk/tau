@@ -28,8 +28,8 @@ vi.mock("@/lib/api", () => ({
   },
 }));
 
-function setup(resources: unknown = DEFAULT_RESOURCE_SETTINGS) {
-  mocks.settings = { resources };
+function setup(...args: [unknown?]) {
+  mocks.settings = { resources: args.length > 0 ? args[0] : DEFAULT_RESOURCE_SETTINGS };
   render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
       <NodeApiProvider>
@@ -39,7 +39,7 @@ function setup(resources: unknown = DEFAULT_RESOURCE_SETTINGS) {
   );
 }
 
-const group = async (name: string) => within(await screen.findByRole("group", { name: name }));
+const group = async (name: string) => within(await screen.findByRole("radiogroup", { name: name }));
 
 async function turnOn() {
   await userEvent.click(await screen.findByRole("switch", { name: "Resource control" }));
@@ -52,10 +52,12 @@ beforeEach(() => {
 
 describe("<ResourcesGroup>", () => {
   it("renders one power row per scope", async () => {
-    setup();
-    await turnOn();
+    setup({
+      ...DEFAULT_RESOURCE_SETTINGS,
+      levels: { main: "off", worktree: "off", subagent: "balanced" },
+    });
     for (const name of ["Main threads power", "Worktree threads power", "Subagents power"]) {
-      expect(await screen.findByRole("group", { name })).toBeInTheDocument();
+      expect(await screen.findByRole("radiogroup", { name })).toBeInTheDocument();
     }
     for (const id of ["levels-main", "levels-worktree", "levels-subagent"]) {
       expect(document.querySelector(`[data-setting-id="resources-${id}"]`)).not.toBeNull();
@@ -89,7 +91,7 @@ describe("<ResourcesGroup>", () => {
       levels: { main: "balanced", worktree: "off", subagent: "background" },
     });
     expect((await group("Main threads power")).getByRole("radio", { name: "Balanced" })).toHaveAttribute(
-      "aria-pressed",
+      "aria-checked",
       "true",
     );
   });

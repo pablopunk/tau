@@ -117,9 +117,9 @@ describe("settings dialog search", () => {
 
     await user.keyboard("{Enter}");
     await waitFor(() =>
-      expect(screen.getByTestId("url")).toHaveTextContent("settings=agent&setting=workspace-default"),
+      expect(screen.getByTestId("url")).toHaveTextContent("settings=agent&setting=resources-levels-worktree"),
     );
-    const row = document.querySelector('[data-setting-id="workspace-default"]') as HTMLElement;
+    const row = document.querySelector('[data-setting-id="resources-levels-worktree"]') as HTMLElement;
     await waitFor(() => expect(row).toHaveAttribute("data-highlighted"));
     expect(field).toHaveValue("");
   });

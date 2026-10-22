@@ -42,26 +42,26 @@ export function ResourcesGroup() {
             : "Resource control is not available on this node."}
         </FieldDescription>
       </Field>
-      {on && (
-        <div className="flex flex-col gap-4">
-          {SCOPES.map(({ key, rowId, label }) => (
-            <ScopeRow
-              key={key}
-              id={rowId}
-              label={label}
-              scope={key}
-              value={value?.levels[key] ?? "off"}
-              disabled={disabled}
-              onChange={update}
-            />
-          ))}
-          {supported && (
-            <p className="text-xs text-muted-foreground">
-              {NEW_COMMANDS_ONLY} {MEMORY_CAP_NOTE}
-            </p>
-          )}
-        </div>
-      )}
+      {/* Rows always render (disabled while off) so search coverage sees them;
+          the toggle gates enforcement, not visibility. */}
+      <div className="flex flex-col gap-4">
+        {SCOPES.map(({ key, rowId, label }) => (
+          <ScopeRow
+            key={key}
+            id={rowId}
+            label={label}
+            scope={key}
+            value={value?.levels[key] ?? "off"}
+            disabled={disabled || !on}
+            onChange={update}
+          />
+        ))}
+        {supported && (
+          <p className="text-xs text-muted-foreground">
+            {NEW_COMMANDS_ONLY} {MEMORY_CAP_NOTE}
+          </p>
+        )}
+      </div>
     </div>
   );
 }
