@@ -98,19 +98,17 @@ export function ThreadRow({
     mutationFn: (force: boolean) => api.conversations.remove(conversation.id, { force }),
     transform: (list) => list.filter((item) => item.id !== conversation.id),
   });
-  const rename = async (name: string): Promise<void> => {
-    renameMutation.mutate(name);
-  };
+  // The dialogs await these and show their own pending state (disabled Save
+  // while confirming, inline error + no close on failure); the row itself
+  // updates instantly via the optimistic cache write.
+  const rename = (name: string): Promise<void> => renameMutation.mutateAsync(name).then(() => undefined);
   const toggleArchive = () => {
     archiveMutation.mutate(!archived);
   };
-  const remove = async (force: boolean): Promise<void> => {
-    removeMutation.mutate(force, {
-      onSuccess: () => {
-        if (active) navigate("/");
-      },
+  const remove = (force: boolean): Promise<void> =>
+    removeMutation.mutateAsync(force).then(() => {
+      if (active) navigate("/");
     });
-  };
 
   const projectIcon = (tile: number) =>
     project ? (

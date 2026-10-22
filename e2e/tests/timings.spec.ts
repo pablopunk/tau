@@ -212,12 +212,21 @@ test.describe("timings harness", () => {
         .click();
       await page.getByRole("menuitem", { name: "Rename thread" }).click();
       await page.getByLabel("Title").fill(next);
-      // Confirm: the Save button disables on tap (menu navigation excluded).
+      // Confirm: instant acknowledgment of the tap (menu navigation excluded).
       // dispatchEvent measures app latency, not the driver's mouse pipeline.
+      // Either the pending state (disabled Save) or an immediate close on a
+      // fast round trip counts — both prove the tap was acknowledged without
+      // waiting; the dialog closing is itself the fast-path confirmation.
       const start = Date.now();
       const save = page.getByRole("button", { name: "Save" });
       await save.dispatchEvent("click");
-      await expect(save).toBeDisabled({ timeout: 10_000 });
+      await expect
+        .poll(async () => {
+          if ((await page.getByLabel("Title").count()) === 0) return "closed";
+          if (await save.isDisabled()) return "disabled";
+          return "waiting";
+        })
+        .not.toBe("waiting", { timeout: 10_000 });
       const confirmMs = Date.now() - start;
       await expect(page.getByLabel("Title")).toBeHidden({ timeout: 10_000 });
       // Reflect: the row carries the new name (server-confirmed).
