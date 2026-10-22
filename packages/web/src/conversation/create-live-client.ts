@@ -43,13 +43,47 @@ export function createLiveClient(transport: LiveTransport): LiveClient {
     notify(statusListeners, next);
   };
 
+  const safeSend = (target: LiveSocket | undefined, frame: ClientFrame): boolean => {
+    if (status !== "open" || !target) return false;
+    try {
+      target.send(frame);
+      return true;
+    } catch (error) {
+      console.error("live send failed, reconnecting", error);
+      // The socket looks open but refuses sends (closing race): drop it so
+      // the reconnect path resubscribes and delivers a fresh base view.
+      // Closing alone may never fire onClose on a dead socket, so schedule
+      // the retry explicitly when this was the current socket.
+      try {
+        target.close();
+      } catch {
+        // ignore: already closing
+      }
+      if (socket === target) {
+        socket = undefined;
+        scheduleReconnect();
+      }
+      return false;
+    }
+  };
+
   const sendIfOpen = (frame: ClientFrame) => {
-    if (status === "open") socket?.send(frame);
+    safeSend(socket, frame);
   };
 
   const resync = (conversationId: string) => {
-    sendIfOpen({ type: "unsubscribe", conversationId });
-    sendIfOpen({ type: "subscribe", conversationId });
+    // Unsubscribe and subscribe are back-to-back on the same socket: either
+    // both go out or, when the socket is gone, the reconnect resubscribe
+    // covers every subscription. Never let a half-sent resync strand the view.
+    const target = socket;
+    if (!safeSend(target, { type: "unsubscribe", conversationId })) return;
+    if (!safeSend(target, { type: "subscribe", conversationId }) && target) {
+      try {
+        target.close();
+      } catch {
+        // ignore: already closing
+      }
+    }
   };
 
   const applyOps = (conversationId: string, ops: readonly Op[]) => {
@@ -68,33 +102,63 @@ export function createLiveClient(transport: LiveTransport): LiveClient {
 
   const handleFrame = (frame: ServerFrame) => {
     if (frame.type === "ops") applyOps(frame.conversationId, frame.ops);
-    else notify(changedListeners, frame);
+    else if (frame.type === "changed") notify(changedListeners, frame);
   };
 
   const scheduleReconnect = () => {
+    if (closed) return;
+    // Never stack timers: each close replaces the pending retry, so at most
+    // one socket is ever dialing and duplicate deliveries can't interleave.
+    if (retryTimer !== undefined) clearTimeout(retryTimer);
     setStatus("reconnecting");
     retryTimer = setTimeout(connect, reconnectDelayMs(failedAttempts));
     failedAttempts += 1;
-  };
-
-  const handlers: LiveHandlers = {
-    onOpen() {
-      failedAttempts = 0;
-      setStatus("open");
-      for (const conversationId of subscriptions.keys()) socket?.send({ type: "subscribe", conversationId });
-    },
-    onFrame: handleFrame,
-    onClose() {
-      socket = undefined;
-      if (!closed) scheduleReconnect();
-    },
   };
 
   function connect() {
     retryTimer = undefined;
     if (closed) return;
     if (status !== "reconnecting") setStatus("connecting");
-    socket = transport.open(handlers);
+    // One socket at a time: a leaked predecessor would keep delivering ops
+    // for the same views, and every duplicate batch would look like a bad op.
+    try {
+      socket?.close();
+    } catch {
+      // ignore: already closing
+    }
+    socket = undefined;
+    // Handlers are per-connection and only touch the current socket: a late
+    // event from a dead predecessor must not wipe or pollute its replacement.
+    // In particular, ops frames carry per-view deltas, so a superseded socket
+    // must never apply them to the shared views; change broadcasts stay
+    // shared because they are idempotent invalidations.
+    const handlers: LiveHandlers = {
+      onOpen() {
+        if (socket !== current) return;
+        failedAttempts = 0;
+        setStatus("open");
+        for (const conversationId of subscriptions.keys())
+          safeSend(current, { type: "subscribe", conversationId });
+      },
+      onFrame(frame) {
+        if (frame.type === "ops" && socket !== current) return;
+        handleFrame(frame);
+      },
+      onClose() {
+        if (socket !== current) return;
+        socket = undefined;
+        if (!closed) scheduleReconnect();
+      },
+    };
+    let current: LiveSocket;
+    try {
+      current = transport.open(handlers);
+    } catch (error) {
+      console.error("live open failed, reconnecting", error);
+      scheduleReconnect();
+      return;
+    }
+    socket = current;
   }
 
   const ensureConnected = () => {

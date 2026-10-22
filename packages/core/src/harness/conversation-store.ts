@@ -5,7 +5,9 @@ import {
   type Harness,
 } from "@earendil-works/pi-durable";
 import {
+  type AbortResult,
   AppError,
+  type CancelQueuedResult,
   type ConversationSummary,
   type ConversationView,
   isRetryable,
@@ -39,7 +41,7 @@ import {
   type StartRequest,
   type StartResult,
 } from "./conversation-start";
-import { cancelQueued, submitOnce } from "./conversation-submit";
+import { cancelQueued, entryOfSubmission, submitOnce } from "./conversation-submit";
 import { createWatcherRegistry } from "./conversation-watchers";
 import { isBusy } from "./live-state";
 import { BACKGROUND } from "./open";
@@ -61,12 +63,20 @@ interface KnownConversation {
 
 export type AgentSettings = { readonly model: ModelRef; readonly thinkingLevel: ThinkingLevel };
 
+export type RetryResult = {
+  readonly projectId: string;
+  readonly submissionId: number;
+  readonly entryId?: number;
+};
+
 export type SendResult = {
   readonly projectId: string;
   /** Set when this send gave an untitled legacy thread its provisional title: the title job should run. */
   readonly titleText?: string;
   /** False when another send with the same `requestId` won: nothing was admitted. */
   readonly admitted: boolean;
+  readonly submissionId: number;
+  readonly entryId?: number;
 };
 
 export interface ConversationStore
@@ -78,7 +88,7 @@ export interface ConversationStore
   /** Stores the workspace in the index entry and points the agent's cwd at `workspace.path`. */
   setWorkspace(id: string, workspace: ThreadWorkspace): Promise<ConversationSummary>;
   /** Withdraws one queued message; `{ cancelled: false }` once it was delivered. */
-  cancelQueued(id: string, itemId: string): Promise<{ cancelled: boolean }>;
+  cancelQueued(id: string, itemId: string): Promise<CancelQueuedResult>;
   start(request: StartRequest): Promise<StartResult>;
   /** `not_found` for an unknown or deleted thread. */
   modelOf(id: string): Promise<ModelRef | undefined>;
@@ -91,8 +101,8 @@ export interface ConversationStore
   /** Admits the message (steering when busy) exactly once per `requestId`, and unarchives. */
   send(id: string, input: SendMessageInput, now: number, whenBusy?: WhenBusy): Promise<SendResult>;
   /** One `app.retry` submission, exactly once per `requestId`. `invalid_request` unless the thread is retryable. */
-  retry(id: string, input: RetryInput, now: number): Promise<string>;
-  abort(id: string): Promise<void>;
+  retry(id: string, input: RetryInput, now: number): Promise<RetryResult>;
+  abort(id: string): Promise<AbortResult>;
   /** Resolves when the compaction ends. `not_found`; `nothing_to_compact`; `internal` with pi's message on failure. */
   compact(id: string, instructions: string | undefined): Promise<void>;
   archive(id: string, archived: boolean, now: number): Promise<string>;
@@ -245,16 +255,22 @@ export function createConversationStore(
         (tx) => tx.submissionByRequest(conversationId, input.requestId),
         BACKGROUND,
       );
-      if (duplicate) return { projectId, admitted: false };
+      if (duplicate)
+        return {
+          projectId,
+          admitted: false,
+          submissionId: duplicate.id,
+          entryId: entryOfSubmission(duplicate),
+        };
       // Revalidate staged refs before re-admitting: expiry fails here, before the run.
       const resolved = (await hooks.uploads?.resolveRefs(input.files ?? [])) ?? [];
-      const admitted = await submitOnce(harness, conversation, {
+      const receipt = await submitOnce(harness, conversation, {
         type: "input",
         content: toUserInput(input, readFromResolved(resolved)),
         requestId: input.requestId,
         whenBusy,
       });
-      if (!admitted) return { projectId, admitted };
+      if (!receipt.admitted) return { projectId, ...receipt };
       let provisionalFor: string | undefined;
       // A bang command titles from `ls`, but the stored entry keeps its verbatim `! ls` text.
       const titleSource = stripBangPrefix(input.text);
@@ -268,7 +284,7 @@ export function createConversationStore(
         delete entry.archivedAt;
         return true;
       });
-      return { projectId, titleText: provisionalFor, admitted };
+      return { projectId, titleText: provisionalFor, ...receipt };
     },
 
     async retry(id, input, now) {
@@ -278,32 +294,38 @@ export function createConversationStore(
         (tx) => tx.submissionByRequest(conversationId, input.requestId),
         BACKGROUND,
       );
-      if (alreadyAdmitted) return projectId;
+      if (alreadyAdmitted)
+        return {
+          projectId,
+          submissionId: alreadyAdmitted.id,
+          entryId: entryOfSubmission(alreadyAdmitted),
+        };
       if (!isRetryable(view)) throw new AppError("invalid_request", "There is nothing to retry.");
       try {
-        await submitOnce(harness, conversation, {
+        const receipt = await submitOnce(harness, conversation, {
           type: "input",
           content: RETRY_PROMPT,
           entry: { kind: "app.retry" },
           requestId: input.requestId,
           whenBusy: "reject",
         });
+        await updateLiveConversation(harness, conversationId, projectId, (_meta, entry) => {
+          entry.updatedAt = now;
+          delete entry.archivedAt;
+          return true;
+        });
+        return { projectId, submissionId: receipt.submissionId, entryId: receipt.entryId };
       } catch (error) {
         if (error instanceof ConversationBusy) throw new AppError("invalid_request", "The thread is busy.");
         throw error;
       }
-      await updateLiveConversation(harness, conversationId, projectId, (_meta, entry) => {
-        entry.updatedAt = now;
-        delete entry.archivedAt;
-        return true;
-      });
-      return projectId;
     },
 
     async abort(id) {
       const { conversation } = await known(id);
       hooks.beforeAbort?.(id);
       await conversation.abort(BACKGROUND);
+      return { restored: [] };
     },
 
     async compact(id, instructions) {

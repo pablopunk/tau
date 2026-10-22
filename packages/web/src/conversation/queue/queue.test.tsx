@@ -23,7 +23,7 @@ vi.mock("@/lib/api", () => ({
   },
 }));
 
-const item = { id: 7, mode: "followUp" as const, text: "later", images: [] };
+const item = { id: 7, mode: "followUp" as const, entryKind: "pi.user", text: "later", images: [] };
 
 beforeEach(() => {
   vi.clearAllMocks();

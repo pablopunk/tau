@@ -3,7 +3,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { loadDraft } from "../composer/drafts";
 import { stopAndRestore } from "./stop-restore";
 
-const queued = (id: number, text: string): QueuedMessage => ({ id, mode: "followUp", text, images: [] });
+const queued = (id: number, text: string): QueuedMessage => ({
+  id,
+  mode: "followUp",
+  entryKind: "pi.user",
+  text,
+  images: [],
+});
 
 function api(abort: ReturnType<typeof vi.fn>) {
   return { conversations: { abort } } as never;

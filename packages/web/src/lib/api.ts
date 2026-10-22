@@ -1,6 +1,8 @@
 import type {
+  AbortResult,
   Approval,
   ApprovalDecision,
+  CancelQueuedResult,
   Checkpoint,
   ClaudeConnectorSettings,
   CompactInput,
@@ -43,6 +45,8 @@ import type {
   RestorePreview,
   RetryInput,
   SendMessageInput,
+  SendNowResult,
+  SendReceipt,
   Settings,
   Skill,
   StartConversationInput,
@@ -166,10 +170,10 @@ export interface Api {
     listAll(): Promise<ConversationSummary[]>;
     start(input: StartConversationInput): Promise<ConversationSummary>;
     rename(id: string, title: string): Promise<void>;
-    send(id: string, input: SendMessageInput): Promise<void>;
+    send(id: string, input: SendMessageInput): Promise<SendReceipt>;
     /** Replaces the thread's todo list with the user's edit and pings the agent with the diff. */
     updateTodos(id: string, input: UpdateTodosInput): Promise<void>;
-    abort(id: string): Promise<void>;
+    abort(id: string): Promise<AbortResult>;
     archive(id: string, archived: boolean): Promise<void>;
     remove(id: string, options?: { force?: boolean }): Promise<void>;
     deleteArchived(input: DeleteArchivedInput): Promise<DeleteArchivedResult>;
@@ -177,11 +181,12 @@ export interface Api {
     rewindPreview(id: string, entryId: string): Promise<RestorePreview>;
     rewind(id: string, entryId: string): Promise<{ conversation: ConversationSummary; draft: string }>;
     stopAgent(id: string): Promise<void>;
-    cancelQueued(id: string, itemId: string): Promise<{ cancelled: boolean }>;
+    cancelQueued(id: string, itemId: string): Promise<CancelQueuedResult>;
+    sendNow(id: string, itemId: string): Promise<SendNowResult>;
     checkpoints(id: string): Promise<Checkpoint[]>;
     checkpointDiff(id: string, checkpointId: string, path: string): Promise<string>;
     configure(id: string, input: ConfigureConversationInput): Promise<void>;
-    retry(id: string, input: RetryInput): Promise<void>;
+    retry(id: string, input: RetryInput): Promise<SendReceipt>;
     compact(id: string, input: CompactInput): Promise<void>;
   };
   workspaces: {
@@ -399,6 +404,7 @@ export function createApi(transport: Transport): Api {
       rewind: (id, entryId) => request("rewindConversation", { params: { id }, body: { entryId } }),
       stopAgent: (id) => request("stopAgent", { params: { id } }),
       cancelQueued: (id, itemId) => request("cancelQueued", { params: { id, itemId } }),
+      sendNow: (id, itemId) => request("sendNow", { params: { id }, body: { itemId } }),
       checkpoints: (id) => request("listCheckpoints", { params: { id } }),
       checkpointDiff: async (id, cid, path) =>
         (await request("getCheckpointDiff", { params: { id, cid }, query: { path } })).diff,

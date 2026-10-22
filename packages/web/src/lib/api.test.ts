@@ -59,7 +59,10 @@ describe("http transport", () => {
   });
 
   it("calls the MVP2 routes with their paths, methods and bodies", async () => {
-    const fetchMock = stubFetch(respond(204));
+    const fetchMock = vi.fn(async (url: string) =>
+      url.endsWith("/retry") ? respond(200, { submissionId: 1 }) : respond(204),
+    );
+    vi.stubGlobal("fetch", fetchMock);
     await api.conversations.archive("c 1", true);
     await api.conversations.remove("c1");
     await api.conversations.retry("c1", { requestId: "r1" });

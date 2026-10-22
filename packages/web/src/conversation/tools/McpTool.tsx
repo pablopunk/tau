@@ -18,11 +18,13 @@ function argumentsText(state: ToolRendererProps["state"]): string {
 function CallCard({ state }: ToolRendererProps) {
   const args = argumentsText(state);
   const output = outputOf(state);
+  const server = argText(state, "server");
+  const tool = argText(state, "tool");
   return (
     <ToolCard
       icon={<Plug />}
       title="MCP"
-      subtitle={`${argText(state, "server") ?? "?"}/${argText(state, "tool") ?? "?"}`}
+      subtitle={(server ?? tool) ? `${server ?? "…"}/${tool ?? "…"}` : undefined}
       status={state.status}
       badge={state.status === "error" ? <Badge variant="destructive">Error</Badge> : null}
     >

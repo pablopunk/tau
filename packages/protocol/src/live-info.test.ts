@@ -14,7 +14,20 @@ const viewWithInbox = (items: unknown[]) =>
 describe("readLive queued", () => {
   it("reads a text-only queued message stored as a string", () => {
     const view = viewWithInbox([{ id: 1, mode: "followUp", content: "later" }]);
-    expect(readLive(view).queued).toMatchObject([{ id: 1, mode: "followUp", text: "later", images: [] }]);
+    expect(readLive(view).queued).toMatchObject([
+      { id: 1, mode: "followUp", entryKind: "pi.user", text: "later", images: [] },
+    ]);
+  });
+
+  it("carries the normalized entry kind of the queued item", () => {
+    const view = viewWithInbox([
+      { id: 1, mode: "followUp", entry: { kind: "app.retry" }, content: "retry" },
+      { id: 2, mode: "steer", content: "plain" },
+    ]);
+    expect(readLive(view).queued).toMatchObject([
+      { id: 1, entryKind: "app.retry" },
+      { id: 2, entryKind: "pi.user" },
+    ]);
   });
 
   it("reads a queued message with an image stored as content blocks", () => {

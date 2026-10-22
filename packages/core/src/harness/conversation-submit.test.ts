@@ -125,9 +125,15 @@ describe("cancelQueued", () => {
     await send(id, "later", "followUp");
     const itemId = String((await inboxOf(id))[0]?.id);
     const { conversation } = await viewOf(id);
-    expect(await cancelQueued(harness, conversation as never, itemId)).toEqual({ cancelled: true });
+    expect(await cancelQueued(harness, conversation as never, itemId)).toEqual({
+      cancelled: true,
+      restored: [],
+    });
     await untilInboxEmpty(id);
-    expect(await cancelQueued(harness, conversation as never, itemId)).toEqual({ cancelled: false });
+    expect(await cancelQueued(harness, conversation as never, itemId)).toEqual({
+      cancelled: false,
+      restored: [],
+    });
     expect((await userEntryKinds(id)).filter((kind) => kind === "pi.user")).toHaveLength(1);
   });
 
@@ -137,6 +143,9 @@ describe("cancelQueued", () => {
     const itemId = String((await inboxOf(id))[0]?.id);
     await userEntryKinds(id);
     const { conversation } = await viewOf(id);
-    expect(await cancelQueued(harness, conversation as never, itemId)).toEqual({ cancelled: false });
+    expect(await cancelQueued(harness, conversation as never, itemId)).toEqual({
+      cancelled: false,
+      restored: [],
+    });
   });
 });

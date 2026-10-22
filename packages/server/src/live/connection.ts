@@ -57,7 +57,7 @@ export class LiveConnection {
     const frame = decodeClientFrame(raw);
     if (!frame) return void this.socket.close(POLICY_VIOLATION, "invalid frame");
     if (frame.type === "subscribe") this.subscribe(frame.conversationId);
-    else void this.unsubscribe(frame.conversationId).catch(this.onError);
+    else if (frame.type === "unsubscribe") void this.unsubscribe(frame.conversationId).catch(this.onError);
   }
 
   private subscribe(conversationId: string): void {

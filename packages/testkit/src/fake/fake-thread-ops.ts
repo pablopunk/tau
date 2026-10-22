@@ -57,7 +57,12 @@ export function createFakeThreadOps(ctx: ThreadOpsContext): ThreadOps {
       reportStopped(child, ctx.require);
     },
     async cancelQueued(id, itemId) {
-      return { cancelled: ctx.require(id).cancelQueued(itemId) };
+      const conversation = ctx.require(id);
+      if (!conversation.hasQueuedItem(itemId)) {
+        const elsewhere = ctx.live().some((item) => item.id !== id && item.hasQueuedItem(itemId));
+        if (elsewhere) throw new AppError("not_found", `Unknown queued item: ${itemId}`);
+      }
+      return conversation.cancelQueued(itemId);
     },
     async checkpoints(id) {
       const source = ctx.require(id);
