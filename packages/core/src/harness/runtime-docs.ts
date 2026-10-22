@@ -4,6 +4,7 @@ import {
   type AdmissionReceipt,
   ExecutorKindSchema,
   type ProjectionCursor,
+  type RuntimeLifecycle,
   RuntimeLifecycleSchema,
 } from "@tau/protocol";
 import { type Static, Type } from "typebox";
@@ -68,6 +69,7 @@ export const CancelStateSchema = Type.Union([
   Type.Literal("stopping"),
   Type.Literal("stopped"),
   Type.Literal("unknown"),
+  Type.Literal("denied"),
 ]);
 export type CancelState = Static<typeof CancelStateSchema>;
 
@@ -100,7 +102,22 @@ export const NativeOperationSchema = Type.Object({
 });
 export type NativeOperation = Static<typeof NativeOperationSchema>;
 
-export type NativeOperationRecord = { operation?: NativeOperation };
+export const OPERATION_HISTORY_LIMIT = 20;
+
+export type OperationAcknowledgement = { operationId: string; note: string; at: number };
+
+export type OperationSummary = {
+  operationId: string;
+  lifecycle: RuntimeLifecycle;
+  at: number;
+  acknowledgement?: { note: string; at: number };
+};
+
+export type NativeOperationRecord = {
+  operation?: NativeOperation;
+  acknowledgement?: OperationAcknowledgement;
+  history?: OperationSummary[];
+};
 
 export type StoredEvent = { revision: number; key: string; event: NativeEvent };
 export type NativeEventLog = { entries: StoredEvent[] };
@@ -202,6 +219,23 @@ export function plainOperation(operation: NativeOperation): NativeOperation {
     ...(terminal && { terminal: { ...terminal } }),
   };
 }
+
+export function summaryOf(
+  operation: NativeOperation,
+  acknowledgement?: OperationAcknowledgement,
+): OperationSummary {
+  const terminal = operation.terminal;
+  if (!terminal) throw new Error(`Operation ${operation.operationId} has no terminal outcome.`);
+  return {
+    operationId: operation.operationId,
+    lifecycle: terminal.lifecycle,
+    at: terminal.at,
+    ...(acknowledgement && { acknowledgement: { note: acknowledgement.note, at: acknowledgement.at } }),
+  };
+}
+
+export const boundedHistory = (history: readonly OperationSummary[]): OperationSummary[] =>
+  history.slice(-OPERATION_HISTORY_LIMIT).map((summary) => plainJson(summary));
 
 export const isUnresolved = (operation: NativeOperation | undefined): boolean =>
   operation !== undefined && operation.terminal === undefined;

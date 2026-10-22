@@ -11,6 +11,7 @@ import type { AdmitRequest } from "../runtimes/types";
 import { BACKGROUND } from "./open";
 import {
   appendFrame,
+  boundedHistory,
   type CancelState,
   countQueued,
   fingerprintOf,
@@ -21,9 +22,12 @@ import {
   NativeInboxDoc,
   type NativeOperation,
   NativeOperationDoc,
+  type NativeOperationRecord,
   NativeProjectionDoc,
   NativeThreadDoc,
+  type OperationAcknowledgement,
   type OperationIdentity,
+  type OperationSummary,
   type ProjectionFrame,
   plainItem,
   plainJson,
@@ -31,6 +35,7 @@ import {
   receiptIdOf,
   receiptOf,
   type StoredEvent,
+  summaryOf,
 } from "./runtime-docs";
 import { nextLifecycle, settleOperation } from "./runtime-lifecycle";
 
@@ -49,11 +54,18 @@ export type SettleOutcome = Extract<
   "completed" | "failed" | "cancelled" | "interrupted" | "outcome-unknown"
 >;
 
+export type CancelSettlement = Exclude<CancelState, "stopping">;
+
 export type OperationState = {
   lifecycle: RuntimeLifecycle | undefined;
   operation: NativeOperation | undefined;
   eventCount: number;
+  sessionId: string | undefined;
+  acknowledgement: OperationAcknowledgement | undefined;
+  history: readonly OperationSummary[];
 };
+
+export type SetLifecycleOptions = { restart?: boolean };
 
 export type StoreWindow = { cursor: ProjectionCursor; frames: readonly ProjectionFrame[] };
 
@@ -66,9 +78,11 @@ export interface RuntimeStore {
   inspect(): Promise<StoreInspection>;
   window(): Promise<StoreWindow>;
   bumpEpoch(): Promise<number>;
-  setLifecycle(lifecycle: RuntimeLifecycle): Promise<void>;
+  setLifecycle(lifecycle: RuntimeLifecycle, options?: SetLifecycleOptions): Promise<void>;
+  beginOperation(): Promise<void>;
+  acknowledgeUnknown(input: { operationId: string; note: string }): Promise<void>;
   recordCancel(operationId: string): Promise<CancelState>;
-  settleCancels(): Promise<void>;
+  settleCancels(outcome?: CancelSettlement, reason?: string): Promise<void>;
   recordLaunchIntent(intent: LaunchIntent): Promise<void>;
   recordIdentity(identity: OperationIdentity): Promise<void>;
   recordSession(sessionId: string): Promise<void>;
@@ -97,13 +111,17 @@ function assertSamePayload(item: InboxItem, fingerprint: string): void {
   }
 }
 
-function assertLifecycleChange(current: RuntimeLifecycle | undefined, next: RuntimeLifecycle): void {
+function assertLifecycleChange(
+  current: RuntimeLifecycle | undefined,
+  next: RuntimeLifecycle,
+  options: SetLifecycleOptions = {},
+): void {
   if (isTerminalLifecycle(next)) {
     const settled = settleOperation(current, next);
     if (!settled.ok) throw invalidRequest(`Cannot settle as ${next}: ${settled.reason}.`);
     return;
   }
-  const legal = current === undefined ? next === "accepted" : nextLifecycle(current, next);
+  const legal = current === undefined ? next === "accepted" : nextLifecycle(current, next, options);
   if (!legal) throw invalidRequest(`Illegal lifecycle transition ${current ?? "none"} -> ${next}.`);
 }
 
@@ -119,6 +137,29 @@ function assertSettleAllowed(current: RuntimeLifecycle | undefined, outcome: Set
   if (current === "cancelling" && !nextLifecycle(current, outcome)) {
     throw invalidRequest(`Cannot settle as ${outcome} while cancelling.`);
   }
+}
+
+const PRE_LAUNCH: readonly RuntimeLifecycle[] = ["accepted", "preparing", "ready", "blocked"];
+
+const isAcknowledged = (record: NativeOperationRecord, operation: NativeOperation): boolean =>
+  record.acknowledgement?.operationId === operation.operationId;
+
+type BeginPlan = "start" | "continue" | "archive";
+
+function planBegin(record: NativeOperationRecord, lifecycle: RuntimeLifecycle | undefined): BeginPlan {
+  const current = record.operation;
+  if (current === undefined) {
+    if (lifecycle === undefined) return "start";
+    if (PRE_LAUNCH.includes(lifecycle)) return "continue";
+    throw invalidRequest(`Cannot begin an operation from lifecycle ${lifecycle} without an operation.`);
+  }
+  if (isUnresolved(current)) throw invalidRequest(`Operation ${current.operationId} is still unresolved.`);
+  if (current.terminal?.lifecycle === "outcome-unknown" && !isAcknowledged(record, current)) {
+    throw invalidRequest(
+      `Operation ${current.operationId} ended with an unknown outcome; acknowledge it first.`,
+    );
+  }
+  return "archive";
 }
 
 const sameIdentity = (left: OperationIdentity, right: OperationIdentity): boolean =>
@@ -238,11 +279,48 @@ export function createRuntimeStore(
     });
   }
 
-  async function setLifecycle(lifecycle: RuntimeLifecycle): Promise<void> {
+  async function setLifecycle(lifecycle: RuntimeLifecycle, options: SetLifecycleOptions = {}): Promise<void> {
     await commit(async (tx) => {
       const { thread, projection } = await docs(tx);
-      assertLifecycleChange(thread.lifecycle, lifecycle);
+      assertLifecycleChange(thread.lifecycle, lifecycle, options);
       thread.lifecycle = lifecycle;
+      appendFrame(projection, 1);
+    });
+  }
+
+  function archiveCurrent(record: Docs["operation"]): void {
+    const finished = record.operation as NativeOperation;
+    const acknowledgement = isAcknowledged(record, finished) ? record.acknowledgement : undefined;
+    record.history = boundedHistory([...(record.history ?? []), summaryOf(finished, acknowledgement)]);
+    delete record.operation;
+    delete record.acknowledgement;
+  }
+
+  async function beginOperation(): Promise<void> {
+    await commit(async (tx) => {
+      const { thread, projection, operation } = await docs(tx);
+      const plan = planBegin(operation, thread.lifecycle);
+      if (plan === "continue") return;
+      if (plan === "archive") archiveCurrent(operation);
+      thread.lifecycle = "accepted";
+      if (thread.createdAt === 0) thread.createdAt = now();
+      appendFrame(projection, 1);
+    });
+  }
+
+  async function acknowledgeUnknown(input: { operationId: string; note: string }): Promise<void> {
+    if (!input.note.trim()) throw invalidRequest("An acknowledgement needs a note.");
+    await commit(async (tx) => {
+      const { projection, operation } = await docs(tx);
+      const current = operation.operation;
+      if (current?.operationId !== input.operationId) {
+        throw new AppError("not_found", `Operation ${input.operationId} is not the current operation.`);
+      }
+      if (current.terminal?.lifecycle !== "outcome-unknown") {
+        throw invalidRequest(`Operation ${current.operationId} did not end with an unknown outcome.`);
+      }
+      if (isAcknowledged(operation, current)) return;
+      operation.acknowledgement = { operationId: current.operationId, note: input.note, at: now() };
       appendFrame(projection, 1);
     });
   }
@@ -271,21 +349,38 @@ export function createRuntimeStore(
     });
   }
 
-  async function settleCancels(): Promise<void> {
+  function closeStoppingCancels(cancels: Docs["cancels"], state: CancelSettlement): number {
+    const stopping = Object.keys(cancels.operations).filter((key) => cancels.operations[key] === "stopping");
+    for (const key of stopping) cancels.operations[key] = state;
+    return stopping.length;
+  }
+
+  const OUTCOME_OF_CANCEL: Readonly<Record<CancelSettlement, SettleOutcome | undefined>> = {
+    stopped: "cancelled",
+    unknown: "outcome-unknown",
+    denied: undefined,
+  };
+
+  const cancelStateOfOutcome = (outcome: SettleOutcome): CancelSettlement =>
+    outcome === "outcome-unknown" ? "unknown" : "stopped";
+
+  async function settleCancels(outcome: CancelSettlement = "stopped", reason?: string): Promise<void> {
     await commit(async (tx) => {
       const { thread, projection, cancels, operation } = await docs(tx);
-      const stopping = Object.keys(cancels.operations).filter(
-        (key) => cancels.operations[key] === "stopping",
-      );
-      if (stopping.length === 0) return;
-      for (const key of stopping) cancels.operations[key] = "stopped";
-      const settled = settleOperation(thread.lifecycle, "cancelled");
-      if (settled.ok) thread.lifecycle = settled.lifecycle;
+      const closed = closeStoppingCancels(cancels, outcome);
+      if (closed === 0) return;
+      const terminal = OUTCOME_OF_CANCEL[outcome];
+      const settled = terminal ? settleOperation(thread.lifecycle, terminal) : undefined;
+      if (settled?.ok) thread.lifecycle = settled.lifecycle;
       const launched = operation.operation;
-      if (settled.ok && launched && isUnresolved(launched)) {
-        launched.terminal = { lifecycle: settled.lifecycle, at: now() };
+      if (settled?.ok && launched && isUnresolved(launched)) {
+        launched.terminal = {
+          lifecycle: settled.lifecycle,
+          at: now(),
+          ...(reason !== undefined && { reason }),
+        };
       }
-      appendFrame(projection, stopping.length);
+      appendFrame(projection, closed);
     });
   }
 
@@ -325,7 +420,7 @@ export function createRuntimeStore(
   async function recordSession(sessionId: string): Promise<void> {
     if (!sessionId) throw invalidRequest("A session id cannot be empty.");
     await commit(async (tx) => {
-      const { projection, operation } = await docs(tx);
+      const { thread, projection, operation } = await docs(tx);
       const current = assertUnresolved(operation.operation);
       if (current.sessionId === sessionId) return;
       if (current.sessionId !== undefined) {
@@ -333,7 +428,11 @@ export function createRuntimeStore(
           `Operation ${current.operationId} already belongs to session ${current.sessionId}.`,
         );
       }
+      if (thread.sessionId !== undefined && thread.sessionId !== sessionId) {
+        throw invalidRequest(`Thread ${threadId} already belongs to session ${thread.sessionId}.`);
+      }
       current.sessionId = sessionId;
+      thread.sessionId = sessionId;
       appendFrame(projection, 1);
     });
   }
@@ -367,11 +466,12 @@ export function createRuntimeStore(
 
   async function settle(outcome: SettleOutcome, reason?: string): Promise<void> {
     await commit(async (tx) => {
-      const { thread, projection, operation } = await docs(tx);
+      const { thread, projection, operation, cancels } = await docs(tx);
       const current = operation.operation;
       if (current === undefined) throw invalidRequest("No native operation has recorded a launch intent.");
       assertSettleAllowed(thread.lifecycle, outcome);
       thread.lifecycle = outcome;
+      closeStoppingCancels(cancels, cancelStateOfOutcome(outcome));
       current.terminal = { lifecycle: outcome, at: now(), ...(reason !== undefined && { reason }) };
       appendFrame(projection, 1);
     });
@@ -384,6 +484,9 @@ export function createRuntimeStore(
         lifecycle: thread.lifecycle,
         operation: operation.operation ? plainOperation(operation.operation) : undefined,
         eventCount: eventLog.entries.length,
+        sessionId: thread.sessionId,
+        acknowledgement: operation.acknowledgement ? { ...operation.acknowledgement } : undefined,
+        history: (operation.history ?? []).map((summary) => plainJson(summary)),
       };
     });
   }
@@ -405,6 +508,8 @@ export function createRuntimeStore(
     window,
     bumpEpoch,
     setLifecycle,
+    beginOperation,
+    acknowledgeUnknown,
     recordCancel,
     settleCancels,
     recordLaunchIntent,

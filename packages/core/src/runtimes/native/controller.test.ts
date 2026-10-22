@@ -33,6 +33,7 @@ import {
   defaultNativeOptions,
   type NativeController,
   type NativeQueryFn,
+  type PrepareResult,
 } from "./controller";
 import type { NativeEvent } from "./events";
 import type { Launch } from "./launch";
@@ -140,6 +141,7 @@ interface RigOptions {
   readonly allowedTools?: readonly string[];
   readonly query?: NativeQueryFn;
   readonly directory?: string;
+  readonly prepare?: () => Promise<PrepareResult>;
 }
 
 const readTurn = (world: OfflineWorld): ScriptedTurn => ({
@@ -202,6 +204,7 @@ async function newRig(
       cwd: world.cwd,
       buildOptions,
       launch: launch ?? sandbox.launch,
+      ...(options.prepare && { prepare: options.prepare }),
     });
   const rig: Rig = {
     runtime,
@@ -375,6 +378,23 @@ describe("native reconcile from persisted state", () => {
     const seeded = await seed({ identity: true, delivered: false, table: tableOf(undefined) });
     expect(await seeded.controller.reconcile(seeded.store.threadId)).toBe("interrupted");
     expect(await lifecycleOf(seeded)).toBe("interrupted");
+  });
+
+  it("resumes from a lifecycle already moved to reconciling and never relaunches", async () => {
+    const seeded = await seed({ identity: true, delivered: false, table: tableOf(undefined) });
+    await seeded.store.setLifecycle("reconciling", { restart: true });
+    expect(await seeded.controller.reconcile(seeded.store.threadId)).toBe("interrupted");
+    expect(await lifecycleOf(seeded)).toBe("interrupted");
+    expect(await seeded.controller.reconcile(seeded.store.threadId)).toBe("settled");
+    expect(seeded.signals).toEqual([]);
+  });
+
+  it("settles a cancel that was in flight at the restart as cancelled and closes the cancel record", async () => {
+    const seeded = await seed({ identity: true, delivered: true, table: tableOf(undefined) });
+    await seeded.store.recordCancel("op1");
+    expect(await seeded.controller.reconcile(seeded.store.threadId)).toBe("settled");
+    expect(await lifecycleOf(seeded)).toBe("cancelled");
+    expect((await seeded.store.inspect()).cancelsInFlight).toBe(0);
   });
 
   it("treats a reused pid as dead and never signals it, then stays idempotent", async () => {
@@ -615,5 +635,127 @@ describe.skipIf(!sandboxExecAvailable())("native controller with the real SDK, o
     expect((await rig.store.operationState()).lifecycle).toBe("completed");
     expectNoLeftovers(rig);
     expect(modelCallsOf(rig.runtime.setup)).toBe(0);
+  });
+});
+
+describe.skipIf(!sandboxExecAvailable())("native controller across several turns, offline", () => {
+  const FIRST_ANSWER = "first answer (scripted)";
+  const SECOND_PROMPT = "And what did I ask you first?";
+  const SECOND_ANSWER = "You asked about fixture.txt. (scripted)";
+  const mentions = (request: { messages: unknown }, text: string): boolean =>
+    JSON.stringify(request.messages).includes(text);
+
+  const recordingQuery =
+    (seen: Record<string, unknown>[]): NativeQueryFn =>
+    (args) => {
+      seen.push(args.options);
+      return realQuery(args);
+    };
+
+  it("continues the same SDK conversation in a second operation on one thread", async () => {
+    const seen: Record<string, unknown>[] = [];
+    const rig = await newRig(
+      () => [
+        finalTurn(FIRST_ANSWER),
+        finalTurn(SECOND_ANSWER, (request) =>
+          [PROMPT, FIRST_ANSWER, SECOND_PROMPT].every((text) => mentions(request, text))
+            ? undefined
+            : "the second request does not carry the first turn",
+        ),
+      ],
+      { query: recordingQuery(seen) },
+    );
+    await admit(rig.store, "r1");
+    const first = await rig.controller.runNext(rig.threadId);
+    const afterFirst = await rig.store.operationState();
+    await admit(rig.store, "r2", SECOND_PROMPT);
+
+    const second = await rig.controller.runNext(rig.threadId);
+
+    expect(rig.server.violations, failureContext(rig)).toEqual([]);
+    expect(first).toMatchObject({ status: "settled", outcome: "completed" });
+    expect(second).toMatchObject({ status: "settled", outcome: "completed" });
+    expect(rig.server.messageRequests).toHaveLength(2);
+    expect(rig.sandbox.pids).toHaveLength(2);
+    const sessionId = afterFirst.sessionId;
+    expect(sessionId).toEqual(expect.any(String));
+    expect(seen[0]?.resume).toBeUndefined();
+    expect(seen[1]?.resume).toBe(sessionId);
+
+    const state = await rig.store.operationState();
+    expect(state.sessionId).toBe(sessionId);
+    expect(state.operation?.operationId).not.toBe(afterFirst.operation?.operationId);
+    expect(state.operation?.nonce).not.toBe(afterFirst.operation?.nonce);
+    expect(state.operation?.deliveredRequestId).toBe("r2");
+    expect(state.operation?.terminal).toMatchObject({ lifecycle: "completed" });
+    expect(state.history).toMatchObject([
+      { operationId: afterFirst.operation?.operationId, lifecycle: "completed" },
+    ]);
+    const events = await eventsOf(rig.store);
+    expect(events).toContainEqual(expect.objectContaining({ type: "assistant-text", text: FIRST_ANSWER }));
+    expect(events).toContainEqual(expect.objectContaining({ type: "assistant-text", text: SECOND_ANSWER }));
+    expect(events.filter((event) => event.type === "result")).toHaveLength(2);
+    expect(await rig.store.pending()).toEqual([]);
+    expectNoLeftovers(rig);
+  });
+
+  it("refuses the next run after an unknown outcome until it is acknowledged", async () => {
+    const rig = await newRig(() => [finalTurn(FIRST_ANSWER)]);
+    await admit(rig.store, "r1");
+    for (const step of ["preparing", "ready"] as const) await rig.store.setLifecycle(step);
+    await rig.store.recordLaunchIntent({ operationId: "lost-op", nonce: "lost-nonce" });
+    await rig.store.markDeliveredOnce("r1");
+    await rig.store.markDelivered("r1");
+    await rig.store.settle("outcome-unknown", "the process vanished");
+    await admit(rig.store, "r2", PROMPT);
+
+    await expect(rig.controller.runNext(rig.threadId)).rejects.toMatchObject({ code: "invalid_request" });
+    expect(rig.sandbox.pids).toEqual([]);
+    expect((await rig.store.pending()).map((item) => item.requestId)).toEqual(["r2"]);
+    expect((await rig.store.operationState()).lifecycle).toBe("outcome-unknown");
+
+    await rig.store.acknowledgeUnknown({ operationId: "lost-op", note: "checked by hand" });
+    const result = await rig.controller.runNext(rig.threadId);
+
+    expect(rig.server.violations, failureContext(rig)).toEqual([]);
+    expect(result).toMatchObject({ status: "settled", outcome: "completed" });
+    const state = await rig.store.operationState();
+    expect(state.history).toMatchObject([
+      { operationId: "lost-op", lifecycle: "outcome-unknown", acknowledgement: { note: "checked by hand" } },
+    ]);
+    expect(state.operation?.operationId).not.toBe("lost-op");
+    expectNoLeftovers(rig);
+  });
+
+  it("retries a blocked run as the same operation without archiving a second one", async () => {
+    let failures = 0;
+    const rig = await newRig(() => [finalTurn(FIRST_ANSWER), finalTurn(SECOND_ANSWER)], {
+      prepare: async () => (failures-- > 0 ? { ok: false, reason: "not yet" } : { ok: true }),
+    });
+    await admit(rig.store, "r1");
+    await rig.controller.runNext(rig.threadId);
+    const first = (await rig.store.operationState()).operation;
+    await admit(rig.store, "r2", SECOND_PROMPT);
+    failures = 1;
+
+    const blocked = await rig.controller.runNext(rig.threadId);
+
+    expect(blocked).toEqual({ status: "blocked", reason: "not yet" });
+    const whileBlocked = await rig.store.operationState();
+    expect(whileBlocked.lifecycle).toBe("blocked");
+    expect(whileBlocked.operation).toBeUndefined();
+    expect(whileBlocked.history).toHaveLength(1);
+    expect((await rig.store.pending()).map((item) => item.requestId)).toEqual(["r2"]);
+
+    const retried = await rig.controller.runNext(rig.threadId);
+
+    expect(retried).toMatchObject({ status: "settled", outcome: "completed" });
+    const state = await rig.store.operationState();
+    expect(state.history).toHaveLength(1);
+    expect(state.history[0]?.operationId).toBe(first?.operationId);
+    expect(state.operation?.deliveredRequestId).toBe("r2");
+    expect(await rig.store.pending()).toEqual([]);
+    expect(rig.server.messageRequests).toHaveLength(2);
+    expectNoLeftovers(rig);
   });
 });

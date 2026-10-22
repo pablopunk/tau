@@ -3,7 +3,7 @@ import type { NativeEvent } from "../runtimes/native/events";
 import type { AdmitRequest, RuntimePayload } from "../runtimes/types";
 import { useTempDir } from "../test-support/temp-dir";
 import { fingerprintOf } from "./runtime-docs";
-import { createRuntimeStore } from "./runtime-store";
+import { createRuntimeStore, type RuntimeStore, type SettleOutcome } from "./runtime-store";
 import {
   createPassiveThread,
   modelCallsOf,
@@ -501,5 +501,262 @@ describe("runtime store native operation restart", () => {
     await expect(final.settle("completed")).rejects.toMatchObject({ code: "invalid_request" });
     expect((await final.events()).map((entry) => entry.key)).toEqual(["k1"]);
     expect(modelCallsOf(first.setup)).toBe(0);
+  });
+});
+
+const TERMINAL_OUTCOMES = ["completed", "failed", "cancelled", "interrupted", "outcome-unknown"] as const;
+
+async function readyStore() {
+  const context = await newStore();
+  await context.store.admit(requestOf(context.threadId, "r1"));
+  for (const step of ["preparing", "ready"] as const) await context.store.setLifecycle(step);
+  return context;
+}
+
+async function runOperation(store: RuntimeStore, operationId: string, outcome?: SettleOutcome) {
+  await store.recordLaunchIntent({ operationId, nonce: `${operationId}-nonce` });
+  if (outcome) await store.settle(outcome);
+}
+
+async function beginAfter(store: RuntimeStore, operationId: string, outcome: SettleOutcome) {
+  await runOperation(store, operationId, outcome);
+  await store.beginOperation();
+}
+
+describe("runtime store beginOperation", () => {
+  it("is a no-op before any launch and while a blocked run waits for a retry", async () => {
+    const { store, threadId } = await newStore();
+    await store.beginOperation();
+    expect((await store.inspect()).lifecycle).toBe("accepted");
+    await store.admit(requestOf(threadId, "r1"));
+    await store.setLifecycle("preparing");
+    await store.setLifecycle("blocked");
+    const before = await store.inspect();
+    await store.beginOperation();
+    expect(await store.inspect()).toEqual(before);
+    expect((await store.operationState()).history).toEqual([]);
+  });
+
+  it.each(TERMINAL_OUTCOMES.filter((outcome) => outcome !== "outcome-unknown"))(
+    "starts a new operation after %s and archives the previous one",
+    async (outcome) => {
+      const { store } = await readyStore();
+      await runOperation(store, "op1", outcome);
+      const before = (await store.inspect()).cursorRevision;
+      await store.beginOperation();
+      const state = await store.operationState();
+      expect(state.lifecycle).toBe("accepted");
+      expect(state.operation).toBeUndefined();
+      expect(state.history).toEqual([{ operationId: "op1", lifecycle: outcome, at: expect.any(Number) }]);
+      expect((await store.inspect()).cursorRevision).toBe(before + 1);
+      for (const step of ["preparing", "ready"] as const) await store.setLifecycle(step);
+      await store.recordLaunchIntent({ operationId: "op2", nonce: "n2" });
+      expect((await store.operationState()).operation?.operationId).toBe("op2");
+    },
+  );
+
+  it.each(["starting", "running", "cancelling"] as const)(
+    "rejects while an operation is unresolved in %s",
+    async (lifecycle) => {
+      const { store } = await readyStore();
+      await store.recordLaunchIntent({ operationId: "op1", nonce: "n1" });
+      if (lifecycle !== "starting") await store.setLifecycle("running");
+      if (lifecycle === "cancelling") await store.recordCancel("op1");
+      const before = await store.operationState();
+      await expect(store.beginOperation()).rejects.toMatchObject({ code: "invalid_request" });
+      expect(await store.operationState()).toEqual(before);
+    },
+  );
+
+  it("rejects after an unacknowledged outcome-unknown and allows it once acknowledged", async () => {
+    const { store } = await readyStore();
+    await runOperation(store, "op1", "outcome-unknown");
+    const before = await store.operationState();
+    await expect(store.beginOperation()).rejects.toMatchObject({ code: "invalid_request" });
+    expect(await store.operationState()).toEqual(before);
+
+    await store.acknowledgeUnknown({ operationId: "op1", note: "checked the logs" });
+    await store.beginOperation();
+    const state = await store.operationState();
+    expect(state.lifecycle).toBe("accepted");
+    expect(state.acknowledgement).toBeUndefined();
+    expect(state.history).toEqual([
+      {
+        operationId: "op1",
+        lifecycle: "outcome-unknown",
+        at: expect.any(Number),
+        acknowledgement: { note: "checked the logs", at: expect.any(Number) },
+      },
+    ]);
+  });
+
+  it("keeps only the last 20 summaries, oldest first out", async () => {
+    const { store } = await readyStore();
+    for (let index = 1; index <= 23; index += 1) {
+      await beginAfter(store, `op${index}`, "completed");
+      for (const step of ["preparing", "ready"] as const) await store.setLifecycle(step);
+    }
+    const { history } = await store.operationState();
+    expect(history).toHaveLength(20);
+    expect(history[0]?.operationId).toBe("op4");
+    expect(history.at(-1)?.operationId).toBe("op23");
+  });
+});
+
+describe("runtime store acknowledgeUnknown", () => {
+  it.each(["completed", "failed", "cancelled", "interrupted"] as const)(
+    "is invalid for %s",
+    async (outcome) => {
+      const { store } = await readyStore();
+      await runOperation(store, "op1", outcome);
+      await expect(store.acknowledgeUnknown({ operationId: "op1", note: "n" })).rejects.toMatchObject({
+        code: "invalid_request",
+      });
+      expect((await store.operationState()).acknowledgement).toBeUndefined();
+    },
+  );
+
+  it("is invalid while unresolved, for an unknown operation and with a blank note", async () => {
+    const { store } = await readyStore();
+    await runOperation(store, "op1");
+    await expect(store.acknowledgeUnknown({ operationId: "op1", note: "n" })).rejects.toMatchObject({
+      code: "invalid_request",
+    });
+    await expect(store.acknowledgeUnknown({ operationId: "nope", note: "n" })).rejects.toMatchObject({
+      code: "not_found",
+    });
+    await store.settle("outcome-unknown", "gone");
+    await expect(store.acknowledgeUnknown({ operationId: "op1", note: "  " })).rejects.toMatchObject({
+      code: "invalid_request",
+    });
+  });
+
+  it("records the acknowledgement once and never rewrites the terminal outcome", async () => {
+    const { store } = await readyStore();
+    await runOperation(store, "op1");
+    await store.settle("outcome-unknown", "gone");
+    const terminal = (await store.operationState()).operation?.terminal;
+
+    await store.acknowledgeUnknown({ operationId: "op1", note: "first" });
+    const revision = (await store.inspect()).cursorRevision;
+    await store.acknowledgeUnknown({ operationId: "op1", note: "second" });
+
+    const state = await store.operationState();
+    expect(state.operation?.terminal).toEqual(terminal);
+    expect(state.operation?.terminal?.lifecycle).toBe("outcome-unknown");
+    expect(state.lifecycle).toBe("outcome-unknown");
+    expect(state.acknowledgement).toMatchObject({ operationId: "op1", note: "first" });
+    expect((await store.inspect()).cursorRevision).toBe(revision);
+    await expect(store.settle("completed")).rejects.toMatchObject({ code: "invalid_request" });
+  });
+});
+
+describe("runtime store session across operations", () => {
+  it("keeps the session id for the thread and rejects a conflicting one in a later operation", async () => {
+    const { store } = await readyStore();
+    await runOperation(store, "op1");
+    await store.recordSession("s1");
+    await store.settle("completed");
+    await store.beginOperation();
+    for (const step of ["preparing", "ready"] as const) await store.setLifecycle(step);
+    await runOperation(store, "op2");
+    expect((await store.operationState()).sessionId).toBe("s1");
+    await expect(store.recordSession("other")).rejects.toMatchObject({ code: "invalid_request" });
+    await store.recordSession("s1");
+    expect((await store.operationState()).operation?.sessionId).toBe("s1");
+  });
+});
+
+describe("runtime store cancel outcomes", () => {
+  it.each([
+    ["stopped", "cancelled", "stopped"],
+    ["unknown", "outcome-unknown", "unknown"],
+  ] as const)("settles a cancel as %s", async (settlement, lifecycle, record) => {
+    const { store } = await launchedStore();
+    await store.recordCancel("op1");
+    expect((await store.inspect()).cancelsInFlight).toBe(1);
+    await store.settleCancels(settlement, "reason");
+    expect((await store.inspect()).cancelsInFlight).toBe(0);
+    expect(await store.recordCancel("op1")).toBe(record);
+    const state = await store.operationState();
+    expect(state.lifecycle).toBe(lifecycle);
+    expect(state.operation?.terminal).toMatchObject({ lifecycle, reason: "reason" });
+  });
+
+  it("settles a denied cancel as a record only", async () => {
+    const { store } = await launchedStore();
+    await store.recordCancel("op1");
+    await store.settleCancels("denied");
+    expect((await store.inspect()).cancelsInFlight).toBe(0);
+    expect(await store.recordCancel("op1")).toBe("denied");
+    expect((await store.operationState()).operation?.terminal).toBeUndefined();
+  });
+
+  it("closes an in-flight cancel when the operation settles another way", async () => {
+    const { store } = await launchedStore();
+    await store.recordCancel("op1");
+    await store.settle("outcome-unknown", "gone");
+    expect((await store.inspect()).cancelsInFlight).toBe(0);
+    expect(await store.recordCancel("op1")).toBe("unknown");
+  });
+});
+
+describe("runtime store reconciling", () => {
+  it("enters reconciling only with the restart flag, from any non-terminal lifecycle", async () => {
+    const { store } = await launchedStore();
+    await expect(store.setLifecycle("reconciling")).rejects.toMatchObject({ code: "invalid_request" });
+    await store.setLifecycle("reconciling", { restart: true });
+    expect((await store.inspect()).lifecycle).toBe("reconciling");
+    await expect(store.setLifecycle("reconciling", { restart: true })).rejects.toMatchObject({
+      code: "invalid_request",
+    });
+    await store.settle("interrupted", "restart");
+    await expect(store.setLifecycle("reconciling", { restart: true })).rejects.toMatchObject({
+      code: "invalid_request",
+    });
+  });
+
+  it("keeps reconciling across a restart on the same sqlite file and settles from it", async () => {
+    const first = await track(openRuntimeWorld(directory));
+    const threadId = await createPassiveThread(first);
+    const store = createRuntimeStore(first.harness, threadId);
+    for (const step of ["accepted", "preparing", "ready"] as const) await store.setLifecycle(step);
+    await store.recordLaunchIntent({ operationId: "op1", nonce: "n1" });
+    await store.setLifecycle("reconciling", { restart: true });
+    await first.close();
+
+    const second = await track(openRuntimeWorld(directory, first.setup));
+    const reopened = createRuntimeStore(second.harness, threadId);
+    expect((await reopened.inspect()).lifecycle).toBe("reconciling");
+    await reopened.settle("outcome-unknown", "restart");
+    expect((await reopened.operationState()).operation?.terminal?.lifecycle).toBe("outcome-unknown");
+  });
+});
+
+describe("runtime store multi-turn restart", () => {
+  it("keeps history, acknowledgement and session on the same sqlite file", async () => {
+    const first = await track(openRuntimeWorld(directory));
+    const threadId = await createPassiveThread(first);
+    const store = createRuntimeStore(first.harness, threadId);
+    for (const step of ["accepted", "preparing", "ready"] as const) await store.setLifecycle(step);
+    await store.recordLaunchIntent({ operationId: "op1", nonce: "n1" });
+    await store.recordSession("s1");
+    await store.settle("outcome-unknown", "gone");
+    await store.acknowledgeUnknown({ operationId: "op1", note: "ok" });
+    await first.close();
+
+    const second = await track(openRuntimeWorld(directory, first.setup));
+    const reopened = createRuntimeStore(second.harness, threadId);
+    expect((await reopened.operationState()).acknowledgement).toMatchObject({ note: "ok" });
+    await reopened.beginOperation();
+    await second.close();
+
+    const third = await track(openRuntimeWorld(directory, first.setup));
+    const final = createRuntimeStore(third.harness, threadId);
+    const state = await final.operationState();
+    expect(state).toMatchObject({ lifecycle: "accepted", sessionId: "s1", operation: undefined });
+    expect(state.history).toMatchObject([
+      { operationId: "op1", lifecycle: "outcome-unknown", acknowledgement: { note: "ok" } },
+    ]);
   });
 });

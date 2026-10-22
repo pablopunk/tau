@@ -1,4 +1,4 @@
-import type { ReconcileOutcome } from "@tau/protocol";
+import type { ReconcileOutcome, RuntimeLifecycle } from "@tau/protocol";
 import type { OperationIdentity } from "../../harness/runtime-docs";
 import type { RuntimeStore } from "../../harness/runtime-store";
 import {
@@ -73,10 +73,17 @@ const hasIdentity = (operation: {
   identity?: OperationIdentity;
 }): operation is { identity: OperationIdentity } => operation.identity !== undefined;
 
+async function enterReconciling(store: RuntimeStore, lifecycle: RuntimeLifecycle | undefined): Promise<void> {
+  if (lifecycle === "reconciling") return;
+  await store.setLifecycle("reconciling", { restart: true });
+}
+
 /** Applies persisted state only after a restart. Never relaunches and signals only a process that is verifiably the recorded one. */
 export async function reconcileNative(store: RuntimeStore, deps: ReconcileDeps): Promise<ReconcileOutcome> {
   const { operation, lifecycle } = await store.operationState();
   if (!operation || operation.terminal) return "settled";
+  const cancelling = (await store.inspect()).cancelsInFlight > 0;
+  await enterReconciling(store, lifecycle);
   if (!hasIdentity(operation)) {
     return settleUnknown(
       store,
@@ -90,6 +97,6 @@ export async function reconcileNative(store: RuntimeStore, deps: ReconcileDeps):
     store,
     operation.operationId,
     operation.deliveredRequestId !== undefined,
-    lifecycle === "cancelling",
+    cancelling,
   );
 }

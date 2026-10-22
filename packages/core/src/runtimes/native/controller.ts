@@ -2,7 +2,13 @@ import { randomUUID } from "node:crypto";
 import { AppError, type ReconcileOutcome, type RuntimeLifecycle } from "@tau/protocol";
 import type { InboxItem } from "../../harness/runtime-docs";
 import type { RuntimeStore, SettleOutcome } from "../../harness/runtime-store";
-import { type StopOptions, type SupervisedHandle, type SupervisorDeps, stopSupervised } from "../supervisor";
+import {
+  type ProcessIdentity,
+  type StopOptions,
+  type SupervisedHandle,
+  type SupervisorDeps,
+  stopSupervised,
+} from "../supervisor";
 import type { NativeEvent } from "./events";
 import { createSpawnBridge, type Launch, launchDetached, type SpawnBridge } from "./launch";
 import { createNormalizerState, normalizeSdkMessage } from "./normalize";
@@ -55,6 +61,8 @@ export const defaultNativeOptions = (ctx: OptionsContext): Record<string, unknow
 
 const STARTABLE: readonly (RuntimeLifecycle | undefined)[] = ["accepted", "blocked", "preparing", "ready"];
 const DEFAULT_INTERRUPT_GRACE_MS = 1500;
+const DEFAULT_VERIFY_TIMEOUT_MS = 3000;
+const DEFAULT_POLL_MS = 25;
 
 const invalidRequest = (message: string): AppError => new AppError("invalid_request", message);
 const describeError = (error: unknown): string => (error instanceof Error ? error.message : String(error));
@@ -160,7 +168,29 @@ export function createNativeController(deps: NativeControllerDeps): NativeContro
       exited: (run.bridge?.exited() ?? Promise.resolve()).then(() => ({ code: null, signal: null })),
     };
     const stopped = await stopSupervised(handle, deps.stop, supervisor);
-    return stopped.outcome === "unknown" ? { kind: "unknown", reason: stopped.reason } : { kind: "dead" };
+    if (stopped.outcome === "unknown") return { kind: "unknown", reason: stopped.reason };
+    return (await groupDrained(identity))
+      ? { kind: "dead" }
+      : { kind: "unknown", reason: "the process group was still alive after verification" };
+  }
+
+  function groupExists(identity: ProcessIdentity): boolean {
+    if (identity.pgid !== identity.pid) return false;
+    try {
+      supervisor.sendSignal(-identity.pgid, 0);
+      return true;
+    } catch (error) {
+      return (error as NodeJS.ErrnoException).code === "EPERM";
+    }
+  }
+
+  async function groupDrained(identity: ProcessIdentity): Promise<boolean> {
+    const deadline = Date.now() + (deps.stop?.verifyTimeoutMs ?? DEFAULT_VERIFY_TIMEOUT_MS);
+    while (groupExists(identity)) {
+      if (Date.now() > deadline) return false;
+      await sleep(deps.stop?.pollMs ?? DEFAULT_POLL_MS);
+    }
+    return true;
   }
 
   async function waitForExit(run: ActiveRun): Promise<Death> {
@@ -182,8 +212,9 @@ export function createNativeController(deps: NativeControllerDeps): NativeContro
   async function performCancel(run: ActiveRun): Promise<void> {
     const death = await stopInProcess(run);
     closeQuery(run);
-    if (death.kind === "dead") return store.settleCancels();
-    await settleUnknown(run, death.reason);
+    if (death.kind === "dead") return store.settleCancels("stopped");
+    await store.settleCancels("unknown", death.reason);
+    await notice(`unknown:${run.operationId}`, "outcome-unknown", `Outcome unknown: ${death.reason}`);
   }
 
   function closeQuery(run: ActiveRun): void {
@@ -287,6 +318,7 @@ export function createNativeController(deps: NativeControllerDeps): NativeContro
   }
 
   async function startQuery(run: ActiveRun, item: InboxItem, options: Record<string, unknown>) {
+    const { sessionId } = await store.operationState();
     const operationId = newId();
     const nonce = newId();
     run.operationId = operationId;
@@ -303,7 +335,11 @@ export function createNativeController(deps: NativeControllerDeps): NativeContro
     await store.markDelivered(item.requestId);
     run.query = deps.query({
       prompt: item.text,
-      options: { ...options, spawnClaudeCodeProcess: run.bridge.hook },
+      options: {
+        ...options,
+        ...(sessionId && { resume: sessionId }),
+        spawnClaudeCodeProcess: run.bridge.hook,
+      },
     });
     return run.query;
   }
@@ -322,10 +358,11 @@ export function createNativeController(deps: NativeControllerDeps): NativeContro
   }
 
   async function execute(run: ActiveRun): Promise<RunResult> {
-    const lifecycle = await assertStartable();
     const item = await oldestQueued();
     const options = buildOptions({ threadId: store.threadId, cwd: deps.cwd });
     assertNeverBypassing(options);
+    await store.beginOperation();
+    const lifecycle = await assertStartable();
     if (lifecycle === "accepted" || lifecycle === "blocked") await store.setLifecycle("preparing");
     const outcome = await prepared();
     if (!outcome.ok) return block(item, outcome.reason);
