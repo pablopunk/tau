@@ -46,8 +46,10 @@ function settleAfter(
   if (outcome.kind !== "complete") return;
   const { summary } = outcome;
   const isToolRound = summary.stopReason === "toolUse";
-  if (summary.errorCode === null) recordCheckpoint(binding, call, message, summary.lastUuid);
-  else if (isAuthCode(summary.errorCode)) rt.deps.onAuthError();
+  if (summary.errorCode === null) {
+    recordCheckpoint(binding, call, message, summary.lastUuid);
+    rt.persistBinding(binding);
+  } else if (isAuthCode(summary.errorCode)) rt.deps.onAuthError();
   if (isToolRound) for (const id of tauCallIds(binding, summary.toolUseIds)) binding.expected.add(id);
   else owePendingResult(binding);
   if (summary.errorCode !== null && binding.expected.size > 0) void interruptAndSettle(rt, binding);

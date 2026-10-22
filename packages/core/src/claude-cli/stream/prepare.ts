@@ -89,6 +89,12 @@ async function resumeAt(
   });
 }
 
+/** A persisted session can be gone (user wiped `~/.claude`, SDK pruned it): fall back to a rebind. */
+const isStaleSession = (error: unknown): boolean =>
+  /no conversation found|session.*not found|unknown session|resume.*fail/i.test(
+    error instanceof Error ? `${error.message} ${error.cause ?? ""}` : String(error),
+  );
+
 /** Brings the binding's SDK session to the state the plan describes and delivers the new messages. */
 export async function prepare(
   rt: Runtime,
@@ -97,8 +103,30 @@ export async function prepare(
   call: CallContext,
 ): Promise<void> {
   if (plan.kind === "continue") return continueLive(rt, binding, call, plan.suffix);
-  if (plan.kind === "resume") return resume(rt, binding, call, plan.suffix);
-  if (plan.kind === "resumeAt") return resumeAt(rt, binding, call, plan);
+  if (plan.kind === "resume") {
+    try {
+      return await resume(rt, binding, call, plan.suffix);
+    } catch (error) {
+      if (!isStaleSession(error)) throw error;
+      binding.sdkSessionId = null;
+      binding.checkpoints = [];
+      binding.head = null;
+      rt.persistBinding(binding);
+      return rebind(rt, binding, call);
+    }
+  }
+  if (plan.kind === "resumeAt") {
+    try {
+      return await resumeAt(rt, binding, call, plan);
+    } catch (error) {
+      if (!isStaleSession(error)) throw error;
+      binding.sdkSessionId = null;
+      binding.checkpoints = [];
+      binding.head = null;
+      rt.persistBinding(binding);
+      return rebind(rt, binding, call);
+    }
+  }
   await interruptAndClose(rt, binding);
   return rebind(rt, binding, call);
 }

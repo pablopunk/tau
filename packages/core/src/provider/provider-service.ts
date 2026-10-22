@@ -90,6 +90,7 @@ export function createProviderService(options: ProviderServiceOptions): Provider
   const claudeCli = createClaudeCliService({
     env: options.env,
     faux: options.faux,
+    bindingsFile: join(dirname(options.credentialsFile), "claude-bindings.json"),
     onChange: () => options.changes.emit({ resource: "providers" }),
     noticeAt: async () => (await options.settings.get()).claudeCliNoticeAt,
     recordNotice: () => options.settings.setClaudeCliNoticeAt(Date.now()),
