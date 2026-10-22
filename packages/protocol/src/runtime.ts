@@ -247,3 +247,6 @@ export function describeExecutors(native: RuntimeCapabilities | undefined): Runt
     executors: [{ executor: "pi", enabled: true, capabilities: PI_RUNTIME_CAPABILITIES }, claudeCode],
   };
 }
+
+/** The approval server name native Claude tool calls are filed under; never persisted as always-allowed. */
+export const NATIVE_APPROVAL_SERVER = "Claude Code";

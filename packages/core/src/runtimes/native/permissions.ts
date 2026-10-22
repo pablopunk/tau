@@ -1,5 +1,6 @@
 import { existsSync, realpathSync } from "node:fs";
 import { dirname, isAbsolute, relative, resolve } from "node:path";
+import { NATIVE_APPROVAL_SERVER } from "@tau/protocol";
 import type { Approvals } from "../../approvals/approvals-port";
 import type { ConversationOfSession } from "../../harness/conversation-of-session";
 import type { NativeEvent } from "./events";
@@ -36,7 +37,7 @@ export interface NativePermissionBrokerDeps {
 }
 
 export const ASK_USER_QUESTION_TOOL = "AskUserQuestion";
-export const APPROVAL_SERVER = "Claude Code";
+export const APPROVAL_SERVER = NATIVE_APPROVAL_SERVER;
 export const DEFAULT_PERMISSION_TIMEOUT_MS = 10 * 60 * 1000;
 
 const READ_ONLY_TOOLS: readonly string[] = ["Read", "Glob", "Grep"];
