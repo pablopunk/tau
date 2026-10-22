@@ -7,6 +7,7 @@ import {
   RuntimeLifecycleSchema,
 } from "@tau/protocol";
 import { type Static, Type } from "typebox";
+import type { NativeEvent } from "../runtimes/native/events";
 import type { RuntimePayload } from "../runtimes/types";
 
 export const NATIVE_EXECUTOR = "claude-code" as const;
@@ -73,6 +74,37 @@ export type CancelState = Static<typeof CancelStateSchema>;
 export const NativeCancelsSchema = Type.Object({ operations: Type.Record(Type.String(), CancelStateSchema) });
 export type NativeCancels = Static<typeof NativeCancelsSchema>;
 
+export const OperationIdentitySchema = Type.Object({
+  pid: Type.Integer({ minimum: 1 }),
+  startTime: Type.Number(),
+  nonce: Type.String({ minLength: 1 }),
+  pgid: Type.Integer({ minimum: 1 }),
+});
+export type OperationIdentity = Static<typeof OperationIdentitySchema>;
+
+export const OperationTerminalSchema = Type.Object({
+  lifecycle: RuntimeLifecycleSchema,
+  at: Type.Number(),
+  reason: Type.Optional(Type.String()),
+});
+export type OperationTerminal = Static<typeof OperationTerminalSchema>;
+
+export const NativeOperationSchema = Type.Object({
+  operationId: Type.String({ minLength: 1 }),
+  nonce: Type.String({ minLength: 1 }),
+  launchIntentAt: Type.Number(),
+  identity: Type.Optional(OperationIdentitySchema),
+  sessionId: Type.Optional(Type.String({ minLength: 1 })),
+  deliveredRequestId: Type.Optional(Type.String({ minLength: 1 })),
+  terminal: Type.Optional(OperationTerminalSchema),
+});
+export type NativeOperation = Static<typeof NativeOperationSchema>;
+
+export type NativeOperationRecord = { operation?: NativeOperation };
+
+export type StoredEvent = { revision: number; key: string; event: NativeEvent };
+export type NativeEventLog = { entries: StoredEvent[] };
+
 export const NativeThreadDoc = defineDoc<NativeThread>({
   kind: "native.thread",
   version: 1,
@@ -109,6 +141,24 @@ export const NativeCancelsDoc = defineDoc<NativeCancels>({
   initial: () => ({ operations: {} }),
 });
 
+export const NativeOperationDoc = defineDoc<NativeOperationRecord>({
+  kind: "native.operation",
+  version: 1,
+  scope: "conversation",
+  history: "latest",
+  fork: "initial",
+  initial: () => ({}),
+});
+
+export const NativeEventsDoc = defineDoc<NativeEventLog>({
+  kind: "native.event",
+  version: 1,
+  scope: "conversation",
+  history: "latest",
+  fork: "initial",
+  initial: () => ({ entries: [] }),
+});
+
 export function fingerprintOf(payload: RuntimePayload): string {
   const canonical = JSON.stringify({
     text: payload.text,
@@ -141,6 +191,20 @@ export function plainItem(item: InboxItem): InboxItem {
 
 export const countQueued = (items: readonly InboxItem[]): number =>
   items.filter((item) => item.disposition === "queued").length;
+
+export const plainJson = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
+
+export function plainOperation(operation: NativeOperation): NativeOperation {
+  const { identity, terminal, ...rest } = operation;
+  return {
+    ...rest,
+    ...(identity && { identity: { ...identity } }),
+    ...(terminal && { terminal: { ...terminal } }),
+  };
+}
+
+export const isUnresolved = (operation: NativeOperation | undefined): boolean =>
+  operation !== undefined && operation.terminal === undefined;
 
 export function appendFrame(projection: NativeProjection, count: number): void {
   projection.revision += 1;

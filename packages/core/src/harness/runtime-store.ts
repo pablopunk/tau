@@ -6,6 +6,7 @@ import {
   type ProjectionCursor,
   type RuntimeLifecycle,
 } from "@tau/protocol";
+import type { NativeEvent } from "../runtimes/native/events";
 import type { AdmitRequest } from "../runtimes/types";
 import { BACKGROUND } from "./open";
 import {
@@ -14,14 +15,22 @@ import {
   countQueued,
   fingerprintOf,
   type InboxItem,
+  isUnresolved,
   NativeCancelsDoc,
+  NativeEventsDoc,
   NativeInboxDoc,
+  type NativeOperation,
+  NativeOperationDoc,
   NativeProjectionDoc,
   NativeThreadDoc,
+  type OperationIdentity,
   type ProjectionFrame,
   plainItem,
+  plainJson,
+  plainOperation,
   receiptIdOf,
   receiptOf,
+  type StoredEvent,
 } from "./runtime-docs";
 import { nextLifecycle, settleOperation } from "./runtime-lifecycle";
 
@@ -31,6 +40,19 @@ export type StoreInspection = {
   cursorRevision: number;
   unresolved: number;
   cancelsInFlight: number;
+};
+
+export type LaunchIntent = { operationId: string; nonce: string };
+
+export type SettleOutcome = Extract<
+  RuntimeLifecycle,
+  "completed" | "failed" | "cancelled" | "interrupted" | "outcome-unknown"
+>;
+
+export type OperationState = {
+  lifecycle: RuntimeLifecycle | undefined;
+  operation: NativeOperation | undefined;
+  eventCount: number;
 };
 
 export type StoreWindow = { cursor: ProjectionCursor; frames: readonly ProjectionFrame[] };
@@ -47,6 +69,14 @@ export interface RuntimeStore {
   setLifecycle(lifecycle: RuntimeLifecycle): Promise<void>;
   recordCancel(operationId: string): Promise<CancelState>;
   settleCancels(): Promise<void>;
+  recordLaunchIntent(intent: LaunchIntent): Promise<void>;
+  recordIdentity(identity: OperationIdentity): Promise<void>;
+  recordSession(sessionId: string): Promise<void>;
+  markDeliveredOnce(requestId: string): Promise<void>;
+  appendEvent(event: NativeEvent): Promise<{ revision: number }>;
+  settle(outcome: SettleOutcome, reason?: string): Promise<void>;
+  operationState(): Promise<OperationState>;
+  events(): Promise<readonly StoredEvent[]>;
 }
 
 export type RuntimeStoreOptions = { now?: () => number };
@@ -77,6 +107,26 @@ function assertLifecycleChange(current: RuntimeLifecycle | undefined, next: Runt
   if (!legal) throw invalidRequest(`Illegal lifecycle transition ${current ?? "none"} -> ${next}.`);
 }
 
+function assertUnresolved(operation: NativeOperation | undefined): NativeOperation {
+  if (operation === undefined) throw invalidRequest("No native operation has recorded a launch intent.");
+  if (!isUnresolved(operation))
+    throw invalidRequest(`Operation ${operation.operationId} is already settled.`);
+  return operation;
+}
+
+function assertSettleAllowed(current: RuntimeLifecycle | undefined, outcome: SettleOutcome): void {
+  assertLifecycleChange(current, outcome);
+  if (current === "cancelling" && !nextLifecycle(current, outcome)) {
+    throw invalidRequest(`Cannot settle as ${outcome} while cancelling.`);
+  }
+}
+
+const sameIdentity = (left: OperationIdentity, right: OperationIdentity): boolean =>
+  left.pid === right.pid &&
+  left.startTime === right.startTime &&
+  left.nonce === right.nonce &&
+  left.pgid === right.pgid;
+
 export function createRuntimeStore(
   harness: Harness,
   threadId: string,
@@ -91,6 +141,8 @@ export function createRuntimeStore(
     inbox: await tx.doc(NativeInboxDoc, id),
     projection: await tx.doc(NativeProjectionDoc, id),
     cancels: await tx.doc(NativeCancelsDoc, id),
+    operation: await tx.doc(NativeOperationDoc, id),
+    eventLog: await tx.doc(NativeEventsDoc, id),
   });
   type Docs = Awaited<ReturnType<typeof docs>>;
 
@@ -221,7 +273,7 @@ export function createRuntimeStore(
 
   async function settleCancels(): Promise<void> {
     await commit(async (tx) => {
-      const { thread, projection, cancels } = await docs(tx);
+      const { thread, projection, cancels, operation } = await docs(tx);
       const stopping = Object.keys(cancels.operations).filter(
         (key) => cancels.operations[key] === "stopping",
       );
@@ -229,7 +281,117 @@ export function createRuntimeStore(
       for (const key of stopping) cancels.operations[key] = "stopped";
       const settled = settleOperation(thread.lifecycle, "cancelled");
       if (settled.ok) thread.lifecycle = settled.lifecycle;
+      const launched = operation.operation;
+      if (settled.ok && launched && isUnresolved(launched)) {
+        launched.terminal = { lifecycle: settled.lifecycle, at: now() };
+      }
       appendFrame(projection, stopping.length);
+    });
+  }
+
+  async function recordLaunchIntent(intent: LaunchIntent): Promise<void> {
+    if (!intent.operationId || !intent.nonce)
+      throw invalidRequest("A launch intent needs an operation id and a nonce.");
+    await commit(async (tx) => {
+      const { thread, projection, operation } = await docs(tx);
+      const previous = operation.operation;
+      if (previous && isUnresolved(previous)) {
+        throw invalidRequest(`Operation ${previous.operationId} is still unresolved.`);
+      }
+      if (thread.lifecycle === undefined || !nextLifecycle(thread.lifecycle, "starting")) {
+        throw invalidRequest(`Cannot launch from lifecycle ${thread.lifecycle ?? "none"}.`);
+      }
+      thread.lifecycle = "starting";
+      operation.operation = { operationId: intent.operationId, nonce: intent.nonce, launchIntentAt: now() };
+      appendFrame(projection, 1);
+    });
+  }
+
+  async function recordIdentity(identity: OperationIdentity): Promise<void> {
+    await commit(async (tx) => {
+      const { projection, operation } = await docs(tx);
+      const current = assertUnresolved(operation.operation);
+      if (identity.nonce !== current.nonce)
+        throw invalidRequest("Process identity does not match the launch nonce.");
+      if (current.identity) {
+        if (sameIdentity(current.identity, identity)) return;
+        throw invalidRequest(`Operation ${current.operationId} already has a different process identity.`);
+      }
+      current.identity = { ...identity };
+      appendFrame(projection, 1);
+    });
+  }
+
+  async function recordSession(sessionId: string): Promise<void> {
+    if (!sessionId) throw invalidRequest("A session id cannot be empty.");
+    await commit(async (tx) => {
+      const { projection, operation } = await docs(tx);
+      const current = assertUnresolved(operation.operation);
+      if (current.sessionId === sessionId) return;
+      if (current.sessionId !== undefined) {
+        throw invalidRequest(
+          `Operation ${current.operationId} already belongs to session ${current.sessionId}.`,
+        );
+      }
+      current.sessionId = sessionId;
+      appendFrame(projection, 1);
+    });
+  }
+
+  async function markDeliveredOnce(requestId: string): Promise<void> {
+    if (!requestId) throw invalidRequest("A delivered request id cannot be empty.");
+    await commit(async (tx) => {
+      const { projection, operation } = await docs(tx);
+      const current = assertUnresolved(operation.operation);
+      if (current.deliveredRequestId === requestId) return;
+      if (current.deliveredRequestId !== undefined) {
+        throw invalidRequest(
+          `Operation ${current.operationId} already delivered ${current.deliveredRequestId}.`,
+        );
+      }
+      current.deliveredRequestId = requestId;
+      appendFrame(projection, 1);
+    });
+  }
+
+  async function appendEvent(event: NativeEvent): Promise<{ revision: number }> {
+    return commit(async (tx) => {
+      const { projection, eventLog } = await docs(tx);
+      const existing = eventLog.entries.find((entry) => entry.key === event.key);
+      if (existing) return { revision: existing.revision };
+      appendFrame(projection, 1);
+      eventLog.entries.push({ revision: projection.revision, key: event.key, event: plainJson(event) });
+      return { revision: projection.revision };
+    });
+  }
+
+  async function settle(outcome: SettleOutcome, reason?: string): Promise<void> {
+    await commit(async (tx) => {
+      const { thread, projection, operation } = await docs(tx);
+      const current = operation.operation;
+      if (current === undefined) throw invalidRequest("No native operation has recorded a launch intent.");
+      assertSettleAllowed(thread.lifecycle, outcome);
+      thread.lifecycle = outcome;
+      current.terminal = { lifecycle: outcome, at: now(), ...(reason !== undefined && { reason }) };
+      appendFrame(projection, 1);
+    });
+  }
+
+  async function operationState(): Promise<OperationState> {
+    return commit(async (tx) => {
+      const { thread, operation, eventLog } = await docs(tx);
+      return {
+        lifecycle: thread.lifecycle,
+        operation: operation.operation ? plainOperation(operation.operation) : undefined,
+        eventCount: eventLog.entries.length,
+      };
+    });
+  }
+
+  async function events(): Promise<readonly StoredEvent[]> {
+    return commit(async (tx) => {
+      const { eventLog } = await docs(tx);
+      return eventLog.entries.map((entry) => ({ ...entry, event: plainJson(entry.event) }));
     });
   }
 
@@ -245,5 +407,13 @@ export function createRuntimeStore(
     setLifecycle,
     recordCancel,
     settleCancels,
+    recordLaunchIntent,
+    recordIdentity,
+    recordSession,
+    markDeliveredOnce,
+    appendEvent,
+    settle,
+    operationState,
+    events,
   };
 }
