@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { NodeName } from "@/components/ui/node-name";
 import { OsIcon } from "@/components/ui/os-icon";
 import { SidebarTrigger } from "@/components/ui/sidebar";
-import { useAllConversations, useGoal } from "@/lib/queries";
+import { useAllConversations } from "@/lib/queries";
 import { useNodeId } from "@/nodes/node-context";
 import { useNodeAvatar } from "@/nodes/use-node-avatar";
 import { useNodeName } from "@/nodes/use-node-name";
@@ -24,7 +24,6 @@ export function ThreadHeader({
 }) {
   const summary = useAllConversations().data?.find((item) => item.id === id);
   const title = summary?.title || "Conversation";
-  const goal = useGoal(id).data;
   const nodeId = useNodeId();
   const nodeName = useNodeName(nodeId);
   const avatar = useNodeAvatar(nodeId);
@@ -35,11 +34,6 @@ export function ThreadHeader({
       <NodeName name={nodeName} local={nodeId === undefined} />
     </Badge>
   ) : null;
-  // Mirror the chips below: the row renders only when at least one chip will.
-  const hasChips =
-    (machine != null && !hideMachine) ||
-    goal != null ||
-    (summary?.workspace?.mode === "worktree" && summary.workspace.state !== "removed");
   return (
     <header className="shrink-0">
       {/* Desktop first in the DOM: scoped `.first()` lookups keep hitting the visible heading. */}
@@ -61,12 +55,11 @@ export function ThreadHeader({
         <h1 className="min-w-0 flex-1 truncate text-sm font-medium">{title}</h1>
         {actions}
       </div>
-      {hasChips ? (
-        <div className="flex min-w-0 flex-wrap items-center gap-2 border-b px-3 py-1.5 md:hidden">
-          {hideMachine ? null : machine}
-          {extras}
-        </div>
-      ) : null}
+      {/* `empty:hidden`: chips that render nothing (a finished goal, no worktree) leave no bar behind. */}
+      <div className="flex min-w-0 flex-wrap items-center gap-2 border-b px-3 py-1.5 empty:hidden md:hidden">
+        {hideMachine ? null : machine}
+        {extras}
+      </div>
     </header>
   );
 }
