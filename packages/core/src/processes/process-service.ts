@@ -1,27 +1,37 @@
 import { randomUUID } from "node:crypto";
+import { accessSync, constants } from "node:fs";
 import { appendFile } from "node:fs/promises";
 import {
   AppError,
   type ConversationSummary,
+  DEFAULT_SANDBOX_SETTINGS,
   type ProcessInfo,
   type ProcessOrigin,
   type ResourceCommand,
   type ResourcePriority,
   type ResourceSettings,
   type ResourceSupport,
+  type SandboxSettings,
 } from "@tau/protocol";
 import { releaseBangSlot } from "../harness/conversation-submit";
 import type { Notification, NotificationSubmitter, PassiveWrite } from "../harness/notification-submitter";
 import { createDeferred, type Deferred } from "./deferred";
-import { type Exec, systemdEnv } from "./governor/exec";
+import { type Exec, execCommand, systemdEnv } from "./governor/exec";
 import type { ThreadClass } from "./governor/governed";
 import { createGovernor, type Governor, type Plan } from "./governor/governor";
 import { memoryStopText } from "./governor/governor-text";
 import type { WatchHandle } from "./governor/memory-watch";
 import type { Sweep } from "./governor/ps-sweep";
 import type { ResourceState } from "./governor/resource-state";
-import type { ResourceSupportProbe } from "./governor/resource-support";
-import { usesScope, type Wrapped, wrapCommand } from "./governor/wrap-command";
+import { type ResourceSupportProbe, unitNodeId } from "./governor/resource-support";
+import {
+  findOnPath,
+  type HostPlatform,
+  hostPlatform,
+  usesScope,
+  type Wrapped,
+  wrapCommand,
+} from "./governor/wrap-command";
 import { lastLines } from "./log-tail";
 import { createMonitorBatcher, type MonitorBatcher } from "./monitor-batcher";
 import { createProcessFiles } from "./process-files";
@@ -37,6 +47,17 @@ import {
 } from "./process-notifications";
 import type { ExitDetails, ForegroundOutcome, ForegroundRun, StopReason } from "./process-types";
 import { EXIT_TAIL_LINES, type RunningProcess, type SpawnFn, spawnRunning } from "./running-process";
+import { gitReadWritePaths } from "./sandbox/git-scope";
+import { isInsideRoot, resolveSandboxRoot, type TrustInput } from "./sandbox/trust-root";
+import { cacheEnvAdditions, gitSshCommand, serviceUnit, stopSandboxUnit } from "./sandbox/unit";
+import {
+  composeOuter,
+  type SandboxBinaries,
+  type SandboxSupport,
+  sandboxBackend,
+  sandboxEnabled,
+  sandboxPrefix,
+} from "./sandbox/wrap";
 
 export type { ExitDetails, ForegroundOutcome, ForegroundRun };
 
@@ -61,6 +82,12 @@ export interface StartProcessRequest {
   readonly scope?: ThreadClass;
   /** Added to the environment of the process. */
   readonly env?: Readonly<Record<string, string>>;
+  /**
+   * Trusted sandbox root for this spawn (the thread's worktree or main
+   * checkout). The integrator wires thread metadata here; when sandboxing is
+   * on for the scope and no root resolves, the spawn is denied fail-closed.
+   */
+  readonly sandboxRoot?: string;
 }
 
 /** A command a tool call waits for, as a process the thread cannot see until the call is detached. */
@@ -78,6 +105,8 @@ export interface ForegroundRequest {
   readonly scope?: ThreadClass;
   /** Distinguishes tool-spawned runs in exit delivery; unset preserves follow-up behavior. */
   readonly origin?: ProcessOrigin;
+  /** Trusted sandbox root, as on `StartProcessRequest`. */
+  readonly sandboxRoot?: string;
   /** Every chunk of output while the call still waits. */
   readonly onOutput: (text: string) => void;
 }
@@ -138,6 +167,17 @@ export interface ProcessDeps {
   readonly support?: ResourceSupportProbe;
   /** Test seam: replaces `files.prepare()`. */
   readonly prepare?: () => Promise<void>;
+  /** The node's sandbox switch; absent means the staging gate (everything off, unenforced). */
+  readonly sandbox?: SandboxSettings;
+  /** Test seams: sandbox platform and binaries. Defaults probe the host (sandbox-exec/systemd-run/bwrap). */
+  readonly sandboxPlatform?: HostPlatform;
+  readonly sandboxBinaries?: SandboxBinaries;
+  /** Trusted thread metadata per spawn; the integrator resolves project+workspace+worktree to a root. */
+  readonly resolveSandboxRoot?: (
+    conversationId: string,
+  ) => TrustInput | undefined | Promise<TrustInput | undefined>;
+  /** Prefer `bwrap` over the systemd service on Linux where both exist. */
+  readonly preferBwrap?: boolean;
 }
 
 const DEFAULT_STOP_GRACE_MS = 5000;
@@ -189,6 +229,8 @@ interface Entry {
   governed: boolean;
   timeoutMs?: number;
   wasForeground: boolean;
+  /** Stable Linux service unit for this process (`tau-<nodehash>-<id>.service`); unset when unsandboxed. */
+  sandboxUnit?: string;
 }
 
 interface Attachment {
@@ -201,6 +243,16 @@ interface SpawnOptions {
   readonly wrapped?: Wrapped;
   readonly scopeUnit?: string;
   readonly memoryLimitMb?: number | null;
+  readonly sandbox?: SandboxPlan;
+}
+
+/** The sandbox prefix OUTSIDE the governor wrap, keyed by the resolved root. */
+interface SandboxPlan {
+  readonly outer: Wrapped;
+  /** Set on the Linux service path: the unit tau stops/kills explicitly. */
+  readonly unitId?: string;
+  /** Env for the directly spawned child (service path: bus vars; the request env rides `--setenv`). */
+  readonly spawnEnv?: Record<string, string>;
 }
 
 const noop = () => undefined;
@@ -440,6 +492,8 @@ export function createProcessService(deps: ProcessDeps): ProcessService {
     }
     running.stopRequested = true;
     running.stopReason ??= reason;
+    // The unit is manager-owned: stop it explicitly, not just the group.
+    if (entry.sandboxUnit) await stopSandboxUnit(execFn, entry.sandboxUnit, "stop");
     await terminateGroup(running.pid, grace, () => {
       entry.groupSurvived = true;
     });
@@ -455,6 +509,7 @@ export function createProcessService(deps: ProcessDeps): ProcessService {
       return;
     }
     forceSettle(entry, running, reason);
+    if (entry.sandboxUnit) await stopSandboxUnit(execFn, entry.sandboxUnit, "kill");
   }
 
   function createEntry(
@@ -501,14 +556,22 @@ export function createProcessService(deps: ProcessDeps): ProcessService {
     const { cwd } = request;
     const id = entry.info.id;
     const unit = options.scopeUnit;
-    const env = unit === undefined ? request.env : { ...request.env, ...systemdEnv() };
+    const sandbox = options.sandbox;
+    const baseEnv = unit === undefined ? request.env : { ...request.env, ...systemdEnv() };
+    const env = sandbox?.spawnEnv ?? baseEnv;
+    // Nesting order: sandbox OUTSIDE, governor (priority+memory) INSIDE.
+    const inner = options.wrapped;
+    const wrapped = sandbox
+      ? composeOuter(sandbox.outer, inner ?? null, request.shell ?? "/bin/sh", request.command)
+      : inner;
+    if (sandbox?.unitId) entry.sandboxUnit = sandbox.unitId;
     const running = spawnRunning({
       info: entry.info.state === "queued" ? { ...entry.info, state: "running" } : entry.info,
       cwd,
       logPath: files.logFile(id),
       ...(request.shell === undefined ? {} : { shell: request.shell }),
       ...(env === undefined ? {} : { env }),
-      ...(options.wrapped && { wrapped: options.wrapped }),
+      ...(wrapped && { wrapped }),
       ...(deps.spawn && { spawn: deps.spawn }),
       ...(unit !== undefined && { classifyExit: () => governor.support().scopeVerdict(unit) }),
       onChunk: (text) => entry.foreground?.onOutput(text),
@@ -580,13 +643,130 @@ export function createProcessService(deps: ProcessDeps): ProcessService {
     return { memoryLimitMb: governor.memoryLimitMb(), ...(wrapped && { wrapped }) };
   }
 
+  const isExecutable = (path: string) => {
+    try {
+      accessSync(path, constants.X_OK);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  const execFn = deps.exec ?? execCommand;
+
+  /** Host sandbox binaries, reusing the governor's resolved `systemd-run` on Linux. */
+  const sandboxSupport = (): SandboxSupport => {
+    const platform = deps.sandboxPlatform ?? hostPlatform();
+    if (deps.sandboxBinaries) return { platform, binaries: deps.sandboxBinaries };
+    if (platform === "macos") {
+      return {
+        platform,
+        binaries: isExecutable("/usr/bin/sandbox-exec") ? { sandboxExec: "/usr/bin/sandbox-exec" } : {},
+      };
+    }
+    if (platform === "linux") {
+      const systemdRun = governor.support().binaries().systemdRun;
+      const bwrap = findOnPath("bwrap");
+      return {
+        platform,
+        binaries: { ...(systemdRun && { systemdRun }), ...(bwrap && { bwrap }) },
+      };
+    }
+    return { platform, binaries: {} };
+  };
+
+  const sandboxNode = () => deps.nodeId?.() ?? "local";
+  const sandboxUnitFor = (entryId: string) => `tau-${unitNodeId(sandboxNode())}-${entryId}`;
+
+  const sandboxAdminPaths = (root: string, input: TrustInput): string[] => {
+    if (input.adminDir && input.sharedGitDir && input.branch) {
+      return gitReadWritePaths({
+        worktreeRoot: root,
+        adminDir: input.adminDir,
+        sharedGitDir: input.sharedGitDir,
+        branch: input.branch,
+      }).filter((path) => path !== root);
+    }
+    return input.adminDir ? [input.adminDir] : [];
+  };
+
+  /**
+   * The Layer-1 sandbox plan for one spawn, keyed by the resolved root.
+   * Fail-closed: sandbox on with no trusted root, a cwd outside the root, or
+   * no enforcement path on this host rejects the spawn (`forbidden`) — never
+   * a silent cwd substitution or an unenforced run.
+   */
+  async function planSandbox(request: StartProcessRequest, entryId: string): Promise<SandboxPlan | null> {
+    const scope: ThreadClass = request.scope ?? "main";
+    const settings = deps.sandbox ?? DEFAULT_SANDBOX_SETTINGS;
+    if (!sandboxEnabled(settings, scope)) return null;
+    const trusted: TrustInput | undefined =
+      request.sandboxRoot !== undefined
+        ? { kind: "worktree", root: request.sandboxRoot }
+        : await deps.resolveSandboxRoot?.(request.conversationId);
+    const resolved = resolveSandboxRoot(trusted);
+    if (!resolved.ok) throw new AppError("forbidden", resolved.reason);
+    const root = resolved.root;
+    if (!isInsideRoot(root, request.cwd)) {
+      throw new AppError("forbidden", `The command runs outside the sandbox root ${root}: denied.`);
+    }
+    const support = sandboxSupport();
+    const backend = sandboxBackend(support, deps.preferBwrap);
+    if (!backend) {
+      throw new AppError(
+        "forbidden",
+        "Sandboxing is on for this thread but unsupported on this host: denied, never silently unenforced.",
+      );
+    }
+    const outer = sandboxPrefix({
+      root,
+      scope,
+      settings,
+      support,
+      unit: sandboxUnitFor(entryId),
+      workingDirectory: request.cwd,
+      ...(request.env === undefined ? {} : { env: request.env }),
+      adminPaths: trusted ? sandboxAdminPaths(root, trusted) : [],
+      ...(deps.preferBwrap === undefined ? {} : { preferBwrap: deps.preferBwrap }),
+    });
+    if (!outer) {
+      throw new AppError("forbidden", "Sandboxing is on but no enforcement path applies: denied.");
+    }
+    if (backend === "systemd") {
+      // The service gets cwd+env from the unit, not the client: `--working-directory` +
+      // `--setenv` ride the prefix, the client keeps only the bus variables.
+      return {
+        outer,
+        unitId: serviceUnit(sandboxUnitFor(entryId)),
+        spawnEnv: { ...request.env, ...systemdEnv() },
+      };
+    }
+    if (backend === "seatbelt") {
+      const spawnEnv = { ...cacheEnvAdditions(root), ...request.env };
+      if (!spawnEnv.GIT_SSH_COMMAND) spawnEnv.GIT_SSH_COMMAND = gitSshCommand(root);
+      return { outer, spawnEnv };
+    }
+    return { outer };
+  }
+
+  async function sandboxOption(
+    request: StartProcessRequest,
+    entryId: string,
+  ): Promise<Pick<SpawnOptions, "sandbox"> | Record<string, never>> {
+    const sandbox = await planSandbox(request, entryId);
+    return sandbox ? { sandbox } : {};
+  }
+
   async function launch(request: StartProcessRequest, foreground?: Attachment): Promise<Entry> {
     const plan = request.governed ? governor.plan() : undefined;
     if (plan?.probe) return launchAsync(request, foreground, plan);
     await prepareFiles();
     const entry = createEntry(request, foreground, "running", plan !== undefined);
     if (plan) noteScope(entry, request, plan);
-    spawnEntry(entry, request, syncWrap(request, plan));
+    spawnEntry(entry, request, {
+      ...syncWrap(request, plan),
+      ...(await sandboxOption(request, entry.info.id)),
+    });
     entry.spawned.resolve();
     entries.set(entry.info.id, entry);
     if (entry.info.kind === "monitor" && request.timeoutMs) armTimeout(entry, request.timeoutMs);
@@ -629,6 +809,7 @@ export function createProcessService(deps: ProcessDeps): ProcessService {
       memoryLimitMb: governor.memoryLimitMb(),
       ...(wrapped && { wrapped }),
       ...(usesScope(input) && { scopeUnit: input.unit }),
+      ...(await sandboxOption(request, entry.info.id)),
     });
     entry.spawned.resolve();
     if (entry.info.kind === "monitor" && request.timeoutMs) armTimeout(entry, request.timeoutMs);
@@ -688,6 +869,7 @@ export function createProcessService(deps: ProcessDeps): ProcessService {
           ...(request.scope === undefined ? {} : { scope: request.scope }),
           ...(request.shell === undefined ? {} : { shell: request.shell }),
           ...(request.env === undefined ? {} : { env: request.env }),
+          ...(request.sandboxRoot === undefined ? {} : { sandboxRoot: request.sandboxRoot }),
         },
         { callId: request.callId, onOutput: request.onOutput, detach },
       );
@@ -759,6 +941,11 @@ export function createProcessService(deps: ProcessDeps): ProcessService {
       const notify = deps.notifications?.notify.bind(deps.notifications);
       for (const record of await files.loadAll()) {
         if (record.info.state === "running") {
+          // The unit id is stable (`tau-<nodehash>-<id>.service`), so a restart
+          // recomputes it and stops the manager-owned unit explicitly.
+          if ((deps.sandboxPlatform ?? hostPlatform()) === "linux" && deps.nodeId) {
+            await stopSandboxUnit(execFn, sandboxUnitFor(record.info.id), "stop");
+          }
           if (record.pid > 0 && groupIsAlive(record.pid)) await terminateGroup(record.pid, grace);
           if (notify && record.info.kind === "monitor") {
             await notify(
