@@ -108,6 +108,13 @@ export function workspaceCases(make: MakeContractTarget, test: CaseRunner): void
       await target.core.conversations.abort(conversation.id);
     });
 
+    test("[workspaces] merges while the thread runs with force", async () => {
+      const { conversation } = await startConversation(target, { text: "bash sleep 30", git: true });
+      const merged = await target.core.workspaces.merge(conversation.id, true);
+      expect(merged.workspace.state).toBe("merged");
+      await target.core.conversations.abort(conversation.id);
+    });
+
     test("[workspaces] refuses to merge a dirty worktree", async () => {
       const { core } = target;
       const { conversation } = await settledThread("write a file");

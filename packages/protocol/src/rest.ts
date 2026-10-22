@@ -747,6 +747,7 @@ export const routes = {
     path: `${API_PREFIX}/conversations/:id/workspace/merge`,
     status: 200,
     params: IdParams,
+    query: ForceQuery,
     response: ConversationSummarySchema,
   },
   createPullRequest: {

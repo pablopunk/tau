@@ -362,8 +362,8 @@ export interface Core {
   workspaces: {
     /** Rejects `not_found`, and `invalid_request` for a thread without a worktree. */
     status(conversationId: string): Promise<WorkspaceStatus>;
-    /** Rebases and fast-forwards the base. Rejects `thread_busy`, `worktree_dirty`, `merge_conflict`, `not_on_base`, `base_dirty`. */
-    merge(conversationId: string): Promise<ConversationSummary>;
+    /** Rebases and fast-forwards the base. Rejects `thread_busy` unless `force` (a thread landing its own work from inside its run), plus `worktree_dirty`, `merge_conflict`, `not_on_base`, `base_dirty`. */
+    merge(conversationId: string, force?: boolean): Promise<ConversationSummary>;
     /** Needs a connected `gh`; rejects `github_unavailable`. */
     createPullRequest(conversationId: string): Promise<ConversationSummary>;
     /** Rejects `has_unmerged_work` unless `force`. The thread moves to the main checkout. */

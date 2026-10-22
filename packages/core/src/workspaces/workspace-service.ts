@@ -144,9 +144,17 @@ export function createWorkspaceService({
       return workspaceStatusOf(current, facts);
     },
 
-    async merge(id) {
+    async merge(id, force) {
       const { thread, facts } = await liveWorktreeOf(id);
-      requireIdle(thread);
+      // The idle gate guards other people's clicks, not the owner landing its own work: a thread
+      // merging from inside its own run is always "running", so `force` (CLI `--force`) is its way in.
+      // The git-level guards below still hold: a dirty worktree refuses, the rebase aborts on conflict.
+      if (!force && thread.status === "running") {
+        throw new AppError(
+          "thread_busy",
+          `Thread ${id} is still running. Wait for it to finish, or merge anyway with \`tau workspaces merge ${id} --force\`.`,
+        );
+      }
       return lock.run(facts.mainRoot, async () => {
         const mergedSha = await mergeIntoBase(facts);
         return update(thread, { state: "merged", mergedSha });
@@ -205,7 +213,7 @@ export function createWorkspaceService({
   return {
     ...operations,
     create: (request) => mutating(() => operations.create(request)),
-    merge: (id) => mutating(() => operations.merge(id)),
+    merge: (id, force) => mutating(() => operations.merge(id, force)),
     createPullRequest: (id) => mutating(() => operations.createPullRequest(id)),
     remove: (id, force) => mutating(() => operations.remove(id, force)),
     onConversationRemoved: (thread) => mutating(() => operations.onConversationRemoved(thread)),

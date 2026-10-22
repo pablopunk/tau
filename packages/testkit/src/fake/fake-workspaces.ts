@@ -52,11 +52,14 @@ export function createFakeWorkspaces(ctx: WorkspacesContext): Core["workspaces"]
         reason: blocker?.message ?? (merged ? "Already merged." : null),
       };
     },
-    async merge(conversationId) {
+    async merge(conversationId, force) {
       const conversation = ctx.require(conversationId);
       requireWorktree(conversation);
-      const blocker = mergeBlocker(conversation);
-      if (blocker) throw new AppError(blocker.code, blocker.message);
+      // Like the real service, `force` skips the running check but never the dirty one.
+      if (conversation.isBusy() && !force)
+        throw new AppError("thread_busy", "The thread is running.");
+      if (conversation.changes.dirtyFiles.length > 0)
+        throw new AppError("worktree_dirty", "The worktree has uncommitted changes.");
       conversation.changes.unmergedCommits = 0;
       conversation.workspace = { ...conversation.workspace, state: "merged", mergedSha: FAKE_MERGED_SHA };
       return settle(conversation);

@@ -21,7 +21,9 @@ function registerThreadRoutes(app: FastifyInstance, core: Core): void {
     diff: await conversations.checkpointDiff(params.id, params.cid, query.path),
   }));
   defineRoute(app, routes.getWorkspace, ({ params }) => workspaces.status(params.id));
-  defineRoute(app, routes.mergeWorkspace, ({ params }) => workspaces.merge(params.id));
+  defineRoute(app, routes.mergeWorkspace, ({ params, query }) =>
+    workspaces.merge(params.id, query.force === "true"),
+  );
   defineRoute(app, routes.createPullRequest, ({ params }) => workspaces.createPullRequest(params.id));
   defineRoute(app, routes.removeWorkspace, ({ params, query }) =>
     workspaces.remove(params.id, query.force === "true"),

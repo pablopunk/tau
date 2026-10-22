@@ -193,7 +193,7 @@ export interface Api {
   };
   workspaces: {
     status(conversationId: string, options?: RequestOptions): Promise<WorkspaceStatus>;
-    merge(conversationId: string): Promise<ConversationSummary>;
+    merge(conversationId: string, force?: boolean): Promise<ConversationSummary>;
     createPullRequest(conversationId: string): Promise<ConversationSummary>;
     remove(conversationId: string, force?: boolean): Promise<ConversationSummary>;
   };
@@ -421,7 +421,8 @@ export function createApi(transport: Transport): Api {
           (signal) => request("getWorkspace", { params: { id } }, { signal }),
           options?.signal,
         ),
-      merge: (id) => request("mergeWorkspace", { params: { id } }),
+      merge: (id, force = false) =>
+        request("mergeWorkspace", { params: { id }, query: { force: force ? "true" : "false" } }),
       createPullRequest: (id) => request("createPullRequest", { params: { id } }),
       remove: (id, force = false) =>
         request("removeWorkspace", { params: { id }, query: { force: force ? "true" : "false" } }),

@@ -600,7 +600,7 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
       }),
       workspaces: {
         status: (id) => workspaces.status(id),
-        merge: (id) => workspaces.merge(id),
+        merge: (id, force) => workspaces.merge(id, force),
         createPullRequest: (id) => workspaces.createPullRequest(id),
         remove: (id, force) => workspaces.remove(id, force),
       },
