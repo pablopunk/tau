@@ -129,7 +129,10 @@ export function createConversationsApi(deps: {
       const admission = await admitAndDispatchBang(bangDeps(), id, input, now());
       announce(admission.projectId);
       if (admission.titleText !== undefined) nameTheThread(id, admission.titleText);
-      return { submissionId: admission.submissionId, ...(admission.entryId === undefined ? {} : { entryId: admission.entryId }) };
+      return {
+        submissionId: admission.submissionId,
+        ...(admission.entryId === undefined ? {} : { entryId: admission.entryId }),
+      };
     }
     // The server strips one `!`; web sends verbatim so every client behaves the same.
     const effective = bang.kind === "escaped" ? { ...input, text: bang.text } : input;

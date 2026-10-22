@@ -221,12 +221,15 @@ test.describe("timings harness", () => {
       const save = page.getByRole("button", { name: "Save" });
       await save.dispatchEvent("click");
       await expect
-        .poll(async () => {
-          if ((await page.getByLabel("Title").count()) === 0) return "closed";
-          if (await save.isDisabled()) return "disabled";
-          return "waiting";
-        })
-        .not.toBe("waiting", { timeout: 10_000 });
+        .poll(
+          async () => {
+            if ((await page.getByLabel("Title").count()) === 0) return "closed";
+            if (await save.isDisabled()) return "disabled";
+            return "waiting";
+          },
+          { timeout: 10_000 },
+        )
+        .not.toBe("waiting");
       const confirmMs = Date.now() - start;
       await expect(page.getByLabel("Title")).toBeHidden({ timeout: 10_000 });
       // Reflect: the row carries the new name (server-confirmed).
