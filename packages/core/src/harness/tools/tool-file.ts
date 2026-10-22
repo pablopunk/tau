@@ -34,6 +34,8 @@ export interface ToolServices {
 export interface SandboxToolServices {
   /** The thread's scope when the sandbox switch confines it; `undefined` when off or unknown. */
   readonly scopeOf: (conversationId: string | number) => Promise<ResourceScope | undefined>;
+  /** The thread's canonical sandbox root; `undefined` when off, unknown or unresolvable (fail closed). */
+  readonly rootOf: (conversationId: string | number) => Promise<string | undefined>;
   /** Whether a sandboxed thread may reach this MCP server (per-server allowlist, stdio and HTTP alike). */
   readonly mcpAllowed: (server: string) => Promise<boolean>;
 }

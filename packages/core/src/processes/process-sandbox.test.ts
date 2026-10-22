@@ -197,6 +197,8 @@ describe("sandbox spawn integration", () => {
       sandboxRoot: cwd,
       onOutput: () => {},
     });
+    // The spawn attempt runs in the background once launch returns.
+    await run.admitted;
     expect(spawnCalls[0]?.file).toBe("/usr/bin/sandbox-exec");
     await run.stop("user");
     await run.outcome;

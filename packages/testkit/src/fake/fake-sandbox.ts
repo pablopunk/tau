@@ -13,7 +13,10 @@ export interface FakeSandbox {
   readonly api: Pick<Core["settings"], "setSandbox">;
 }
 
-const copy = (value: SandboxSettings): SandboxSettings => ({ ...value });
+const copy = (value: SandboxSettings): SandboxSettings => ({
+  ...value,
+  ...(value.mcpAllowlist === undefined ? {} : { mcpAllowlist: [...value.mcpAllowlist] }),
+});
 
 export function createFakeSandbox(ctx: { emit: (change: Change) => void }): FakeSandbox {
   let settings = copy(DEFAULT_SANDBOX_SETTINGS);

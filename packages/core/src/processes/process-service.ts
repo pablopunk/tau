@@ -134,6 +134,8 @@ export interface ProcessService {
   resourceSettings(): ResourceSettings;
   /** Applies new settings: each scope's level to the next command. */
   setResources(next: ResourceSettings): void;
+  /** Applies the sandbox switch to the next spawn. */
+  setSandbox(next: SandboxSettings): void;
   /** What the host can enforce; probes the cgroup lazily on Linux. */
   resourceSupport(): Promise<ResourceSupport>;
   /** No queue: always empty. Kept so the API shape stays stable. */
@@ -261,6 +263,7 @@ export function createProcessService(deps: ProcessDeps): ProcessService {
   const files = createProcessFiles(deps.home);
   const grace = deps.stopGraceMs ?? DEFAULT_STOP_GRACE_MS;
   const emitResources = () => deps.emitResourcesChange?.();
+  let sandboxSettings = deps.sandbox;
   const governor: Governor = createGovernor({
     graceMs: grace,
     ...(deps.memoryLimitMb !== undefined && { memoryLimitMb: deps.memoryLimitMb }),
@@ -478,7 +481,9 @@ export function createProcessService(deps: ProcessDeps): ProcessService {
     if (entry.reaping) return;
     const running = entry.running;
     if (!running) {
-      if (entry.info.state !== "queued") {
+      // Not yet spawned (sync path prepares in the background): settle like a queued cancel.
+      // `entry.prune` is only awaited for reaping entries that own one.
+      if (entry.info.state !== "queued" && entry.info.state !== "running") {
         await entry.prune;
         return;
       }
@@ -698,7 +703,7 @@ export function createProcessService(deps: ProcessDeps): ProcessService {
    */
   async function planSandbox(request: StartProcessRequest, entryId: string): Promise<SandboxPlan | null> {
     const scope: ThreadClass = request.scope ?? "main";
-    const settings = deps.sandbox ?? DEFAULT_SANDBOX_SETTINGS;
+    const settings = sandboxSettings ?? DEFAULT_SANDBOX_SETTINGS;
     if (!sandboxEnabled(settings, scope)) return null;
     const trusted: TrustInput | undefined =
       request.sandboxRoot !== undefined
@@ -760,19 +765,37 @@ export function createProcessService(deps: ProcessDeps): ProcessService {
   async function launch(request: StartProcessRequest, foreground?: Attachment): Promise<Entry> {
     const plan = request.governed ? governor.plan() : undefined;
     if (plan?.probe) return launchAsync(request, foreground, plan);
-    await prepareFiles();
+    // The entry exists before the spawn attempt so stop works while preparing;
+    // it is only registered, persisted and announced once the spawn is attempted.
     const entry = createEntry(request, foreground, "running", plan !== undefined);
     if (plan) noteScope(entry, request, plan);
-    spawnEntry(entry, request, {
+    if (foreground) foregroundEntries.set(foregroundKey(request.conversationId, foreground.callId), entry);
+    if (entry.info.kind === "monitor" && request.timeoutMs) armTimeout(entry, request.timeoutMs);
+    void spawnSync(entry, request, plan).catch((error: unknown) => fail(entry, error, request));
+    return entry;
+  }
+
+  /** The sync path's spawn attempt: prepare, then spawn unless stopped meanwhile. */
+  async function spawnSync(entry: Entry, request: StartProcessRequest, plan: Plan | undefined) {
+    try {
+      await prepareFiles();
+    } catch (error) {
+      fail(entry, error, request);
+      return;
+    }
+    if (entry.cancelled) {
+      entry.spawned.resolve();
+      return;
+    }
+    const wrapped = {
       ...syncWrap(request, plan),
       ...(await sandboxOption(request, entry.info.id)),
-    });
+    };
+    spawnEntry(entry, request, wrapped);
     entry.spawned.resolve();
     entries.set(entry.info.id, entry);
-    if (entry.info.kind === "monitor" && request.timeoutMs) armTimeout(entry, request.timeoutMs);
     await persist(entry);
     announce(entry);
-    return entry;
   }
 
   /** The async path: the Linux cgroup probe runs before the spawn. */
@@ -826,6 +849,8 @@ export function createProcessService(deps: ProcessDeps): ProcessService {
       return;
     }
     entry.cancelled = true;
+    // Never spawned: no pid file or listing may outlive the failure.
+    entry.removed = true;
     if (entry.foreground) {
       entries.delete(entry.info.id);
       foregroundEntries.delete(foregroundKey(request.conversationId, entry.foreground.callId));
@@ -851,6 +876,8 @@ export function createProcessService(deps: ProcessDeps): ProcessService {
     async start(request) {
       const entry = await launch(request);
       await entry.spawned.promise;
+      // The first persist runs in the background; wait for it so the pid file exists on return.
+      await entry.writes;
       return infoOf(entry);
     },
     async runForeground(request) {
@@ -977,6 +1004,9 @@ export function createProcessService(deps: ProcessDeps): ProcessService {
     resourceSettings: () => governor.state.get(),
     resourceSupport: () => governor.support().describe(),
     setResources: (next) => governor.setResources(next),
+    setSandbox: (next) => {
+      sandboxSettings = next;
+    },
     resourceActivity() {
       return { holders: [], waiting: [] };
     },

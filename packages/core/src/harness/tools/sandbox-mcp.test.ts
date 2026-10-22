@@ -62,6 +62,7 @@ describe("mcp_call sandbox scoping", () => {
     const run = setup(
       {
         scopeOf: async () => "worktree",
+        rootOf: async () => "/wt",
         mcpAllowed: async () => false,
       },
       calls,
@@ -77,6 +78,7 @@ describe("mcp_call sandbox scoping", () => {
     const run = setup(
       {
         scopeOf: async () => "subagent",
+        rootOf: async () => "/wt",
         mcpAllowed: async (server) => server === "memory",
       },
       calls,
@@ -88,7 +90,10 @@ describe("mcp_call sandbox scoping", () => {
 
   it("allows everything when the thread is not sandboxed", async () => {
     const calls: string[] = [];
-    const run = setup({ scopeOf: async () => undefined, mcpAllowed: async () => false }, calls);
+    const run = setup(
+      { scopeOf: async () => undefined, rootOf: async () => undefined, mcpAllowed: async () => false },
+      calls,
+    );
     const out = (await run("memory")) as { isError: boolean };
     expect(out.isError).toBe(false);
     expect(calls).toEqual(["memory"]);
@@ -99,6 +104,7 @@ describe("mcp_call sandbox scoping", () => {
     const run = setup(
       {
         scopeOf: async () => "main",
+        rootOf: async () => "/wt",
         mcpAllowed: async () => {
           throw new Error("store unavailable");
         },

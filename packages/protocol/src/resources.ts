@@ -1,4 +1,5 @@
 import { type Static, Type } from "typebox";
+import { SandboxSupportSchema } from "./sandbox";
 
 export const ResourcePrioritySchema = Type.Union([
   Type.Literal("off"),
@@ -48,6 +49,8 @@ export const ResourceSupportSchema = Type.Object({
   sameCgroupOnly: Type.Boolean(),
   /** Why something is unavailable, when it is. */
   note: Type.Union([Type.String(), Type.Null()]),
+  /** Sandbox capability; absent on nodes older than the sandbox contract. */
+  sandbox: Type.Optional(SandboxSupportSchema),
 });
 export type ResourceSupport = Static<typeof ResourceSupportSchema>;
 

@@ -17,6 +17,7 @@ export const FAKE_RESOURCE_SUPPORT: ResourceSupport = {
   prioritySupported: true,
   sameCgroupOnly: true,
   note: null,
+  sandbox: { enforced: true, mechanism: "systemd", tested: true, note: null },
 };
 
 export interface FakeResources {

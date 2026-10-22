@@ -1,6 +1,8 @@
+import { execFile } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { homedir, hostname } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import { promisify } from "node:util";
 import type { Harness } from "@earendil-works/pi-durable";
 import {
   type Core,
@@ -8,6 +10,7 @@ import {
   type CreateCoreOptions,
   LINK_PROTOCOL,
   PROTOCOL_VERSION,
+  type SandboxSettings,
 } from "@tau/protocol";
 import { createAccess } from "./access/create-access";
 import { createFileDeviceStore } from "./access/file-device-store";
@@ -60,9 +63,11 @@ import { createNodes } from "./nodes/create-nodes";
 import { createDirectory } from "./nodes/directory";
 import { createSelfThreadCount } from "./nodes/self-thread-count";
 import { createFilePeersStore, migrateHubFile, migrateSummaryDirectory } from "./peers/peers-store";
+import { classifyThread } from "./processes/governor/governed";
 import { createResourceState } from "./processes/governor/resource-state";
 import { createProcessService } from "./processes/process-service";
 import { resourceActivityOf } from "./processes/resource-activity";
+import type { TrustInput } from "./processes/sandbox/trust-root";
 import { createPresentProject } from "./project-view";
 import { createProjectsApi } from "./projects-api";
 import { createProviderService, type Environment } from "./provider/provider-service";
@@ -92,6 +97,7 @@ import { createUploadStore } from "./upload-store";
 import { createVoiceApi } from "./voice-api";
 import { CRASH_LOOP_TEXT, recordStart, startRecordFiles } from "./watchdog/start-record";
 import { createWorkspaceService } from "./workspaces/workspace-service";
+import { hasLiveWorktree, sandboxRootOf } from "./workspaces/worktree-facts";
 
 export interface CoreDependencies {
   readonly env: Environment;
@@ -249,7 +255,53 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
       conversations,
       runGh: deps.runGh,
       announce: (projectId) => changes.emit({ resource: "conversations", projectId }),
+      hasRunningOf: (conversationId) => processes.hasRunning(conversationId),
     });
+
+    // Layer-2 + spawn sandbox wiring (integrator): resolve trusted thread metadata to a
+    // canonical root; fail closed (undefined) when the switch is off, the thread is unknown
+    // or archived, or the root is unresolvable. Never substitutes the tool's cwd.
+    const runGit = promisify(execFile);
+    const sandboxThreadOf = (conversationId: string | number) =>
+      conversations.find(String(conversationId)).catch(() => undefined);
+    const sandboxScopeOf = async (conversationId: string | number) => {
+      const sw: SandboxSettings | undefined = (await settings.get()).sandbox;
+      if (!sw) return undefined;
+      const thread = await sandboxThreadOf(conversationId);
+      if (!thread || thread.archivedAt !== null) return undefined;
+      const scope = classifyThread({ parentId: thread.parentId ?? undefined, workspace: thread.workspace });
+      const on = scope === "main" ? sw.main : scope === "worktree" ? sw.worktree : sw.subagent;
+      return on ? scope : undefined;
+    };
+    const sandboxRootOfId = async (conversationId: string | number) => {
+      const thread = await sandboxThreadOf(conversationId);
+      if (!thread || thread.archivedAt !== null) return undefined;
+      if (!(await sandboxScopeOf(conversationId))) return undefined;
+      return sandboxRootOf(thread).catch(() => undefined);
+    };
+    const sandboxTrustOf = async (conversationId: string | number): Promise<TrustInput | undefined> => {
+      const thread = await sandboxThreadOf(conversationId);
+      if (!thread || thread.archivedAt !== null) return undefined;
+      const scope = classifyThread({ parentId: thread.parentId ?? undefined, workspace: thread.workspace });
+      const sw: SandboxSettings | undefined = (await settings.get()).sandbox;
+      const on = sw && (scope === "main" ? sw.main : scope === "worktree" ? sw.worktree : sw.subagent);
+      if (!on) return undefined;
+      if (thread.workspace.state === "removed") return { kind: "removed" };
+      const root = await sandboxRootOf(thread).catch(() => undefined);
+      if (!root) return undefined;
+      const kind: TrustInput["kind"] =
+        scope === "main" ? "main" : hasLiveWorktree(thread) ? "worktree" : "checkout";
+      if (kind !== "worktree") return { kind, root };
+      const branch = thread.workspace.branch ?? undefined;
+      const gitDir = await runGit("git", ["-C", root, "rev-parse", "--absolute-git-dir"], {
+        timeout: 10_000,
+      })
+        .then(({ stdout }) => stdout.trim() || undefined)
+        .catch(() => undefined);
+      if (!gitDir || branch === undefined) return { kind, root };
+      if (!gitDir.includes("/.git/worktrees/")) return { kind, root };
+      return { kind, root, adminDir: gitDir, sharedGitDir: dirname(dirname(gitDir)), branch };
+    };
     const forker = createConversationForker(harness, conversations);
     const checkpoints = createCheckpointService({ home: home.root, conversations, forker });
     status.onRunEnded(({ conversationId }) => checkpoints.snapshotAfter(conversationId, ""));
@@ -278,6 +330,8 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
       emitResourcesChange: () => changes.emit({ resource: "resources" }),
       resources: resourceState,
       nodeId: () => identity.nodeId,
+      sandbox: (await settings.get()).sandbox,
+      resolveSandboxRoot: (conversationId) => sandboxTrustOf(conversationId),
     });
     const liveWork = createLiveWork({ harness, processes, approvals });
     const goals = createGoalService({
@@ -300,6 +354,11 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
     toolServices.set({
       processes,
       mcp,
+      sandbox: {
+        scopeOf: (id) => sandboxScopeOf(id),
+        rootOf: (id) => sandboxRootOfId(id),
+        mcpAllowed: async (server) => ((await settings.get()).sandbox?.mcpAllowlist ?? []).includes(server),
+      },
       notifications,
       scheduler,
       liveWork,
@@ -497,6 +556,7 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
         onProjectsFolderChanged: () => github.invalidateScan(),
         onClaudeConnectorsChanged: () => connectorOffering.resyncAll(),
         onResourcesChanged: (value) => processes.setResources(value),
+        onSandboxChanged: (value) => processes.setSandbox(value),
         resources: {
           support: () => processes.resourceSupport(),
           activity: () => resourceActivityOf(processes, conversations),

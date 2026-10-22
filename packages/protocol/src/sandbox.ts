@@ -9,6 +9,8 @@ export const SandboxSettingsSchema = Type.Object({
   main: Type.Boolean(),
   worktree: Type.Boolean(),
   subagent: Type.Boolean(),
+  /** MCP servers a sandboxed thread may reach; default deny. */
+  mcpAllowlist: Type.Optional(Type.Array(Type.String())),
 });
 export type SandboxSettings = Static<typeof SandboxSettingsSchema>;
 

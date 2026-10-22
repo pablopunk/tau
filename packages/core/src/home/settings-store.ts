@@ -179,14 +179,22 @@ const validSandboxFlag = (value: unknown): boolean =>
 export function parseSandboxSettings(value: unknown): SandboxSettings | undefined {
   if (typeof value !== "object" || value === null || Array.isArray(value)) return undefined;
   const raw = value as Record<string, unknown>;
+  const allowlist = raw.mcpAllowlist;
   return {
     main: validSandboxFlag(raw.main),
     worktree: validSandboxFlag(raw.worktree),
     subagent: validSandboxFlag(raw.subagent),
+    // Absent unless a valid list is stored: older nodes never wrote it.
+    ...(Array.isArray(allowlist) && allowlist.every((entry): entry is string => typeof entry === "string")
+      ? { mcpAllowlist: [...allowlist] }
+      : {}),
   };
 }
 
-const copySandbox = (value: SandboxSettings): SandboxSettings => ({ ...value });
+const copySandbox = (value: SandboxSettings): SandboxSettings => ({
+  ...value,
+  ...(value.mcpAllowlist === undefined ? {} : { mcpAllowlist: [...value.mcpAllowlist] }),
+});
 
 const validMcpServers = (value: unknown): McpServerConfig[] =>
   Array.isArray(value)
