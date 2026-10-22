@@ -8,7 +8,7 @@ import {
   routes,
 } from "@tau/protocol";
 import { Value } from "typebox/value";
-import type { RouteRequest, RouteResponse, Transport } from "./types";
+import type { RequestOptions, RouteRequest, RouteResponse, Transport } from "./types";
 import { createWebSocketTransport, openWebSocketStream } from "./websocket";
 
 type RequestInput = {
@@ -54,12 +54,21 @@ function init(route: RouteDef, body: unknown): RequestInit {
   };
 }
 
-async function send(route: RouteDef, input: RequestInput, prefix: string): Promise<unknown> {
+async function send(
+  route: RouteDef,
+  input: RequestInput,
+  prefix: string,
+  options?: RequestOptions,
+): Promise<unknown> {
   assertBody(route, input.body);
   let response: Response;
   try {
-    response = await fetch(urlFor(route, input, prefix), init(route, input.body));
+    response = await fetch(urlFor(route, input, prefix), {
+      ...init(route, input.body),
+      ...(options?.signal ? { signal: options.signal } : {}),
+    });
   } catch {
+    options?.signal?.throwIfAborted();
     throw new AppError("internal", "Could not reach the server");
   }
   if (!response.ok) throw await failureFrom(response);
@@ -76,8 +85,8 @@ export interface HttpTransportOptions {
 
 export function createHttpTransport({ prefix = "" }: HttpTransportOptions = {}): Transport {
   return {
-    async request<N extends JsonRouteName>(name: N, input: RouteRequest<N>) {
-      return (await send(routes[name], input as RequestInput, prefix)) as RouteResponse<N>;
+    async request<N extends JsonRouteName>(name: N, input: RouteRequest<N>, options?: RequestOptions) {
+      return (await send(routes[name], input as RequestInput, prefix, options)) as RouteResponse<N>;
     },
     live: createWebSocketTransport(prefix),
     openStream: (path, handlers) => openWebSocketStream(path, handlers, prefix),

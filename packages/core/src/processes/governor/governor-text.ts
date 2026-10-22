@@ -36,7 +36,10 @@ export function stopMessage(
   if (reason === "timeout") {
     if (scope && level && level !== "off") {
       const levelName = level.charAt(0).toUpperCase() + level.slice(1);
-      return `${timeoutText} (${scopeDisplayName(scope)} run at ${levelName}, which slows commands down)`;
+      return (
+        `${timeoutText} (${scopeDisplayName(scope)} run at ${levelName}, which slows commands down). ` +
+        `Pass a longer timeout, or set ${scopeDisplayName(scope)} to Off in Settings → Agent.`
+      );
     }
     return timeoutText;
   }

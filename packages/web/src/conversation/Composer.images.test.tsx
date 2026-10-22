@@ -122,10 +122,10 @@ describe("<Composer> drafts and Esc", () => {
     expect(window.localStorage.getItem("tau:draft:c")).toBeNull();
   });
 
-  it("stops a running thread on Esc when busy", async () => {
+  it("never stops the run on Esc, even when busy", async () => {
     const { input, onStop } = setup({ busy: true });
     await userEvent.type(input, "{Escape}");
-    expect(onStop).toHaveBeenCalledTimes(1);
+    expect(onStop).not.toHaveBeenCalled();
   });
 
   it("does nothing on Esc when idle", async () => {

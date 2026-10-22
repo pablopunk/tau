@@ -1,8 +1,14 @@
 import { MAX_IMAGES_PER_MESSAGE } from "@tau/protocol";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { loadFileAttachments, saveFileAttachments } from "../files/attachments";
 import { loadAttachments, newAttachment, saveAttachments } from "../images/attachments";
 import { loadDraft, saveDraft } from "./drafts";
-import { onComposerRestore, restoreQueuedToComposer, restoreToComposer } from "./restore";
+import {
+  onComposerRestore,
+  restoreQueuedToComposer,
+  restoreSnapshotsToComposer,
+  restoreToComposer,
+} from "./restore";
 
 const png = (data: string) => ({ mimeType: "image/png" as const, data });
 
@@ -10,6 +16,8 @@ beforeEach(() => {
   window.localStorage.clear();
   saveAttachments("c1", []);
   saveAttachments("c2", []);
+  saveFileAttachments("c1", []);
+  saveFileAttachments("c2", []);
 });
 
 describe("restoreToComposer", () => {
@@ -89,5 +97,35 @@ describe("restoreQueuedToComposer", () => {
     ]);
     expect(loadDraft("c1")).toBe("a\n\nb");
     expect(loadAttachments("c1").map((item) => item.image.data)).toEqual(["a", "b"]);
+  });
+});
+
+describe("restoreSnapshotsToComposer", () => {
+  const ref = (name: string) => ({ name, path: name, size: 1 });
+
+  it("does nothing when every snapshot is empty", () => {
+    const listener = vi.fn();
+    const off = onComposerRestore("c1", listener);
+    restoreSnapshotsToComposer("c1", [
+      { text: "", files: [] },
+      { text: "   ", files: [] },
+    ]);
+    expect(loadDraft("c1")).toBe("");
+    expect(listener).not.toHaveBeenCalled();
+    off();
+  });
+
+  it("restores snapshot text and file refs ahead of the draft", () => {
+    saveDraft("c1", "typing now");
+    restoreSnapshotsToComposer("c1", [
+      { text: "first", files: [] },
+      { text: "with file", files: [ref("a.txt")] },
+    ]);
+    expect(loadDraft("c1")).toBe("first\n\nwith file\n\ntyping now");
+  });
+
+  it("re-attaches file refs by ref, never bytes", () => {
+    restoreSnapshotsToComposer("c1", [{ text: "", files: [ref("a.txt"), ref("b.txt")] }]);
+    expect(loadFileAttachments("c1").map((file) => file.ref)).toEqual([ref("a.txt"), ref("b.txt")]);
   });
 });

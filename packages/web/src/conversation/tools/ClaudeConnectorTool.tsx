@@ -13,10 +13,13 @@ const UNAVAILABLE_TEXT = "Claude connectors need a Claude CLI model";
 const TOOL_SEARCH_SERVER = "Tool search";
 const TOOL_SEARCH_LABEL = "Looked up connector tools";
 
-export const connectorLabel = (server: string | undefined, tool: string | undefined): string =>
+/** `undefined` when both are missing (synthesized slots, streaming calls before args): no `? · ?` row. */
+export const connectorLabel = (server: string | undefined, tool: string | undefined): string | undefined =>
   server === TOOL_SEARCH_SERVER
     ? TOOL_SEARCH_LABEL
-    : `${(server ?? "?").replace(/^claude\.ai /, "")} · ${tool ?? "?"}`;
+    : (server ?? tool)
+      ? `${(server ?? "…").replace(/^claude\.ai /, "")} · ${tool ?? "…"}`
+      : undefined;
 
 export const connectorOutput = (text: string): string =>
   text.startsWith(UNAVAILABLE_PREFIX) ? UNAVAILABLE_TEXT : text;
@@ -32,7 +35,7 @@ export function ClaudeConnectorTool({ state }: ToolRendererProps) {
   return (
     <ToolCard
       icon={<Plug />}
-      title={connectorLabel(argText(state, "server"), argText(state, "tool"))}
+      title={connectorLabel(argText(state, "server"), argText(state, "tool")) ?? state.call.name}
       status={state.status}
       badge={state.status === "error" ? <Badge variant="destructive">Error</Badge> : null}
     >

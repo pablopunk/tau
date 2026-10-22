@@ -18,6 +18,8 @@ function argumentsText(state: ToolRendererProps["state"]): string {
 function CallCard({ state }: ToolRendererProps) {
   const args = argumentsText(state);
   const output = outputOf(state);
+  // Noisy `?/?` placeholder rows come from synthesized orphan slots with empty
+  // args and from streaming calls before arguments arrive: no subtitle then.
   const server = argText(state, "server");
   const tool = argText(state, "tool");
   return (

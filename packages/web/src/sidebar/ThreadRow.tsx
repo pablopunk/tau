@@ -1,4 +1,3 @@
-import { useQueryClient } from "@tanstack/react-query";
 import type { ConversationSummary, Project } from "@tau/protocol";
 import { ArchiveIcon, ArchiveRestoreIcon, MoreHorizontalIcon } from "lucide-react";
 import { type MouseEvent, useState } from "react";
@@ -25,6 +24,7 @@ import { StatusDot } from "@/components/ui/status-dot";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { TreeBranch } from "@/components/ui/tree-branch";
 import { PendingApprovalBadge } from "@/conversation/PendingApprovalBadge";
+import { useThreadListMutation } from "@/conversation/queue/thread-list-mutations";
 import { conversationPath, nodeAssetUrl } from "@/lib/paths";
 import { queryKeys } from "@/lib/queries";
 import { useApi, useNodeId } from "@/nodes/node-context";
@@ -74,29 +74,42 @@ export function ThreadRow({
   const archiveAction = archived ? "Unarchive" : "Archive";
   const archiveLabel = `${archiveAction} ${title}`;
   const dot = conversationDot(conversation, active, nodeId);
-  const queryClient = useQueryClient();
   const navigate = useNavigate();
   const { isMobile, setOpenMobile } = useSidebar();
   const closeDialog = () => setDialog(null);
 
-  const refresh = async () => {
-    await Promise.all([
-      queryClient.invalidateQueries({ queryKey: queryKeys.conversations(conversation.projectId) }),
-      queryClient.invalidateQueries({ queryKey: queryKeys.allConversations }),
-    ]);
+  const listKeys = [queryKeys.conversations(conversation.projectId), queryKeys.allConversations] as const;
+  const renameMutation = useThreadListMutation({
+    listKeys: [...listKeys],
+    mutationFn: (name: string) => api.conversations.rename(conversation.id, name),
+    transform: (list, name) =>
+      list.map((item) => (item.id === conversation.id ? { ...item, title: name } : item)),
+  });
+  const archiveMutation = useThreadListMutation({
+    listKeys: [...listKeys],
+    mutationFn: (next: boolean) => api.conversations.archive(conversation.id, next),
+    transform: (list, next) =>
+      list.map((item) =>
+        item.id === conversation.id ? { ...item, archivedAt: next ? Date.now() : null } : item,
+      ),
+  });
+  const removeMutation = useThreadListMutation({
+    listKeys: [...listKeys],
+    mutationFn: (force: boolean) => api.conversations.remove(conversation.id, { force }),
+    transform: (list) => list.filter((item) => item.id !== conversation.id),
+  });
+  const rename = async (name: string): Promise<void> => {
+    renameMutation.mutate(name);
   };
-  const rename = async (name: string) => {
-    await api.conversations.rename(conversation.id, name);
-    await refresh();
+  const toggleArchive = () => {
+    archiveMutation.mutate(!archived);
   };
-  const toggleArchive = async () => {
-    await api.conversations.archive(conversation.id, !archived);
-    await refresh();
-  };
-  const remove = async (force: boolean) => {
-    await api.conversations.remove(conversation.id, { force });
-    if (active) navigate("/");
-    await refresh();
+  const remove = async (force: boolean): Promise<void> => {
+    removeMutation.mutate(force, {
+      onSuccess: () => {
+        if (active) navigate("/");
+      },
+    });
   };
 
   const projectIcon = (tile: number) =>

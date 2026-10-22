@@ -231,6 +231,34 @@ describe("createLiveClient", () => {
     expect(client.status).toBe("reconnecting");
   });
 
+  it("resubscribes a conversation whose watcher failed, on the healthy socket", () => {
+    const { transport, last } = createFakeTransport();
+    const errors: unknown[][] = [];
+    vi.spyOn(console, "error").mockImplementation((...args: unknown[]) => void errors.push(args));
+    const client = createLiveClient(transport);
+    const views: (ConversationView | null)[] = [];
+    client.subscribe("c1", (view) => views.push(view));
+    last().handlers.onOpen();
+    last().handlers.onFrame(opsFrame("c1", [["r", emptyView(1)]]));
+    // The watcher died while the socket stayed healthy: un+subscribe for a fresh base.
+    last().handlers.onFrame({ type: "watch-failed", conversationId: "c1" } as never);
+    expect(last().sent.slice(-2)).toEqual([
+      { type: "unsubscribe", conversationId: "c1" },
+      { type: "subscribe", conversationId: "c1" },
+    ]);
+    last().handlers.onFrame(opsFrame("c1", [["r", emptyView(7)]]));
+    expect(views.at(-1)?.conversation.id).toBe(7);
+  });
+
+  it("answers a heartbeat ping with a pong", () => {
+    const { transport, last } = createFakeTransport();
+    const client = createLiveClient(transport);
+    client.subscribe("c1", () => {});
+    last().handlers.onOpen();
+    last().handlers.onFrame({ type: "ping", at: 123 } as never);
+    expect(last().sent).toContainEqual({ type: "pong" });
+  });
+
   it("stops everything on close", () => {
     const { transport, sockets, last } = createFakeTransport();
     const client = createLiveClient(transport);

@@ -100,9 +100,29 @@ export function createLiveClient(transport: LiveTransport): LiveClient {
     }
   };
 
-  const handleFrame = (frame: ServerFrame) => {
+  // Frozen-contract frames the local protocol union doesn't declare yet:
+  // `ping` (heartbeat, answered with `pong`) and `watch-failed` (dead
+  // watcher, terminal and visible — INTEGRATOR: drop the casts post-merge).
+  type ExtendedServerFrame =
+    | ServerFrame
+    | { type: "ping"; at: number }
+    | { type: "watch-failed"; conversationId: string; error?: string };
+  type ExtendedClientFrame = ClientFrame | { type: "pong" };
+  const safeSendExtended = (target: LiveSocket | undefined, frame: ExtendedClientFrame): boolean =>
+    safeSend(target, frame as ClientFrame);
+
+  const handleFrame = (incoming: ServerFrame) => {
+    const frame = incoming as ExtendedServerFrame;
     if (frame.type === "ops") applyOps(frame.conversationId, frame.ops);
     else if (frame.type === "changed") notify(changedListeners, frame);
+    else if (frame.type === "ping") safeSendExtended(socket, { type: "pong" });
+    else if (frame.type === "watch-failed") {
+      // The watcher died while the socket stayed healthy: the subscription is
+      // removed server-side, so resubscribe that conversation for a fresh
+      // base view. Never silent — the resync path replays from the base.
+      console.error("watch failed, resubscribing", frame.conversationId, frame.error ?? "");
+      resync(frame.conversationId);
+    }
   };
 
   const scheduleReconnect = () => {

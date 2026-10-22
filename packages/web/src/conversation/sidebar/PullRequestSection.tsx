@@ -5,7 +5,7 @@ import { SidebarSection } from "./SidebarSection";
 export function PullRequestSection({ conversationId }: { conversationId: string }) {
   const thread = useAllConversations().data?.find((summary) => summary.id === conversationId);
   const workspace = thread?.workspace;
-  if (!workspace || workspace.mode !== "worktree" || workspace.state === "removed") return null;
+  if (workspace?.mode !== "worktree" || workspace.state === "removed") return null;
   // Creating a PR lives in the worktree section; here we only list an open one.
   if (!workspace.pullRequestUrl) return null;
   return (

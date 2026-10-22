@@ -761,6 +761,7 @@ export const COMMAND_EXCLUSIONS = {
   getVoiceOptions: "The web settings row reads it to render the voice picker; agents have no microphone.",
   transcribeVoice: "Needs recorded audio bytes; agents have no microphone.",
   removeVoiceModel: "The web settings row deletes the download next to unsetting the default.",
+  warmVoice: "Prefetch from the composer mic toggle; agents have no microphone.",
   getSuggestedCodeFolder: TYPING_HELPER,
   suggestProjectFiles: TYPING_HELPER,
   redeemPairing:

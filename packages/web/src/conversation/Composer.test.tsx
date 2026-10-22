@@ -89,7 +89,7 @@ describe("<Composer>", () => {
 
   it("offers steering and a stop button while busy, and stops", async () => {
     const { onStop, onSend, input } = setup({ busy: true });
-    expect(input).toHaveAttribute("placeholder", "Steer the agent…");
+    expect(input).toHaveAttribute("placeholder", "Steer at the next tool boundary…");
     await userEvent.type(input, "change course{Enter}");
     expect(onSend).toHaveBeenCalledWith({ text: "change course", images: [], files: [] });
     await userEvent.click(screen.getByRole("button", { name: "Stop" }));
@@ -99,6 +99,24 @@ describe("<Composer>", () => {
   it("has no stop button when idle", () => {
     setup();
     expect(screen.queryByRole("button", { name: "Stop" })).not.toBeInTheDocument();
+  });
+
+  it("labels the send button for the effective mode", async () => {
+    const followUp = setup({ busy: true, whenBusy: "followUp" });
+    expect(followUp.input).toHaveAttribute("placeholder", "Queue a message…");
+    expect(screen.getByRole("button", { name: "Queue message" })).toBeInTheDocument();
+    followUp.onSend.mockResolvedValue({ submissionId: 1 });
+    await userEvent.type(followUp.input, "nudge{Enter}");
+    expect(followUp.onSend).toHaveBeenCalledWith(
+      expect.objectContaining({ text: "nudge", whenBusy: "followUp" }),
+    );
+  });
+
+  it("never aborts the run on Escape", async () => {
+    const { onStop, input } = setup({ busy: true });
+    await userEvent.type(input, "oops{Escape}");
+    expect(onStop).not.toHaveBeenCalled();
+    expect(input).toHaveValue("oops");
   });
 });
 

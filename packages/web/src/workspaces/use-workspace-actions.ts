@@ -3,7 +3,6 @@ import { isAppError } from "@tau/protocol";
 import { useState } from "react";
 import { newRequestId } from "@/conversation/use-conversation-actions";
 import { errorMessage } from "@/lib/error-message";
-import { queryKeys } from "@/lib/queries";
 import { useApi } from "@/nodes/node-context";
 
 export interface WorkspaceFailure {
@@ -17,23 +16,24 @@ export function useWorkspaceActions(conversationId: string) {
   const [failure, setFailure] = useState<WorkspaceFailure | null>(null);
   const [pending, setPending] = useState(false);
 
-  const refresh = async () => {
-    await queryClient.invalidateQueries({ queryKey: queryKeys.workspace(conversationId) });
-    await queryClient.invalidateQueries({ queryKey: ["conversations"] });
-  };
+  const refresh = () =>
+    Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["workspace"] }),
+      queryClient.invalidateQueries({ queryKey: ["conversations"] }),
+    ]);
 
   const run = async (action: () => Promise<unknown>): Promise<boolean> => {
     setPending(true);
     setFailure(null);
     try {
       await action();
-      await refresh();
       return true;
     } catch (caught) {
       setFailure({ code: isAppError(caught) ? caught.code : null, message: errorMessage(caught) });
       return false;
     } finally {
       setPending(false);
+      void refresh().catch(() => undefined);
     }
   };
 

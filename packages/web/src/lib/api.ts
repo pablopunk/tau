@@ -75,7 +75,14 @@ import {
 } from "@tau/protocol";
 import { createHttpTransport } from "./transport/http";
 import { createLazyTransport } from "./transport/lazy";
-import type { LiveTransport, StreamHandlers, StreamSocket, Transport } from "./transport/types";
+import type {
+  LiveTransport,
+  RequestOptions,
+  StreamHandlers,
+  StreamSocket,
+  Transport,
+} from "./transport/types";
+import { createWorkspaceStatusQueue } from "./workspace-status-queue";
 
 export type { LiveHandlers, LiveSocket, LiveTransport, Transport } from "./transport/types";
 
@@ -183,7 +190,7 @@ export interface Api {
     compact(id: string, input: CompactInput): Promise<void>;
   };
   workspaces: {
-    status(conversationId: string): Promise<WorkspaceStatus>;
+    status(conversationId: string, options?: RequestOptions): Promise<WorkspaceStatus>;
     merge(conversationId: string): Promise<ConversationSummary>;
     createPullRequest(conversationId: string): Promise<ConversationSummary>;
     remove(conversationId: string, force?: boolean): Promise<ConversationSummary>;
@@ -310,6 +317,7 @@ export function isUnknownRoute(error: unknown): boolean {
 
 export function createApi(transport: Transport): Api {
   const { request } = transport;
+  const readWorkspaceStatus = createWorkspaceStatusQueue();
   return {
     fs: {
       suggestDirectories: (input) => request("suggestDirectories", { body: input }),
@@ -405,7 +413,11 @@ export function createApi(transport: Transport): Api {
       compact: (id, input) => request("compactConversation", { params: { id }, body: input }),
     },
     workspaces: {
-      status: (id) => request("getWorkspace", { params: { id } }),
+      status: (id, options) =>
+        readWorkspaceStatus(
+          (signal) => request("getWorkspace", { params: { id } }, { signal }),
+          options?.signal,
+        ),
       merge: (id) => request("mergeWorkspace", { params: { id } }),
       createPullRequest: (id) => request("createPullRequest", { params: { id } }),
       remove: (id, force = false) =>

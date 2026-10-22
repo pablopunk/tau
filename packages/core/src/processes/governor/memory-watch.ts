@@ -115,7 +115,8 @@ export function createMemoryWatch(deps: WatchDeps): MemoryWatch {
         item.overSweeps = 0;
         return;
       }
-      await kill(item, rows);
+      // Re-sweep: the rows above are older than the footprint read, and a PID in them may have been reused.
+      await kill(item, await deps.sweep());
     } finally {
       item.confirming = false;
     }
