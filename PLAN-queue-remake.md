@@ -366,10 +366,31 @@ first (independent of R1–R4); baseline captured immediately after; releases
 must not regress it. One manual real-server spot-check per release,
 recorded in this doc.
 
+Pipeline spans, not just UI instants: every action is also traced
+server-side by stage, joined on the same correlation ids, so a slow action
+can be attributed instead of guessed. Canonical example — send:
+tap → REST received → admitted (gate wait) → queued-dwell (0 if idle) →
+run started → first live output → turn complete. `sendNow`: tap → abort
+start/end → re-admit → run restarted → first output. Bang: tap → admitted
+→ spawned → exit → notification delivered → model turn picks it up
+(or appended idle). Queue dwell time (submitted → delivered/placed) is a
+first-class metric — invisible queue-sitting was the original complaint.
+Time-to-first-visible-response is tracked per run (client marks first
+streaming/tool output against the run's submission).
+Server logs each transition it owns (admission, gate wait, abort
+start/end, run start, exit, notification delivery) with
+`{requestId, submissionId, entryId?}` through pino; the client ring
+covers tap + first-visible-output + reflect. E2E joins both sides by
+`submissionId` into the same baseline JSON (`serverP50/P95` per stage,
+`queueDwellP95`, `timeToFirstResponseP95`); guard thresholds apply per
+stage, so a regression points at the stage, not just "slow".
+No new storage: stages are log lines, same artifact.
+
 Ownership: foundation freezes `timings.ts` shape + receipt fields + log-line
-schema with the protocol freeze; web agent owns the marks; server agent
-owns the hooks + `sendNow` breakdown; one agent owns `timings.spec.ts` +
-baseline capture; integrator re-captures post-merge.
+schema (including stage names) with the protocol freeze; web agent owns
+the marks; server agent owns the hooks + `sendNow`/admission/run-start
+stage logs; one agent owns `timings.spec.ts` + baseline capture;
+integrator re-captures post-merge.
 
 ## Verification
 
