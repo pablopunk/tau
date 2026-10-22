@@ -119,7 +119,9 @@ describe("settings dialog search", () => {
 
     await user.keyboard("{Enter}");
     await waitFor(() =>
-      expect(screen.getByTestId("url")).toHaveTextContent("settings=limits&setting=resources-levels-worktree"),
+      expect(screen.getByTestId("url")).toHaveTextContent(
+        "settings=limits&setting=resources-levels-worktree",
+      ),
     );
     const row = document.querySelector('[data-setting-id="resources-levels-worktree"]') as HTMLElement;
     await waitFor(() => expect(row).toHaveAttribute("data-highlighted"));

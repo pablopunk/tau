@@ -48,7 +48,7 @@ import { createFakeNodes, FAKE_NODE_SEEDS, type FakeNodes } from "./fake-nodes";
 import { createFakeProviders } from "./fake-providers";
 import { createFakeRemote, type FakeRemote } from "./fake-remote";
 import { createFakeResources, type FakeResources } from "./fake-resources";
-import { createFakeSandbox, type FakeSandbox } from "./fake-sandbox";
+import { createFakeSandbox } from "./fake-sandbox";
 import { suggestFakeDirectories } from "./fake-suggest";
 import { createFakeTerminals } from "./fake-terminals";
 import type { SpawnParams } from "./fake-thread-ops";
