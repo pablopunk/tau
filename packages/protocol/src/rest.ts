@@ -67,6 +67,7 @@ import { DirectoryNodeSchema, ExpulsionSchema, RemoveNodeBodySchema } from "./no
 import { NodeSchema, NodeSelfSchema, NodeSummarySchema, RenameNodeBodySchema } from "./nodes";
 import { HealthSchema, RemoteStatusSchema } from "./remote";
 import { ResourceActivitySchema, ResourceSettingsSchema, ResourceSupportSchema } from "./resources";
+import { RuntimeDescriptorListSchema } from "./runtime";
 import { SandboxSettingsSchema } from "./sandbox";
 import { OpenTerminalInputSchema, TerminalAvailabilitySchema, TerminalInfoSchema } from "./terminals";
 import { UpdateTodosInputSchema } from "./todos";
@@ -482,6 +483,13 @@ export const routes = {
     path: `${API_PREFIX}/models`,
     status: 200,
     response: Type.Array(ModelInfoSchema),
+  },
+  /** Which executors this node offers a new thread, and what each supports. `claude-code` is listed even when off. */
+  listRuntimes: {
+    method: "GET",
+    path: `${API_PREFIX}/runtimes`,
+    status: 200,
+    response: RuntimeDescriptorListSchema,
   },
   listProjects: {
     method: "GET",

@@ -63,6 +63,7 @@ import type { DirectoryNode, Expulsion, NodeGroup } from "./node-group";
 import type { Node, NodeLinkDirection, NodeLinkReport, NodePeerInfo, NodeSelf, NodeSummary } from "./nodes";
 import type { RemoteStatus } from "./remote";
 import type { ResourceActivity, ResourceSettings, ResourceSupport } from "./resources";
+import type { RuntimeDescriptorList } from "./runtime";
 import type { SandboxSettings } from "./sandbox";
 import type { OpenTerminalInput, TerminalInfo } from "./terminals";
 import type { UpdaterPort, UpdateStartBody, UpdateStatus } from "./updates";
@@ -236,6 +237,10 @@ export interface Core {
     /** Idempotent. Resolves once the login has stopped. */
     cancelLogin(sessionId: string): Promise<void>;
   };
+  runtimes: {
+    /** Always lists `pi` (enabled) then `claude-code`, enabled only when the node turned native on. Never rejects. */
+    list(): Promise<RuntimeDescriptorList>;
+  };
   models: {
     /** Models of every connected provider, in provider order; `[]` when none is connected. */
     list(): Promise<ModelInfo[]>;
@@ -290,6 +295,7 @@ export interface Core {
      * Creates the conversation and admits its first message in one call; resolves once admitted. A repeated
      * `requestId` returns the same conversation. Rejects `not_found`, `project_not_ready`, `no_provider`,
      * `no_default_model`, `invalid_request` or `images_not_supported` without creating anything.
+     * `executor: "claude-code"` rejects `invalid_request` when the node has native off, and for attachments.
      */
     start(input: StartConversationInput): Promise<ConversationSummary>;
     /** Rejects `not_found`. */

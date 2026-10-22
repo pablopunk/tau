@@ -5,9 +5,11 @@ import {
   CompactionSettingsSchema,
   type ConversationSummary,
   type Core,
+  describeExecutors,
   type MessageMode,
   type ModelRef,
   type NodeLinkDirection,
+  nativeDisabledError,
   type Project,
   type ProviderId,
   type Settings,
@@ -338,6 +340,7 @@ export function createFakeCore(options: FakeCoreOptions = {}): FakeCore {
   }
 
   async function startConversation(input: StartConversationInput) {
+    if (input.executor === "claude-code") throw nativeDisabledError();
     const project = requireProject(input.projectId);
     if (project.status !== "ready") throw new AppError("project_not_ready", "This project is not ready.");
     requireProvider();
@@ -610,6 +613,7 @@ export function createFakeCore(options: FakeCoreOptions = {}): FakeCore {
     },
     providers: connections.providers,
     models: connections.models,
+    runtimes: { list: async () => describeExecutors(undefined) },
     voice: {
       async options() {
         const openrouter = (await connections.providers.list()).find(

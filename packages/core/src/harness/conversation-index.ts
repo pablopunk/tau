@@ -1,5 +1,5 @@
 import type { ConversationId, Cursor, Harness } from "@earendil-works/pi-durable";
-import type { ConversationSummary, ThreadWorkspace } from "@tau/protocol";
+import type { ConversationSummary, ExecutorKind, ThreadWorkspace } from "@tau/protocol";
 import {
   ConversationDoc,
   type ConversationMeta,
@@ -21,7 +21,17 @@ export const legacyWorkspace = (projectPath: string): ThreadWorkspace => ({
   pullRequestUrl: null,
 });
 
-export const toSummary = (project: ProjectRef, entry: IndexedConversation): ConversationSummary => ({
+export type ExecutorMarked = { executor?: ExecutorKind };
+
+const NATIVE_MARKER: ExecutorKind = "claude-code";
+
+const executorFieldOf = (entry: ExecutorMarked): ExecutorMarked =>
+  entry.executor === NATIVE_MARKER ? { executor: NATIVE_MARKER } : {};
+
+export const toSummary = (
+  project: ProjectRef,
+  entry: IndexedConversation & ExecutorMarked,
+): ConversationSummary => ({
   id: String(entry.conversationId),
   projectId: project.id,
   title: entry.title,
@@ -45,6 +55,7 @@ export const toSummary = (project: ProjectRef, entry: IndexedConversation): Conv
   nextTimerAt: entry.nextTimerAt === undefined ? null : new Date(entry.nextTimerAt).toISOString(),
   goal: entry.goal ?? null,
   unmergedWarning: entry.archivedAt === undefined ? null : (entry.unmergedWarning ?? null),
+  ...executorFieldOf(entry),
 });
 
 export const byMostRecentlyUpdated = (a: ConversationSummary, b: ConversationSummary) =>

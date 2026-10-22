@@ -14,6 +14,7 @@ const MODULES: readonly ContractModule[] = [
   "nodes",
   "nodes-group",
   "updates",
+  "runtimes",
 ];
 
 describe.skipIf(!REAL_CORE_IMPLEMENTED)("real core", () => {

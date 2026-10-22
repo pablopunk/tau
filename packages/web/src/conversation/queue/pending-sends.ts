@@ -1,6 +1,9 @@
 import type { FileRef, ImageInput, SendReceipt, WhenBusy } from "@tau/protocol";
 import { useSyncExternalStore } from "react";
 
+/** A receipt plus the request id the client minted for it, when the sender knows it. */
+export type SentReceipt = SendReceipt & { readonly requestId?: string | undefined };
+
 /** A composer send waiting for live state to reflect it. Keyed by the returned receipt — never by text. */
 export interface PendingSend {
   /** Client key: `send-<submissionId>`, or `failed-<n>` for sends that never got a receipt. */
@@ -8,6 +11,8 @@ export interface PendingSend {
   readonly conversationId: string;
   readonly submissionId?: number | undefined;
   readonly entryId?: number | undefined;
+  /** Native threads echo it on their `user` event: the only exact id a native send can be matched on. */
+  readonly requestId?: string | undefined;
   readonly text: string;
   readonly images: readonly ImageInput[];
   readonly files: readonly FileRef[];
@@ -35,7 +40,7 @@ function forConversation(conversationId: string): PendingSend[] {
  */
 export function noteSending(
   conversationId: string,
-  receipt: SendReceipt,
+  receipt: SentReceipt,
   message: { text: string; images: readonly ImageInput[]; files: readonly FileRef[]; whenBusy?: WhenBusy },
 ): PendingSend {
   const key = `send-${receipt.submissionId}`;
@@ -44,6 +49,7 @@ export function noteSending(
     conversationId,
     submissionId: receipt.submissionId,
     ...(receipt.entryId !== undefined && { entryId: receipt.entryId }),
+    ...(receipt.requestId !== undefined && { requestId: receipt.requestId }),
     ...message,
     status: "sending",
   };
@@ -100,7 +106,7 @@ function subscribe(listener: () => void): () => void {
  * resolve a receipt, pre-contract ones resolve `void`. Never treat a
  * missing receipt as failure — the live view still confirms.
  */
-export function hasReceipt(receipt: unknown): receipt is SendReceipt {
+export function hasReceipt(receipt: unknown): receipt is SentReceipt {
   return typeof receipt === "object" && receipt !== null && "submissionId" in receipt;
 }
 

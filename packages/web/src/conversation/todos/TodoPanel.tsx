@@ -1,4 +1,4 @@
-import type { ConversationView } from "@tau/protocol";
+import { type ConversationView, todosProjectionOf } from "@tau/protocol";
 import { ChevronRight, ListChecks, Pencil } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -6,10 +6,10 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { MorphText } from "@/components/ui/morph-text";
 import { TodoEditor } from "./TodoEditor";
 import { TodoList } from "./TodoList";
-import { doneCount, isFinished, latestTodos } from "./todo-items";
+import { doneCount, isFinished } from "./todo-items";
 
 export function TodoPanel({ conversationId, view }: { conversationId: string; view: ConversationView }) {
-  const todos = latestTodos(view);
+  const { items: todos } = todosProjectionOf(view);
   const [editing, setEditing] = useState(false);
   if (!editing && isFinished(todos)) return null;
   return (

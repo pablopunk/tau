@@ -756,6 +756,8 @@ const TYPING_HELPER = "A typing helper for the UI; agents have `ls`.";
 const UPDATE_CHECK = "`tau update --check` covers it.";
 
 export const COMMAND_EXCLUSIONS = {
+  listRuntimes:
+    "A state the web reads to offer an executor; the CLI picks one with `threads start --executor`.",
   listNodes: "`tau nodes list` shows the directory (`getNodeDirectory`), a superset.",
   getProjectIcon: IMAGES,
   getIconCandidate: IMAGES,
