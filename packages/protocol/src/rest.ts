@@ -50,6 +50,7 @@ import {
   WorkspaceDefaultSchema,
 } from "./entities";
 import { ICON_BODY_LIMIT } from "./icons";
+import { MetricsResponseSchema } from "./metrics";
 import {
   CheckpointSchema,
   McpServerConfigSchema,
@@ -124,6 +125,13 @@ const EntryBody = Type.Object({ entryId: Type.String({ minLength: 1 }) });
 
 export const routes = {
   getHealth: { method: "GET", path: `${API_PREFIX}/health`, status: 200, response: HealthSchema },
+  getMetrics: {
+    method: "GET",
+    path: `${API_PREFIX}/metrics`,
+    status: 200,
+    ownerOnly: true,
+    response: MetricsResponseSchema,
+  },
   getRemoteStatus: { method: "GET", path: `${API_PREFIX}/remote`, status: 200, response: RemoteStatusSchema },
   enableRemote: {
     method: "POST",

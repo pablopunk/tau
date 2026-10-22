@@ -160,6 +160,13 @@ const handlers: Handlers = {
   stopResourceCommand: (core, { params }) => core.settings.stopResourceCommand(params.id),
   listApprovals: (core, { params }) => core.approvals.list(params.id),
   getHealth: async () => ({ ok: true }),
+  getMetrics: async () => ({
+    scope: "local",
+    since: Date.now(),
+    intervalMs: 10_000,
+    samples: [],
+    requests: [],
+  }),
   getRemoteStatus: (core) => core.remote.status(),
   enableRemote: (core) => core.remote.enable(),
   disableRemote: (core) => core.remote.disable(),
