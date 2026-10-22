@@ -85,13 +85,14 @@ export const useModels = () => {
 };
 
 /** Which engines this node offers a new thread. A failing or old node just has no answer: callers fall back to Pi. */
-export const useRuntimes = () => {
+export const useRuntimes = ({ enabled = true }: { enabled?: boolean } = {}) => {
   const api = useApi();
   return useQuery({
     queryKey: queryKeys.runtimes,
     queryFn: () => api.runtimes.list(),
     retry: false,
     staleTime: RUNTIMES_STALE_MS,
+    enabled,
   });
 };
 

@@ -43,6 +43,7 @@ import {
   statusOfOutcome,
 } from "./finalize";
 import type { NativeRunPolicy } from "./launch-policy";
+import { type NativeMode, retainedError } from "./native-mode";
 import type { NativeSettingSource } from "./native-options";
 import { NATIVE_SHELL_CAPABILITIES } from "./native-shell-executor";
 import { createNativePermissionBroker, type NativePermissionBroker } from "./permissions";
@@ -71,6 +72,8 @@ export interface NativeServiceDeps {
   readonly onChange: (projectId: string) => void;
   readonly now?: () => number;
   readonly createStore?: (threadId: string) => RuntimeStore;
+  /** `retained` refuses every start and send before any side effect; default `active`. */
+  readonly mode?: Exclude<NativeMode, "off">;
   /** The shared workspace writer barrier: no run is admitted or launched into a workspace being merged or removed. */
   readonly workspaceFence?: { assertOpen(workspaceKey: string, thread: string): void };
 }
@@ -85,6 +88,8 @@ export type NativeReconciled = { readonly threadId: string; readonly outcome: Re
 export interface NativeService {
   /** What a native thread supports today; listed on the wire so clients never guess. */
   readonly capabilities: RuntimeCapabilities;
+  /** False in retained mode: existing native threads stay readable and cancellable, nothing new starts. */
+  readonly creationEnabled: boolean;
   startThread(request: NativeStartRequest): Promise<ConversationSummary>;
   send(threadId: string, input: SendMessageInput): Promise<AdmissionReceipt>;
   cancel(threadId: string): Promise<NativeCancelResult>;
@@ -157,6 +162,10 @@ const stopsPump = (result: RunResult): boolean =>
 export function createNativeService(deps: NativeServiceDeps): NativeService {
   const { harness, conversations, onChange } = deps;
   const now = deps.now ?? Date.now;
+  const creationEnabled = (deps.mode ?? "active") === "active";
+  const requireCreationEnabled = (): void => {
+    if (!creationEnabled) throw retainedError();
+  };
   const runtimes = new Map<string, Promise<ThreadRuntime>>();
   const knownNative = new Set<string>();
   const pumps = new Set<Promise<void>>();
@@ -368,6 +377,7 @@ export function createNativeService(deps: NativeServiceDeps): NativeService {
     runtime: ThreadRuntime,
     input: SendMessageInput,
   ): Promise<AdmissionReceipt> {
+    requireCreationEnabled();
     return serialized(runtime, async () => {
       const receipt = await runtime.store.admit({
         threadId: runtime.thread.id,
@@ -380,6 +390,7 @@ export function createNativeService(deps: NativeServiceDeps): NativeService {
   }
 
   async function startThread(request: NativeStartRequest): Promise<ConversationSummary> {
+    requireCreationEnabled();
     requireNativeInput(request.input);
     deps.workspaceFence?.assertOpen(request.workspace.path, request.input.requestId);
     await deps.ensureFormat?.();
@@ -393,6 +404,7 @@ export function createNativeService(deps: NativeServiceDeps): NativeService {
   }
 
   async function send(threadId: string, input: SendMessageInput): Promise<AdmissionReceipt> {
+    requireCreationEnabled();
     requireNativeInput(input);
     const summary = await resolveSummary(threadId);
     deps.workspaceFence?.assertOpen(summary.workspace.path, threadId);
@@ -484,6 +496,7 @@ export function createNativeService(deps: NativeServiceDeps): NativeService {
 
   return {
     capabilities: NATIVE_SHELL_CAPABILITIES,
+    creationEnabled,
     startThread,
     send,
     cancel,

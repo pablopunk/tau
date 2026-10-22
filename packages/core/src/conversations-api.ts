@@ -46,6 +46,7 @@ import { createSubagentStopper } from "./harness/subagent-stop";
 import type { SettingsStore } from "./home/settings-store";
 import type { ProviderService } from "./provider/provider-service";
 import { requireName } from "./require-name";
+import { retainedError } from "./runtimes/native/native-mode";
 import { type NativeService, requireNativeInput } from "./runtimes/native/service";
 import type { StatusTracker } from "./status/status-tracker";
 import type { TitleService } from "./titles/title-service";
@@ -140,7 +141,7 @@ export function createConversationsApi(deps: {
   };
   changes: ChangeEmitter;
   notifications: NotificationSubmitter;
-  /** Present only while the experimental native flag is on. */
+  /** Present while the native flag is on, or while native threads exist and only their reading and cancelling is kept. */
   native?: NativeService;
   now: () => number;
 }): Core["conversations"] & Partial<NativeConversationsApi> {
@@ -300,6 +301,7 @@ export function createConversationsApi(deps: {
   }
 
   function startNative(native: NativeService, input: NativeStartInput): Promise<ConversationSummary> {
+    if (!native.creationEnabled) return Promise.reject(retainedError());
     const pending = startsInFlight.get(input.requestId) ?? startNativeOnce(native, input);
     startsInFlight.set(input.requestId, pending);
     return pending.finally(() => {

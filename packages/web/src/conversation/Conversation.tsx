@@ -7,7 +7,8 @@ import { Button } from "@/components/ui/button";
 import { AnimatePresence, gentle, motion } from "@/components/ui/motion";
 import { Skeleton } from "@/components/ui/skeleton";
 import { GoalChip } from "@/goal/GoalChip";
-import { useAllConversations, useModels, useSettings } from "@/lib/queries";
+import { useAllConversations, useModels, useRuntimes, useSettings } from "@/lib/queries";
+import { claudeCodeDisabledReason } from "@/lib/runtimes";
 import { useApi, useNodeId } from "@/nodes/node-context";
 import { ThreadTerminalButton } from "@/panes";
 import { NameDialog } from "@/sidebar/NameDialog";
@@ -88,6 +89,8 @@ function ConversationPanel({ id }: ConversationProps) {
   const view = state.status === "ready" ? state.view : undefined;
   const executor = threadExecutorOf(summary, view);
   const native = isNativeExecutor(executor);
+  const runtimes = useRuntimes({ enabled: native });
+  const nativeDisabledReason = native ? claudeCodeDisabledReason(runtimes.data) : undefined;
   const busy = state.status === "ready" && readRuntimeLive(state.view, executor).busy;
   const queued = view ? readRuntimeLive(view, executor).queued : [];
   const handleStop = useCallback(() => stopAndRestore(api, id, nodeId, queued), [api, id, nodeId, queued]);
@@ -183,6 +186,8 @@ function ConversationPanel({ id }: ConversationProps) {
                 target={id}
                 imagesAllowed={!native && imagesAllowedFor(view, models)}
                 busy={busy}
+                disabled={nativeDisabledReason !== undefined}
+                disabledReason={nativeDisabledReason}
                 whenBusy={native ? "followUp" : whenBusy}
                 followUpOnly={native}
                 attachmentsBlockedReason={native ? NATIVE_ATTACHMENTS_REASON : undefined}

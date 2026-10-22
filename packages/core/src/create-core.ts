@@ -86,6 +86,12 @@ import {
   refuseLoopsOnNative,
 } from "./runtimes/native/finalize";
 import { nativeLaunchPolicy } from "./runtimes/native/launch-policy";
+import {
+  type NativeMode,
+  nativeModeOf,
+  nativeStateExistsIn,
+  refusingQuery,
+} from "./runtimes/native/native-mode";
 import { withNativeThreads } from "./runtimes/native/permissions";
 import { createNativeService, type NativeService } from "./runtimes/native/service";
 import { nativeWriterPort } from "./runtimes/native/writer-state";
@@ -128,7 +134,7 @@ export interface CoreDependencies {
   /** Tests replace the tunnel with the fake adapter. Default: the OpenTunnel adapter. */
   readonly remoteAdapter?: (deps: RemoteAdapterDeps) => RemoteAdapter;
   readonly terminalService?: (deps: TerminalServiceDeps) => TerminalService;
-  /** Tests replace the Agent SDK behind native threads. Used only while the native flag is on. */
+  /** Tests replace the Agent SDK behind native threads. Used only while the native flag is on; a retained node never launches. */
   readonly nativeQuery?: NativeQueryFn;
 }
 
@@ -174,6 +180,10 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
   const lock = await acquireHomeLock(home.lockFile);
   try {
     await guardRuntimeFormatAtStartup(home.root);
+    const nativeMode: NativeMode = nativeModeOf({
+      creationEnabled: nativeEnabledIn(deps.env),
+      stateExists: await nativeStateExistsIn(home.root),
+    });
     useBundledSkills(options.assets?.versionDir);
     if (options.cliCommand !== undefined) await writeTauShim(home.root, options.cliCommand);
     const changes = createChangeEmitter();
@@ -280,7 +290,7 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
     const nativeForWorkspaces: { current?: NativeService } = {};
     const workspaces = createWorkspaceService({
       writerBarrier: workspaceBarrier,
-      ...(nativeEnabledIn(deps.env) && {
+      ...(nativeMode !== "off" && {
         writerStateOf: nativeWriterPort(() => nativeForWorkspaces.current),
       }),
       home: home.root,
@@ -453,35 +463,38 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
       announce: (projectId) => changes.emit({ resource: "conversations", projectId }),
     });
     const recovery = createConversationRecovery({ harness, conversations, changes });
-    const native: NativeService | undefined = nativeEnabledIn(deps.env)
-      ? createNativeService({
-          harness,
-          conversations,
-          query: deps.nativeQuery ?? (await loadAgentSdkQuery()),
-          approvals,
-          checkpoints: createNativeCheckpointPort({
-            checkpoints,
-            store: createCheckpointStore(harness),
-            find: (id) => conversations.find(id),
-          }),
-          ensureFormat: () => ensureRuntimeFormat(home.root, deps.now),
-          workspaceFence: workspaceBarrier,
-          policyFor: nativeLaunchPolicy({
-            sandbox: {
-              settings: async () => (await settings.get()).sandbox,
-              scopeOf: async (id): Promise<SandboxScope> => {
-                const thread = await sandboxThreadOf(id);
-                return thread
-                  ? classifyThread({ parentId: thread.parentId ?? undefined, workspace: thread.workspace })
-                  : "unknown";
+    const native: NativeService | undefined =
+      nativeMode !== "off"
+        ? createNativeService({
+            harness,
+            conversations,
+            mode: nativeMode,
+            query:
+              nativeMode === "retained" ? refusingQuery : (deps.nativeQuery ?? (await loadAgentSdkQuery())),
+            approvals,
+            checkpoints: createNativeCheckpointPort({
+              checkpoints,
+              store: createCheckpointStore(harness),
+              find: (id) => conversations.find(id),
+            }),
+            ensureFormat: () => ensureRuntimeFormat(home.root, deps.now),
+            workspaceFence: workspaceBarrier,
+            policyFor: nativeLaunchPolicy({
+              sandbox: {
+                settings: async () => (await settings.get()).sandbox,
+                scopeOf: async (id): Promise<SandboxScope> => {
+                  const thread = await sandboxThreadOf(id);
+                  return thread
+                    ? classifyThread({ parentId: thread.parentId ?? undefined, workspace: thread.workspace })
+                    : "unknown";
+                },
+                trustOf: sandboxTrustOf,
               },
-              trustOf: sandboxTrustOf,
-            },
-          }).forThread,
-          onChange: (projectId) => changes.emit({ resource: "conversations", projectId }),
-          now: deps.now,
-        })
-      : undefined;
+            }).forThread,
+            onChange: (projectId) => changes.emit({ resource: "conversations", projectId }),
+            now: deps.now,
+          })
+        : undefined;
     nativeForWorkspaces.current = native;
     const isNativeThread = async (id: string) => (await native?.isNative(id)) ?? false;
     await status.recoverAtStartup();

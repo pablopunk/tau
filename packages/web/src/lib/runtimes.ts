@@ -5,3 +5,15 @@ export function enabledClaudeCode(list: RuntimeDescriptorList | undefined): Exec
   const executors = Array.isArray(list?.executors) ? list.executors : [];
   return executors.find((item) => item.executor === "claude-code" && item.enabled === true);
 }
+
+const sentenceOf = (text: string): string => `${text.charAt(0).toUpperCase()}${text.slice(1)}.`;
+
+const CLAUDE_CODE_DISABLED_FALLBACK = "Claude Code is disabled on this node";
+
+/** Why a native thread cannot take new messages; `undefined` while the node has not said Claude Code is disabled. */
+export function claudeCodeDisabledReason(list: RuntimeDescriptorList | undefined): string | undefined {
+  const executors = Array.isArray(list?.executors) ? list.executors : [];
+  const entry = executors.find((item) => item.executor === "claude-code");
+  if (entry === undefined || entry.enabled !== false) return undefined;
+  return sentenceOf(entry.reason ?? CLAUDE_CODE_DISABLED_FALLBACK);
+}

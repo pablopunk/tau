@@ -47,6 +47,8 @@ export interface ComposerProps {
   busy?: boolean;
   /** Sending is blocked, e.g. while the project is cloning. */
   disabled?: boolean;
+  /** Why sending is blocked, shown under the input box while `disabled`. */
+  disabledReason?: string;
   /** Rendered under the input box, e.g. the project picker. */
   footer?: ReactNode;
   /** Rendered inside the input box next to the stop button, e.g. the busy key hint. */
@@ -111,6 +113,7 @@ function ComposerForm({
   imagesAllowed,
   busy = false,
   disabled = false,
+  disabledReason,
   footer,
   hint,
   toolbar,
@@ -616,6 +619,11 @@ function ComposerForm({
       {attachmentsBlockedReason ? (
         <p role="note" className="px-2 text-xs text-muted-foreground">
           {attachmentsBlockedReason}
+        </p>
+      ) : null}
+      {disabled && disabledReason ? (
+        <p role="note" className="px-2 text-xs text-muted-foreground">
+          {disabledReason}
         </p>
       ) : null}
       {footer}
