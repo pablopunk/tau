@@ -10,8 +10,8 @@ import { UserMessage } from "./UserMessage";
  * Inbox split: "Up next" (followUp) vs "Will steer" (steer). Cancel exists
  * only per user item; notification rows render with no action buttons —
  * nothing user-meaningful can be done with them (Cancel/Send-now on a
- * notification id is rejected server-side). Per-item mode buttons are gone
- * (R3.2): mode is chosen at send time.
+ * notification id is rejected server-side). Per-item Steer/Queue buttons
+ * move the row across sections (cancel + re-send with the other `whenBusy`).
  */
 export function QueuedMessages({
   items,

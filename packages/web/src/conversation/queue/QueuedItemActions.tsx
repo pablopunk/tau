@@ -1,4 +1,4 @@
-import type { ImageInput, QueuedMessage } from "@tau/protocol";
+import type { ImageInput, QueuedMessage, WhenBusy } from "@tau/protocol";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -8,6 +8,7 @@ import { scopeTarget } from "@/lib/node-keys";
 import { markAction, markConfirm, markLiveReflect } from "@/lib/timings";
 import { useApi, useNodeId } from "@/nodes/node-context";
 import { restoreSnapshotsToComposer, restoreToComposer } from "../composer/restore";
+import { newRequestId } from "../use-conversation-actions";
 import { isUserItem, STEER_COPY } from "./queued-mode";
 
 const DELIVERED_NOTICE = "Too late to change: the agent already received that message.";
@@ -18,6 +19,11 @@ const DELIVERED_NOTICE = "Too late to change: the agent already received that me
  * never mints requestIds here and never moves queue rows optimistically —
  * ordering lives server-side (abort/withdraw/re-admit may not honor a faked
  * order).
+ *
+ * Mode switch (Steer/Queue) is cancel + re-send with the other `whenBusy`:
+ * the cancel snapshot carries FileRefs the row alone lacks, so content comes
+ * from the cancel response with row-content fallback. A failed re-send puts
+ * the cancelled content back in the composer so nothing is lost.
  *
  * One busy flag disables every queued-item button while any action is in
  * flight: no double-click double-admit (F3). Unselected user items come back
@@ -83,6 +89,39 @@ export function QueuedItemActions({
       markLiveReflect("queue-cancel", {}, token);
     });
 
+  const changeMode = (mode: WhenBusy) => {
+    if (item.mode === mode) return;
+    return run(async (rpc) => {
+      const token = markAction("queue-mode-change");
+      const target = scopeTarget(conversationId, nodeId);
+      const cancelled = await rpc.cancelQueued(conversationId, String(item.id));
+      if (!cancelled.cancelled) {
+        toast.info(DELIVERED_NOTICE);
+        return;
+      }
+      const snapshot = cancelled.restored[0];
+      const text = snapshot ? snapshot.text : item.text;
+      const files = snapshot ? [...snapshot.files] : [];
+      const images = item.images.map(toImageInput);
+      try {
+        const receipt = await rpc.send(conversationId, {
+          text,
+          ...(images.length > 0 && { images }),
+          ...(files.length > 0 && { files }),
+          whenBusy: mode,
+          requestId: newRequestId(),
+        });
+        markConfirm(token, receipt, "queue-mode-change");
+      } catch (error) {
+        // Cancel already withdrew the row: don't lose it, put it back in the composer.
+        if (snapshot) restoreSnapshotsToComposer(target, [snapshot]);
+        else restoreToComposer(target, { text: item.text, images });
+        throw error;
+      }
+      markLiveReflect("queue-mode-change", {}, token);
+    });
+  };
+
   if (!isUserItem(item)) return null;
   return (
     <>
@@ -95,6 +134,27 @@ export function QueuedItemActions({
         title={STEER_COPY}
       >
         Send now
+      </Button>
+      <Button
+        type="button"
+        variant={item.mode === "steer" ? "secondary" : "ghost"}
+        size="sm"
+        aria-pressed={item.mode === "steer"}
+        disabled={disabled}
+        onClick={() => void changeMode("steer")}
+        title={STEER_COPY}
+      >
+        Steer
+      </Button>
+      <Button
+        type="button"
+        variant={item.mode === "followUp" ? "secondary" : "ghost"}
+        size="sm"
+        aria-pressed={item.mode === "followUp"}
+        disabled={disabled}
+        onClick={() => void changeMode("followUp")}
+      >
+        Queue
       </Button>
       <Button type="button" variant="ghost" size="sm" disabled={disabled} onClick={() => void cancel()}>
         Cancel

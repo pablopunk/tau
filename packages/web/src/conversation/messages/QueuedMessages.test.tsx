@@ -5,11 +5,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NodeApiProvider } from "@/nodes/node-context";
 import { QueuedMessages } from "./QueuedMessages";
 
-const mocks = vi.hoisted(() => ({ sendNow: vi.fn(), cancelQueued: vi.fn() }));
+const mocks = vi.hoisted(() => ({ send: vi.fn(), sendNow: vi.fn(), cancelQueued: vi.fn() }));
 
 vi.mock("@/lib/api", () => ({
   api: {
     conversations: {
+      send: mocks.send,
       sendNow: mocks.sendNow,
       cancelQueued: mocks.cancelQueued,
       listAll: async () => [],
@@ -58,8 +59,10 @@ describe("<QueuedMessages>", () => {
 
   it("gives notification rows no action buttons", () => {
     renderInbox();
-    // Two user items × (Send now + Cancel); the notification disclosure adds no queue actions.
+    // Two user items × (Send now + Steer + Queue + Cancel); the notification disclosure adds no queue actions.
     expect(screen.getAllByRole("button", { name: "Send now" })).toHaveLength(2);
+    expect(screen.getAllByRole("button", { name: "Steer" })).toHaveLength(2);
+    expect(screen.getAllByRole("button", { name: "Queue" })).toHaveLength(2);
     expect(screen.getAllByRole("button", { name: "Cancel" })).toHaveLength(2);
   });
 
