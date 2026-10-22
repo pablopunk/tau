@@ -2,6 +2,7 @@ import { spawnSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { ResourceSupport, SandboxSupport } from "@tau/protocol";
 import { describe, expect, it } from "vitest";
 import type { Exec, ExecResult } from "./exec";
 import {
@@ -10,6 +11,9 @@ import {
   PRESPAWN_DEADLINE_MS,
   PROBE_TIMEOUT_MS,
   priorityIsCgroupLimited,
+  probeSandboxLayer2,
+  sandboxMechanism,
+  sandboxSupportOf,
 } from "./resource-support";
 
 const ok = (stdout = ""): ExecResult => ({ code: 0, stdout, stderr: "", timedOut: false });
@@ -167,5 +171,43 @@ describe("describe", () => {
       (await described("0::/user.slice/user-1000.slice/user@1000.service/app.slice/tau.service\n"))
         .sameCgroupOnly,
     ).toBe(true);
+  });
+});
+
+describe("sandbox capability probe", () => {
+  const none = () => undefined;
+  const found = () => "/bin/tool";
+
+  it("detects the Layer-1 mechanism from binaries, never from the platform alone", () => {
+    expect(sandboxMechanism("macos", {}, found)).toBe("seatbelt");
+    expect(sandboxMechanism("macos", {}, none)).toBe("none");
+    expect(sandboxMechanism("linux", { systemdRun: "/usr/bin/systemd-run" }, none)).toBe("systemd");
+    expect(sandboxMechanism("linux", {}, found)).toBe("bwrap");
+    expect(sandboxMechanism("linux", {}, none)).toBe("none");
+    expect(sandboxMechanism("other", {}, found)).toBe("none");
+  });
+
+  it("tests the real Layer-2 path: inside writes pass, outside writes deny", async () => {
+    expect(await probeSandboxLayer2()).toEqual({ ok: true, note: null });
+  });
+
+  it("reports enforced only when a mechanism and the Layer-2 test both hold", async () => {
+    const enforced = await sandboxSupportOf("linux", { systemdRun: "/usr/bin/systemd-run" });
+    expect(enforced).toMatchObject({ enforced: true, mechanism: "systemd", tested: true });
+    const unsupported = await sandboxSupportOf("other", {}, none);
+    expect(unsupported).toMatchObject({ enforced: false, mechanism: "none", tested: true });
+    expect(unsupported.note).toContain("unenforced");
+  });
+
+  it("carries the sandbox result on the support query", async () => {
+    const support = (await createResourceSupport({
+      nodeId: () => "node-a",
+      exec: async () => ok(MAX),
+      platform: "linux",
+      binaries: BINS,
+      env: {},
+    }).describe()) as ResourceSupport & { sandbox: SandboxSupport };
+    expect(support.sandbox.tested).toBe(true);
+    expect(typeof support.sandbox.enforced).toBe("boolean");
   });
 });

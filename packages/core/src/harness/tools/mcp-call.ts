@@ -2,6 +2,7 @@ import type { JsonValue } from "@earendil-works/chord";
 import { defineExtension, defineTool } from "@earendil-works/pi-durable";
 import { Type } from "typebox";
 import { projectIdOfCall } from "./mcp-project";
+import { classifyMcpServer, mcpDeniedText } from "./sandbox-mcp";
 import type { ToolFileFactory } from "./tool-file";
 
 export const McpCallParameters = Type.Object({
@@ -44,6 +45,14 @@ export const mcpCallToolFile: ToolFileFactory = (services) => ({
         parameters: McpCallParameters,
         async execute({ server, tool, arguments: args }, api, context) {
           try {
+            const sandbox = services.current().sandbox;
+            if (sandbox !== undefined) {
+              const scope = await sandbox.scopeOf(api.conversationId).catch(() => undefined);
+              const allowlisted = await sandbox.mcpAllowed(server).catch(() => false);
+              if (scope !== undefined && classifyMcpServer({ scope, allowlisted }) === "denied") {
+                return errorOutput(new Error(mcpDeniedText(server, scope)));
+              }
+            }
             const projectId = await projectIdOfCall(api, context);
             const result = (await services
               .current()

@@ -60,6 +60,17 @@ describe("workspaces.remove", () => {
     expect(await codeOf(service.remove(thread.id, true))).toBe("thread_busy");
   });
 
+  test("refuses removal while background processes run, even when the thread is idle", async () => {
+    const refusing = await setUp({ deps: { hasRunningOf: () => true } });
+    const blocked = await refusing.startThread();
+    expect(await codeOf(refusing.service.remove(blocked.id, true))).toBe("thread_busy");
+    expect(await exists(blocked.workspace.path)).toBe(true);
+
+    const passing = await setUp({ deps: { hasRunningOf: () => false } });
+    const thread = await passing.startThread();
+    expect((await passing.service.remove(thread.id, false)).workspace.state).toBe("removed");
+  });
+
   test("onConversationRemoved discards the worktree and branch", async () => {
     const { startThread, service, repo } = await setUp();
     const thread = await startThread();

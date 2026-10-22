@@ -62,6 +62,12 @@ export interface WorkspaceDeps {
   readonly announce?: (projectId: string) => void;
   /** Closes the thread's terminals before its worktree goes. The default does nothing. */
   readonly closeTerminalsOf?: (conversationId: string) => Promise<void>;
+  /**
+   * Removal race: background processes and monitors outlive the model run, so
+   * `requireIdle` cannot see them. The core wires this to
+   * `ProcessService.hasRunning`; removal refuses while it reports jobs.
+   */
+  readonly hasRunningOf?: (conversationId: string) => boolean;
 }
 
 const notFound = () => new AppError("not_found", "Conversation not found.");
@@ -72,6 +78,7 @@ export function createWorkspaceService({
   runGh,
   announce = () => undefined,
   closeTerminalsOf = async () => undefined,
+  hasRunningOf,
 }: WorkspaceDeps): WorkspaceService {
   const lock = createKeyedLock();
   const statusCache = createStatusCache<WorkspaceGitStatus>();
@@ -162,6 +169,12 @@ export function createWorkspaceService({
       if (thread.workspace.state === "removed") return thread;
       const { facts } = await liveWorktreeOf(id);
       requireIdle(thread);
+      if (hasRunningOf?.(thread.id)) {
+        throw new AppError(
+          "thread_busy",
+          "This thread still has running background processes. Stop them first, then remove the worktree.",
+        );
+      }
       return lock.run(facts.mainRoot, async () => {
         const shared = await isSharedWithOthers(thread);
         if (!shared) {

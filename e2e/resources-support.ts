@@ -46,6 +46,10 @@ export const SANDBOX_OFF: SandboxValues = {
   subagent: false,
 };
 
+export async function sandboxSupportOf(api: APIRequestContext): Promise<Record<string, unknown>> {
+  return (await (await api.get("/api/settings/resources/support")).json()) as Record<string, unknown>;
+}
+
 export interface ResourceValues {
   levels: { main: Power; worktree: Power; subagent: Power };
 }
@@ -86,6 +90,7 @@ export interface ResourceServer {
   readonly server: RestartableServer;
   readonly api: APIRequestContext;
   setResources(next: Partial<ResourceValues>): Promise<void>;
+  setSandbox(next: Partial<SandboxValues>): Promise<void>;
   activity(): Promise<Activity>;
   waitActivity(check: (value: Activity) => boolean, ms?: number): Promise<Activity>;
   start(prompt: string, options?: { mode?: "worktree" | "checkout" }): Promise<string>;
@@ -201,6 +206,10 @@ export async function startResourceServer(options: {
     async setResources(next) {
       const response = await api.put("/api/settings/resources", { data: { ...OFF, ...next } });
       if (!response.ok()) throw new Error(`setResources ${response.status()} ${await response.text()}`);
+    },
+    async setSandbox(next) {
+      const response = await api.put("/api/settings/sandbox", { data: { ...SANDBOX_OFF, ...next } });
+      if (!response.ok()) throw new Error(`setSandbox ${response.status()} ${await response.text()}`);
     },
     activity,
     async waitActivity(check, ms = 30_000) {

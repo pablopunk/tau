@@ -1,4 +1,4 @@
-import { access } from "node:fs/promises";
+import { access, realpath, stat } from "node:fs/promises";
 import { AppError, type ConversationSummary, type WorkspaceStatus } from "@tau/protocol";
 import { locateRepo, mainCheckoutRoot } from "./repo-facts";
 import { readWorkspaceGitStatus, workspaceStatusOf } from "./workspace-git-status";
@@ -50,6 +50,28 @@ export async function worktreeFactsIfPresent(
 }
 
 const SUMMARY_PREVIEW = 5;
+
+/**
+ * Trust root for Layer 1 (spawns) and Layer 2 (in-process writes): the canonical
+ * root resolved from trusted thread metadata (mode + workspace path), never
+ * from a tool's `cwd`. Worktree threads resolve to their worktree, checkout
+ * threads to the main checkout; removed threads and unresolvable paths deny
+ * with `undefined` (fail closed), so callers reject the write or spawn.
+ */
+export async function sandboxRootOf(thread: ConversationSummary): Promise<string | undefined> {
+  if (thread.workspace.state === "removed") return undefined;
+  if (hasLiveWorktree(thread)) {
+    const facts = await worktreeFactsIfPresent(thread).catch(() => undefined);
+    if (!facts) return undefined;
+    return realpath(facts.worktreeRoot).catch(() => undefined);
+  }
+  try {
+    const canonical = await realpath(thread.workspace.path);
+    return (await stat(canonical)).isDirectory() ? canonical : undefined;
+  } catch {
+    return undefined;
+  }
+}
 
 export async function readStatus(thread: ConversationSummary): Promise<WorkspaceStatus> {
   return workspaceStatusOf(thread, await readWorkspaceGitStatus(thread.workspace));

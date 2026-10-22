@@ -64,6 +64,7 @@ import { DirectoryNodeSchema, ExpulsionSchema, RemoveNodeBodySchema } from "./no
 import { NodeSchema, NodeSelfSchema, NodeSummarySchema, RenameNodeBodySchema } from "./nodes";
 import { HealthSchema, RemoteStatusSchema } from "./remote";
 import { ResourceActivitySchema, ResourceSettingsSchema, ResourceSupportSchema } from "./resources";
+import { SandboxSettingsSchema } from "./sandbox";
 import { OpenTerminalInputSchema, TerminalAvailabilitySchema, TerminalInfoSchema } from "./terminals";
 import { UpdateTodosInputSchema } from "./todos";
 import { UpdateStartBodySchema, UpdateStatusSchema } from "./updates";
@@ -329,6 +330,12 @@ export const routes = {
     path: `${API_PREFIX}/settings/resources`,
     status: 204,
     body: ResourceSettingsSchema,
+  },
+  setSandbox: {
+    method: "PUT",
+    path: `${API_PREFIX}/settings/sandbox`,
+    status: 204,
+    body: SandboxSettingsSchema,
   },
   setCompaction: {
     method: "PUT",
