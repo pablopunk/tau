@@ -16,6 +16,7 @@ describe("cacheEnvAdditions", () => {
       PNPM_STORE_DIR: "/wt/.tau-caches/pnpm-store",
       CARGO_TARGET_DIR: "/wt/.tau-caches/cargo-target",
       MISE_DATA_DIR: "/wt/.tau-caches/mise-data",
+      MISE_CACHE_DIR: "/wt/.tau-caches/mise-cache",
     });
   });
 });
@@ -69,6 +70,7 @@ describe("buildSystemdSandboxPrefix", () => {
       "--setenv=PNPM_STORE_DIR=/wt/.tau-caches/pnpm-store",
       "--setenv=CARGO_TARGET_DIR=/wt/.tau-caches/cargo-target",
       "--setenv=MISE_DATA_DIR=/wt/.tau-caches/mise-data",
+      "--setenv=MISE_CACHE_DIR=/wt/.tau-caches/mise-cache",
       "--setenv=GIT_SSH_COMMAND=ssh -o UserKnownHostsFile=/wt/.tau-caches/known_hosts",
       "--",
     ]);

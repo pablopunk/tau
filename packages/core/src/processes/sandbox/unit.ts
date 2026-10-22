@@ -19,6 +19,7 @@ export function cacheEnvAdditions(root: string): Record<string, string> {
     PNPM_STORE_DIR: join(caches, "pnpm-store"),
     CARGO_TARGET_DIR: join(caches, "cargo-target"),
     MISE_DATA_DIR: join(caches, "mise-data"),
+    MISE_CACHE_DIR: join(caches, "mise-cache"),
   };
 }
 
