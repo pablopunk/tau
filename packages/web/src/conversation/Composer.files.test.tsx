@@ -152,15 +152,16 @@ describe("<Composer> generic files", () => {
     });
   });
 
-  it("restores files after a file_expired send failure instead of losing them", async () => {
+  it("hands a file_expired send failure to the failed bubble instead of losing it", async () => {
     const onSend = vi.fn().mockRejectedValueOnce(new AppError("file_expired", "Stage it again."));
     const { input } = setup({ onSend });
     await userEvent.upload(screen.getByLabelText("Choose files"), txt());
     await screen.findByText("notes.txt");
     await userEvent.type(input, "read{Enter}");
-    expect(await screen.findByText("notes.txt")).toBeInTheDocument();
     expect(await screen.findByRole("alert")).toHaveTextContent("Stage it again.");
-    expect(input).toHaveValue("read");
+    // The composer clears: the failed bubble in the transcript owns the
+    // message and its file refs for the retry (see Transcript.test.tsx).
+    expect(input).toHaveValue("");
   });
 
   it("persists only name/path/size, never bytes", async () => {

@@ -218,12 +218,19 @@ describe("checkpoint, fork and queue routes", () => {
       url: `/api/conversations/${thread.id}/messages`,
       payload: { text: "later", requestId: "q1", whenBusy: "followUp" },
     });
-    expect(send.statusCode).toBe(204);
-    const cancel = await ctx.request({ method: "DELETE", url: `/api/conversations/${thread.id}/queue/1001` });
+    expect(send.statusCode).toBe(200);
+    const itemId = String(send.json().submissionId);
+    const cancel = await ctx.request({
+      method: "DELETE",
+      url: `/api/conversations/${thread.id}/queue/${itemId}`,
+    });
     expect(cancel.statusCode).toBe(200);
-    expect(cancel.json()).toEqual({ cancelled: true });
-    const again = await ctx.request({ method: "DELETE", url: `/api/conversations/${thread.id}/queue/1001` });
-    expect(again.json()).toEqual({ cancelled: false });
+    expect(cancel.json()).toEqual({ cancelled: true, restored: [{ text: "later", files: [] }] });
+    const again = await ctx.request({
+      method: "DELETE",
+      url: `/api/conversations/${thread.id}/queue/${itemId}`,
+    });
+    expect(again.json()).toEqual({ cancelled: false, restored: [] });
   });
 
   it("rejects an unknown whenBusy value", async () => {

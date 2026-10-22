@@ -8,6 +8,7 @@ const IdSchema = Type.String({ minLength: 1 });
 export const ClientFrameSchema = Type.Union([
   Type.Object({ type: Type.Literal("subscribe"), conversationId: IdSchema }),
   Type.Object({ type: Type.Literal("unsubscribe"), conversationId: IdSchema }),
+  Type.Object({ type: Type.Literal("pong") }),
 ]);
 export type ClientFrame = Type.Static<typeof ClientFrameSchema>;
 
@@ -20,9 +21,20 @@ const OpsSchema = Type.Unsafe<readonly Op[]>(Type.Array(Type.Array(Type.Unknown(
 export const OpsFrameSchema = Type.Object({
   type: Type.Literal("ops"),
   conversationId: IdSchema,
+  seq: Type.Optional(Type.Number()),
   ops: OpsSchema,
 });
 export type OpsFrame = Type.Static<typeof OpsFrameSchema>;
+
+export const LivePingFrameSchema = Type.Object({ type: Type.Literal("ping"), at: Type.Number() });
+export type LivePingFrame = Type.Static<typeof LivePingFrameSchema>;
+
+export const WatchFailedFrameSchema = Type.Object({
+  type: Type.Literal("watch-failed"),
+  conversationId: IdSchema,
+  error: Type.Optional(Type.String()),
+});
+export type WatchFailedFrame = Type.Static<typeof WatchFailedFrameSchema>;
 
 export const ChangedFrameSchema = Type.Intersect([
   Type.Object({ type: Type.Literal("changed") }),
@@ -30,7 +42,12 @@ export const ChangedFrameSchema = Type.Intersect([
 ]);
 export type ChangedFrame = Type.Static<typeof ChangedFrameSchema>;
 
-export const ServerFrameSchema = Type.Union([OpsFrameSchema, ChangedFrameSchema]);
+export const ServerFrameSchema = Type.Union([
+  OpsFrameSchema,
+  LivePingFrameSchema,
+  WatchFailedFrameSchema,
+  ChangedFrameSchema,
+]);
 export type ServerFrame = Type.Static<typeof ServerFrameSchema>;
 
 function parseJson(raw: string): unknown {
@@ -57,4 +74,14 @@ export function encodeFrame(frame: ClientFrame | ServerFrame): string {
 
 export function changedFrame(change: Change): ChangedFrame {
   return { type: "changed", ...change };
+}
+
+export function livePingFrame(at: number): LivePingFrame {
+  return { type: "ping", at };
+}
+
+export function watchFailedFrame(conversationId: string, error?: string): WatchFailedFrame {
+  return error === undefined
+    ? { type: "watch-failed", conversationId }
+    : { type: "watch-failed", conversationId, error };
 }

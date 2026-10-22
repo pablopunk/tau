@@ -45,7 +45,7 @@ describe("body limits", () => {
       });
       const url = `/api/conversations/${created.json().id}/messages`;
       const ok = await ctx.request({ method: "POST", url, payload: { text: bigText(10), requestId: "a" } });
-      expect(ok.statusCode).toBe(204);
+      expect(ok.statusCode).toBe(200);
       const huge = await ctx.request({ method: "POST", url, payload: { text: bigText(43), requestId: "b" } });
       expect(huge.statusCode).toBe(413);
       expect(huge.json().error.code).toBe("too_large");

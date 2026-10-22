@@ -38,7 +38,11 @@ describe("workspace status admission", () => {
       local.workspaces.status("3"),
     ];
     await vi.waitFor(() => expect(fetch).toHaveBeenCalledTimes(2));
-    fetch.mockResolvedValueOnce(new Response(null, { status: 204 }));
+    fetch.mockResolvedValueOnce(
+      new Response(JSON.stringify({ submissionId: 9 }), {
+        headers: { "content-type": "application/json" },
+      }),
+    );
     await local.conversations.send("1", { text: "hi", requestId: "r1" });
     const other = remote.workspaces.status("1");
     await vi.waitFor(() => expect(fetch).toHaveBeenCalledTimes(4));

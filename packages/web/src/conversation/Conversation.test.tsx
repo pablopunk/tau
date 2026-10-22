@@ -129,6 +129,24 @@ describe("<Conversation> tools", () => {
     expect(screen.queryByText(/Exit \d/)).not.toBeInTheDocument();
   });
 
+  it("shows a running tool whose entry hasn't committed yet instead of going blank", async () => {
+    const view = endOf("text");
+    const orphan = {
+      ...view,
+      docs: {
+        ...view.docs,
+        "pi.live": {
+          run: { taskId: 99, inputs: [] },
+          tools: [{ callId: "tool:orphan", name: "bash", status: "running", output: "hi" }],
+        },
+      },
+    } as typeof view;
+    renderView(orphan);
+    expect(screen.getByText("Bash")).toBeInTheDocument();
+    expect(await screen.findByRole("figure", { name: "Command output" })).toHaveTextContent("hi");
+    expect(screen.queryByText("Working…")).not.toBeInTheDocument();
+  });
+
   it("shows live bash output while the command runs, expanding after a short delay", async () => {
     renderView(viewWhere("bash", (view) => JSON.stringify(liveDoc(view)).includes('"output":"hi')));
     expect(screen.getByText("Running")).toBeInTheDocument();
@@ -146,6 +164,18 @@ describe("<Conversation> tools", () => {
   it("shows an aborted bash call as stopped", () => {
     renderView(endOf("abort"));
     expect(screen.getByText("Stopped")).toBeInTheDocument();
+  });
+
+  it("renders a display-only bang row for an app.bang entry", () => {
+    const view = endOf("text");
+    renderView({
+      ...view,
+      entries: [
+        ...view.entries,
+        { kind: "app.bang", id: 999, conversationId: 2, data: { command: "echo hi" } },
+      ],
+    } as typeof view);
+    expect(screen.getByTestId("bang")).toHaveTextContent("echo hi");
   });
 
   it("previews long output and expands it on demand", async () => {
@@ -199,12 +229,13 @@ describe("<Conversation> errors, retries and the inbox", () => {
       JSON.stringify(view.docs["pi.inbox"]).includes("steered.txt"),
     );
     const { unmount } = renderView(queued);
-    const list = screen.getByRole("list", { name: "Queued messages" });
+    const section = screen.getByRole("region", { name: "Will steer" });
+    const list = within(section).getByRole("list", { name: "Will steer messages" });
     expect(within(list).getByText("write steered.txt steered")).toBeInTheDocument();
-    expect(within(list).queryByText(/Will steer the agent/)).not.toBeInTheDocument();
     unmount();
     renderView(endOf("steer"));
-    expect(screen.queryByRole("list", { name: "Queued messages" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Will steer" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Up next" })).not.toBeInTheDocument();
     expect(screen.getByText("write steered.txt steered")).toBeInTheDocument();
   });
 

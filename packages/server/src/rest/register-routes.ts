@@ -118,6 +118,7 @@ export function registerRoutes(app: FastifyInstance, core: Core, sockets: Device
     core.conversations.rename(params.id, body.title),
   );
   defineRoute(app, routes.sendMessage, ({ params, body }) => core.conversations.send(params.id, body));
+  defineRoute(app, routes.sendNow, ({ params, body }) => core.conversations.sendNow(params.id, body.itemId));
   defineRoute(app, routes.updateTodos, ({ params, body }) => core.conversations.updateTodos(params.id, body));
   defineRoute(app, routes.abortConversation, ({ params }) => core.conversations.abort(params.id));
   defineRoute(app, routes.archiveConversation, ({ params, body }) =>

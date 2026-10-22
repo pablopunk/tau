@@ -447,6 +447,37 @@ export type ConfigureConversationInput = Type.Static<typeof ConfigureConversatio
 export const RetryInputSchema = Type.Object({ requestId: Type.String({ minLength: 1 }) });
 export type RetryInput = Type.Static<typeof RetryInputSchema>;
 
+export const SendReceiptSchema = Type.Object({
+  submissionId: Type.Number(),
+  entryId: Type.Optional(Type.Number()),
+});
+export type SendReceipt = Type.Static<typeof SendReceiptSchema>;
+
+export const UserItemSnapshotSchema = Type.Object({
+  text: Type.String(),
+  files: Type.Array(FileRefSchema),
+});
+export type UserItemSnapshot = Type.Static<typeof UserItemSnapshotSchema>;
+
+export const AbortResultSchema = Type.Object({ restored: Type.Array(UserItemSnapshotSchema) });
+export type AbortResult = Type.Static<typeof AbortResultSchema>;
+
+export const CancelQueuedResultSchema = Type.Object({
+  cancelled: Type.Boolean(),
+  restored: Type.Array(UserItemSnapshotSchema),
+});
+export type CancelQueuedResult = Type.Static<typeof CancelQueuedResultSchema>;
+
+export const SendNowInputSchema = Type.Object({ itemId: Type.String({ minLength: 1 }) });
+export type SendNowInput = Type.Static<typeof SendNowInputSchema>;
+
+export const SendNowResultSchema = Type.Object({
+  submissionId: Type.Number(),
+  entryId: Type.Optional(Type.Number()),
+  restored: Type.Array(UserItemSnapshotSchema),
+});
+export type SendNowResult = Type.Static<typeof SendNowResultSchema>;
+
 export const GithubStatusSchema = Type.Union([
   Type.Object({
     state: Type.Literal("connected"),

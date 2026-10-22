@@ -102,6 +102,7 @@ const handlers: Handlers = {
   startConversation: (core, { body }) => core.conversations.start(body as never),
   renameConversation: (core, { params, body }) => core.conversations.rename(params.id, body.title as string),
   sendMessage: (core, { params, body }) => core.conversations.send(params.id, body as never),
+  sendNow: (core, { params, body }) => core.conversations.sendNow(params.id, body.itemId as string),
   updateTodos: (core, { params, body }) => core.conversations.updateTodos(params.id, body as never),
   abortConversation: (core, { params }) => core.conversations.abort(params.id),
   archiveConversation: (core, { params, body }) =>
@@ -217,11 +218,29 @@ function detach<T>(value: T): T {
   return value === undefined ? value : (JSON.parse(JSON.stringify(value)) as T);
 }
 
-function fakeLiveSocket(core: Core, live: LiveHandlers): LiveSocket {
+export interface FakeLiveSocket extends LiveSocket {
+  failWatch(conversationId: string, error?: string): void;
+}
+
+function fakeLiveSocket(core: Core, live: LiveHandlers): FakeLiveSocket {
   const watchers = new Map<string, ConversationWatcher>();
   let closed = false;
   const stopChanges = core.onChange((change: Change) => live.onFrame(changedFrame(change)));
   queueMicrotask(() => live.onOpen());
+
+  const failWatch = (conversationId: string, error?: string) => {
+    const watcher = watchers.get(conversationId);
+    if (watcher) {
+      watchers.delete(conversationId);
+      void watcher.stop();
+    }
+    if (!closed)
+      live.onFrame(
+        error === undefined
+          ? { type: "watch-failed", conversationId }
+          : { type: "watch-failed", conversationId, error },
+      );
+  };
 
   const subscribe = async (conversationId: string) => {
     if (watchers.has(conversationId)) return;
@@ -241,8 +260,10 @@ function fakeLiveSocket(core: Core, live: LiveHandlers): LiveSocket {
   };
 
   return {
+    failWatch,
     send(frame: ClientFrame) {
-      void (frame.type === "subscribe" ? subscribe(frame.conversationId) : unsubscribe(frame.conversationId));
+      if (frame.type === "subscribe") void subscribe(frame.conversationId);
+      else if (frame.type === "unsubscribe") void unsubscribe(frame.conversationId);
     },
     close() {
       closed = true;

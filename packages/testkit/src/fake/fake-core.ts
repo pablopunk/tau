@@ -729,12 +729,13 @@ export function createFakeCore(options: FakeCoreOptions = {}): FakeCore {
         const conversation = requireConversation(id);
         validateInput(input, conversation.model);
         const whenBusy = input.whenBusy ?? (messageMode === "queue" ? "followUp" : "steer");
-        conversation.send(
+        const receipt = conversation.send(
           input.requestId,
           { text: input.text, images: input.images, files: input.files },
           whenBusy,
         );
         mvp5.afterMessage(conversation, input.text);
+        return receipt;
       },
       async updateTodos(id, input) {
         if (!Value.Check(UpdateTodosInputSchema, input)) {
@@ -751,7 +752,7 @@ export function createFakeCore(options: FakeCoreOptions = {}): FakeCore {
         conversation.updateTodos(input.requestId, todos);
       },
       async abort(id) {
-        await requireConversation(id).abort();
+        return requireConversation(id).abort();
       },
       async archive(id, archived) {
         const conversation = requireConversation(id);
@@ -788,8 +789,11 @@ export function createFakeCore(options: FakeCoreOptions = {}): FakeCore {
           clampFakeThinkingLevel(info, input.thinkingLevel ?? conversation.thinkingLevel()),
         );
       },
+      async sendNow(id, itemId) {
+        return requireConversation(id).sendNow(itemId);
+      },
       async retry(id, input) {
-        requireConversation(id).retry(input.requestId);
+        return requireConversation(id).retry(input.requestId);
       },
       async compact(id) {
         if (!requireConversation(id).hasHistoryToCompact()) {

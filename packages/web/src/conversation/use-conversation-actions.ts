@@ -1,4 +1,4 @@
-import type { FileRef, ImageInput, WhenBusy } from "@tau/protocol";
+import type { FileRef, ImageInput, SendReceipt, WhenBusy } from "@tau/protocol";
 import { useCallback } from "react";
 import { useApi } from "@/nodes/node-context";
 
@@ -7,9 +7,14 @@ export function newRequestId(): string {
 }
 
 export interface ConversationActions {
-  send(input: { text: string; images: ImageInput[]; files: FileRef[]; whenBusy?: WhenBusy }): Promise<void>;
+  send(input: {
+    text: string;
+    images: ImageInput[];
+    files: FileRef[];
+    whenBusy?: WhenBusy;
+  }): Promise<SendReceipt>;
   stop(): Promise<void>;
-  retry(requestId: string): Promise<void>;
+  retry(requestId: string): Promise<SendReceipt>;
 }
 
 export function useConversationActions(conversationId: string): ConversationActions {
@@ -35,7 +40,9 @@ export function useConversationActions(conversationId: string): ConversationActi
       }),
     [api, conversationId],
   );
-  const stop = useCallback(() => api.conversations.abort(conversationId), [api, conversationId]);
+  const stop = useCallback(async () => {
+    await api.conversations.abort(conversationId);
+  }, [api, conversationId]);
   const retry = useCallback(
     (requestId: string) => api.conversations.retry(conversationId, { requestId }),
     [api, conversationId],

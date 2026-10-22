@@ -4,6 +4,7 @@ import { AppError, GOAL_CONDITION_MAX_LENGTH, type Goal, type GoalVerdictData } 
 import type { ChangeEmitter } from "../change-emitter";
 import { scanAppConversations } from "../harness/conversation-index";
 import type { ConversationStore } from "../harness/conversation-store";
+import { withAdmissionGate } from "../harness/conversation-submit";
 import { isBusy } from "../harness/live-state";
 import type { LiveWork } from "../harness/live-work";
 import type { NotificationSubmitter } from "../harness/notification-submitter";
@@ -373,17 +374,21 @@ export function createGoalService(deps: GoalServiceDeps): GoalService {
   }
 
   async function directive(conversationId: string, goal: GoalRecord, text: string) {
-    const conversation = await harness.conversation(idOf(conversationId), BACKGROUND);
-    if (!conversation) throw new AppError("not_found", "Conversation not found.");
-    await conversation.submit(
-      {
-        type: "input",
-        content: text,
-        whenBusy: "followUp",
-        requestId: `goal:${goal.id}:start:${now()}`,
-      },
-      BACKGROUND,
-    );
+    // Through the admission gate like every other submit: a plain `pi.user`
+    // directive follows the user policy in `sendNow` snapshots.
+    await withAdmissionGate(conversationId, async () => {
+      const conversation = await harness.conversation(idOf(conversationId), BACKGROUND);
+      if (!conversation) throw new AppError("not_found", "Conversation not found.");
+      await conversation.submit(
+        {
+          type: "input",
+          content: text,
+          whenBusy: "followUp",
+          requestId: `goal:${goal.id}:start:${now()}`,
+        },
+        BACKGROUND,
+      );
+    });
   }
 
   return {

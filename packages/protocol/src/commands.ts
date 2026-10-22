@@ -428,6 +428,13 @@ export const commands: readonly CommandDef[] = [
     destructive: false,
   },
   {
+    command: "threads send-now",
+    route: "sendNow",
+    summary: "Deliver a queued message now",
+    positionals: ["params.id", "body.itemId"],
+    destructive: false,
+  },
+  {
     command: "workspaces get",
     route: "getWorkspace",
     summary: "Show the workspace state of a thread",

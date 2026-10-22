@@ -1,8 +1,8 @@
-import { useQueryClient } from "@tanstack/react-query";
 import { readLive } from "@tau/protocol";
 import { useNavigate } from "react-router";
 import { CommandGroup, CommandItem } from "@/components/ui/command";
 import { stopAndRestore } from "@/conversation/queue/stop-restore";
+import { useThreadListMutation } from "@/conversation/queue/thread-list-mutations";
 import { useConversationView } from "@/conversation/use-conversation-view";
 import { conversationPath, terminalPath } from "@/lib/paths";
 import { queryKeys } from "@/lib/queries";
@@ -32,7 +32,6 @@ export function ThreadActions({
   const api = useApi();
   const nodeId = useNodeId();
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
   const available = useTerminalsAvailable().data === true;
   const terminals = useTerminals(conversationId, available).data ?? [];
   const canThink = useThreadAgent(conversationId).model?.thinkingLevels.some((level) => level !== "off");
@@ -41,12 +40,16 @@ export function ThreadActions({
   const queued = state.status === "ready" ? readLive(state.view).queued : [];
   const stop = () => stopAndRestore(api, conversationId, nodeId, queued);
 
-  const toggleArchive = async () => {
-    await api.conversations.archive(conversationId, !archived);
-    await Promise.all([
-      queryClient.invalidateQueries({ queryKey: queryKeys.conversations(projectId) }),
-      queryClient.invalidateQueries({ queryKey: queryKeys.allConversations }),
-    ]);
+  const archiveMutation = useThreadListMutation({
+    listKeys: [queryKeys.conversations(projectId), queryKeys.allConversations],
+    mutationFn: (next: boolean) => api.conversations.archive(conversationId, next),
+    transform: (list, next) =>
+      list.map((item) =>
+        item.id === conversationId ? { ...item, archivedAt: next ? Date.now() : null } : item,
+      ),
+  });
+  const toggleArchive = async (): Promise<void> => {
+    archiveMutation.mutate(!archived);
   };
 
   return (

@@ -17,6 +17,7 @@ import { createApprovals } from "./approvals/approvals";
 import { createApprovalsApi } from "./approvals-api";
 import { createArchivedCleanup } from "./archived-cleanup";
 import { FileCredentialStore } from "./auth/file-credential-store";
+import { entryOfThread, recoverBangs } from "./bang-command";
 import { createChangeEmitter } from "./change-emitter";
 import { createCheckpointService } from "./checkpoints/checkpoint-service";
 import { createConnectorToolServices } from "./claude-cli/connectors/connector-tool-services";
@@ -361,6 +362,17 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
     await clones.recoverAtStartup();
     await recovery.recoverAtStartup();
     await processes.reapStaleAtStartup();
+    // Dispatch admitted-but-unspawned bangs; stale groups are dead by now,
+    // so a redispatch can't double-run a live process.
+    await recoverBangs({
+      harness,
+      threads: conversations,
+      processes,
+      notifications,
+      home: home.root,
+      entryOf: (conversationId: string) => entryOfThread(harness, conversationId),
+      uploads,
+    });
     await goals.recoverAtStartup();
     await scheduler.start();
     archivedCleanup.start();
