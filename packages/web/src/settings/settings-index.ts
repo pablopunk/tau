@@ -104,6 +104,27 @@ export const SETTINGS_INDEX: readonly SettingEntry[] = [
     keywords: ["resources", "cpu", "nice", "priority", "background", "balanced", "subagents"],
   },
   {
+    id: "sandbox-main",
+    section: "agent",
+    label: "Main threads sandbox",
+    description: "Keep main-checkout threads writing inside the checkout.",
+    keywords: ["sandbox", "confine", "seatbelt", "writes", "isolation", "main"],
+  },
+  {
+    id: "sandbox-worktree",
+    section: "agent",
+    label: "Worktree threads sandbox",
+    description: "Keep worktree threads writing inside their own worktree.",
+    keywords: ["sandbox", "confine", "seatbelt", "writes", "isolation", "worktree"],
+  },
+  {
+    id: "sandbox-subagent",
+    section: "agent",
+    label: "Subagents sandbox",
+    description: "Keep subagents writing inside the thread worktree.",
+    keywords: ["sandbox", "confine", "seatbelt", "writes", "isolation", "subagents"],
+  },
+  {
     id: "fast-compaction",
     section: "agent",
     label: "Fast compaction",

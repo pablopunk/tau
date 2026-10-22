@@ -44,6 +44,7 @@ import type {
   ResourceSupport,
   RestorePreview,
   RetryInput,
+  SandboxSettings,
   SendMessageInput,
   SendNowResult,
   SendReceipt,
@@ -104,6 +105,7 @@ export interface Api {
     setWorkspaceDefault(mode: WorkspaceDefault): Promise<void>;
     setClaudeConnectors(value: ClaudeConnectorSettings): Promise<void>;
     setResources(value: ResourceSettings): Promise<void>;
+    setSandbox(value: SandboxSettings): Promise<void>;
     setCompaction(value: CompactionSettings): Promise<void>;
     /** `null`: this node is older than resource control (404), so the controls are not supported there. */
     resourceSupport(): Promise<ResourceSupport | null>;
@@ -335,6 +337,7 @@ export function createApi(transport: Transport): Api {
       setClaudeConnectors: (value) => request("setClaudeConnectors", { body: value }),
       setSetupSkipped: (skipped) => request("setSetupSkipped", { body: { skipped } }),
       setResources: (value) => request("setResources", { body: value }),
+      setSandbox: (value) => request("setSandbox", { body: value }),
       setCompaction: (value) => request("setCompaction", { body: value }),
       resourceSupport: () => nullWhenMissing(request("getResourceSupport", {})),
       resourceActivity: () => nullWhenMissing(request("getResourceActivity", {})),

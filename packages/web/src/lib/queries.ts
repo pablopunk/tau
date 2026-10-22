@@ -300,25 +300,21 @@ export function useSetCompaction() {
 }
 
 /**
- * Phase 1 stub: reads the persisted sandbox switch from `useSettings` (real data path
- * via `settings.get`); there is no visible UI yet. Phase 2 adds the setter route,
- * the capability probe, and the Agent settings row.
+ * The persisted sandbox switch from `useSettings` (real data path via `settings.get`).
+ * `data` is the shipped default when the node predates the switch; the group reads
+ * `useSettings` directly so it can tell “unsupported” apart from “off”.
  */
 export const useSandboxSettings = () => {
   const settings = useSettings();
   return { ...settings, data: settings.data?.sandbox ?? DEFAULT_SANDBOX_SETTINGS };
 };
 
-/**
- * Phase 2 stub: no `settings.setSandbox` core route yet, so this rejects until the
- * REST route (`PUT /api/settings/sandbox`) and `api.settings.setSandbox` land.
- */
+/** Saves the sandbox switch (`PUT /api/settings/sandbox`); the UI is `SandboxGroup`. */
 export function useSetSandbox() {
+  const api = useApi();
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (_value: SandboxSettings): Promise<void> => {
-      throw new Error("setSandbox is not wired yet (phase 2: core route + REST + api client).");
-    },
+    mutationFn: (value: SandboxSettings) => api.settings.setSandbox(value),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.settings }),
   });
 }

@@ -153,6 +153,7 @@ const handlers: Handlers = {
   setWorkspaceDefault: (core, { body }) => core.settings.setWorkspaceDefault(body.mode as never),
   setClaudeConnectors: (core, { body }) => core.settings.setClaudeConnectors(body as never),
   setResources: (core, { body }) => core.settings.setResources(body as never),
+  setSandbox: (core, { body }) => core.settings.setSandbox(body as never),
   setCompaction: (core, { body }) => core.settings.setCompaction(body as never),
   getResourceSupport: (core) => core.settings.resourceSupport(),
   getResourceActivity: (core) => core.settings.resourceActivity(),
