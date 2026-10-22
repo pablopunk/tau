@@ -136,6 +136,7 @@ describe("timer scheduler", () => {
     const id = await idleThread();
     await world.add(id, { id: "r1", nextAt: START + MINUTE });
     const gone: NotificationSubmitter = {
+      submitWrite: async () => undefined,
       notify: async (conversationId) => {
         throw new ThreadGoneError(conversationId);
       },
@@ -192,6 +193,7 @@ describe("timer scheduler", () => {
       entered = resolve;
     });
     const slow: NotificationSubmitter = {
+      submitWrite: async () => undefined,
       notify: async () => {
         entered();
         await blocked;
@@ -265,6 +267,7 @@ describe("timer fire with a busy thread", () => {
     await world.add(id, { id: "r1", nextAt: START + MINUTE });
     const real = world.makeScheduler();
     const crashing: NotificationSubmitter = {
+      submitWrite: async () => undefined,
       notify: async (conversationId, notification) => {
         await harnessNotificationSubmitter(world.harness).notify(conversationId, notification);
         throw new Error("crash before the counter commit");

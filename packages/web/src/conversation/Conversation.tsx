@@ -64,7 +64,7 @@ function Body({
 }: {
   id: string;
   state: ConversationViewState;
-  onRetry?: (requestId: string) => Promise<void>;
+  onRetry?: (requestId: string) => Promise<unknown>;
 }) {
   if (state.status === "loading") return <LoadingTranscript />;
   if (state.status === "gone") return <DeletedThread />;

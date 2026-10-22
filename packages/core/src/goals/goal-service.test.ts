@@ -230,7 +230,7 @@ describe("goal: subagents", () => {
     const service = createGoalService({
       harness: {} as Harness,
       conversations: { find: async () => ({ parentId: "7" }) as never },
-      notifications: { notify: async () => undefined },
+      notifications: { notify: async () => undefined, submitWrite: async () => undefined },
       scheduler: { scheduleAt: () => undefined, cancel: () => undefined, close: async () => undefined },
       liveWork: { hasLiveWork: async () => false },
       ask: async () => ({ text: "", tokens: 0 }),

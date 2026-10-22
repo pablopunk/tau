@@ -1,4 +1,7 @@
 import {
+  BANG_KIND,
+  type BangData,
+  BangDataSchema,
   GOAL_VERDICT_KIND,
   type GoalVerdictData,
   GoalVerdictDataSchema,
@@ -38,9 +41,12 @@ export type MvpNotificationItem =
   | { readonly kind: "process-exit"; readonly data: ProcessExitData }
   | { readonly kind: "timer-fired"; readonly data: TimerFiredData }
   | { readonly kind: "notice"; readonly data: NoticeData }
-  | { readonly kind: "goal-verdict"; readonly data: GoalVerdictData };
+  | { readonly kind: "goal-verdict"; readonly data: GoalVerdictData }
+  | { readonly kind: "bang"; readonly data: BangData };
 
 const parsers = {
+  [BANG_KIND]: (data: unknown): MvpNotificationItem | undefined =>
+    Value.Check(BangDataSchema, data) ? { kind: "bang", data } : undefined,
   [MONITOR_EVENT_KIND]: (data: unknown): MvpNotificationItem | undefined =>
     Value.Check(MonitorEventDataSchema, data) ? { kind: "monitor-event", data } : undefined,
   [PROCESS_EXIT_KIND]: (data: unknown): MvpNotificationItem | undefined =>

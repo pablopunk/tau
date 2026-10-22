@@ -45,7 +45,7 @@ export function chatCases(make: MakeContractTarget, test: CaseRunner): void {
       await tracker.stop();
     });
 
-    test("stores a bang command verbatim as the user entry", async () => {
+    test("[bang] stores a bang command verbatim as the user entry", async () => {
       const { core } = target;
       const { conversation } = await startConversation(target);
       const tracker = await trackView(core, conversation.id);

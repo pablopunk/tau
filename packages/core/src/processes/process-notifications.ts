@@ -6,7 +6,7 @@ import {
   type ProcessExitData,
   type ProcessInfo,
 } from "@tau/protocol";
-import type { Notification } from "../harness/notification-submitter";
+import type { Notification, PassiveWrite } from "../harness/notification-submitter";
 import type { StopReason } from "./process-types";
 
 const quote = (value: string) => value.replaceAll('"', "'").replaceAll("\n", " ");
@@ -61,12 +61,47 @@ export function processExitNotification(
   };
 }
 
+/**
+ * A bang exit as a model-bearing passive write. Idle threads append it
+ * without starting a turn; busy threads place it at the next boundary — a
+ * follow-up input would start a run in both cases, which pi never does for
+ * `!` commands. The transcript still renders the `app.process_exit` row from
+ * `data`; only the model text carries the `You ran` prefix.
+ */
+export function bangExitWrite(
+  info: ProcessInfo,
+  exitCode: number | null,
+  logTail: string,
+  stopReason?: StopReason,
+): PassiveWrite {
+  const text = `<process-exit id="${info.id}" name="${quote(info.name)}" exit_code="${exitCode ?? "none"}">\n${logTail}\n</process-exit>`;
+  return {
+    kind: PROCESS_EXIT_KIND,
+    text: `You ran: ${info.command}\n${text}`,
+    data: {
+      processId: info.id,
+      name: info.name,
+      command: info.command,
+      exitCode,
+      logTail,
+      origin: "bang",
+      ...(stopReason === undefined ? {} : { stopReason }),
+    },
+    model: [{ role: "user", content: `You ran: ${info.command}\n${text}` } as never],
+    requestId: `process-exit:${info.id}`,
+  };
+}
+
 export const noticeNotification = (text: string, requestId: string): Notification => ({
   kind: NOTICE_KIND,
   data: { text },
   text: `<notice>${text}</notice>`,
   requestId,
 });
+
+/** A bang a restart cut off between its dispatch marker and its exit: never re-run, just said. */
+export const interruptedBangText = (command: string) =>
+  `command "${quote(command)}" was interrupted by a restart; it was not re-run`;
 
 export const noisyNoticeText = (name: string) =>
   `monitor "${quote(name)}" stopped: too noisy; filter with grep --line-buffered`;

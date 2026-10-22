@@ -44,7 +44,7 @@ function failedView(): ConversationView {
 }
 
 beforeEach(() => {
-  vi.mocked(api.conversations.retry).mockReset().mockResolvedValue(undefined);
+  vi.mocked(api.conversations.retry).mockReset().mockResolvedValue({ submissionId: 1 });
   vi.mocked(api.conversations.configure).mockReset().mockResolvedValue(undefined);
   vi.mocked(api.conversations.listAll)
     .mockReset()

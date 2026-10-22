@@ -1,3 +1,4 @@
+import { EventEmitter } from "node:events";
 import {
   decodeServerFrame,
   encodeFrame,
@@ -7,12 +8,14 @@ import {
   LIVE_PATH,
   type OpsFrame,
   type ServerFrame,
+  type WatchFailedFrame,
   WS_MAX_PAYLOAD_BYTES,
 } from "@tau/protocol";
 import { createFakeCore } from "@tau/testkit";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import WebSocket from "ws";
 import { waitForDrain } from "./live/backpressure";
+import { LiveConnection } from "./live/connection";
 import { startTestServer, type TestServer, TOKEN } from "./testing/harness";
 
 let ctx: TestServer;
@@ -231,6 +234,138 @@ describe("WebSocket /api/live", () => {
     const closed = new Promise<number>((resolve) => socket.once("close", resolve));
     socket.send("not json");
     expect(await closed).toBe(1008);
+  });
+});
+
+describe("R4 live sync you can trust", () => {
+  interface MockSocket extends EventEmitter {
+    OPEN: number;
+    readyState: number;
+    bufferedAmount: number;
+    sent: string[];
+    pings: number;
+    terminated: boolean;
+    send(data: string): boolean;
+    ping(): void;
+    terminate(): void;
+    close(): void;
+  }
+
+  function mockSocket(): MockSocket {
+    const emitter = new EventEmitter() as MockSocket;
+    emitter.OPEN = 1;
+    emitter.readyState = 1;
+    emitter.bufferedAmount = 0;
+    emitter.sent = [];
+    emitter.pings = 0;
+    emitter.terminated = false;
+    emitter.send = (data: string) => {
+      emitter.sent.push(String(data));
+      return true;
+    };
+    emitter.ping = () => {
+      emitter.pings += 1;
+    };
+    emitter.terminate = () => {
+      emitter.terminated = true;
+      emitter.readyState = 3;
+      setImmediate(() => emitter.emit("close"));
+    };
+    emitter.close = () => {
+      emitter.readyState = 3;
+    };
+    return emitter;
+  }
+
+  const opsFrames = (socket: MockSocket): OpsFrame[] =>
+    socket.sent
+      .map((raw) => decodeServerFrame(raw))
+      .filter((frame): frame is OpsFrame => frame?.type === "ops");
+
+  const watchFailedFrames = (socket: MockSocket): WatchFailedFrame[] =>
+    socket.sent
+      .map((raw) => decodeServerFrame(raw))
+      .filter((frame): frame is WatchFailedFrame => frame?.type === "watch-failed");
+
+  const subscribe = (socket: MockSocket, conversationId: string) => {
+    socket.emit("message", encodeFrame({ type: "subscribe", conversationId }));
+  };
+
+  it("repro: a failed subscribe leaves no mapped entry, so resubscribe recovers on the same socket", async () => {
+    ctx = await startTestServer();
+    const id = await createConversation();
+    let failures = 1;
+    const watch = ctx.core.conversations.watch.bind(ctx.core.conversations);
+    ctx.core.conversations.watch = async (...args) => {
+      if (failures > 0) {
+        failures -= 1;
+        throw new Error("boom: listener_error");
+      }
+      return watch(...args);
+    };
+    const socket = mockSocket();
+    const errors: unknown[] = [];
+    new LiveConnection(socket as unknown as WebSocket, ctx.core, (e) => errors.push(e));
+    subscribe(socket, id);
+    // The failure must be terminal and visible: the client gets a distinct
+    // watch-failure frame (not a retired view — the thread still exists), never silence.
+    await vi.waitFor(() => expect(watchFailedFrames(socket)).toHaveLength(1));
+    // And the dead subscription must be gone: resubscribing recovers with a fresh base.
+    subscribe(socket, id);
+    await vi.waitFor(() => expect(opsFrames(socket).some((f) => isBaseOps(f.ops))).toBe(true));
+    expect(errors).toHaveLength(1);
+    socket.emit("close");
+  });
+
+  it("attaches a per-conversation op sequence, starting at 0 with the base", async () => {
+    ctx = await startTestServer();
+    const id = await createConversation();
+    const socket = mockSocket();
+    new LiveConnection(socket as unknown as WebSocket, ctx.core, () => {});
+    subscribe(socket, id);
+    await vi.waitFor(() => expect(opsFrames(socket)).toHaveLength(1));
+    await ctx.request({
+      method: "POST",
+      url: `/api/conversations/${id}/messages`,
+      payload: { text: "hi", requestId: "seq-r1" },
+    });
+    await vi.waitFor(() => expect(opsFrames(socket).length).toBeGreaterThanOrEqual(2));
+    const seqs = opsFrames(socket).map((frame) => (frame as unknown as { seq: unknown }).seq);
+    expect(seqs[0]).toBe(0);
+    for (let i = 1; i < seqs.length; i++) expect(seqs[i]).toBe((seqs[i - 1] as number) + 1);
+    socket.emit("close");
+  });
+
+  it("pings every interval and terminates a socket that never pongs", async () => {
+    ctx = await startTestServer();
+    const socket = mockSocket();
+    new LiveConnection(socket as unknown as WebSocket, ctx.core, () => {}, {
+      heartbeatIntervalMs: 15,
+      heartbeatMissLimit: 2,
+    });
+    await vi.waitFor(() => expect(socket.pings).toBeGreaterThanOrEqual(1));
+    await vi.waitFor(() => expect(socket.terminated).toBe(true));
+  });
+
+  it("a socket that pongs stays alive", async () => {
+    ctx = await startTestServer();
+    const socket = mockSocket();
+    new LiveConnection(socket as unknown as WebSocket, ctx.core, () => {}, {
+      heartbeatIntervalMs: 15,
+      heartbeatMissLimit: 3,
+    });
+    // Emulate the client's auto-pong: answer liveness on a fast poll.
+    const answer = setInterval(() => {
+      if (!socket.terminated) socket.emit("pong");
+    }, 5);
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 80));
+      expect(socket.terminated).toBe(false);
+      expect(socket.pings).toBeGreaterThanOrEqual(1);
+    } finally {
+      clearInterval(answer);
+      socket.emit("close");
+    }
   });
 });
 

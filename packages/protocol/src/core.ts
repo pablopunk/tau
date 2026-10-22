@@ -8,6 +8,8 @@ import type {
 } from "./access";
 import type { DeleteArchivedInput, DeleteArchivedResult } from "./archived";
 import type {
+  AbortResult,
+  CancelQueuedResult,
   Change,
   ClaudeConnectorSettings,
   CompactInput,
@@ -30,6 +32,8 @@ import type {
   ProviderInfo,
   RetryInput,
   SendMessageInput,
+  SendNowResult,
+  SendReceipt,
   Settings,
   Skill,
   StartConversationInput,
@@ -62,6 +66,8 @@ import type { UpdaterPort, UpdateStartBody, UpdateStatus } from "./updates";
 import type { Op } from "./view";
 
 export type {
+  AbortResult,
+  CancelQueuedResult,
   Change,
   CompactInput,
   CompactionSettings,
@@ -82,6 +88,9 @@ export type {
   ProviderInfo,
   RetryInput,
   SendMessageInput,
+  SendNowInput,
+  SendNowResult,
+  SendReceipt,
   Settings,
   Skill,
   StartConversationInput,
@@ -90,6 +99,7 @@ export type {
   TranscribeInput,
   UploadInput,
   UseGithubRepoInput,
+  UserItemSnapshot,
   VoiceModelSetting,
   VoiceOptions,
   WorkspaceDefault,
@@ -276,9 +286,9 @@ export interface Core {
     rename(id: string, title: string): Promise<void>;
     /**
      * Resolves once the message is durably admitted, not when the run ends. Steers when the conversation is busy.
-     * A repeated `requestId` is a no-op. Unarchives. Rejects `not_found`, `invalid_request` or `images_not_supported`.
+     * A repeated `requestId` returns the existing receipt. Unarchives. Rejects `not_found`, `invalid_request` or `images_not_supported`.
      */
-    send(id: string, input: SendMessageInput): Promise<void>;
+    send(id: string, input: SendMessageInput): Promise<SendReceipt>;
     /**
      * Replaces the thread's todo list with the user's edit and pings the agent with the diff
      * (a queued `app.todos_updated` notification, so it never interrupts a run and wakes an idle
@@ -288,7 +298,7 @@ export interface Core {
      */
     updateTodos(id: string, input: UpdateTodosInput): Promise<void>;
     /** Stops the current run; resolves once the conversation is idle. Rejects `not_found`. */
-    abort(id: string): Promise<void>;
+    abort(id: string): Promise<AbortResult>;
     /** Never aborts a run. Rejects `not_found`. */
     archive(id: string, archived: boolean): Promise<void>;
     /**
@@ -309,8 +319,15 @@ export interface Core {
     rewindPreview(id: string, entryId: string): Promise<RestorePreview>;
     /** Restores files, forks before the entry; `draft` is the message text. Rejects `thread_busy`, `not_found`. */
     rewind(id: string, entryId: string): Promise<{ conversation: ConversationSummary; draft: string }>;
-    /** `{ cancelled: false }` when the queued item was already delivered. Rejects `not_found`. */
-    cancelQueued(id: string, itemId: string): Promise<{ cancelled: boolean }>;
+    /** `{ cancelled: false, restored: [] }` when the queued item was already delivered. Rejects `not_found`, and `invalid_request` for a notification item or another thread's item. */
+    cancelQueued(id: string, itemId: string): Promise<CancelQueuedResult>;
+    /**
+     * Atomically delivers one queued user item now: snapshots the queued user items, aborts the run, then
+     * re-admits the chosen item ahead of every other surviving item. The other user items return to the
+     * caller in `restored` for composer restoration. Rejects `not_found`, and `invalid_request` for a
+     * notification item, an unknown item, or another thread's item.
+     */
+    sendNow(conversationId: string, itemId: string): Promise<SendNowResult>;
     /** In order of time. Rejects `not_found`. */
     checkpoints(id: string): Promise<Checkpoint[]>;
     /** Unified diff of one file; `path` is repo-relative without `..`. Rejects `not_found`, `invalid_request`. */
@@ -323,9 +340,10 @@ export interface Core {
     configure(id: string, input: ConfigureConversationInput): Promise<void>;
     /**
      * Continues after a failed or stopped answer (see `isRetryable`), once per `requestId`. Unarchives.
+     * A repeated `requestId` returns the existing receipt.
      * Rejects `not_found`, and `invalid_request` unless retryable.
      */
-    retry(id: string, input: RetryInput): Promise<void>;
+    retry(id: string, input: RetryInput): Promise<SendReceipt>;
     /** Resolves when the compaction ends. Rejects `not_found`, and `nothing_to_compact` when there is nothing to summarize. */
     compact(id: string, input: CompactInput): Promise<void>;
     /**

@@ -19,7 +19,8 @@ import { AnimatePresence, fade, gentle, motion, rise } from "@/components/ui/mot
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { scopeTarget } from "@/lib/node-keys";
-import { useSettings } from "@/lib/queries";
+import { useApprovals, useSettings } from "@/lib/queries";
+import { markAction, markConfirm } from "@/lib/timings";
 import { cn } from "@/lib/utils";
 import { useApi, useNodeId } from "@/nodes/node-context";
 import { AttachmentRow } from "./composer/AttachmentRow";
@@ -37,6 +38,7 @@ import { loadFileAttachments } from "./files/attachments";
 import { useFileAttachments } from "./files/use-file-attachments";
 import { loadAttachments } from "./images/attachments";
 import { useAttachments } from "./images/use-attachments";
+import { hasReceipt, noteFailed, noteSending } from "./queue/pending-sends";
 
 export interface ComposerProps {
   /** Draft key: `"new"` for the new thread page, the conversation id in a thread. */
@@ -61,7 +63,15 @@ export interface ComposerProps {
   commands?: CommandHandlers;
   /** Project searched by `@` mentions; without it only skills of the user are offered. */
   projectId?: string | null;
-  onSend(input: { text: string; images: ImageInput[]; files: FileRef[]; whenBusy?: WhenBusy }): Promise<void>;
+  onSend(input: {
+    text: string;
+    images: ImageInput[];
+    files: FileRef[];
+    whenBusy?: WhenBusy;
+    // `unknown`: sends resolve receipts, the new-thread start path resolves
+    // nothing, and pre-contract nodes resolve `void` — call sites narrow
+    // with `hasReceipt`.
+  }): Promise<unknown>;
   onStop?(): Promise<void>;
   /** Called right after a message is handed to `onSend`, e.g. to scroll to it. */
   onSent?(): void;
@@ -76,7 +86,15 @@ function isPlainEnter(event: KeyboardEvent<HTMLTextAreaElement>): boolean {
 }
 
 const placeholderOf = (busy: boolean, mode: WhenBusy = "steer") =>
-  !busy ? "Message the agent…" : mode === "followUp" ? "Queue a message…" : "Steer the agent…";
+  !busy
+    ? "Message the agent…"
+    : mode === "followUp"
+      ? "Queue a message…"
+      : "Steer at the next tool boundary…";
+
+/** Mode-reflecting send label: never "Send as steer" while queueing. */
+const sendLabelOf = (busy: boolean, mode: WhenBusy = "steer") =>
+  !busy ? "Send" : mode === "followUp" ? "Queue message" : "Send as steer";
 
 const otherMode = (mode: WhenBusy = "steer"): WhenBusy => (mode === "steer" ? "followUp" : "steer");
 
@@ -129,6 +147,13 @@ function ComposerForm({
   const textarea = useRef<HTMLTextAreaElement>(null);
   const menu = useComposerMenu({ text, caret, commands, projectId, pastedText });
   const bangMode = isBangMode(text);
+  // While approval is pending the composer yields to the approval bar: no
+  // steer affordance (a steer would wait for the post-approval boundary
+  // anyway), queue-only sends, and copy that never implies immediacy.
+  // `threadTarget` (not the node-scoped draft key): approvals live per conversation.
+  const approvals = useApprovals(threadTarget, threadTarget !== "new");
+  const approvalPending = (approvals.data?.length ?? 0) > 0;
+  const effectiveMode = approvalPending ? ("followUp" as const) : whenBusy;
   const canSend =
     (text.trim().length > 0 || attachments.length > 0 || fileAttachments.length > 0) &&
     !preparing &&
@@ -224,7 +249,7 @@ function ComposerForm({
     runCommand(name, "");
   };
 
-  const submit = (mode: WhenBusy | undefined = whenBusy) => {
+  const submit = (mode: WhenBusy | undefined = effectiveMode) => {
     const command = parseSlashCommand(text);
     if (command && commands[command.name]) return runCommand(command.name, command.args);
     if (isBareBang(text)) {
@@ -235,23 +260,49 @@ function ComposerForm({
     const sent = attachments;
     const sentFiles = fileAttachments;
     if (!canSend) return;
+    // Approval pending: a steer would wait for the post-approval boundary anyway — queue it.
+    const sendMode = approvalPending ? ("followUp" as const) : mode;
+    const outgoing = {
+      text: message,
+      images: sent.map((item) => item.image),
+      files: sentFiles.map((item) => item.ref),
+      ...(busy && sendMode && { whenBusy: sendMode }),
+    };
+    const token = markAction("send");
     setText("");
     replace([]);
     replaceFiles([]);
     setError(undefined);
     onSent?.();
-    onSend({
-      text: message,
-      images: sent.map((item) => item.image),
-      files: sentFiles.map((item) => item.ref),
-      ...(busy && mode && { whenBusy: mode }),
-    }).catch((failure: unknown) => {
-      // A stale ref rejects `file_expired`: put everything back so nothing is silently lost.
-      setText(message);
-      replace(sent);
-      replaceFiles(sentFiles);
-      setError(errorText(failure));
-    });
+    const trackInTranscript = threadTarget !== "new";
+    void onSend(outgoing).then(
+      (receipt) => {
+        // The pending bubble (R3.6) is keyed by the returned submissionId and
+        // swaps on the exact entry/submission id — never by text. Pre-contract
+        // nodes resolve `void`: nothing to key on, live sync covers it.
+        if (trackInTranscript && hasReceipt(receipt)) {
+          noteSending(threadTarget, receipt, { ...outgoing, ...(sendMode && { whenBusy: sendMode }) });
+          markConfirm(token, receipt, busy ? "queued" : "sent");
+        }
+      },
+      (failure: unknown) => {
+        if (trackInTranscript) {
+          // Failed bubble with retry in the transcript — never a silent vanish.
+          // (A stale ref rejects `file_expired`: the bubble keeps everything for the retry.)
+          noteFailed(
+            threadTarget,
+            { ...outgoing, ...(sendMode && { whenBusy: sendMode }) },
+            errorText(failure),
+          );
+        } else {
+          // A stale ref rejects `file_expired`: put everything back so nothing is silently lost.
+          setText(message);
+          replace(sent);
+          replaceFiles(sentFiles);
+        }
+        setError(errorText(failure));
+      },
+    );
   };
 
   const stop = () => {
@@ -276,10 +327,17 @@ function ComposerForm({
 
   const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     if (onMenuKey(event)) return;
-    if (event.key === "Escape" && busy) return stop();
+    // Escape never aborts the run: one mis-key must not kill the run and the queue.
     if (!isPlainEnter(event)) return;
     event.preventDefault();
-    submit(event.altKey || event.metaKey ? otherMode(whenBusy) : whenBusy);
+    // Approval pending hides the steer affordance: Alt+Enter queues too.
+    submit(
+      approvalPending
+        ? ("followUp" as const)
+        : event.altKey || event.metaKey
+          ? otherMode(whenBusy)
+          : whenBusy,
+    );
   };
 
   const onChange = (event: ChangeEvent<HTMLTextAreaElement>) => {
@@ -390,7 +448,7 @@ function ComposerForm({
           onSelect={(event) => setCaret(event.currentTarget.selectionStart)}
           onKeyDown={onKeyDown}
           onPaste={onPaste}
-          placeholder={bangMode && !busy ? "Run a shell command…" : placeholderOf(busy, whenBusy)}
+          placeholder={bangMode && !busy ? "Run a shell command…" : placeholderOf(busy, effectiveMode)}
           rows={1}
           className={cn(
             "max-h-48 min-h-9 resize-none border-0 bg-transparent px-2 py-1.5 shadow-none focus-visible:ring-0 dark:bg-transparent",
@@ -452,14 +510,14 @@ function ComposerForm({
                 <Button
                   type="submit"
                   size="icon"
-                  aria-label={busy ? "Send as steer" : "Send"}
+                  aria-label={sendLabelOf(busy, effectiveMode)}
                   disabled={!canSend}
                   className="size-11 rounded-full"
                 >
                   <ArrowUp className="size-5" />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent side="top">{busy ? "Send as steer" : "Send"}</TooltipContent>
+              <TooltipContent side="top">{sendLabelOf(busy, effectiveMode)}</TooltipContent>
             </Tooltip>
           </fieldset>
         ) : null}
@@ -504,7 +562,13 @@ function ComposerForm({
               Staging…
             </span>
           ) : null}
-          {hint ? <div className="min-w-0 truncate sm:shrink-0">{hint}</div> : null}
+          {approvalPending ? (
+            <div className="min-w-0 truncate text-xs text-muted-foreground sm:shrink-0">
+              Waiting on approval above — new messages queue behind it.
+            </div>
+          ) : hint ? (
+            <div className="min-w-0 truncate sm:shrink-0">{hint}</div>
+          ) : null}
           <div className="flex shrink-0 items-center gap-1 max-sm:ml-1">
             {busy && onStop ? (
               <Tooltip>
@@ -529,13 +593,13 @@ function ComposerForm({
                   <Button
                     type="submit"
                     size="icon-sm"
-                    aria-label={busy ? "Send as steer" : "Send"}
+                    aria-label={sendLabelOf(busy, effectiveMode)}
                     disabled={!canSend}
                   >
                     <ArrowUp />
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent side="top">{busy ? "Send as steer" : "Send"}</TooltipContent>
+                <TooltipContent side="top">{sendLabelOf(busy, effectiveMode)}</TooltipContent>
               </Tooltip>
             ) : null}
           </div>
