@@ -148,6 +148,11 @@ Children inherit the parent's root (`subagent-runtime` already propagates the wo
 1. `fs_usage` capture spike → minimal git writable set.
 2. Foundation: sandbox module + spawn integration, off by default, check/test/build green.
 3. Real-machine verify (macOS + vibemachine) with caps ON (subagents Background, as today).
+   VERIFIED 2026-10-22 (integrator, live): macOS Seatbelt confinement in unit tests (inside-allow,
+   outside-deny, child signaling, no blanket `deny signal`); vibemachine systemd service with the exact
+   Layer-1 flags confines writes (home/root denied, read-only fs) AND nests the memory scope
+   (`MemoryMax=536870912`, ActiveState=active) — sandbox + caps compose on both platforms. `Nice=`
+   composes with inner `nice` (spike 75692). No stray units left behind.
 4. UI: one toggle/row in Agent settings (reuse patterns), default TBD.
 5. Docs: this plan → done; VERIFY-style evidence notes.
 
