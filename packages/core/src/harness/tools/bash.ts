@@ -110,7 +110,7 @@ function guard(run: ForegroundRun, timeout: number | undefined, abortSignal: Abo
 export const createTauBashTool = ({ services, prepare }: TauBashOptions) =>
   defineTool({
     name: "bash",
-    description: `Execute a bash command in the current working directory. Returns combined stdout and stderr. Output is truncated to last ${MAX_LINES} lines or ${MAX_KB}KB (whichever is hit first). If truncated, full output is saved to a temp file. Optionally provide a timeout in seconds.`,
+    description: `Execute a bash command in the current working directory. Use it to run commands and search (grep/rg/find/ls); never to read/edit/write files — use the read/write/edit tools instead (no cat >, heredocs, sed -i, or python file writes). Returns combined stdout and stderr. Output is truncated to last ${MAX_LINES} lines or ${MAX_KB}KB (whichever is hit first). If truncated, full output is saved to a temp file. Optionally provide a timeout in seconds.`,
     parameters: BashParameters,
     structuredOutputSchema: BashStructuredOutput,
     outputLimits: { retain: "tail" },
