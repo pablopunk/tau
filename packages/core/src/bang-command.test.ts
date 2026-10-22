@@ -3,6 +3,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
+
 import {
   type ConversationSummary,
   type ConversationView,
@@ -11,15 +12,22 @@ import {
 } from "@tau/protocol";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  admitAndDispatchBang,
   type BangCommandDeps,
   entryOfThread,
   parseBangCommand,
+  recoverBangs,
   runBangCommand,
   stripBangPrefix,
 } from "./bang-command";
-import { createConversationsApi } from "./conversations-api";
+
 import type { IndexedConversation } from "./harness/conversation-docs";
+import { legacyWorkspace } from "./harness/conversation-index";
+import { createConversationStore } from "./harness/conversation-store";
 import type { Notification } from "./harness/notification-submitter";
+import { harnessNotificationSubmitter } from "./harness/notification-submitter";
+import { BACKGROUND, openAgentHarness, openSqliteStorage } from "./harness/open";
+import { createAgentRegistry } from "./harness/registry";
 import { bashPath, DEFAULT_TIMEOUT_SECONDS } from "./harness/tools/bash";
 import { createProcessService } from "./processes/process-service";
 import {
@@ -28,18 +36,9 @@ import {
   startRequest,
 } from "./test-support/conversation-harness";
 import { openFauxWorld, setUpConversation, trackView, waitUntil } from "./test-support/faux-core";
-import type { Harness } from "@earendil-works/pi-durable";
-import { admitAndDispatchBang, recoverBangs } from "./bang-command";
-import { legacyWorkspace } from "./harness/conversation-index";
-import { BACKGROUND, openAgentHarness, openSqliteStorage } from "./harness/open";
-import { createConversationStore } from "./harness/conversation-store";
-import { harnessNotificationSubmitter } from "./harness/notification-submitter";
-import type { NotificationSubmitter } from "./harness/notification-submitter";
-import { createAgentRegistry } from "./harness/registry";
+import { useTempDir } from "./test-support/temp-dir";
 import { createFauxSetup } from "./testing/faux-provider";
 import { createUploadStore } from "./upload-store";
-import type { UploadStore } from "./upload-store";
-import { useTempDir } from "./test-support/temp-dir";
 
 const rejectsWithCode = (promise: Promise<unknown>, code: string) =>
   expect(promise).rejects.toMatchObject({ code });
@@ -294,7 +293,6 @@ const userTexts = (view: ConversationView | null): string[] =>
     );
   });
 
-
 describe("bang admission in the conversation store", () => {
   const tempDir = useTempDir();
   let world: ConversationHarness;
@@ -309,9 +307,19 @@ describe("bang admission in the conversation store", () => {
 
   it("admits once per requestId", async () => {
     const { summary } = await world.store.start(startRequest(world, "hello", "start-1"));
-    const first = await world.store.send(String(summary.id), { text: "hello again", requestId: "bang-1" }, Date.now(), "steer");
+    const first = await world.store.send(
+      String(summary.id),
+      { text: "hello again", requestId: "bang-1" },
+      Date.now(),
+      "steer",
+    );
     expect(first).toMatchObject({ projectId: world.project.id, admitted: true });
-    const loser = await world.store.send(String(summary.id), { text: "hello again", requestId: "bang-1" }, Date.now(), "steer");
+    const loser = await world.store.send(
+      String(summary.id),
+      { text: "hello again", requestId: "bang-1" },
+      Date.now(),
+      "steer",
+    );
     expect(loser).toMatchObject({ projectId: world.project.id, admitted: false });
     expect(loser).not.toHaveProperty("titleText");
   });
@@ -321,8 +329,6 @@ const bangRows = (view: ConversationView | null) =>
   (view?.entries ?? []).filter((entry) => entry.kind === "app.bang");
 const exitRows = (view: ConversationView | null) =>
   (view?.entries ?? []).filter((entry) => entry.kind === "app.process_exit");
-const noticeRows = (view: ConversationView | null) =>
-  (view?.entries ?? []).filter((entry) => entry.kind === "app.notice");
 const assistantRows = (view: ConversationView | null) =>
   (view?.entries ?? []).filter((entry) => entry.kind === "pi.assistant");
 
@@ -409,7 +415,10 @@ describe("bang commands on the real core", () => {
       const { conversation } = await setUpConversation(world, "hello");
       const tracker = await trackView(world.core, conversation.id);
       await world.core.conversations.send(conversation.id, { text: "! sleep 30", requestId: "bang-3a" });
-      await waitForAsync(async () => (await world.core.processes.list(conversation.id)).length === 1, "the bang to run");
+      await waitForAsync(
+        async () => (await world.core.processes.list(conversation.id)).length === 1,
+        "the bang to run",
+      );
       await rejectsWithCode(
         world.core.conversations.send(conversation.id, { text: "! echo hi", requestId: "bang-3b" }),
         "invalid_request",
@@ -418,7 +427,10 @@ describe("bang commands on the real core", () => {
       expect(bangRows(tracker.view())).toHaveLength(1);
       const [running] = await world.core.processes.list(conversation.id);
       await world.core.processes.stop(running?.id ?? "");
-      await waitForAsync(async () => (await world.core.processes.list(conversation.id)).length === 0, "the stop");
+      await waitForAsync(
+        async () => (await world.core.processes.list(conversation.id)).length === 0,
+        "the stop",
+      );
       await world.core.conversations.send(conversation.id, { text: "! echo hi", requestId: "bang-3c" });
       await waitUntil(() => exitRows(tracker.view()).length === 1, "the exit");
       await tracker.stop();
@@ -605,7 +617,8 @@ describe("bang restart recovery", () => {
 
   async function transcriptOf(world: BangWorld, id: string) {
     const conversation = await world.harness.conversation(Number(id) as never, BACKGROUND);
-    const { entries } = await conversation!.context(BACKGROUND);
+    if (!conversation) throw new Error("conversation gone");
+    const { entries } = await conversation.context(BACKGROUND);
     return entries;
   }
 
@@ -624,8 +637,16 @@ describe("bang restart recovery", () => {
     try {
       const summary = await startIdleThread(first, "restart-1");
       threadId = summary.id;
-      await admitAndDispatchBang(bangDepsFor(first), summary.id, { text: "! sleep 30", requestId: "restart-bang" }, Date.now());
-      await waitForAsync(async () => (await first.processes.list(summary.id)).length === 1, "the bang to run");
+      await admitAndDispatchBang(
+        bangDepsFor(first),
+        summary.id,
+        { text: "! sleep 30", requestId: "restart-bang" },
+        Date.now(),
+      );
+      await waitForAsync(
+        async () => (await first.processes.list(summary.id)).length === 1,
+        "the bang to run",
+      );
     } finally {
       await first.close();
     }
@@ -655,7 +676,12 @@ describe("bang restart recovery", () => {
     try {
       const summary = await startIdleThread(first, "restart-2");
       threadId = summary.id;
-      await admitAndDispatchBang(bangDepsFor(first), summary.id, { text: "! echo hi", requestId: "restart-done" }, Date.now());
+      await admitAndDispatchBang(
+        bangDepsFor(first),
+        summary.id,
+        { text: "! echo hi", requestId: "restart-done" },
+        Date.now(),
+      );
       await waitForAsync(
         async () =>
           (await first.processes.list(summary.id)).length === 0 &&
@@ -668,7 +694,9 @@ describe("bang restart recovery", () => {
     const second = await openBangWorld(dir);
     try {
       await second.processes.reapStaleAtStartup();
-      const before = (await transcriptOf(second, threadId)).filter((entry) => entry.kind === "app.notice").length;
+      const before = (await transcriptOf(second, threadId)).filter(
+        (entry) => entry.kind === "app.notice",
+      ).length;
       const result = await recoverBangs(bangDepsFor(second));
       expect(result).toMatchObject({ redispatched: 0, interrupted: 0 });
       expect(await second.processes.list(threadId)).toEqual([]);
@@ -687,8 +715,13 @@ describe("bang restart recovery", () => {
       const summary = await startIdleThread(world, "restart-3");
       // A crash between admission and the marker: the row exists, the marker does not.
       const conversation = await world.harness.conversation(Number(summary.id) as never, BACKGROUND);
-      await conversation!.submit(
-        { type: "write", entry: { kind: "app.bang", data: { command: "echo direct" } }, requestId: "unmarked-1" },
+      if (!conversation) throw new Error("conversation gone");
+      await conversation.submit(
+        {
+          type: "write",
+          entry: { kind: "app.bang", data: { command: "echo direct" } },
+          requestId: "unmarked-1",
+        },
         BACKGROUND,
       );
       const first = await recoverBangs(bangDepsFor(world));

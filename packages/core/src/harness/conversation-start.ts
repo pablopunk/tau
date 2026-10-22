@@ -1,6 +1,7 @@
 import type { Conversation, ConversationId, Harness } from "@earendil-works/pi-durable";
 import {
   AppError,
+  BANG_KIND,
   type ConversationSummary,
   type ModelRef,
   type Project,
@@ -12,7 +13,6 @@ import { parseBangCommand, stripBangPrefix } from "../bang-command";
 import { readFromResolved, toUserInput } from "../conversation-input";
 import { titleFromFirstMessage } from "../conversation-title";
 import type { UploadStore } from "../upload-store";
-import { BANG_KIND } from "@tau/protocol";
 import type { ConnectorOffering } from "./connector-offering";
 import { ConversationDoc, INDEX_SEED, ProjectIndexDoc, pendingFirstInputOf } from "./conversation-docs";
 import {

@@ -17,7 +17,6 @@ import {
   scanAppConversations,
   updateLiveConversation,
 } from "./harness/conversation-index";
-import type { NotificationSubmitter } from "./harness/notification-submitter";
 import {
   bangSlotHolder,
   releaseBangSlot,
@@ -25,13 +24,11 @@ import {
   takeBangSlot,
   withAdmissionGate,
 } from "./harness/conversation-submit";
+import type { NotificationSubmitter } from "./harness/notification-submitter";
 import { BACKGROUND } from "./harness/open";
 import { BACKGROUND_TIMEOUT_SCALE, bashPath, DEFAULT_TIMEOUT_SECONDS } from "./harness/tools/bash";
 import { governedScope } from "./processes/governor/governed";
-import {
-  interruptedBangText,
-  noticeNotification,
-} from "./processes/process-notifications";
+import { interruptedBangText, noticeNotification } from "./processes/process-notifications";
 import type { StopReason } from "./processes/process-types";
 import { cwdOf, type ThreadLookup } from "./terminals/cwd-of";
 import type { UploadStore } from "./upload-store";
@@ -152,7 +149,6 @@ export async function runBangCommand(
   }
 }
 
-
 export type BangMarker = {
   readonly command: string;
   readonly entryId: number | null;
@@ -173,7 +169,7 @@ export const BangDoc = defineDoc<Record<string, BangMarker>>({
   initial: () => ({}),
 });
 
-const bangNotFound = (id: string) => new AppError("not_found", "Conversation not found.");
+const bangNotFound = () => new AppError("not_found", "Conversation not found.");
 
 async function readMarkers(
   harness: Harness,
@@ -265,9 +261,9 @@ export async function admitAndDispatchBang(
       throw bangSlotRefused();
     }
     const conversation = await deps.harness.conversation(conversationIdNum, BACKGROUND);
-    if (!conversation) throw bangNotFound(conversationId);
+    if (!conversation) throw bangNotFound();
     const summary = await deps.threads.find(conversationId);
-    if (!summary) throw bangNotFound(conversationId);
+    if (!summary) throw bangNotFound();
     const receipt = await submitUnlocked(deps.harness, conversation, {
       type: "write",
       entry: { kind: BANG_KIND, data: { command: bang.command } },
@@ -289,21 +285,16 @@ export async function admitAndDispatchBang(
         });
       }
       let titleText: string | undefined;
-      await updateLiveConversation(
-        deps.harness,
-        conversationIdNum,
-        summary.projectId,
-        (meta, entry) => {
-          if (meta.title === "") {
-            meta.title = titleFromFirstMessage(bang.command, []);
-            titleText = bang.command;
-          }
-          entry.title = meta.title;
-          entry.updatedAt = now;
-          delete entry.archivedAt;
-          return true;
-        },
-      );
+      await updateLiveConversation(deps.harness, conversationIdNum, summary.projectId, (meta, entry) => {
+        if (meta.title === "") {
+          meta.title = titleFromFirstMessage(bang.command, []);
+          titleText = bang.command;
+        }
+        entry.title = meta.title;
+        entry.updatedAt = now;
+        delete entry.archivedAt;
+        return true;
+      });
       return { summary, receipt, spawn: true as const, titleText };
     } catch (error) {
       releaseBangSlot(conversationId);
@@ -481,4 +472,3 @@ export async function recoverBangs(deps: BangRuntimeDeps): Promise<BangRecovery>
   }
   return { redispatched, interrupted };
 }
-

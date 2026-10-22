@@ -4,10 +4,10 @@ import { AppError, GOAL_CONDITION_MAX_LENGTH, type Goal, type GoalVerdictData } 
 import type { ChangeEmitter } from "../change-emitter";
 import { scanAppConversations } from "../harness/conversation-index";
 import type { ConversationStore } from "../harness/conversation-store";
+import { withAdmissionGate } from "../harness/conversation-submit";
 import { isBusy } from "../harness/live-state";
 import type { LiveWork } from "../harness/live-work";
 import type { NotificationSubmitter } from "../harness/notification-submitter";
-import { withAdmissionGate } from "../harness/conversation-submit";
 import { BACKGROUND } from "../harness/open";
 import { type RunEnd, readRunEnd } from "../harness/run-end";
 import type { Scheduler } from "../timers/scheduler-api";

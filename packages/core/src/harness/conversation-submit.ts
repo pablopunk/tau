@@ -6,14 +6,9 @@ import type {
   SubmissionDraft,
   UserInput,
 } from "@earendil-works/pi-durable";
-import { isBusy } from "./live-state";
 import { InboxDoc } from "@earendil-works/pi-durable";
-import {
-  AppError,
-  type CancelQueuedResult,
-  type SendReceipt,
-  type UserItemSnapshot,
-} from "@tau/protocol";
+import { AppError, type CancelQueuedResult, type SendReceipt, type UserItemSnapshot } from "@tau/protocol";
+import { isBusy } from "./live-state";
 import { BACKGROUND } from "./open";
 
 export interface AdmissionReceipt extends SendReceipt {
@@ -114,11 +109,7 @@ export function isNotificationItem(item: QueuedSnapshot): item is QueuedSnapshot
 const userItemSnapshots = new Map<string, UserItemSnapshot>();
 
 /** Records the pre-flatten snapshot under both the admission `requestId` and submission id. */
-export function rememberUserItem(
-  requestId: string,
-  submissionId: number,
-  snapshot: UserItemSnapshot,
-): void {
+export function rememberUserItem(requestId: string, submissionId: number, snapshot: UserItemSnapshot): void {
   userItemSnapshots.set(requestId, { text: snapshot.text, files: [...snapshot.files] });
   userItemSnapshots.set(String(submissionId), { text: snapshot.text, files: [...snapshot.files] });
 }
@@ -279,7 +270,8 @@ export async function cancelQueued(
   const queued = await snapshotQueued(harness, conversation.id);
   const item = queued.find((candidate) => String(candidate.id) === itemId);
   // A notification id never cancels: the composer could not restore it and the queue would lose it.
-  if (item && !isUserItem(item)) throw new AppError("invalid_request", "Only user messages can be cancelled.");
+  if (item && !isUserItem(item))
+    throw new AppError("invalid_request", "Only user messages can be cancelled.");
   // The `conversationId` check is the cross-thread guard: a foreign item id reports `not_found`.
   const result = await harness.abortSubmission(
     Number(itemId) as never,

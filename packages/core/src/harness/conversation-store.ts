@@ -43,8 +43,8 @@ import {
   type StartResult,
 } from "./conversation-start";
 import {
-  abortAndRestore,
   type AdmissionReceipt,
+  abortAndRestore,
   cancelQueued,
   entryOfSubmission,
   isNotificationItem,
@@ -265,7 +265,9 @@ export function createConversationStore(
         }
         hooks?.afterSnapshot?.();
         await conversation.abort(BACKGROUND);
-        const readmitNotice = async (item: QueuedSnapshot & { entry: NonNullable<QueuedSnapshot["entry"]> }) => {
+        const readmitNotice = async (
+          item: QueuedSnapshot & { entry: NonNullable<QueuedSnapshot["entry"]> },
+        ) => {
           const requestId = mintServerRequestId("reattempt", key, item.id);
           await submitUnlocked(harness, conversation, {
             type: "write",
