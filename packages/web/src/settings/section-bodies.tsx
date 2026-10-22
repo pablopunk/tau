@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { CodeFolderSuggestion } from "@/github/CodeFolderSuggestion";
 import { GithubSettingsRow } from "@/github/GithubSettingsRow";
 import { AgentSection } from "./agent/AgentSection";
+import { LimitsSection } from "./limits/LimitsSection";
 import { GeneralSection } from "./GeneralSection";
 import { NodesSection } from "./NodesSection";
 import { ProjectsFolderField } from "./ProjectsFolderField";
@@ -26,5 +27,6 @@ export const SECTION_BODIES: Record<SettingsSectionId, () => ReactNode> = {
   ),
   github: () => <GithubSettingsRow />,
   agent: () => <AgentSection />,
+  limits: () => <LimitsSection />,
   tools: () => <ToolsSection />,
 };
