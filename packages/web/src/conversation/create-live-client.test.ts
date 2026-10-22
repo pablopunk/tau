@@ -180,6 +180,85 @@ describe("createLiveClient", () => {
     expect(sockets).toHaveLength(4);
   });
 
+  it("ignores ops frames from a stale predecessor after reconnect", () => {
+    const { transport, sockets, last } = createFakeTransport();
+    const client = createLiveClient(transport);
+    const views: (ConversationView | null)[] = [];
+    client.subscribe("c1", (view) => views.push(view));
+    last().handlers.onOpen();
+    last().handlers.onFrame(opsFrame("c1", [["r", emptyView(1)]]));
+    expect(views).toHaveLength(1);
+    const predecessor = last();
+    predecessor.handlers.onClose();
+    vi.advanceTimersByTime(500);
+    expect(sockets).toHaveLength(2);
+    last().handlers.onOpen();
+    // A late frame from the dead socket must not touch the shared view.
+    predecessor.handlers.onFrame(opsFrame("c1", [["s", ["docs", "stale"], 1]]));
+    expect(views).toHaveLength(1);
+    expect(views[0]).not.toHaveProperty("docs.stale");
+    last().handlers.onFrame(opsFrame("c1", [["s", ["docs", "fresh"], 1]]));
+    expect(views).toHaveLength(2);
+  });
+
+  it("does not stack reconnect timers on repeated closes", () => {
+    const { transport, sockets, last } = createFakeTransport();
+    const client = createLiveClient(transport);
+    client.subscribe("c1", () => {});
+    last().handlers.onOpen();
+    last().handlers.onClose();
+    last().handlers.onClose();
+    vi.advanceTimersByTime(500);
+    expect(sockets).toHaveLength(2);
+  });
+
+  it("survives a throwing send without propagating", () => {
+    const handlers: LiveHandlers[] = [];
+    const transport: LiveTransport = {
+      open(next) {
+        handlers.push(next);
+        return {
+          send: () => {
+            throw new Error("socket is closing");
+          },
+          close: () => {},
+        };
+      },
+    };
+    const client = createLiveClient(transport);
+    client.subscribe("c1", () => {});
+    expect(() => handlers[0]?.onOpen()).not.toThrow();
+    expect(client.status).toBe("reconnecting");
+  });
+
+  it("resubscribes a conversation whose watcher failed, on the healthy socket", () => {
+    const { transport, last } = createFakeTransport();
+    const errors: unknown[][] = [];
+    vi.spyOn(console, "error").mockImplementation((...args: unknown[]) => void errors.push(args));
+    const client = createLiveClient(transport);
+    const views: (ConversationView | null)[] = [];
+    client.subscribe("c1", (view) => views.push(view));
+    last().handlers.onOpen();
+    last().handlers.onFrame(opsFrame("c1", [["r", emptyView(1)]]));
+    // The watcher died while the socket stayed healthy: un+subscribe for a fresh base.
+    last().handlers.onFrame({ type: "watch-failed", conversationId: "c1" } as never);
+    expect(last().sent.slice(-2)).toEqual([
+      { type: "unsubscribe", conversationId: "c1" },
+      { type: "subscribe", conversationId: "c1" },
+    ]);
+    last().handlers.onFrame(opsFrame("c1", [["r", emptyView(7)]]));
+    expect(views.at(-1)?.conversation.id).toBe(7);
+  });
+
+  it("answers a heartbeat ping with a pong", () => {
+    const { transport, last } = createFakeTransport();
+    const client = createLiveClient(transport);
+    client.subscribe("c1", () => {});
+    last().handlers.onOpen();
+    last().handlers.onFrame({ type: "ping", at: 123 } as never);
+    expect(last().sent).toContainEqual({ type: "pong" });
+  });
+
   it("stops everything on close", () => {
     const { transport, sockets, last } = createFakeTransport();
     const client = createLiveClient(transport);
