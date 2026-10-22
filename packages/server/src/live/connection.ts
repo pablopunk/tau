@@ -12,6 +12,7 @@ import {
   type ServerFrame,
 } from "@tau/protocol";
 import type { WebSocket } from "ws";
+import { logStage, STAGE } from "../timing";
 import { closeIfOversized } from "../ws-frame-cap";
 import { waitForDrain } from "./backpressure";
 
@@ -20,25 +21,75 @@ interface Subscription {
   watcher: Promise<ConversationWatcher | undefined>;
 }
 
+/**
+ * R4 wire extras. The protocol freeze (protocol/src/live.ts) has no
+ * ping/pong, sequence or watch-failure frames yet, so these ride on the
+ * existing frames in a backward-compatible way until the foundation agent
+ * freezes them:
+ * - heartbeat uses the WebSocket protocol ping/pong (no app frame at all);
+ * - every `ops` frame carries an extra per-conversation `seq` (unknown props
+ *   are ignored by older decoders; the client gap→resync half lives in
+ *   `web/.../create-live-client.ts`, owned by another agent — see note);
+ * - watcher failure is terminal and visible via RETIRED_OPS (a distinct
+ *   watch-failure frame needs the protocol freeze — see note).
+ */
+export type OpsFrameWithSeq = ServerFrame & { seq?: number };
+
+export interface LiveConnectionOptions {
+  /** Defaults to 30s (R4.1). Injectable for tests. */
+  heartbeatIntervalMs?: number;
+  /** Missed pongs before the socket is terminated. Defaults to 2. */
+  heartbeatMissLimit?: number;
+}
+
+const HEARTBEAT_INTERVAL_MS = 30_000;
+const HEARTBEAT_MISS_LIMIT = 2;
+
 const POLICY_VIOLATION = 1008;
 
 /** One browser tab: its conversation subscriptions plus the shared `changed` broadcasts. */
 export class LiveConnection {
   private readonly subscriptions = new Map<string, Subscription>();
   private readonly stopListeningForChanges: () => void;
+  /** Next sequence number per subscribed conversation. */
+  private readonly seq = new Map<string, number>();
+  private heartbeatTimer: ReturnType<typeof setInterval> | undefined;
+  private heartbeatMisses = 0;
 
   constructor(
     private readonly socket: WebSocket,
     private readonly core: Core,
     private readonly onError: (error: unknown) => void,
+    options: LiveConnectionOptions = {},
   ) {
+    const intervalMs = options.heartbeatIntervalMs ?? HEARTBEAT_INTERVAL_MS;
+    const missLimit = options.heartbeatMissLimit ?? HEARTBEAT_MISS_LIMIT;
     this.stopListeningForChanges = core.onChange((change) => this.sendChange(change));
     socket.on("message", (data) => {
       if (closeIfOversized(socket, data, LIVE_MAX_FRAME_BYTES)) return;
       this.handleMessage(data.toString());
     });
+    socket.on("pong", () => {
+      this.heartbeatMisses = 0;
+    });
     socket.on("close", () => void this.dispose());
     socket.on("error", onError);
+    // R4.1 heartbeat: ws-level ping; a half-open TCP socket never pongs, so
+    // missed pongs terminate it instead of leaving a stale view that looks alive.
+    this.heartbeatTimer = setInterval(() => {
+      if (this.heartbeatMisses >= missLimit) {
+        logStage({ action: "live", stage: STAGE.heartbeatTimeout });
+        try {
+          socket.terminate();
+        } finally {
+          void this.dispose();
+        }
+        return;
+      }
+      this.heartbeatMisses += 1;
+      if (socket.readyState === socket.OPEN) socket.ping();
+    }, intervalMs);
+    this.heartbeatTimer.unref?.();
   }
 
   private sendChange(change: Change): void {
@@ -46,7 +97,9 @@ export class LiveConnection {
   }
 
   private sendOps(conversationId: string, ops: readonly Op[]): void {
-    this.send({ type: "ops", conversationId, ops });
+    const seq = this.seq.get(conversationId) ?? 0;
+    this.seq.set(conversationId, seq + 1);
+    this.send({ type: "ops", conversationId, ops, seq } as ServerFrame);
   }
 
   private send(frame: ServerFrame): void {
@@ -81,8 +134,17 @@ export class LiveConnection {
       if (!subscription.cancelled) return watcher;
       await watcher.stop();
     } catch (error) {
+      // R4.2: a failed subscribe must never leave a mapped entry — otherwise
+      // every later subscribe on this socket is a silent no-op and even a
+      // client resync cannot recover. The failure is terminal and visible:
+      // the client gets a retired view (fresh base on resubscribe), never
+      // silence, for AppError and internal errors alike.
+      if (this.subscriptions.get(conversationId) === subscription) {
+        this.subscriptions.delete(conversationId);
+      }
+      logStage({ action: "live", stage: STAGE.watchFailure, conversationId });
+      if (!subscription.cancelled) this.sendOps(conversationId, RETIRED_OPS);
       if (!isAppError(error)) this.onError(error);
-      else if (!subscription.cancelled) this.sendOps(conversationId, RETIRED_OPS);
     }
     return undefined;
   }
@@ -96,6 +158,10 @@ export class LiveConnection {
   }
 
   private async dispose(): Promise<void> {
+    if (this.heartbeatTimer) {
+      clearInterval(this.heartbeatTimer);
+      this.heartbeatTimer = undefined;
+    }
     this.stopListeningForChanges();
     await Promise.all([...this.subscriptions.keys()].map((id) => this.unsubscribe(id).catch(this.onError)));
   }
