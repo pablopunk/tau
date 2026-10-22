@@ -18,7 +18,10 @@ export function cacheEnvAdditions(root: string): Record<string, string> {
   return {
     PNPM_STORE_DIR: join(caches, "pnpm-store"),
     CARGO_TARGET_DIR: join(caches, "cargo-target"),
-    MISE_DATA_DIR: join(caches, "mise-data"),
+    // NOTE: MISE_DATA_DIR (installs) stays shared and read-only so mise sees the real
+    // toolchain; only STATE (locks, bookkeeping) and CACHE (exec_env files) redirect.
+    // Redirecting DATA blinds mise to installs and triggers per-worktree reinstalls.
+    MISE_STATE_DIR: join(caches, "mise-state"),
     MISE_CACHE_DIR: join(caches, "mise-cache"),
   };
 }

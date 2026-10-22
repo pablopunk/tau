@@ -103,6 +103,8 @@ export interface ForegroundRequest {
   readonly governed?: boolean;
   /** The calling thread's scope; picks the command's power level. Set with `governed`. */
   readonly scope?: ThreadClass;
+  /** Trusted sandbox root, as on `StartProcessRequest`. */
+  readonly sandboxRoot?: string;
   /** Distinguishes tool-spawned runs in exit delivery; unset preserves follow-up behavior. */
   readonly origin?: ProcessOrigin;
   /** Trusted sandbox root, as on `StartProcessRequest`. */
