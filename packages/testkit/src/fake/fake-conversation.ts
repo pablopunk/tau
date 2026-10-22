@@ -1,7 +1,9 @@
 import {
+  type AbortResult,
   type AgentStatus,
   AppError,
   baseOps,
+  type CancelQueuedResult,
   type ConversationStatus,
   type ConversationSummary,
   type ConversationView,
@@ -16,11 +18,14 @@ import {
   type Op,
   type OpsListener,
   RETIRED_OPS,
+  type SendNowResult,
+  type SendReceipt,
   type ThinkingLevel,
   type ThreadWorkspace,
   TODOS_UPDATED_KIND,
   type TodoItem,
   todosUpdatedText,
+  type UserItemSnapshot,
   type UserMessage,
   unmergedWarningFor,
   type WhenBusy,
@@ -97,12 +102,24 @@ interface Playback {
 
 interface QueuedInput {
   readonly id: number;
+  readonly requestId: string;
   readonly mode: WhenBusy;
   readonly input: FakeInput;
   readonly content: UserMessage["content"];
   /** Restyles the replayed user entry, so a notification rides the normal admit path. */
   readonly entryKind?: string;
   readonly entryData?: unknown;
+}
+
+/** Submission ids are global across threads, so a cross-thread cancel can be told apart from a delivered item. */
+let nextSubmissionId = 1000;
+
+function snapshotOf(item: QueuedInput): UserItemSnapshot {
+  return { text: item.input.text, files: [...(item.input.files ?? [])] };
+}
+
+function isUserItem(item: QueuedInput): boolean {
+  return (item.entryKind ?? "pi.user") === "pi.user";
 }
 
 const MIN_ANSWERS_TO_COMPACT = 2;
@@ -151,10 +168,9 @@ export class FakeConversation {
   private titleTimer: ReturnType<typeof setTimeout> | undefined;
   private view: ConversationView;
   private readonly watchers = new Set<Watcher>();
-  private readonly requestIds = new Set<string>();
+  private readonly receipts = new Map<string, SendReceipt>();
   private queued: QueuedInput[] = [];
   private playback: Playback | undefined;
-  private nextSubmissionId = 1000;
   private pendingEffects: MessageEffect[] = [];
 
   constructor(private readonly deps: FakeConversationDeps) {
@@ -257,10 +273,6 @@ export class FakeConversation {
     return this.playback !== undefined;
   }
 
-  hasRequest(requestId: string): boolean {
-    return this.requestIds.has(requestId);
-  }
-
   rename(title: string): void {
     this.title = title;
     this.titleSource = "user";
@@ -285,33 +297,40 @@ export class FakeConversation {
     };
   }
 
-  send(requestId: string, input: FakeInput, mode: WhenBusy = "steer"): void {
-    if (this.requestIds.has(requestId)) return;
-    this.requestIds.add(requestId);
+  send(requestId: string, input: FakeInput, mode: WhenBusy = "steer"): SendReceipt {
+    const existing = this.receipts.get(requestId);
+    if (existing) return existing;
     this.archivedAt = null;
     this.updatedAt = this.deps.now();
     this.nameFromFirstMessage(input);
     const effect = effectOf(input.text);
     this.pendingEffects.push(effect);
     this.checkpoints.record(requestId, effect, this.deps.now());
-    this.admit({ id: this.nextSubmissionId++, mode, input, content: contentOf(input) });
+    const receipt: SendReceipt = { submissionId: nextSubmissionId++ };
+    this.receipts.set(requestId, receipt);
+    this.admit({ id: receipt.submissionId, requestId, mode, input, content: contentOf(input) });
+    return receipt;
   }
 
-  retry(requestId: string): void {
-    if (this.requestIds.has(requestId)) return;
+  retry(requestId: string): SendReceipt {
+    const existing = this.receipts.get(requestId);
+    if (existing) return existing;
     if (this.isBusy() || !isRetryable(this.view)) {
       throw new AppError("invalid_request", "There is nothing to retry.");
     }
-    this.requestIds.add(requestId);
     this.archivedAt = null;
     this.updatedAt = this.deps.now();
+    const receipt: SendReceipt = { submissionId: nextSubmissionId++ };
+    this.receipts.set(requestId, receipt);
     this.admit({
-      id: this.nextSubmissionId++,
+      id: receipt.submissionId,
+      requestId,
       mode: "steer",
       input: { text: RETRY_PROMPT },
       content: RETRY_PROMPT,
       entryKind: "app.retry",
     });
+    return receipt;
   }
 
   /**
@@ -320,13 +339,14 @@ export class FakeConversation {
    * agent wakes. Archived threads stay archived. A repeated `requestId` is a no-op.
    */
   updateTodos(requestId: string, todos: TodoItem[]): void {
-    if (this.requestIds.has(requestId)) return;
-    this.requestIds.add(requestId);
+    if (this.receipts.has(requestId)) return;
+    this.receipts.set(requestId, { submissionId: nextSubmissionId++ });
     this.updatedAt = this.deps.now();
     const diff = diffTodos(latestTodos(this.view), todos);
     const text = todosUpdatedText(todos, diff);
     this.admit({
-      id: this.nextSubmissionId++,
+      id: nextSubmissionId++,
+      requestId,
       mode: "followUp",
       input: { text },
       content: text,
@@ -335,12 +355,51 @@ export class FakeConversation {
     });
   }
 
-  cancelQueued(itemId: string): boolean {
+  hasQueuedItem(itemId: string): boolean {
+    return this.queued.some((item) => String(item.id) === itemId);
+  }
+
+  cancelQueued(itemId: string): CancelQueuedResult {
     const index = this.queued.findIndex((item) => String(item.id) === itemId);
-    if (index < 0) return false;
+    if (index < 0) return { cancelled: false, restored: [] };
+    const item = this.queued[index];
+    if (!isUserItem(item as QueuedInput))
+      throw new AppError("invalid_request", "Only user messages can be cancelled.");
     this.queued.splice(index, 1);
     this.publish(this.view);
-    return true;
+    return { cancelled: true, restored: [snapshotOf(item as QueuedInput)] };
+  }
+
+  /**
+   * One atomic deliver-now: the chosen user item jumps ahead of the run while every other queued
+   * user item is withdrawn for composer restoration. Notification items stay queued. A repeated
+   * call for the same item fails: the first call consumed it.
+   */
+  sendNow(itemId: string): SendNowResult {
+    const index = this.queued.findIndex((item) => String(item.id) === itemId);
+    if (index < 0) throw new AppError("not_found", `Unknown queued item: ${itemId}`);
+    const [chosen] = this.queued.splice(index, 1);
+    if (!chosen || !isUserItem(chosen)) {
+      if (chosen) this.queued.splice(index, 0, chosen);
+      throw new AppError("invalid_request", "Only user messages can be sent now.");
+    }
+    const restored = this.queued.filter(isUserItem).map(snapshotOf);
+    this.queued = this.queued.filter((item) => !isUserItem(item));
+    if (this.playback) this.playback.cancelled = true;
+    this.playback = undefined;
+    this.publish(withoutRun(this.view));
+    const receipt: SendReceipt = { submissionId: nextSubmissionId++ };
+    const requestId = `send-now:${receipt.submissionId}`;
+    this.receipts.set(requestId, receipt);
+    this.touch();
+    this.admit({
+      id: receipt.submissionId,
+      requestId,
+      mode: chosen.mode,
+      input: chosen.input,
+      content: chosen.content,
+    });
+    return { ...receipt, restored };
   }
 
   userEntries(): { id: string; text: string }[] {
@@ -367,13 +426,15 @@ export class FakeConversation {
     this.titleSource = "user";
   }
 
-  async abort(): Promise<void> {
+  async abort(): Promise<AbortResult> {
     const wasRunning = this.playback !== undefined;
+    const restored = this.queued.filter(isUserItem).map(snapshotOf);
+    this.queued = this.queued.filter((item) => !isUserItem(item));
     if (this.playback) this.playback.cancelled = true;
     this.playback = undefined;
-    this.queued = [];
     this.publish(withoutRun(this.view));
     if (wasRunning) this.endRun(false);
+    return { restored };
   }
 
   remove(): void {

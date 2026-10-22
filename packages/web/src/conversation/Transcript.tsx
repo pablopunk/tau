@@ -119,7 +119,7 @@ export function Transcript({
   conversationId,
 }: {
   view: ConversationView;
-  onRetry?: (requestId: string) => Promise<void>;
+  onRetry?: (requestId: string) => Promise<unknown>;
   conversationId?: string;
 }) {
   const { items, results } = buildTranscript(view);

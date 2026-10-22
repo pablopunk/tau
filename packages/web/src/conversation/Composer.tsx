@@ -61,7 +61,12 @@ export interface ComposerProps {
   commands?: CommandHandlers;
   /** Project searched by `@` mentions; without it only skills of the user are offered. */
   projectId?: string | null;
-  onSend(input: { text: string; images: ImageInput[]; files: FileRef[]; whenBusy?: WhenBusy }): Promise<void>;
+  onSend(input: {
+    text: string;
+    images: ImageInput[];
+    files: FileRef[];
+    whenBusy?: WhenBusy;
+  }): Promise<unknown>;
   onStop?(): Promise<void>;
   /** Called right after a message is handed to `onSend`, e.g. to scroll to it. */
   onSent?(): void;

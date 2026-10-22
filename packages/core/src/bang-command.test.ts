@@ -219,7 +219,7 @@ describe("conversations-api send with bang", () => {
       find: overrides.store?.find ?? (async () => summaryFor()),
       send:
         overrides.store?.send ??
-        (async () => ({ projectId: "p1", admitted: true as const, titleText: "echo hi" })),
+        (async () => ({ projectId: "p1", admitted: true as const, titleText: "echo hi", submissionId: 1 })),
     } as unknown as ConversationStore;
     const processes = fakeProcesses(overrides.start);
     const notifications = fakeNotifications();
@@ -254,14 +254,14 @@ describe("conversations-api send with bang", () => {
 
   it("spawns for the admitted winner only", async () => {
     const { api, processes } = makeApi({
-      store: { send: async () => ({ projectId: "p1", admitted: false }) },
+      store: { send: async () => ({ projectId: "p1", admitted: false, submissionId: 1 }) },
     });
     await api.send("1", { text: "! echo hi", requestId: "r1" });
     expect(processes.start).not.toHaveBeenCalled();
   });
 
   it("validates before exec: no provider means no spawn call", async () => {
-    const send = vi.fn(async () => ({ projectId: "p1", admitted: true as const }));
+    const send = vi.fn(async () => ({ projectId: "p1", admitted: true as const, submissionId: 1 }));
     const { api, processes } = makeApi({
       store: {
         modelOf: async () => {
@@ -276,7 +276,7 @@ describe("conversations-api send with bang", () => {
   });
 
   it("rejects a missing workspace before admission", async () => {
-    const send = vi.fn(async () => ({ projectId: "p1", admitted: true as const }));
+    const send = vi.fn(async () => ({ projectId: "p1", admitted: true as const, submissionId: 1 }));
     const { api, processes } = makeApi({ store: { find: async () => undefined, send } });
     await rejectsWithCode(api.send("1", { text: "! echo hi", requestId: "r1" }), "not_found");
     expect(send).not.toHaveBeenCalled();
@@ -297,6 +297,7 @@ describe("conversations-api send with bang", () => {
     const send = vi.fn(async (_id: string, _input: { text: string }) => ({
       projectId: "p1",
       admitted: true as const,
+      submissionId: 1,
     }));
     const { api, processes } = makeApi({ store: { send } });
     await api.send("1", { text: "!!wow", requestId: "r1" });
@@ -306,7 +307,7 @@ describe("conversations-api send with bang", () => {
   });
 
   it("rejects a bare `!` before admission", async () => {
-    const send = vi.fn(async () => ({ projectId: "p1", admitted: true as const }));
+    const send = vi.fn(async () => ({ projectId: "p1", admitted: true as const, submissionId: 1 }));
     const { api, processes } = makeApi({ store: { send } });
     await rejectsWithCode(api.send("1", { text: "!", requestId: "r1" }), "invalid_request");
     expect(send).not.toHaveBeenCalled();

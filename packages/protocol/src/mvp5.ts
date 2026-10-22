@@ -36,6 +36,13 @@ export const RestorePreviewSchema = Type.Object({
 });
 export type RestorePreview = Type.Static<typeof RestorePreviewSchema>;
 
+export const ProcessOriginSchema = Type.Union([
+  Type.Literal("bang"),
+  Type.Literal("tool"),
+  Type.Literal("system"),
+]);
+export type ProcessOrigin = Type.Static<typeof ProcessOriginSchema>;
+
 export const ProcessInfoSchema = Type.Object({
   id: Type.String(),
   conversationId: Type.String(),
@@ -51,6 +58,7 @@ export const ProcessInfoSchema = Type.Object({
   startedAt: Type.Number(),
   urls: Type.Array(Type.String()),
   kind: Type.Union([Type.Literal("process"), Type.Literal("monitor")]),
+  origin: Type.Optional(ProcessOriginSchema),
 });
 export type ProcessInfo = Type.Static<typeof ProcessInfoSchema>;
 

@@ -11,6 +11,8 @@ import {
 } from "./access";
 import { DeleteArchivedInputSchema, DeleteArchivedResultSchema } from "./archived";
 import {
+  AbortResultSchema,
+  CancelQueuedResultSchema,
   ClaudeConnectorSettingsSchema,
   CompactInputSchema,
   CompactionSettingsSchema,
@@ -31,6 +33,9 @@ import {
   ProviderInfoSchema,
   RetryInputSchema,
   SendMessageInputSchema,
+  SendNowInputSchema,
+  SendNowResultSchema,
+  SendReceiptSchema,
   SettingsSchema,
   SkillSchema,
   StartConversationInputSchema,
@@ -600,9 +605,10 @@ export const routes = {
   sendMessage: {
     method: "POST",
     path: `${API_PREFIX}/conversations/:id/messages`,
-    status: 204,
+    status: 200,
     params: IdParams,
     body: SendMessageInputSchema,
+    response: SendReceiptSchema,
     bodyLimit: MESSAGE_BODY_LIMIT,
   },
   updateTodos: {
@@ -643,9 +649,10 @@ export const routes = {
   retryConversation: {
     method: "POST",
     path: `${API_PREFIX}/conversations/:id/retry`,
-    status: 204,
+    status: 200,
     params: IdParams,
     body: RetryInputSchema,
+    response: SendReceiptSchema,
   },
   compactConversation: {
     method: "POST",
@@ -657,8 +664,9 @@ export const routes = {
   abortConversation: {
     method: "POST",
     path: `${API_PREFIX}/conversations/:id/abort`,
-    status: 204,
+    status: 200,
     params: IdParams,
+    response: AbortResultSchema,
   },
   stopAgent: {
     method: "POST",
@@ -690,12 +698,20 @@ export const routes = {
     body: EntryBody,
     response: Type.Object({ conversation: ConversationSummarySchema, draft: Type.String() }),
   },
+  sendNow: {
+    method: "POST",
+    path: `${API_PREFIX}/conversations/:id/send-now`,
+    status: 200,
+    params: IdParams,
+    body: SendNowInputSchema,
+    response: SendNowResultSchema,
+  },
   cancelQueued: {
     method: "DELETE",
     path: `${API_PREFIX}/conversations/:id/queue/:itemId`,
     status: 200,
     params: QueueItemParams,
-    response: Type.Object({ cancelled: Type.Boolean() }),
+    response: CancelQueuedResultSchema,
   },
   listCheckpoints: {
     method: "GET",

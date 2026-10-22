@@ -16,8 +16,8 @@ const abort = vi.mocked(api.conversations.abort);
 
 beforeEach(() => {
   window.localStorage.clear();
-  send.mockReset().mockResolvedValue(undefined);
-  abort.mockReset().mockResolvedValue(undefined);
+  send.mockReset().mockResolvedValue({ submissionId: 1 });
+  abort.mockReset().mockResolvedValue({ restored: [] });
 });
 
 function setup(props: Partial<Parameters<typeof Composer>[0]> = {}) {

@@ -10,6 +10,7 @@ import {
   latestTodos,
   type ModelRef,
   type SendMessageInput,
+  type SendReceipt,
   type StartConversationInput,
   type ThinkingLevel,
   TODOS_UPDATED_KIND,
@@ -80,7 +81,7 @@ export function createConversationsApi(deps: {
   const reportCheckpointFailure = (error: unknown) =>
     console.error("tau: could not take a checkpoint", error);
   const startsInFlight = new Map<string, Promise<ConversationSummary>>();
-  const sendsInFlight = new Map<string, Promise<void>>();
+  const sendsInFlight = new Map<string, Promise<SendReceipt>>();
 
   const nameTheThread = (id: string, text: string) => void titles.generateFor(id, text);
   const lookUp = (ref: ModelRef) => provider.models.getModel(ref.provider, ref.modelId);
@@ -104,7 +105,7 @@ export function createConversationsApi(deps: {
     if ((input.files ?? []).length > 0) await deps.uploads?.resolveRefs(input.files ?? []);
   }
 
-  async function sendOnce(id: string, input: SendMessageInput): Promise<void> {
+  async function sendOnce(id: string, input: SendMessageInput): Promise<SendReceipt> {
     await validateMessage(input, await modelOfThread(id));
     const bang = parseBangCommand(input.text);
     // The server strips one `!`; web sends verbatim so every client behaves the same.
@@ -112,7 +113,7 @@ export function createConversationsApi(deps: {
     // A bang command resolves its workspace before admission: no exec without a folder.
     if (bang.kind === "command") await cwdOf(conversations, id);
     await checkpoints.snapshotBefore(id, input.requestId).catch(reportCheckpointFailure);
-    const { projectId, titleText, admitted } = await conversations.send(
+    const { projectId, titleText, admitted, submissionId, entryId } = await conversations.send(
       id,
       effective,
       now(),
@@ -134,6 +135,7 @@ export function createConversationsApi(deps: {
         bang.command,
       );
     }
+    return { submissionId, entryId };
   }
 
   async function workspaceModeFor(projectId: string, requested: WorkspaceMode | undefined) {
@@ -297,7 +299,12 @@ export function createConversationsApi(deps: {
     configure: configureThread,
     compact: (id, input) => conversations.compact(id, input.instructions),
     async retry(id, input) {
-      announce(await conversations.retry(id, input, now()));
+      const { projectId, submissionId, entryId } = await conversations.retry(id, input, now());
+      announce(projectId);
+      return { submissionId, entryId };
+    },
+    async sendNow() {
+      throw new AppError("internal", "sendNow is not implemented yet");
     },
     watch: (id, onOps) => conversations.watch(id, onOps),
     ...createConversationsMvp5Api({

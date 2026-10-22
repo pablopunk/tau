@@ -62,6 +62,7 @@ describe("restoreQueuedToComposer", () => {
   const queued = (id: number, text: string) => ({
     id,
     mode: "followUp" as const,
+    entryKind: "pi.user",
     text,
     images: [],
   });

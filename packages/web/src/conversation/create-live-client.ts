@@ -102,7 +102,7 @@ export function createLiveClient(transport: LiveTransport): LiveClient {
 
   const handleFrame = (frame: ServerFrame) => {
     if (frame.type === "ops") applyOps(frame.conversationId, frame.ops);
-    else notify(changedListeners, frame);
+    else if (frame.type === "changed") notify(changedListeners, frame);
   };
 
   const scheduleReconnect = () => {
