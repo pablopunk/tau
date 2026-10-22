@@ -45,3 +45,16 @@ Dependencies point one way: `protocol` <- `testkit` <- `core`, `server`, `web`. 
 
 * Never work around git hooks. If a hook blocks git, leave work uncommitted and say so.
 * Announce each finished step with `say`.
+
+## Subagent context contract (isolated worktrees only see tracked files)
+
+A subagent in an isolated worktree cannot see untracked or gitignored files (`plans/`, scratch notes, local
+fixtures). Never reference such a path bare in a subagent prompt — it does not exist for them.
+
+Parent side: state `base: <branch>@<shortSHA>`; tag each referenced file `[REQUIRED]` or `[OPTIONAL]`;
+inline ignored/untracked content (tight excerpt + `Omitted:` line ranges) instead of its path.
+
+Subagent step zero, before any other work, reply with a filled `CONTEXT_CHECK` (base FRESH/STALE, each
+file OK/MISSING): any REQUIRED gap (or STALE checkout on a review task) is verdict BLOCKED — stop and
+request the inline content. Otherwise PROCEED_WITH_GAPS listing the gaps. STALE with zero
+`git diff --name-only` overlap with the task scope may proceed with the skew noted.
