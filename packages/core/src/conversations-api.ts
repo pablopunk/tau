@@ -67,6 +67,8 @@ export function createConversationsApi(deps: {
   closeClaudeCliThread: (id: string) => Promise<void>;
   /** Closes the thread's terminals; called before an archive and never blocks it. */
   closeTerminalsOf?: (conversationId: string) => Promise<void>;
+  /** Refuses a message for a thread whose workspace is being merged or removed by another thread. Default: open. */
+  workspaceFence?: { assertOpen(workspaceKey: string, thread: string): void };
   /** Staged file refs validate through this before any side effect (workspace, checkpoint, exec). */
   uploads?: Pick<UploadStore, "resolveRefs">;
   /** What a `!` bang command spawns with: the process service, the home, and the notifier. */
@@ -120,7 +122,14 @@ export function createConversationsApi(deps: {
     ...(deps.uploads === undefined ? {} : { uploads: deps.uploads }),
   });
 
+  async function requireWorkspaceOpen(id: string): Promise<void> {
+    if (!deps.workspaceFence) return;
+    const thread = await conversations.find(id);
+    if (thread) deps.workspaceFence.assertOpen(thread.workspace.path, id);
+  }
+
   async function sendOnce(id: string, input: SendMessageInput): Promise<SendReceipt> {
+    await requireWorkspaceOpen(id);
     await validateMessage(input, await modelOfThread(id));
     const bang = parseBangCommand(input.text);
     if (bang.kind === "command") {
@@ -321,11 +330,13 @@ export function createConversationsApi(deps: {
     configure: configureThread,
     compact: (id, input) => conversations.compact(id, input.instructions),
     async retry(id, input) {
+      await requireWorkspaceOpen(id);
       const { projectId, submissionId, entryId } = await conversations.retry(id, input, now());
       announce(projectId);
       return { submissionId, entryId };
     },
     async sendNow(id, itemId) {
+      await requireWorkspaceOpen(id);
       const { projectId, ...result } = await conversations.sendNow(id, itemId);
       announce(projectId);
       return result;

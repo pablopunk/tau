@@ -98,6 +98,7 @@ import { createVoiceApi } from "./voice-api";
 import { CRASH_LOOP_TEXT, recordStart, startRecordFiles } from "./watchdog/start-record";
 import { createWorkspaceService } from "./workspaces/workspace-service";
 import { hasLiveWorktree, sandboxRootOf } from "./workspaces/worktree-facts";
+import { createWriterBarrier } from "./workspaces/writer-barrier";
 
 export interface CoreDependencies {
   readonly env: Environment;
@@ -249,7 +250,9 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
       env: deps.env,
       now: deps.now,
     });
+    const workspaceBarrier = createWriterBarrier();
     const workspaces = createWorkspaceService({
+      writerBarrier: workspaceBarrier,
       home: home.root,
       closeTerminalsOf: (conversationId) => terminals.closeAllOf(conversationId),
       conversations,
@@ -588,6 +591,7 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
         titles,
         status,
         workspaces,
+        workspaceFence: workspaceBarrier,
         checkpoints,
         forker,
         harness,
