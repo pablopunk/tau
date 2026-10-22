@@ -151,7 +151,10 @@ async function childrenOf(parentId: string) {
 
 async function untilChild(parentId: string) {
   await until(async () => (await childrenOf(parentId)).length > 0);
-  return (await childrenOf(parentId))[0]!;
+  const found = await childrenOf(parentId);
+  const first = found[0];
+  if (!first) throw new Error("no child thread appeared");
+  return first;
 }
 
 const untilNotified = (h: Harness, id: string) =>

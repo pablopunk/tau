@@ -1,7 +1,7 @@
 import { DEFAULT_RESOURCE_SETTINGS, type ResourceSettings } from "@tau/protocol";
 import { describe, expect, it, vi } from "vitest";
 import type { IndexedConversation } from "../../harness/conversation-docs";
-import { classifyThread, governedScope, isGoverned } from "./governed";
+import { classifyThread, isGoverned } from "./governed";
 
 const settings = (patch: Partial<ResourceSettings> = {}): ResourceSettings => ({
   ...DEFAULT_RESOURCE_SETTINGS,

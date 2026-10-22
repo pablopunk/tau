@@ -38,7 +38,10 @@ test.describe("resource control in the browser", () => {
   let projectId: string;
   const threads: string[] = [];
 
-  const settings = async () => (await (await api.get("/api/settings")).json()) as any;
+  const settings = async () =>
+    (await (await api.get("/api/settings")).json()) as unknown as {
+      resources?: { levels?: Record<string, string> };
+    };
 
   test.beforeAll(async ({ browser }) => {
     root = realpathSync(mkdtempSync(join(tmpdir(), "tau-res-")));

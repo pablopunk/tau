@@ -6,7 +6,7 @@ import { renderTimersSection } from "./prompts/timers-prompt";
 import { renderSubagentsSection } from "./subagents-prompt";
 
 export const PREAMBLE =
-  "You are a coding agent working inside the user's project folder. Use the tools to read, edit and run commands there. Be concise.";
+  "You are a coding agent working inside the user's project folder. Use read/write/edit for file access (faster than bash heredocs or sed); use bash only to run commands and search, never to edit files. Be concise.";
 
 export const MENTIONS_PROMPT =
   "Mentions: `@path` is a file or folder relative to the working directory; read it before answering.";

@@ -195,7 +195,10 @@ function rigOver(
     },
     async firstChild(parentId: string) {
       await until(async () => (await childrenOf(parentId)).length > 0);
-      return (await childrenOf(parentId))[0]!;
+      const found = await childrenOf(parentId);
+      const first = found[0];
+      if (!first) throw new Error("no child thread appeared");
+      return first;
     },
     async notified(parentId: string, count = 1) {
       await until(async () => (await this.notificationsOf(parentId)).length >= count);

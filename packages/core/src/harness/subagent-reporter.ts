@@ -23,10 +23,11 @@ export const Reporter = defineTask<ReporterInput, ReporterState, null>({
   phases: {
     deliver: async (reporter, runtime, taskContext) => {
       const { childId, message, followUp } = reporter.input;
+      const child = await runtime.conversation(childId, taskContext);
+      if (!child) throw new Error(`Subagent ${childId} is gone`);
       const request = { type: "input", content: message, whenBusy: followUp ? "followUp" : "steer" } as const;
       // Child submits go through the gate keyed by the target child conversation.
       const submission = await withAdmissionGate(String(childId), async () => {
-        const child = (await runtime.conversation(childId, taskContext))!;
         return child.submit({ ...request, requestId: `subagent:${reporter.id}` }, taskContext);
       });
       const settled = await submission.wait(taskContext);
@@ -35,7 +36,8 @@ export const Reporter = defineTask<ReporterInput, ReporterState, null>({
           if (notification) await setAgentStatus(tx, childId, notification.status);
           return { status: "running", checkpoint: { phase: "report", notification } } as const;
         };
-        const record = (await tx.doc(SubagentRegistryDoc, runtime.conversationId)).children[String(childId)]!;
+        const record = (await tx.doc(SubagentRegistryDoc, runtime.conversationId)).children[String(childId)];
+        if (!record) throw new Error(`Subagent ${childId} has no registry record`);
         const title = (await tx.doc(ConversationDoc, childId)).title;
         const base = { childId: String(childId), title };
         if (settled.status === "unanswered") {

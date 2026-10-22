@@ -158,7 +158,7 @@ export async function runUpdateWith(deps: UpdateDeps, argv: readonly string[]): 
 async function performUpdate(
   deps: UpdateDeps,
   flags: UpdateFlags,
-  argv: readonly string[],
+  _argv: readonly string[],
   home: string,
 ): Promise<number> {
   const current = deps.version();

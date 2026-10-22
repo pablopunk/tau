@@ -33,7 +33,7 @@ const callsATool = (message: MessageLike | undefined) =>
   (message.content as Block[]).some((block) => block.type === "toolCall");
 
 const isUserTyped = (entry: Entries[number] | undefined) => {
-  if (!entry || entry.kind !== "pi.user") return false;
+  if (entry?.kind !== "pi.user") return false;
   const message = messageOf(entry);
   return message?.role === "user" && !isNotificationText(textOf(message.content));
 };

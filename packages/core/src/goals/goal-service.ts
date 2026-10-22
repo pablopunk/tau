@@ -347,7 +347,7 @@ export function createGoalService(deps: GoalServiceDeps): GoalService {
       if (current.state === "paused") current.state = "active";
     });
     const goal = accounted.goal;
-    if (!goal || goal.state !== "active") return;
+    if (goal?.state !== "active") return;
     if (facts.startedByUser) cancelTimers(conversationId);
     if (end.outcome === "aborted") {
       return pauseWithNotice(
