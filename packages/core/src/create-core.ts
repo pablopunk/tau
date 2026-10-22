@@ -79,6 +79,7 @@ import { createRemoteService } from "./remote/remote-service";
 import { conversationRemovedInOrder, type RemovalHooks } from "./removal-hooks";
 import type { NativeQueryFn } from "./runtimes/native/controller";
 import { nativeLaunchPolicy } from "./runtimes/native/launch-policy";
+import { withNativeThreads } from "./runtimes/native/permissions";
 import { createNativeService, type NativeService } from "./runtimes/native/service";
 import { createRuntimesApi } from "./runtimes-api";
 import { createSettingsApi } from "./settings-api";
@@ -210,7 +211,7 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
     });
 
     const projects = createProjectStore(harness);
-    sessionLookup.current = createConversationOfSession(harness);
+    sessionLookup.current = withNativeThreads(createConversationOfSession(harness));
     const connectorOffering = createConnectorOffering({
       harness,
       settings: async () => (await settings.get()).claudeConnectors,
@@ -401,15 +402,18 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
     };
     const removalHooks: RemovalHooks = {
       unmergedWork: (thread) => workspaces.unmergedWork(thread),
-      onConversationRemoved: conversationRemovedInOrder({
-        terminals: (thread) => terminals.onConversationRemoved(thread),
-        claudeCliThread: (thread) => closeClaudeCliThread(thread.id),
-        processes: (thread) => processes.onConversationRemoved(thread),
-        workspace: (thread) => workspaces.onConversationRemoved(thread),
-        checkpoints: (thread) => checkpoints.onConversationRemoved(thread),
-        goals: async (thread) => goals.onConversationRemoved(thread.id),
-        timers: (thread) => timersApi.onConversationRemoved(thread),
-      }),
+      onConversationRemoved: [
+        async (thread) => native?.onConversationRemoved(thread.id),
+        ...conversationRemovedInOrder({
+          terminals: (thread) => terminals.onConversationRemoved(thread),
+          claudeCliThread: (thread) => closeClaudeCliThread(thread.id),
+          processes: (thread) => processes.onConversationRemoved(thread),
+          workspace: (thread) => workspaces.onConversationRemoved(thread),
+          checkpoints: (thread) => checkpoints.onConversationRemoved(thread),
+          goals: async (thread) => goals.onConversationRemoved(thread.id),
+          timers: (thread) => timersApi.onConversationRemoved(thread),
+        }),
+      ],
       onProjectRemoved: [(id) => workspaces.onProjectRemoved(id)],
     };
     const removal = createConversationRemoval({
@@ -438,6 +442,7 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
           harness,
           conversations,
           query: deps.nativeQuery ?? (await loadAgentSdkQuery()),
+          approvals,
           policyFor: nativeLaunchPolicy({
             sandbox: {
               settings: async () => (await settings.get()).sandbox,

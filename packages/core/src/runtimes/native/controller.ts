@@ -11,7 +11,16 @@ import {
 } from "../supervisor";
 import type { NativeEvent } from "./events";
 import { createSpawnBridge, type Launch, launchDetached, type SpawnBridge } from "./launch";
+import {
+  buildNativeOptions,
+  DEFAULT_SETTING_SOURCES,
+  type NativeSettingSource,
+  type OptionsContext,
+  settingSourcesNotice,
+  sourcesOf,
+} from "./native-options";
 import { createNormalizerState, normalizeSdkMessage } from "./normalize";
+import type { NativePermissionBroker } from "./permissions";
 import { reconcileNative } from "./reconcile";
 import { resolveSupervisorDeps, toStoredIdentity } from "./supervised-spawn";
 
@@ -21,13 +30,16 @@ export type NativeQuery = AsyncIterable<unknown> & {
 };
 export type NativeQueryFn = (args: { prompt: string; options: Record<string, unknown> }) => NativeQuery;
 export type PrepareResult = { readonly ok: true } | { readonly ok: false; readonly reason: string };
-export type OptionsContext = { readonly threadId: string; readonly cwd: string };
+export type { OptionsContext };
 
 export interface NativeControllerDeps {
   readonly store: RuntimeStore;
   readonly query: NativeQueryFn;
   readonly cwd: string;
   readonly buildOptions?: (ctx: OptionsContext) => Record<string, unknown>;
+  /** Which Claude Code settings the default options load. Tests pass `[]`. */
+  readonly settingSources?: readonly NativeSettingSource[];
+  readonly permissions?: NativePermissionBroker;
   readonly launch?: Launch;
   readonly prepare?: () => Promise<PrepareResult>;
   readonly supervisor?: Partial<SupervisorDeps>;
@@ -52,13 +64,6 @@ export interface NativeController {
   reconcile(threadId: string): Promise<ReconcileOutcome>;
 }
 
-export const defaultNativeOptions = (ctx: OptionsContext): Record<string, unknown> => ({
-  cwd: ctx.cwd,
-  tools: [],
-  settingSources: [],
-  permissionMode: "dontAsk",
-});
-
 const STARTABLE: readonly (RuntimeLifecycle | undefined)[] = ["accepted", "blocked", "preparing", "ready"];
 const DEFAULT_INTERRUPT_GRACE_MS = 1500;
 const DEFAULT_VERIFY_TIMEOUT_MS = 3000;
@@ -82,6 +87,7 @@ interface ActiveRun {
   query?: NativeQuery;
   cancelRequested: boolean;
   cancelling?: Promise<void>;
+  settingSources: readonly string[];
   result?: Extract<NativeEvent, { type: "result" }>;
 }
 
@@ -98,7 +104,15 @@ export function createNativeController(deps: NativeControllerDeps): NativeContro
   const launch = deps.launch ?? launchDetached;
   const newId = deps.newId ?? randomUUID;
   const now = deps.now ?? Date.now;
-  const buildOptions = deps.buildOptions ?? defaultNativeOptions;
+  const settingSources = deps.settingSources ?? DEFAULT_SETTING_SOURCES;
+  const buildOptions =
+    deps.buildOptions ??
+    ((ctx: OptionsContext) =>
+      buildNativeOptions({
+        ...ctx,
+        settingSources,
+        ...(deps.permissions && { canUseTool: deps.permissions.canUseTool }),
+      }));
   const prepare = deps.prepare ?? (async () => ({ ok: true as const }));
   const interruptGraceMs = deps.interruptGraceMs ?? DEFAULT_INTERRUPT_GRACE_MS;
   let active: ActiveRun | undefined;
@@ -212,6 +226,7 @@ export function createNativeController(deps: NativeControllerDeps): NativeContro
   async function performCancel(run: ActiveRun): Promise<void> {
     const death = await stopInProcess(run);
     closeQuery(run);
+    deps.permissions?.denyAll();
     if (death.kind === "dead") return store.settleCancels("stopped");
     await store.settleCancels("unknown", death.reason);
     await notice(`unknown:${run.operationId}`, "outcome-unknown", `Outcome unknown: ${death.reason}`);
@@ -241,6 +256,7 @@ export function createNativeController(deps: NativeControllerDeps): NativeContro
     const state = await store.recordCancel(operationId);
     if (state !== "stopping") return cancelOutcome();
     if (!run) {
+      deps.permissions?.denyAll();
       await reconcileNative(store, { supervisor, ...(deps.stop && { stop: deps.stop }) });
       return cancelOutcome();
     }
@@ -252,7 +268,13 @@ export function createNativeController(deps: NativeControllerDeps): NativeContro
   async function reconcile(threadId: string): Promise<ReconcileOutcome> {
     assertThread(threadId);
     if (active) return "known-live";
+    deps.permissions?.denyAll();
     return reconcileNative(store, { supervisor, ...(deps.stop && { stop: deps.stop }) });
+  }
+
+  async function recordProvenance(run: ActiveRun, message: unknown): Promise<void> {
+    const event = settingSourcesNotice(run.operationId ?? "unknown", run.settingSources, message);
+    if (event) await store.appendEvent(event);
   }
 
   async function consume(run: ActiveRun, query: NativeQuery): Promise<void> {
@@ -266,6 +288,7 @@ export function createNativeController(deps: NativeControllerDeps): NativeContro
         await store.setLifecycle("running");
         running = true;
       }
+      await recordProvenance(run, message);
       const sessionId = sessionIdOf(message);
       if (sessionId && !sessionRecorded) {
         await store.recordSession(sessionId);
@@ -361,6 +384,7 @@ export function createNativeController(deps: NativeControllerDeps): NativeContro
     const item = await oldestQueued();
     const options = buildOptions({ threadId: store.threadId, cwd: deps.cwd });
     assertNeverBypassing(options);
+    run.settingSources = sourcesOf(options);
     await store.beginOperation();
     const lifecycle = await assertStartable();
     if (lifecycle === "accepted" || lifecycle === "blocked") await store.setLifecycle("preparing");
@@ -370,6 +394,7 @@ export function createNativeController(deps: NativeControllerDeps): NativeContro
     const query = await startQueryOrFail(run, item, {
       ...options,
       permissionMode: options.permissionMode ?? "dontAsk",
+      ...(deps.permissions && { canUseTool: deps.permissions.canUseTool }),
     });
     const failure = "failure" in query ? query.failure : await drive(run, query.started as NativeQuery);
     return conclude(run, failure);
@@ -378,12 +403,13 @@ export function createNativeController(deps: NativeControllerDeps): NativeContro
   async function runNext(threadId: string): Promise<RunResult> {
     assertThread(threadId);
     if (active) throw invalidRequest("A native run is already in progress for this thread.");
-    const run: ActiveRun = { cancelRequested: false };
+    const run: ActiveRun = { cancelRequested: false, settingSources: [] };
     active = run;
     try {
       return await execute(run);
     } finally {
       active = undefined;
+      deps.permissions?.denyAll();
     }
   }
 

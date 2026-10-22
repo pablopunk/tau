@@ -1,11 +1,15 @@
 import { execFileSync, spawn } from "node:child_process";
-import { rmSync } from "node:fs";
+import { existsSync, rmSync } from "node:fs";
+import { join } from "node:path";
 import { type Options, query as sdkQuery } from "@anthropic-ai/claude-agent-sdk";
 import { AppError } from "@tau/protocol";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.setConfig({ testTimeout: 30_000 });
 
+import { createApprovals } from "../../approvals/approvals";
+import type { Approvals } from "../../approvals/approvals-port";
+import { createChangeEmitter } from "../../change-emitter";
 import { createRuntimeStore, type OperationState, type RuntimeStore } from "../../harness/runtime-store";
 import {
   createPassiveThread,
@@ -19,6 +23,7 @@ import { RUNTIME_NONCE_ENV } from "../supervisor";
 import {
   expectToolResult,
   type FakeAnthropicServer,
+  type RecordedRequest,
   type ScriptedTurn,
   startFakeAnthropicServer,
   toolResultsIn,
@@ -33,13 +38,19 @@ import {
 } from "../testing/offline-sandbox";
 import {
   createNativeController,
-  defaultNativeOptions,
   type NativeController,
   type NativeQueryFn,
   type PrepareResult,
 } from "./controller";
 import type { NativeEvent } from "./events";
 import type { Launch } from "./launch";
+import { buildNativeOptions } from "./native-options";
+import {
+  createNativePermissionBroker,
+  type NativeCanUseTool,
+  type NativePermissionBroker,
+  withNativeThreads,
+} from "./permissions";
 
 const FIXTURE_TEXT = "tau-offline-fixture-text-7f3a";
 const READ_ID = "toolu_fake_read_0001";
@@ -135,6 +146,8 @@ interface Rig {
   readonly store: RuntimeStore;
   readonly sandbox: SandboxLaunch;
   readonly controller: NativeController;
+  readonly approvals: Approvals;
+  readonly broker: NativePermissionBroker | undefined;
   makeController(store: RuntimeStore, query?: NativeQueryFn, launch?: Launch): NativeController;
   atFirstRequest(): Promise<OperationState> | undefined;
 }
@@ -145,6 +158,7 @@ interface RigOptions {
   readonly query?: NativeQueryFn;
   readonly directory?: string;
   readonly prepare?: () => Promise<PrepareResult>;
+  readonly permissions?: { readonly timeoutMs?: number };
 }
 
 const readTurn = (world: OfflineWorld): ScriptedTurn => ({
@@ -187,19 +201,51 @@ async function newRig(
   });
   cleanups.push(() => server.close());
   const sandbox = sandboxLaunch(world, server.url);
-  const buildOptions = () => ({
+  const approvals = createApprovals({
+    settings: {
+      get: async () =>
+        ({ claudeConnectors: { disabled: [], alwaysAllow: [], askBeforeWrites: true } }) as never,
+      setClaudeConnectors: async () => undefined,
+    },
+    changes: createChangeEmitter(),
+    conversationOfSession: withNativeThreads(async () => undefined),
+  });
+  const broker = options.permissions
+    ? createNativePermissionBroker({
+        approvals,
+        threadId,
+        cwd: world.cwd,
+        ...(options.permissions.timeoutMs !== undefined && { timeoutMs: options.permissions.timeoutMs }),
+        recordNotice: (notice) => store.appendEvent(notice),
+      })
+    : undefined;
+  const offlineExtras = () => ({
     model: MODEL,
-    cwd: world.cwd,
-    systemPrompt: "You are a test agent.",
     title: "native controller",
-    tools: [...(options.tools ?? ["Read"])],
-    allowedTools: [...(options.allowedTools ?? options.tools ?? ["Read"])],
-    settingSources: [],
     strictMcpConfig: true,
     settings: { disableClaudeAiConnectors: true, autoCompactEnabled: false },
     includePartialMessages: true,
     env: childEnvironment(world, server.url),
   });
+  const buildOptions = () =>
+    broker
+      ? {
+          ...buildNativeOptions({
+            threadId,
+            cwd: world.cwd,
+            settingSources: [],
+            canUseTool: broker.canUseTool,
+          }),
+          ...offlineExtras(),
+        }
+      : {
+          cwd: world.cwd,
+          systemPrompt: "You are a test agent.",
+          tools: [...(options.tools ?? ["Read"])],
+          allowedTools: [...(options.allowedTools ?? options.tools ?? ["Read"])],
+          settingSources: [],
+          ...offlineExtras(),
+        };
   const makeController = (forStore: RuntimeStore, query?: NativeQueryFn, launch?: Launch) =>
     createNativeController({
       store: forStore,
@@ -207,6 +253,7 @@ async function newRig(
       cwd: world.cwd,
       buildOptions,
       launch: launch ?? sandbox.launch,
+      ...(broker && { permissions: broker }),
       ...(options.prepare && { prepare: options.prepare }),
     });
   const rig: Rig = {
@@ -217,6 +264,8 @@ async function newRig(
     store,
     sandbox,
     controller: makeController(store),
+    approvals,
+    broker,
     makeController,
     atFirstRequest: () => snapshot,
   };
@@ -285,11 +334,7 @@ describe("native controller without a process", () => {
     expect(modelCallsOf(runtime.setup)).toBe(0);
   });
 
-  it("never runs with bypassPermissions and defaults to dontAsk", async () => {
-    expect(defaultNativeOptions({ threadId: "1", cwd: "/x" })).toMatchObject({
-      permissionMode: "dontAsk",
-      settingSources: [],
-    });
+  async function idleControllerWith(deps: Partial<Parameters<typeof createNativeController>[0]>) {
     const runtime = await openRuntimeWorld(await tempDir());
     cleanups.push(() => runtime.close());
     const threadId = await createPassiveThread(runtime);
@@ -299,11 +344,127 @@ describe("native controller without a process", () => {
       store,
       query: neverCalled,
       cwd: runtime.directory,
-      buildOptions: () => ({ permissionMode: "bypassPermissions" }),
+      ...deps,
     });
+    return { controller, store, threadId, runtime };
+  }
+
+  it.each([
+    { permissionMode: "bypassPermissions" },
+    { allowDangerouslySkipPermissions: true },
+    { permissionMode: "bypassPermissions", allowDangerouslySkipPermissions: true },
+  ])("never runs with a bypass option %o", async (bypass) => {
+    const { controller, store, threadId } = await idleControllerWith({ buildOptions: () => bypass });
     await expect(controller.runNext(threadId)).rejects.toMatchObject({ code: "invalid_request" });
     expect((await store.operationState()).lifecycle).toBe("accepted");
     expect(await store.pending()).toHaveLength(1);
+  });
+
+  describe("default options", () => {
+    const initOnly =
+      (seen: Record<string, unknown>[], init: Record<string, unknown> = {}): NativeQueryFn =>
+      (args) => {
+        seen.push(args.options);
+        return (async function* () {
+          yield { type: "system", subtype: "init", session_id: "s1", uuid: "u-init", ...init };
+          yield {
+            type: "result",
+            subtype: "success",
+            is_error: false,
+            result: "ok",
+            session_id: "s1",
+            uuid: "u-result",
+          };
+        })();
+      };
+
+    it("use Claude Code's tools, ask by default, load every settings source and never bypass", async () => {
+      const seen: Record<string, unknown>[] = [];
+      const { controller, threadId, runtime } = await idleControllerWith({ query: initOnly(seen) });
+
+      await controller.runNext(threadId);
+
+      expect(seen).toHaveLength(1);
+      expect(seen[0]).toMatchObject({
+        cwd: runtime.directory,
+        tools: { type: "preset", preset: "claude_code" },
+        systemPrompt: { type: "preset", preset: "claude_code" },
+        settingSources: ["user", "project", "local"],
+        permissionMode: "default",
+      });
+      expect(seen[0]?.allowDangerouslySkipPermissions).toBeUndefined();
+      const canUseTool = seen[0]?.canUseTool as NativeCanUseTool;
+      expect(
+        await canUseTool(
+          "Bash",
+          { command: "ls" },
+          { signal: new AbortController().signal, toolUseID: "t1" },
+        ),
+      ).toMatchObject({ behavior: "deny" });
+    });
+
+    it("take the settings sources from the controller dependency", async () => {
+      const seen: Record<string, unknown>[] = [];
+      const { controller, threadId } = await idleControllerWith({
+        query: initOnly(seen),
+        settingSources: [],
+      });
+
+      await controller.runNext(threadId);
+
+      expect(seen[0]?.settingSources).toEqual([]);
+    });
+
+    it("hand the broker's canUseTool to the SDK", async () => {
+      const seen: Record<string, unknown>[] = [];
+      const broker: NativePermissionBroker = {
+        canUseTool: async (_name, input) => ({ behavior: "allow", updatedInput: input }),
+        denyAll: () => undefined,
+        pendingCount: () => 0,
+      };
+      const { controller, threadId } = await idleControllerWith({
+        query: initOnly(seen),
+        permissions: broker,
+      });
+
+      await controller.runNext(threadId);
+
+      expect(seen[0]?.canUseTool).toBe(broker.canUseTool);
+    });
+
+    it("record which sources loaded and which skills and plugins, never anything else", async () => {
+      const seen: Record<string, unknown>[] = [];
+      const init = {
+        skills: ["review"],
+        plugins: [{ name: "maze-agents", path: "/home/me/.claude/plugins/maze" }],
+        tools: ["Read", "Bash"],
+      };
+      const { controller, store, threadId } = await idleControllerWith({ query: initOnly(seen, init) });
+
+      await controller.runNext(threadId);
+
+      const notices = (await eventsOf(store)).filter((event) => event.type === "notice");
+      expect(notices).toHaveLength(1);
+      expect(notices[0]).toMatchObject({
+        code: "settings-sources",
+        text: expect.stringContaining("user, project, local"),
+      });
+      expect(JSON.stringify(notices)).toContain("review");
+      expect(JSON.stringify(notices)).toContain("maze-agents");
+      expect(JSON.stringify(notices)).not.toContain("/home/me");
+    });
+
+    it("record no provenance when no settings source is requested", async () => {
+      const seen: Record<string, unknown>[] = [];
+      const { controller, store, threadId } = await idleControllerWith({
+        query: initOnly(seen, { skills: ["review"] }),
+        settingSources: [],
+      });
+
+      await controller.runNext(threadId);
+
+      expect((await eventsOf(store)).filter((event) => event.type === "notice")).toEqual([]);
+    });
   });
 
   it("rejects a run for another thread and a run with nothing queued", async () => {
@@ -760,5 +921,188 @@ describe.skipIf(!sandboxExecAvailable())("native controller across several turns
     expect(await rig.store.pending()).toEqual([]);
     expect(rig.server.messageRequests).toHaveLength(2);
     expectNoLeftovers(rig);
+  });
+});
+
+describe.skipIf(!sandboxExecAvailable())("native controller permissions with the real SDK, offline", () => {
+  const WRITE_ID = "toolu_fake_write_0001";
+  const WITH_PERMISSIONS = { permissions: {} };
+
+  const bashTurn = (world: OfflineWorld): ScriptedTurn => ({
+    blocks: [
+      {
+        type: "tool_use",
+        id: BASH_ID,
+        name: "Bash",
+        input: { command: `touch ${join(world.cwd, "approved.txt")}`, description: "make approved.txt" },
+      },
+    ],
+  });
+
+  const writeTurn = (world: OfflineWorld): ScriptedTurn => ({
+    blocks: [
+      {
+        type: "tool_use",
+        id: WRITE_ID,
+        name: "Write",
+        input: { file_path: join(world.cwd, "written.txt"), content: "written by the model" },
+      },
+    ],
+  });
+
+  const toolResultOf = (request: RecordedRequest, id: string) =>
+    toolResultsIn(request.messages.at(-1)).find((block) => block.tool_use_id === id);
+
+  const approvalWaiting = (rig: Rig, count = 1) =>
+    waitUntil(async () => rig.approvals.list(rig.threadId).length === count, `${count} waiting approval(s)`);
+
+  const permissionNotices = async (rig: Rig) =>
+    (await eventsOf(rig.store)).filter(
+      (event) => event.type === "notice" && event.code.startsWith("permission-"),
+    );
+
+  const expectNothingPending = (rig: Rig) => {
+    expect(rig.approvals.list(rig.threadId)).toEqual([]);
+    expect(rig.approvals.hasPending(rig.threadId)).toBe(false);
+    expect(rig.broker?.pendingCount()).toBe(0);
+  };
+
+  it("runs a read inside the workspace without creating an approval", async () => {
+    const rig = await newRig(
+      (world) => [readTurn(world), finalTurn(FINAL_TEXT, expectToolResult(READ_ID, FIXTURE_TEXT))],
+      WITH_PERMISSIONS,
+    );
+    const requested = vi.spyOn(rig.approvals, "request");
+    await admit(rig.store);
+
+    const result = await rig.controller.runNext(rig.threadId);
+
+    expect(rig.server.violations, failureContext(rig)).toEqual([]);
+    expect(result).toMatchObject({ status: "settled", outcome: "completed" });
+    expect(requested).not.toHaveBeenCalled();
+    expect(await permissionNotices(rig)).toEqual([]);
+    expectNothingPending(rig);
+    expectNoLeftovers(rig);
+  });
+
+  it("runs Bash only after the user allows it, and shows the decision in the transcript", async () => {
+    const rig = await newRig(
+      (world) => [
+        bashTurn(world),
+        finalTurn("Done. (scripted)", (request) =>
+          toolResultOf(request, BASH_ID)?.is_error ? "the approved Bash call failed" : undefined,
+        ),
+      ],
+      WITH_PERMISSIONS,
+    );
+    await admit(rig.store);
+    const running = rig.controller.runNext(rig.threadId);
+
+    await approvalWaiting(rig);
+
+    expect(existsSync(join(rig.world.cwd, "approved.txt"))).toBe(false);
+    expect(rig.approvals.list(rig.threadId)).toMatchObject([
+      { toolUseId: BASH_ID, server: "Claude Code", tool: "Bash" },
+    ]);
+    await rig.approvals.decide(rig.threadId, BASH_ID, "allow");
+    const result = await running;
+
+    expect(rig.server.violations, failureContext(rig)).toEqual([]);
+    expect(result).toMatchObject({ status: "settled", outcome: "completed" });
+    expect(existsSync(join(rig.world.cwd, "approved.txt"))).toBe(true);
+    expect(await permissionNotices(rig)).toMatchObject([
+      { code: "permission-allowed", key: `permission:${BASH_ID}`, text: expect.stringContaining("Bash") },
+    ]);
+    await expect(rig.approvals.decide(rig.threadId, BASH_ID, "deny")).rejects.toMatchObject({
+      code: "not_found",
+    });
+    expectNothingPending(rig);
+    expectNoLeftovers(rig);
+  });
+
+  it("does not run Write when the user denies it and tells the model it was denied", async () => {
+    const rig = await newRig(
+      (world) => [
+        writeTurn(world),
+        finalTurn("Denied. (scripted)", (request) => {
+          const answer = toolResultOf(request, WRITE_ID);
+          return answer?.is_error === true && JSON.stringify(answer.content).includes("denied")
+            ? undefined
+            : `the model did not receive a denial: ${JSON.stringify(answer)}`;
+        }),
+      ],
+      WITH_PERMISSIONS,
+    );
+    await admit(rig.store);
+    const running = rig.controller.runNext(rig.threadId);
+    await approvalWaiting(rig);
+
+    await rig.approvals.decide(rig.threadId, WRITE_ID, "deny");
+    const result = await running;
+
+    expect(rig.server.violations, failureContext(rig)).toEqual([]);
+    expect(result).toMatchObject({ status: "settled", outcome: "completed" });
+    expect(listTree(rig.world.cwd)).toEqual([`fixture.txt (${FIXTURE_TEXT.length + 1}B)`]);
+    expect(await permissionNotices(rig)).toMatchObject([{ code: "permission-denied" }]);
+    expect(await eventsOf(rig.store)).toContainEqual(
+      expect.objectContaining({ type: "tool-result", callId: WRITE_ID, isError: true }),
+    );
+    expectNothingPending(rig);
+    expectNoLeftovers(rig);
+  });
+
+  it("denies a tool nobody answers after the timeout, ignores the late answer and runs on", async () => {
+    const rig = await newRig(
+      (world) => [
+        bashTurn(world),
+        finalTurn("Timed out. (scripted)", (request) =>
+          toolResultOf(request, BASH_ID)?.is_error === true ? undefined : "the timed-out call was not denied",
+        ),
+      ],
+      { permissions: { timeoutMs: 400 } },
+    );
+    await admit(rig.store);
+
+    const result = await rig.controller.runNext(rig.threadId);
+
+    expect(rig.server.violations, failureContext(rig)).toEqual([]);
+    expect(result).toMatchObject({ status: "settled", outcome: "completed" });
+    expect(existsSync(join(rig.world.cwd, "approved.txt"))).toBe(false);
+    expect(await permissionNotices(rig)).toMatchObject([
+      { code: "permission-denied", text: expect.stringContaining("timed-out") },
+    ]);
+    await expect(rig.approvals.decide(rig.threadId, BASH_ID, "allow")).rejects.toMatchObject({
+      code: "not_found",
+    });
+    expect(existsSync(join(rig.world.cwd, "approved.txt"))).toBe(false);
+    expectNothingPending(rig);
+    expectNoLeftovers(rig);
+  });
+
+  it("clears the approval and cancels with verified death when the run is cancelled while it waits", async () => {
+    const { held } = releasable();
+    const rig = await newRig(
+      (world) => [bashTurn(world), { ...finalTurn("never delivered"), holdResponseUntil: held }],
+      WITH_PERMISSIONS,
+    );
+    await admit(rig.store);
+    const running = rig.controller.runNext(rig.threadId).catch((error: unknown) => error);
+    await approvalWaiting(rig);
+    const operationId = (await rig.store.operationState()).operation?.operationId ?? "";
+
+    const outcome = await rig.controller.cancel(rig.threadId, operationId);
+
+    expect(outcome).toBe("cancelled");
+    expect(await running).toMatchObject({ status: "settled", outcome: "cancelled", operationId });
+    const state = await rig.store.operationState();
+    expect(state.lifecycle).toBe("cancelled");
+    expect(isGone(state.operation?.identity?.pid ?? 0)).toBe(true);
+    expect(existsSync(join(rig.world.cwd, "approved.txt"))).toBe(false);
+    await expect(rig.approvals.decide(rig.threadId, BASH_ID, "allow")).rejects.toMatchObject({
+      code: "not_found",
+    });
+    expectNothingPending(rig);
+    expectNoLeftovers(rig);
+    expect(modelCallsOf(rig.runtime.setup)).toBe(0);
   });
 });

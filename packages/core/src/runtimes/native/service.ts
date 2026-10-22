@@ -9,6 +9,7 @@ import {
   type RuntimeLifecycle,
   type SendMessageInput,
 } from "@tau/protocol";
+import type { Approvals } from "../../approvals/approvals-port";
 import {
   createNativeConversation,
   isNativeConversation,
@@ -34,7 +35,9 @@ import {
   type RunResult,
 } from "./controller";
 import type { NativeRunPolicy } from "./launch-policy";
+import type { NativeSettingSource } from "./native-options";
 import { NATIVE_SHELL_CAPABILITIES } from "./native-shell-executor";
+import { createNativePermissionBroker, type NativePermissionBroker } from "./permissions";
 
 export interface NativeServiceDeps {
   readonly harness: Harness;
@@ -44,6 +47,10 @@ export interface NativeServiceDeps {
   /** The launch and prepare hooks of one thread's runs: where the sandbox decision lives. */
   readonly policyFor?: (threadId: string, cwd: string) => NativeRunPolicy;
   readonly buildOptions?: NativeControllerDeps["buildOptions"];
+  /** Where a native tool call that needs the user waits. Without it every such call is denied. */
+  readonly approvals?: Approvals;
+  readonly permissionTimeoutMs?: number;
+  readonly settingSources?: readonly NativeSettingSource[];
   readonly supervisor?: Partial<SupervisorDeps>;
   readonly stop?: StopOptions;
   readonly interruptGraceMs?: number;
@@ -71,6 +78,8 @@ export interface NativeService {
   isNative(threadId: string): Promise<boolean>;
   /** Resolves once no pump is running. */
   settled(): Promise<void>;
+  /** The thread is gone: denies what waits for the user and stops its run. */
+  onConversationRemoved(threadId: string): Promise<void>;
   /** Cancels every active run, then waits for the pumps to stop. */
   close(): Promise<void>;
 }
@@ -79,6 +88,7 @@ interface ThreadRuntime {
   readonly thread: NativeThreadRef;
   readonly store: RuntimeStore;
   controller: NativeController;
+  permissions?: NativePermissionBroker;
   pump: Promise<void> | undefined;
   rescan: boolean;
   cancelRequested: boolean;
@@ -142,6 +152,20 @@ export function createNativeService(deps: NativeServiceDeps): NativeService {
     return { cwd: summary.workspace.path, projectId: summary.projectId };
   }
 
+  function permissionsFor(runtime: ThreadRuntime, cwd: string): NativePermissionBroker | undefined {
+    if (!deps.approvals) return undefined;
+    const { id, projectId } = runtime.thread;
+    return createNativePermissionBroker({
+      approvals: deps.approvals,
+      threadId: id,
+      cwd,
+      ...(deps.permissionTimeoutMs !== undefined && { timeoutMs: deps.permissionTimeoutMs }),
+      recordNotice: (notice) => runtime.store.appendEvent(notice),
+      onChange: () => onChange(projectId),
+      threadExists: async () => (await conversations.find(id)) !== undefined,
+    });
+  }
+
   function controllerFor(runtime: ThreadRuntime, cwd: string): NativeController {
     const { id } = runtime.thread;
     const policy = deps.policyFor?.(id, cwd);
@@ -149,12 +173,16 @@ export function createNativeService(deps: NativeServiceDeps): NativeService {
       if (runtime.cancelRequested) return { ok: false, reason: "The run was cancelled before it started." };
       return policy ? policy.prepare() : { ok: true };
     };
+    const permissions = permissionsFor(runtime, cwd);
+    runtime.permissions = permissions;
     return createNativeController({
       store: runtime.store,
       query: deps.query,
       cwd,
       prepare,
       now,
+      ...(permissions && { permissions }),
+      ...(deps.settingSources && { settingSources: deps.settingSources }),
       ...(policy && { launch: policy.launch }),
       ...(deps.buildOptions && { buildOptions: deps.buildOptions }),
       ...(deps.supervisor && { supervisor: deps.supervisor }),
@@ -365,10 +393,21 @@ export function createNativeService(deps: NativeServiceDeps): NativeService {
     while (pumps.size > 0) await Promise.all([...pumps]);
   }
 
+  async function onConversationRemoved(threadId: string): Promise<void> {
+    const runtime = await runtimes.get(threadId)?.catch(() => undefined);
+    if (!runtime) return;
+    const { operation } = await runtime.store.operationState();
+    if (operation && !operation.terminal) {
+      await runtime.controller.cancel(threadId, operation.operationId).catch(() => undefined);
+    }
+    runtime.permissions?.denyAll();
+  }
+
   async function close(): Promise<void> {
     for (const pending of runtimes.values()) {
       const runtime = await pending.catch(() => undefined);
       if (runtime?.pump) await cancel(runtime.thread.id).catch(() => undefined);
+      runtime?.permissions?.denyAll();
     }
     await settled();
   }
@@ -381,6 +420,7 @@ export function createNativeService(deps: NativeServiceDeps): NativeService {
     reconcileAll,
     isNative,
     settled,
+    onConversationRemoved,
     close,
   };
 }

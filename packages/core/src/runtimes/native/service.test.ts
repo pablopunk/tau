@@ -7,6 +7,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.setConfig({ testTimeout: 30_000 });
 
+import { createApprovals } from "../../approvals/approvals";
+import type { Approvals } from "../../approvals/approvals-port";
+import { createChangeEmitter } from "../../change-emitter";
 import { legacyWorkspace } from "../../harness/conversation-index";
 import { createNativeConversation, type NativeStartRequest } from "../../harness/conversation-native";
 import { type ConversationStore, createConversationStore } from "../../harness/conversation-store";
@@ -18,6 +21,7 @@ import {
   type FakeAnthropicServer,
   type ScriptedTurn,
   startFakeAnthropicServer,
+  toolResultsIn,
 } from "../testing/fake-anthropic-server";
 import {
   childEnvironment,
@@ -29,6 +33,8 @@ import {
 import type { NativeQueryFn } from "./controller";
 import type { NativeEvent } from "./events";
 import { type NativeRunPolicy, type NativeSpawn, nativeLaunchPolicy } from "./launch-policy";
+import { buildNativeOptions } from "./native-options";
+import { withNativeThreads } from "./permissions";
 import { createNativeService, type NativeService, type NativeServiceDeps } from "./service";
 
 const MODEL = "claude-sonnet-4-5";
@@ -151,6 +157,8 @@ function recordingSpawn(stderr: { text: string }): NativeSpawn {
 interface SdkRigOptions {
   readonly directory?: string;
   readonly query?: NativeQueryFn;
+  /** Runs with `default` permissions: Claude Code's own tools, every ask goes to canUseTool. */
+  readonly asking?: { readonly approvals?: Approvals };
 }
 
 interface SdkWorld {
@@ -165,7 +173,7 @@ interface SdkWorld {
 function assemble(
   runtime: RuntimeWorld,
   projectPath: string,
-  deps: Pick<NativeServiceDeps, "query" | "policyFor" | "buildOptions" | "supervisor">,
+  deps: Pick<NativeServiceDeps, "query" | "policyFor" | "buildOptions" | "supervisor" | "approvals">,
 ): Rig {
   const conversations = createConversationStore(runtime.harness, async () => projectPath);
   const changes: string[] = [];
@@ -234,21 +242,32 @@ async function sdkWorld(
         run.launch({ ...spec, env: { ...hermeticEnv(spec.env), ...childEnvironment(world, server.url) } }),
     };
   };
-  const buildOptions = () => ({
+  const offlineExtras = () => ({
     model: MODEL,
-    cwd: world.cwd,
-    systemPrompt: "You are a test agent.",
     title: "native service",
-    tools: [],
-    settingSources: [],
     strictMcpConfig: true,
     settings: { disableClaudeAiConnectors: true, autoCompactEnabled: false },
     includePartialMessages: true,
-    permissionMode: "dontAsk",
     env: childEnvironment(world, server.url),
   });
+  const buildOptions = (ctx: { threadId: string; cwd: string }) =>
+    options.asking
+      ? { ...buildNativeOptions({ ...ctx, settingSources: [] }), ...offlineExtras() }
+      : {
+          cwd: world.cwd,
+          systemPrompt: "You are a test agent.",
+          tools: [],
+          settingSources: [],
+          permissionMode: "dontAsk",
+          ...offlineExtras(),
+        };
   const make = (forRuntime: RuntimeWorld) =>
-    assemble(forRuntime, world.cwd, { query: options.query ?? realQuery, policyFor, buildOptions });
+    assemble(forRuntime, world.cwd, {
+      query: options.query ?? realQuery,
+      policyFor,
+      buildOptions,
+      ...(options.asking?.approvals && { approvals: options.asking.approvals }),
+    });
   const rig = make(runtime);
   cleanups.push(() => rig.service.close());
   return { world, server, stderr, runtime, rig, rigOn: make };
@@ -429,6 +448,123 @@ describe.skipIf(!sandboxExecAvailable())(
     });
   },
 );
+
+const BASH_ID = "toolu_fake_bash_service";
+
+const approvalsFor = (): Approvals =>
+  createApprovals({
+    settings: {
+      get: async () =>
+        ({ claudeConnectors: { disabled: [], alwaysAllow: [], askBeforeWrites: true } }) as never,
+      setClaudeConnectors: async () => undefined,
+    },
+    changes: createChangeEmitter(),
+    conversationOfSession: withNativeThreads(async () => undefined),
+  });
+
+const touchTurn = (world: OfflineWorld): ScriptedTurn => ({
+  blocks: [
+    {
+      type: "tool_use",
+      id: BASH_ID,
+      name: "Bash",
+      input: { command: `touch ${join(world.cwd, "approved.txt")}`, description: "make approved.txt" },
+    },
+  ],
+});
+
+const isErrorFor =
+  (id: string): ScriptedTurn["validate"] =>
+  (request) =>
+    toolResultsIn(request.messages.at(-1)).find((block) => block.tool_use_id === id)?.is_error === true
+      ? undefined
+      : `the tool call ${id} was not denied`;
+
+describe.skipIf(!sandboxExecAvailable())("native service permissions with the real SDK, offline", () => {
+  const waitingApprovals = (approvals: Approvals, threadId: string) =>
+    waitUntil(async () => approvals.list(threadId).length === 1, "one waiting approval");
+
+  it("asks the approvals service under the thread id and runs the tool once the user allows it", async () => {
+    const approvals = approvalsFor();
+    const sdk = await sdkWorld((world) => [touchTurn(world), finalTurn("Done. (scripted)")], {
+      asking: { approvals },
+    });
+    const { rig } = sdk;
+    const threadId = await rig.start();
+
+    await waitingApprovals(approvals, threadId);
+    expect(approvals.list(threadId)).toMatchObject([
+      { toolUseId: BASH_ID, conversationId: threadId, tool: "Bash" },
+    ]);
+    expect(existsSync(join(sdk.world.cwd, "approved.txt"))).toBe(false);
+    await approvals.decide(threadId, BASH_ID, "allow");
+    await waitForLifecycle(rig, threadId, "completed");
+    await rig.service.settled();
+
+    expect(sdk.server.violations, context(sdk)).toEqual([]);
+    expect(existsSync(join(sdk.world.cwd, "approved.txt"))).toBe(true);
+    expect(approvals.hasPending(threadId)).toBe(false);
+    expect(await eventsOf(rig.storeOf(threadId))).toContainEqual(
+      expect.objectContaining({ type: "notice", code: "permission-allowed" }),
+    );
+  });
+
+  it("denies every tool that needs the user when no approvals service exists", async () => {
+    const sdk = await sdkWorld(
+      (world) => [touchTurn(world), finalTurn("Denied. (scripted)", isErrorFor(BASH_ID))],
+      { asking: {} },
+    );
+    const { rig } = sdk;
+    const threadId = await rig.start();
+
+    await waitForLifecycle(rig, threadId, "completed");
+    await rig.service.settled();
+
+    expect(sdk.server.violations, context(sdk)).toEqual([]);
+    expect(existsSync(join(sdk.world.cwd, "approved.txt"))).toBe(false);
+  });
+
+  it("denies the waiting approval and cancels the run when the service closes", async () => {
+    const approvals = approvalsFor();
+    const { held } = releasable();
+    const sdk = await sdkWorld(
+      (world) => [touchTurn(world), { ...finalTurn("never delivered"), holdResponseUntil: held }],
+      { asking: { approvals } },
+    );
+    const { rig } = sdk;
+    const threadId = await rig.start();
+    await waitingApprovals(approvals, threadId);
+    const identity = (await rig.storeOf(threadId).operationState()).operation?.identity;
+
+    await rig.service.close();
+
+    expect(approvals.list(threadId)).toEqual([]);
+    expect(await lifecycleOf(rig, threadId)).toBe("cancelled");
+    expect(isGone(identity?.pid ?? 0)).toBe(true);
+    expect(existsSync(join(sdk.world.cwd, "approved.txt"))).toBe(false);
+  });
+
+  it("denies the waiting approval and stops the run when the thread is removed", async () => {
+    const approvals = approvalsFor();
+    const { held } = releasable();
+    const sdk = await sdkWorld(
+      (world) => [touchTurn(world), { ...finalTurn("never delivered"), holdResponseUntil: held }],
+      { asking: { approvals } },
+    );
+    const { rig } = sdk;
+    const threadId = await rig.start();
+    await waitingApprovals(approvals, threadId);
+    const identity = (await rig.storeOf(threadId).operationState()).operation?.identity;
+
+    await rig.service.onConversationRemoved(threadId);
+    await rig.service.settled();
+
+    expect(approvals.list(threadId)).toEqual([]);
+    expect(await lifecycleOf(rig, threadId)).toBe("cancelled");
+    expect(isGone(identity?.pid ?? 0)).toBe(true);
+    expect(existsSync(join(sdk.world.cwd, "approved.txt"))).toBe(false);
+  });
+});
 
 const fakeAnswer = (answer: string): NativeQueryFn => {
   let turns = 0;

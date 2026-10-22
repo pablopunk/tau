@@ -162,6 +162,88 @@ describe("createCore wire start and runtimes.list", () => {
   });
 });
 
+interface Asking {
+  readonly query: NativeQueryFn;
+  readonly options: () => Record<string, unknown> | undefined;
+  readonly answer: () => Promise<unknown>;
+}
+
+function askingForBash(): Asking {
+  let captured: Record<string, unknown> | undefined;
+  let answer: Promise<unknown> = Promise.resolve(undefined);
+  const query: NativeQueryFn = ({ options }) => {
+    captured = options;
+    const canUseTool = options.canUseTool as (
+      name: string,
+      input: Record<string, unknown>,
+      extra: { signal: AbortSignal; toolUseID: string },
+    ) => Promise<unknown>;
+    return (async function* () {
+      yield { type: "system", subtype: "init", session_id: "ask-session", uuid: "ask-init" };
+      answer = canUseTool(
+        "Bash",
+        { command: "touch made.txt" },
+        { signal: new AbortController().signal, toolUseID: "toolu_core_1" },
+      );
+      await answer;
+      yield {
+        type: "result",
+        subtype: "success",
+        is_error: false,
+        result: "ok",
+        session_id: "ask-session",
+        uuid: "ask-result",
+      };
+    })();
+  };
+  return { query, options: () => captured, answer: () => answer };
+}
+
+describe("createCore and native permissions", () => {
+  it("runs native threads with Claude Code's tools and asks through the core approvals", async () => {
+    const root = await tempDir();
+    const asking = askingForBash();
+    const core = await openCore(root, FLAG_ON, asking.query);
+    const project = await core.projects.add({ path: root });
+
+    const native = await startNativeOf(core)?.({ projectId: project.id, text: "touch it", requestId: "a-1" });
+    const id = native?.id ?? "";
+    const waiting = await waitFor(async () => {
+      const list = await core.approvals.list(id);
+      return list.length === 1 ? list : undefined;
+    }, "the native approval");
+
+    expect(asking.options()).toMatchObject({
+      tools: { type: "preset", preset: "claude_code" },
+      permissionMode: "default",
+      settingSources: ["user", "project", "local"],
+    });
+    expect(waiting).toMatchObject([{ toolUseId: "toolu_core_1", conversationId: id, tool: "Bash" }]);
+    await core.approvals.decide(id, "toolu_core_1", "deny");
+    expect(await asking.answer()).toMatchObject({ behavior: "deny" });
+    await finishedRun(core, project.id, id);
+    expect(await core.approvals.list(id)).toEqual([]);
+  });
+
+  it("denies the waiting approval when the native thread is removed", async () => {
+    const root = await tempDir();
+    const asking = askingForBash();
+    const core = await openCore(root, FLAG_ON, asking.query);
+    const project = await core.projects.add({ path: root });
+    const native = await startNativeOf(core)?.({ projectId: project.id, text: "touch it", requestId: "a-1" });
+    const id = native?.id ?? "";
+    await waitFor(
+      async () => ((await core.approvals.list(id)).length === 1 ? true : undefined),
+      "the approval",
+    );
+
+    await core.conversations.remove(id, { force: true });
+
+    expect(await asking.answer()).toMatchObject({ behavior: "deny" });
+    expect(await core.approvals.list(id).catch(() => [])).toEqual([]);
+  });
+});
+
 describe("createCore and the native flag", () => {
   it.each<Record<string, string>>([
     {},
