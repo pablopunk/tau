@@ -9,6 +9,7 @@ import { apiOfNode } from "@/nodes/node-apis";
 import { conversation, project, renderAt } from "@/sidebar/test-support";
 import { CommandPalette } from "./CommandPalette";
 import { GlobalShortcuts } from "./GlobalShortcuts";
+import { resetPaletteOpen } from "./palette-open";
 
 const api = apiOfNode();
 
@@ -21,6 +22,7 @@ vi.mock("@/lib/api", () => ({
 }));
 
 beforeEach(() => {
+  resetPaletteOpen();
   vi.resetAllMocks();
   vi.mocked(api.projects.list).mockResolvedValue([
     project(),

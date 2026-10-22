@@ -11,6 +11,7 @@ import { createApi } from "@/lib/api";
 import { createFakeTransport } from "@/lib/transport/fake";
 import { NodeApiProvider } from "@/nodes/node-context";
 import { CommandPalette } from "@/palette/CommandPalette";
+import { resetPaletteOpen } from "@/palette/palette-open";
 import { SECTION_BODIES } from "./section-bodies";
 import { SETTINGS_SECTIONS } from "./sections";
 import { DYNAMIC_ROW_PREFIXES, SETTINGS_INDEX } from "./settings-index";
@@ -54,6 +55,7 @@ const renderedIds = () =>
   );
 
 beforeEach(async () => {
+  resetPaletteOpen();
   mocks.api = createApi(createFakeTransport(createFakeCore()));
   await (mocks.api as ReturnType<typeof createApi>).mcp.save({
     name: "files",
