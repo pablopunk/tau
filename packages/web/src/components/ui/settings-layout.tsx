@@ -66,7 +66,7 @@ function SettingsDialogContent({ className, ...props }: React.ComponentProps<typ
   return (
     <DialogContent
       showCloseButton={false}
-      className={cn("h-[min(640px,85vh)] max-w-3xl gap-0 overflow-hidden p-0 sm:max-w-3xl", className)}
+      className={cn("h-[min(780px,92vh)] max-w-4xl gap-0 overflow-hidden p-0 sm:max-w-4xl", className)}
       {...props}
     />
   )
