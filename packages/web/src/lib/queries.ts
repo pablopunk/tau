@@ -217,7 +217,8 @@ export const useWorkspaceStatus = (conversationId: string, enabled = true) => {
   const api = useApi();
   return useQuery({
     queryKey: queryKeys.workspace(conversationId),
-    queryFn: () => api.workspaces.status(conversationId),
+    queryFn: ({ signal }) => api.workspaces.status(conversationId, { signal }),
+    staleTime: 5_000,
     enabled,
   });
 };

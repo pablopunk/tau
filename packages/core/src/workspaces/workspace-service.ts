@@ -13,11 +13,17 @@ import { createKeyedLock } from "./keyed-lock";
 import { openPullRequest, requireGithubConnected } from "./pull-request";
 import { inWorktree } from "./repo-facts";
 import { otherThreadsUsingWorktree } from "./shared-worktree";
+import { createStatusCache } from "./status-cache";
+import {
+  readWorkspaceGitStatus,
+  type WorkspaceGitStatus,
+  workspaceStatusKey,
+  workspaceStatusOf,
+} from "./workspace-git-status";
 import { createWorktreeWorkspace } from "./worktree-create";
 import {
   describeUnmergedWork,
   hasLiveWorktree,
-  readStatus,
   requireIdle,
   requireLiveWorktree,
   type WorktreeFacts,
@@ -68,6 +74,16 @@ export function createWorkspaceService({
   closeTerminalsOf = async () => undefined,
 }: WorkspaceDeps): WorkspaceService {
   const lock = createKeyedLock();
+  const statusCache = createStatusCache<WorkspaceGitStatus>();
+
+  async function mutating<T>(operation: () => Promise<T>): Promise<T> {
+    statusCache.invalidate();
+    try {
+      return await operation();
+    } finally {
+      statusCache.invalidate();
+    }
+  }
 
   async function threadOf(id: string): Promise<ConversationSummary> {
     return (await conversations.find(id)) ?? Promise.reject(notFound());
@@ -81,6 +97,7 @@ export function createWorkspaceService({
 
   async function update(thread: ConversationSummary, change: Partial<ThreadWorkspace>) {
     const updated = await conversations.setWorkspace(thread.id, { ...thread.workspace, ...change });
+    statusCache.invalidate();
     announce(thread.projectId);
     return updated;
   }
@@ -101,7 +118,7 @@ export function createWorkspaceService({
     }
   }
 
-  return {
+  const operations: WorkspaceService = {
     async create(request) {
       if (request.mode === "checkout" || request.project.kind === "home") {
         return legacyWorkspace(request.project.path);
@@ -112,7 +129,12 @@ export function createWorkspaceService({
     async status(id) {
       const thread = await threadOf(id);
       requireLiveWorktree(thread);
-      return readStatus(thread);
+      const key = workspaceStatusKey(thread.workspace);
+      const facts = await statusCache.get(key, () => readWorkspaceGitStatus(thread.workspace));
+      const current = await threadOf(id);
+      requireLiveWorktree(current);
+      if (workspaceStatusKey(current.workspace) !== key) return operations.status(id);
+      return workspaceStatusOf(current, facts);
     },
 
     async merge(id) {
@@ -165,5 +187,15 @@ export function createWorkspaceService({
       const threads = await conversations.list(projectId).catch(() => []);
       for (const thread of threads) await discardWorktreeOf(thread).catch(() => undefined);
     },
+  };
+
+  return {
+    ...operations,
+    create: (request) => mutating(() => operations.create(request)),
+    merge: (id) => mutating(() => operations.merge(id)),
+    createPullRequest: (id) => mutating(() => operations.createPullRequest(id)),
+    remove: (id, force) => mutating(() => operations.remove(id, force)),
+    onConversationRemoved: (thread) => mutating(() => operations.onConversationRemoved(thread)),
+    onProjectRemoved: (id) => mutating(() => operations.onProjectRemoved(id)),
   };
 }

@@ -1,6 +1,7 @@
 import { access } from "node:fs/promises";
 import { AppError, type ConversationSummary, type WorkspaceStatus } from "@tau/protocol";
-import { countCommits, dirtyFilesOf, localRef, locateRepo, mainCheckoutRoot } from "./repo-facts";
+import { locateRepo, mainCheckoutRoot } from "./repo-facts";
+import { readWorkspaceGitStatus, workspaceStatusOf } from "./workspace-git-status";
 
 export interface WorktreeFacts {
   readonly worktreeRoot: string;
@@ -50,21 +51,8 @@ export async function worktreeFactsIfPresent(
 
 const SUMMARY_PREVIEW = 5;
 
-function mergeBlocker(thread: ConversationSummary, dirty: readonly string[], ahead: number): string | null {
-  if (thread.status === "running") return "The thread is running.";
-  if (dirty.length > 0) return "The worktree has uncommitted changes.";
-  if (thread.workspace.state === "merged" && ahead === 0) return "Already merged.";
-  return null;
-}
-
 export async function readStatus(thread: ConversationSummary): Promise<WorkspaceStatus> {
-  const facts = await worktreeFactsOf(thread);
-  const { worktreeRoot, branch, base } = facts;
-  const ahead = await countCommits(worktreeRoot, `${localRef(base)}..${localRef(branch)}`);
-  const behind = await countCommits(worktreeRoot, `${localRef(branch)}..${localRef(base)}`);
-  const dirtyFiles = await dirtyFilesOf(worktreeRoot);
-  const reason = mergeBlocker(thread, dirtyFiles, ahead);
-  return { ahead, behind, dirtyFiles, unmergedCommits: ahead, canMerge: reason === null, reason };
+  return workspaceStatusOf(thread, await readWorkspaceGitStatus(thread.workspace));
 }
 
 export async function describeUnmergedWork(thread: ConversationSummary): Promise<string[]> {
