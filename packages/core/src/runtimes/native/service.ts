@@ -1,4 +1,4 @@
-import type { Harness } from "@earendil-works/pi-durable";
+import type { ConversationId, Harness } from "@earendil-works/pi-durable";
 import {
   type AdmissionReceipt,
   AppError,
@@ -21,7 +21,8 @@ import {
   touchNativeConversation,
 } from "../../harness/conversation-native";
 import type { ConversationStore } from "../../harness/conversation-store";
-import { isUnresolved } from "../../harness/runtime-docs";
+import { BACKGROUND } from "../../harness/open";
+import { isUnresolved, NativeInboxDoc } from "../../harness/runtime-docs";
 import {
   createRuntimeStore,
   type OperationState,
@@ -43,6 +44,13 @@ import {
   statusOfOutcome,
 } from "./finalize";
 import type { NativeRunPolicy } from "./launch-policy";
+import {
+  type ChildOutcome,
+  markNativeChild,
+  type RequestDisposition,
+  readChildOutcome,
+  type SettledChildOutcome,
+} from "./native-child";
 import { type NativeMode, retainedError } from "./native-mode";
 import type { NativeSettingSource } from "./native-options";
 import { NATIVE_SHELL_CAPABILITIES } from "./native-shell-executor";
@@ -85,12 +93,42 @@ export type NativeCancelResult =
 
 export type NativeReconciled = { readonly threadId: string; readonly outcome: ReconcileOutcome };
 
+/** A native subagent of `parentId`: same workspace, same project, one prompt, no attachments. */
+export type NativeChildRequest = {
+  readonly parentId: string;
+  /** Keys the child: the same request id always finds the same child. */
+  readonly requestId: string;
+  readonly title: string;
+  readonly prompt: string;
+};
+
+export type NativeChildStart = { readonly summary: ConversationSummary; readonly created: boolean };
+
+export type AwaitOptions = {
+  /** Stops waiting only; the run is not touched. */
+  readonly signal?: AbortSignal;
+  readonly pollMs?: number;
+  /** Gives up waiting after this long and reports `timed-out`. */
+  readonly timeoutMs?: number;
+};
+
+export type AwaitedOutcome =
+  | SettledChildOutcome
+  | { readonly kind: "wait-stopped" }
+  | { readonly kind: "timed-out" };
+
 export interface NativeService {
   /** What a native thread supports today; listed on the wire so clients never guess. */
   readonly capabilities: RuntimeCapabilities;
   /** False in retained mode: existing native threads stay readable and cancellable, nothing new starts. */
   readonly creationEnabled: boolean;
   startThread(request: NativeStartRequest): Promise<ConversationSummary>;
+  /** Idempotent by `request.requestId`: a replay returns the child it made and starts no second run. */
+  startChild(request: NativeChildRequest): Promise<NativeChildStart>;
+  /** Waits for the terminal outcome of the run that delivered `requestId`. Holds no admission lock. */
+  awaitOperation(threadId: string, requestId: string, options?: AwaitOptions): Promise<AwaitedOutcome>;
+  /** Cancels the child's run (verified stop), withdraws the request when nothing ran, and reports what settled. */
+  cancelChild(threadId: string, requestId: string, options?: AwaitOptions): Promise<AwaitedOutcome>;
   send(threadId: string, input: SendMessageInput): Promise<AdmissionReceipt>;
   cancel(threadId: string): Promise<NativeCancelResult>;
   /** Startup only: applies persisted state to every native thread and never relaunches. */
@@ -128,6 +166,9 @@ const STARTABLE_LIFECYCLES: readonly (RuntimeLifecycle | undefined)[] = [
   "cancelled",
   "interrupted",
 ];
+
+const DEFAULT_AWAIT_POLL_MS = 50;
+const DEFAULT_CANCEL_WAIT_MS = 30_000;
 
 const WORKSPACE_FENCED =
   "This workspace is being changed (merge/remove). Nothing was started and your message is kept.";
@@ -403,6 +444,102 @@ export function createNativeService(deps: NativeServiceDeps): NativeService {
     return summary;
   }
 
+  async function startChild(request: NativeChildRequest): Promise<NativeChildStart> {
+    requireCreationEnabled();
+    const input: SendMessageInput = { text: request.prompt, requestId: request.requestId };
+    requireNativeInput(input);
+    const parent = await resolveSummary(request.parentId);
+    if (parent.parentId !== null) throw invalidRequest("A subagent cannot start subagents.");
+    deps.workspaceFence?.assertOpen(parent.workspace.path, request.requestId);
+    await deps.ensureFormat?.();
+    const project = { id: parent.projectId, path: parent.workspace.path };
+    const { summary, created } = await createNativeConversation(harness, {
+      project,
+      input,
+      workspace: parent.workspace,
+      now: now(),
+    });
+    const thread = { id: summary.id, projectId: summary.projectId };
+    await markNativeChild(harness, thread, { parentId: request.parentId, title: request.title });
+    knownNative.add(summary.id);
+    const runtime = await runtimeOf(thread, parent.workspace.path);
+    await admitAndSchedule(runtime, input);
+    onChange(thread.projectId);
+    return { summary: await resolveSummary(summary.id), created };
+  }
+
+  const sleepOrStop = (ms: number, signal: AbortSignal | undefined): Promise<void> =>
+    new Promise((resolve) => {
+      const timer = setTimeout(done, ms);
+      signal?.addEventListener("abort", done, { once: true });
+      function done() {
+        clearTimeout(timer);
+        signal?.removeEventListener("abort", done);
+        resolve();
+      }
+    });
+
+  async function dispositionOf(threadId: string, requestId: string): Promise<RequestDisposition> {
+    const inbox = await harness.snapshot(NativeInboxDoc, Number(threadId) as ConversationId, BACKGROUND);
+    return inbox?.items.find((item) => item.requestId === requestId)?.disposition;
+  }
+
+  async function waitForOutcome(
+    store: RuntimeStore,
+    requestId: string,
+    options: AwaitOptions,
+  ): Promise<AwaitedOutcome> {
+    const pollMs = options.pollMs ?? DEFAULT_AWAIT_POLL_MS;
+    const deadline = options.timeoutMs === undefined ? undefined : now() + options.timeoutMs;
+    for (;;) {
+      const outcome: ChildOutcome = await readChildOutcome(
+        store,
+        requestId,
+        await dispositionOf(store.threadId, requestId),
+      );
+      if (outcome.kind !== "pending") return outcome;
+      if (options.signal?.aborted) return { kind: "wait-stopped" };
+      if (deadline !== undefined && now() >= deadline) return { kind: "timed-out" };
+      await sleepOrStop(pollMs, options.signal);
+    }
+  }
+
+  async function awaitOperation(
+    threadId: string,
+    requestId: string,
+    options: AwaitOptions = {},
+  ): Promise<AwaitedOutcome> {
+    const runtime = await runtimeOf(await resolveThread(threadId));
+    return waitForOutcome(runtime.store, requestId, options);
+  }
+
+  async function pumpStopsWithin(runtime: ThreadRuntime, timeoutMs: number): Promise<void> {
+    const stopped = runtime.pump?.catch(() => undefined);
+    if (stopped) await Promise.race([stopped, sleepOrStop(timeoutMs, undefined)]);
+  }
+
+  async function withdrawIfNeverDelivered(runtime: ThreadRuntime, requestId: string): Promise<boolean> {
+    const queued = (await dispositionOf(runtime.thread.id, requestId)) === "queued";
+    if (!queued || runtime.pump) return false;
+    await runtime.store.cancelQueued(requestId);
+    return true;
+  }
+
+  async function cancelChild(
+    threadId: string,
+    requestId: string,
+    options: AwaitOptions = {},
+  ): Promise<AwaitedOutcome> {
+    const runtime = await runtimeOf(await resolveThread(threadId));
+    await cancel(threadId);
+    await pumpStopsWithin(runtime, options.timeoutMs ?? DEFAULT_CANCEL_WAIT_MS);
+    if (await withdrawIfNeverDelivered(runtime, requestId)) return { kind: "cancelled" };
+    return waitForOutcome(runtime.store, requestId, {
+      timeoutMs: options.timeoutMs ?? DEFAULT_CANCEL_WAIT_MS,
+      ...(options.pollMs !== undefined && { pollMs: options.pollMs }),
+    });
+  }
+
   async function send(threadId: string, input: SendMessageInput): Promise<AdmissionReceipt> {
     requireCreationEnabled();
     requireNativeInput(input);
@@ -498,6 +635,9 @@ export function createNativeService(deps: NativeServiceDeps): NativeService {
     capabilities: NATIVE_SHELL_CAPABILITIES,
     creationEnabled,
     startThread,
+    startChild,
+    awaitOperation,
+    cancelChild,
     send,
     cancel,
     reconcileAll,

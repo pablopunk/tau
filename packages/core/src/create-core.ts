@@ -48,9 +48,11 @@ import { harnessNotificationSubmitter } from "./harness/notification-submitter";
 import { BACKGROUND, openAgentHarness, openSqliteStorage } from "./harness/open";
 import { createProjectStore } from "./harness/project-store";
 import { providerSessionOf } from "./harness/provider-session";
-import { createAgentRegistry } from "./harness/registry";
+import { createAgentRegistry, TOOL_FILES } from "./harness/registry";
 import { createSubagentRemover } from "./harness/subagent-removal";
 import { createLocalTerminalDaemon, type TerminalDaemon } from "./harness/terminal-daemon";
+import { agentToolFile, buildAgentToolFile } from "./harness/tools/agent";
+import { nativeChildGuard, nativeDelegationFlagOn } from "./harness/tools/agent-native";
 import { clampThinkingFor } from "./harness/tools/agent-thinking";
 import { createToolServicesRef } from "./harness/tools/tool-file";
 import { openDataHome } from "./home/data-home";
@@ -80,6 +82,7 @@ import type { RemoteAdapter, RemoteAdapterDeps } from "./remote/ports";
 import { createRemoteService } from "./remote/remote-service";
 import { conversationRemovedInOrder, type RemovalHooks } from "./removal-hooks";
 import type { NativeQueryFn } from "./runtimes/native/controller";
+import { createNativeDelegation, type NativeDelegation } from "./runtimes/native/delegation";
 import {
   createNativeCheckpointPort,
   refuseGoalsOnNative,
@@ -141,6 +144,9 @@ export interface CoreDependencies {
 const NATIVE_FLAG = "TAU_EXPERIMENTAL_NATIVE_CLAUDE";
 
 const nativeEnabledIn = (env: Environment): boolean => env[NATIVE_FLAG] === "1";
+
+const delegationOffered = (mode: NativeMode, env: Environment): boolean =>
+  mode === "active" && nativeDelegationFlagOn(env);
 
 /** Loaded only when the flag is on, so a default start never imports the Agent SDK. */
 async function loadAgentSdkQuery(): Promise<NativeQueryFn> {
@@ -209,6 +215,12 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
     });
     const status = createStatusTracker({ changes, now: deps.now });
     const toolServices = createToolServicesRef();
+    const nativeDelegation: { current?: NativeDelegation } = {};
+    const delegationToolFiles = delegationOffered(nativeMode, deps.env)
+      ? TOOL_FILES.map((file) =>
+          file === agentToolFile ? buildAgentToolFile({ delegation: () => nativeDelegation.current }) : file,
+        )
+      : undefined;
     const fastCompaction = makeFastCompactionExtension({
       settingsStore: settings,
       credentials: new FileCredentialStore(home.credentialsFile),
@@ -217,7 +229,10 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
       availability: createAvailabilityCache(),
     });
     const harness = await openAgentHarness({
-      registry: createAgentRegistry(toolServices, undefined, home.root, [fastCompaction]),
+      registry: createAgentRegistry(toolServices, delegationToolFiles, home.root, [
+        fastCompaction,
+        ...(nativeMode === "off" ? [] : [nativeChildGuard(() => nativeDelegation.current)]),
+      ]),
       storage: await openSqliteStorage(home.agentDatabase),
       models: provider.models,
       onReport: (error) => console.error("tau: agent report", error),
@@ -496,6 +511,14 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
           })
         : undefined;
     nativeForWorkspaces.current = native;
+    if (native) {
+      nativeDelegation.current = createNativeDelegation({
+        service: native,
+        harness,
+        conversations,
+        onChange: (projectId) => changes.emit({ resource: "conversations", projectId }),
+      });
+    }
     const isNativeThread = async (id: string) => (await native?.isNative(id)) ?? false;
     await status.recoverAtStartup();
     await clones.recoverAtStartup();

@@ -14,6 +14,14 @@ import { subagentServicesOf } from "../subagent-services";
 import { AGENT_DESCRIPTION } from "./agent-description";
 import { createIsolatedWorkspace } from "./agent-isolation";
 import { modelsGuidance } from "./agent-models";
+import {
+  EXECUTOR_NOT_AVAILABLE,
+  executeNative,
+  hasExecutor,
+  type NativeAgentGate,
+  withExecutorParameter,
+  withNativeDescription,
+} from "./agent-native";
 import { FORK, planChild } from "./agent-plan";
 import { runAndWait } from "./agent-wait";
 import { projectIdOfCall } from "./mcp-project";
@@ -96,20 +104,35 @@ async function modelsSection(ref: ToolServicesRef, input: PromptInput) {
   return modelsGuidance(await connectedModels(), input.agent.model, await subagents.fastModel());
 }
 
-export const agentToolFile: ToolFileFactory = (services) => ({
-  implemented: true,
-  extension: defineExtension({
-    name: "agent",
-    sections: [section("subagent-models", (input) => modelsSection(services, input))],
-    tools: [
-      defineTool({
-        name: "agent",
-        description: AGENT_DESCRIPTION,
-        parameters: AgentParameters,
-        replay: "unsafe",
-        executionMode: "parallel",
-        execute: (args, api, context) => execute(args, api, context, services),
-      }),
-    ],
-  }),
-});
+const AgentWithExecutorParameters = withExecutorParameter(AgentParameters);
+
+const guardedExecute =
+  (ref: ToolServicesRef, native: NativeAgentGate | undefined) =>
+  (args: Args, api: ToolExecutionApi, context: CallContext) => {
+    if (!hasExecutor(args)) return execute(args, api, context, ref);
+    if (!native) throw new Error(EXECUTOR_NOT_AVAILABLE);
+    return executeNative(args, api, context, native.delegation());
+  };
+
+/** Without `native` the registered tool is exactly the Pi-only one, and a call carrying `executor` is refused. */
+export const buildAgentToolFile =
+  (native?: NativeAgentGate): ToolFileFactory =>
+  (services) => ({
+    implemented: true,
+    extension: defineExtension({
+      name: "agent",
+      sections: [section("subagent-models", (input) => modelsSection(services, input))],
+      tools: [
+        defineTool({
+          name: "agent",
+          description: native ? withNativeDescription(AGENT_DESCRIPTION) : AGENT_DESCRIPTION,
+          parameters: (native ? AgentWithExecutorParameters : AgentParameters) as typeof AgentParameters,
+          replay: "unsafe",
+          executionMode: "parallel",
+          execute: guardedExecute(services, native),
+        }),
+      ],
+    }),
+  });
+
+export const agentToolFile: ToolFileFactory = buildAgentToolFile();
