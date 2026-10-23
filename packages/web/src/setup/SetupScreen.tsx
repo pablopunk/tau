@@ -52,8 +52,8 @@ export function SetupScreen({ keyConfigured, onUseOtherNodes }: SetupScreenProps
   const [continued, setContinued] = useState(false);
   const onModelStep = continued && keyConfigured;
   return (
-    <main className="flex min-h-dvh items-center justify-center bg-background p-4">
-      <div className="flex w-full max-w-2xl flex-col gap-6 rounded-xl border bg-card p-6 text-card-foreground shadow-sm">
+    <main className="flex h-dvh overflow-y-auto bg-background p-4">
+      <div className="m-auto flex w-full max-w-2xl flex-col gap-6 rounded-xl border bg-card p-6 text-card-foreground shadow-sm">
         <header className="flex flex-col gap-1">
           <h1 className="text-2xl font-semibold tracking-tight">
             Welcome to <BrandText>tau</BrandText>
