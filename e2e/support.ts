@@ -109,4 +109,7 @@ export const serverEnvironment = () => ({
   TAU_CLAUDE_PATH: join(e2eRoot(), "no-claude"),
   TAU_FAKE_CLAUDE_CLI: "1",
   TAU_FAKE_REMOTE: "1",
+  // Browser tests drive in-flight runs (Stop, retries, live badges): keep faux
+  // replies visibly incremental as before. Unit tests stream instantly by default.
+  TAU_FAUX_TOKENS_PER_SECOND: "256",
 });

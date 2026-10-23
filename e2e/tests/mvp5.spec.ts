@@ -157,12 +157,13 @@ test.describe("MVP5", () => {
     await send(page, "bg sleep 300");
     const chip = page.getByRole("button", { name: "1 running processes" });
     await expect(chip).toBeVisible({ timeout: 20_000 });
+    // Since collapsed indicators reveal the sidebar, the chip opens the
+    // processes section there instead of a dialog.
     await chip.click();
-    const sheet = page.getByRole("dialog", { name: "Background processes" });
-    await expect(sheet).toContainText("sleep 300");
-    await sheet.getByRole("button", { name: "Stop", exact: true }).click();
-    await expect(sheet.getByRole("button", { name: "Stop", exact: true })).toBeHidden();
-    await page.keyboard.press("Escape");
+    const sidebar = page.getByRole("complementary", { name: "Conversation details" });
+    await expect(sidebar.getByText("sleep 300")).toBeVisible();
+    await sidebar.getByRole("button", { name: "Stop", exact: true }).click();
+    await expect(sidebar.getByRole("button", { name: "Stop", exact: true })).toBeHidden({ timeout: 20_000 });
   });
 
   test("a subagent child shows in the sidebar and opens read-only", async () => {

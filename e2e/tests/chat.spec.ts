@@ -118,6 +118,7 @@ test.describe("MVP2 flow", () => {
   });
 
   test("archives and deletes a thread", async () => {
+    await page.getByRole("radio", { name: "Threads" }).click();
     const thread = sidebar(page).getByRole("link", { name: "fail" });
     await thread.hover();
     await page.getByRole("button", { name: "Actions for fail" }).click();
