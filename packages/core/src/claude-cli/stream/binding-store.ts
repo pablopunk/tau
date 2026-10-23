@@ -1,4 +1,5 @@
-import { readFile, writeFile } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
+import { readFile, rename, rm, writeFile } from "node:fs/promises";
 import type { Checkpoint, Head } from "./binding";
 
 export interface BindingSnapshot {
@@ -8,8 +9,6 @@ export interface BindingSnapshot {
   readonly created: string[];
   readonly model: string;
 }
-
-type SnapshotFile = Record<string, BindingSnapshot>;
 
 const isCheckpoint = (value: unknown): value is Checkpoint => {
   if (typeof value !== "object" || value === null) return false;
@@ -58,14 +57,24 @@ export async function loadBindingSnapshots(file: string): Promise<Record<string,
   }
 }
 
-/** Best-effort save: a failing write must never fail a turn. */
+const tempPathBesides = (file: string): string => `${file}.tmp-${process.pid}-${randomUUID()}`;
+
+/** Readers see the old file or the new one, never a torn one. Nothing is fsynced: a power loss can lose the newest save. */
+async function atomicReplaceWithoutFsync(file: string, text: string): Promise<void> {
+  const temp = tempPathBesides(file);
+  try {
+    await writeFile(temp, text, "utf8");
+    await rename(temp, file);
+  } catch (error) {
+    await rm(temp, { force: true }).catch(() => undefined);
+    throw error;
+  }
+}
+
+/** Replaces the whole file. Rejects on failure: the caller decides how loud a failed save is. */
 export async function saveBindingSnapshots(
   file: string,
   snapshots: Record<string, BindingSnapshot>,
 ): Promise<void> {
-  try {
-    await writeFile(file, `${JSON.stringify(snapshots)}\n`, "utf8");
-  } catch {
-    // ignore: bindings still work in memory; the next save retries.
-  }
+  await atomicReplaceWithoutFsync(file, `${JSON.stringify(snapshots)}\n`);
 }

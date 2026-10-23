@@ -7,6 +7,7 @@ import {
   type ProcessInfo,
   type ProcessOrigin,
   type ResourceSettings,
+  type SandboxSettings,
 } from "@tau/protocol";
 import { titleFromFirstMessage } from "./conversation-title";
 import { addTauEnvironment } from "./harness/coding-tools";
@@ -27,7 +28,7 @@ import {
 import type { NotificationSubmitter } from "./harness/notification-submitter";
 import { BACKGROUND } from "./harness/open";
 import { BACKGROUND_TIMEOUT_SCALE, bashPath, DEFAULT_TIMEOUT_SECONDS } from "./harness/tools/bash";
-import { governedScope } from "./processes/governor/governed";
+import { callScopes, type SandboxScope, scopeFields, type ThreadClass } from "./processes/governor/governed";
 import { interruptedBangText, noticeNotification } from "./processes/process-notifications";
 import type { StopReason } from "./processes/process-types";
 import { cwdOf, type ThreadLookup } from "./terminals/cwd-of";
@@ -71,12 +72,15 @@ export interface BangCommandDeps {
       readonly shell: string;
       readonly env: Record<string, string>;
       readonly governed?: boolean;
+      readonly scope?: ThreadClass;
+      readonly sandboxScope?: SandboxScope;
       readonly origin?: ProcessOrigin;
       readonly notifyOnExit: true;
       readonly timeoutMs?: number;
     }): Promise<ProcessInfo>;
     stop(id: string, reason?: StopReason): Promise<void>;
     resourceSettings(): ResourceSettings;
+    sandboxSettings(): SandboxSettings;
   };
   readonly notifications: NotificationSubmitter;
   readonly entryOf: (conversationId: string) => Promise<IndexedEntry | undefined>;
@@ -110,7 +114,10 @@ export async function runBangCommand(
 ): Promise<boolean> {
   try {
     const cwd = await cwdOf(deps.threads, conversationId);
-    const scope = await governedScope(deps.processes.resourceSettings(), () => deps.entryOf(conversationId));
+    const scopes = await callScopes(deps.processes.resourceSettings(), deps.processes.sandboxSettings(), () =>
+      deps.entryOf(conversationId),
+    );
+    const scope = scopes.governedScope;
     const env: Record<string, string> = {};
     addTauEnvironment(deps.home, env, conversationId);
     const slow =
@@ -123,7 +130,7 @@ export async function runBangCommand(
       command,
       shell: bashPath(),
       env,
-      ...(scope && { governed: true, scope }),
+      ...scopeFields(scopes),
       origin: "bang",
       notifyOnExit: true,
       timeoutMs: DEFAULT_TIMEOUT_SECONDS * slow * 1000,

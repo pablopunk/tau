@@ -53,6 +53,8 @@ export interface Binding {
   resultSeen: boolean;
   /** The SDK session's last message is a connector `tool_result`. */
   connectorTail: boolean;
+  /** An API message of the current attempt reached the turn: a tool may have run, so a retry is unsafe. */
+  apiPartSeen: boolean;
   /** The CLI has a turn open: input was pushed and no `result` came yet. */
   cliBusy: boolean;
   pendingApprovals: number;
@@ -87,6 +89,7 @@ export function createBinding(id: string, model: string): Binding {
     inbox: [],
     resultSeen: false,
     connectorTail: false,
+    apiPartSeen: false,
     cliBusy: false,
     pendingApprovals: 0,
     optionsKey: "",

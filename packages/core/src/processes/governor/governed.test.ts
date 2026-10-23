@@ -1,7 +1,7 @@
-import { DEFAULT_RESOURCE_SETTINGS, type ResourceSettings } from "@tau/protocol";
+import { DEFAULT_RESOURCE_SETTINGS, DEFAULT_SANDBOX_SETTINGS, type ResourceSettings } from "@tau/protocol";
 import { describe, expect, it, vi } from "vitest";
 import type { IndexedConversation } from "../../harness/conversation-docs";
-import { classifyThread, isGoverned } from "./governed";
+import { callScopes, classifyThread, isGoverned, scopeFields } from "./governed";
 
 const settings = (patch: Partial<ResourceSettings> = {}): ResourceSettings => ({
   ...DEFAULT_RESOURCE_SETTINGS,
@@ -86,5 +86,67 @@ describe("isGoverned", () => {
       await isGoverned(settings({ levels: { main: "balanced", worktree: "off", subagent: "off" } }), find),
     ).toBe(true);
     expect(find).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("callScopes", () => {
+  const sandboxOn = (main: boolean, worktree: boolean, subagent: boolean) => ({ main, worktree, subagent });
+  const resourceOff = settings(levels("off", "off", "off"));
+
+  it("carries the worktree sandbox scope while its resource level is Off", async () => {
+    const scopes = await callScopes(
+      settings(levels("balanced", "off", "off")),
+      sandboxOn(false, true, false),
+      async () => entry({ workspace: worktree }),
+    );
+    expect(scopes).toEqual({ sandboxScope: "worktree" });
+    expect(scopeFields(scopes)).toEqual({ sandboxScope: "worktree" });
+  });
+
+  it("keeps the governor scope and the sandbox scope apart", async () => {
+    const scopes = await callScopes(
+      settings(levels("off", "balanced", "off")),
+      sandboxOn(false, true, false),
+      async () => entry({ workspace: worktree }),
+    );
+    expect(scopeFields(scopes)).toEqual({ governed: true, scope: "worktree", sandboxScope: "worktree" });
+  });
+
+  it("classifies a subagent for the sandbox even when only main is governed", async () => {
+    const scopes = await callScopes(
+      settings(levels("balanced", "off", "off")),
+      sandboxOn(false, false, true),
+      async () => entry({ parentId: "9" }),
+    );
+    expect(scopes).toEqual({ sandboxScope: "subagent" });
+  });
+
+  it("marks an unknown, deleted or failing lookup unknown for the sandbox, never main", async () => {
+    const sandbox = sandboxOn(false, true, false);
+    const failing = async (): Promise<IndexedConversation | undefined> => {
+      throw new Error("index unavailable");
+    };
+    expect(await callScopes(resourceOff, sandbox, async () => undefined)).toEqual({
+      sandboxScope: "unknown",
+    });
+    expect(await callScopes(resourceOff, sandbox, async () => entry({ deletedAt: 5 }))).toEqual({
+      sandboxScope: "unknown",
+    });
+    expect(await callScopes(resourceOff, sandbox, failing)).toEqual({ sandboxScope: "unknown" });
+  });
+
+  it("looks the thread up once, and not at all while resource control and the sandbox are Off", async () => {
+    const find = vi.fn(async () => entry({ workspace: worktree }));
+    expect(await callScopes(resourceOff, DEFAULT_SANDBOX_SETTINGS, find)).toEqual({});
+    expect(find).not.toHaveBeenCalled();
+    await callScopes(settings(on(true, true, true)), sandboxOn(true, true, true), find);
+    expect(find).toHaveBeenCalledTimes(1);
+  });
+
+  it("leaves a resource-governed main thread without a sandbox scope when the sandbox is Off", async () => {
+    const scopes = await callScopes(settings(on(true, false, false)), DEFAULT_SANDBOX_SETTINGS, async () =>
+      entry({ workspace: checkout }),
+    );
+    expect(scopeFields(scopes)).toEqual({ governed: true, scope: "main" });
   });
 });

@@ -32,6 +32,7 @@ import {
 } from "./worktree-facts";
 import { mergeIntoBase } from "./worktree-merge";
 import { removeWorktreeAndBranch } from "./worktree-remove";
+import { createWriterBarrier, type WriterBarrier } from "./writer-barrier";
 
 export interface CreateWorkspaceRequest {
   readonly project: Project;
@@ -68,9 +69,37 @@ export interface WorkspaceDeps {
    * `ProcessService.hasRunning`; removal refuses while it reports jobs.
    */
   readonly hasRunningOf?: (conversationId: string) => boolean;
+  /** Shared with the conversations API so sends into a workspace being merged or removed are refused. */
+  readonly writerBarrier?: WriterBarrier;
 }
 
 const notFound = () => new AppError("not_found", "Conversation not found.");
+
+const ownBackgroundProcesses = () =>
+  new AppError(
+    "thread_busy",
+    "This thread still has running background processes. Stop them first, then remove the worktree.",
+  );
+
+const siblingStillRunning = () =>
+  new AppError(
+    "thread_busy",
+    "Another thread sharing this worktree is still running. Wait for it to finish, then try again.",
+  );
+
+const siblingUnverifiable = () =>
+  new AppError(
+    "thread_busy",
+    "Could not verify the other threads sharing this worktree. Try again in a moment.",
+  );
+
+const siblingHasBackgroundProcesses = () =>
+  new AppError(
+    "thread_busy",
+    "Another thread sharing this worktree still has running background processes. Stop them first.",
+  );
+
+const isKnownStatus = (status: string) => status === "idle" || status === "running" || status === "error";
 
 export function createWorkspaceService({
   home,
@@ -79,6 +108,7 @@ export function createWorkspaceService({
   announce = () => undefined,
   closeTerminalsOf = async () => undefined,
   hasRunningOf,
+  writerBarrier = createWriterBarrier(),
 }: WorkspaceDeps): WorkspaceService {
   const lock = createKeyedLock();
   const statusCache = createStatusCache<WorkspaceGitStatus>();
@@ -117,12 +147,38 @@ export function createWorkspaceService({
   const isSharedWithOthers = async (thread: ConversationSummary) =>
     (await otherThreadsUsingWorktree(conversations, thread)).length > 0;
 
+  const barrierKeyOf = (thread: ConversationSummary) => thread.workspace.path;
+
+  const withWriterBarrier = <T>(thread: ConversationSummary, facts: WorktreeFacts, task: () => Promise<T>) =>
+    writerBarrier.run(barrierKeyOf(thread), thread.id, () => lock.run(facts.mainRoot, task));
+
+  async function verifiedSiblingsOf(thread: ConversationSummary): Promise<ConversationSummary[]> {
+    await conversations.list(thread.projectId).catch(() => Promise.reject(siblingUnverifiable()));
+    const siblings = await otherThreadsUsingWorktree(conversations, thread);
+    return Promise.all(siblings.map(freshStateOf));
+  }
+
+  async function freshStateOf(sibling: ConversationSummary): Promise<ConversationSummary> {
+    const current = await conversations.find(sibling.id).catch(() => undefined);
+    if (!current || !isKnownStatus(current.status)) throw siblingUnverifiable();
+    return current;
+  }
+
+  async function requireNoRunningSiblings(thread: ConversationSummary, checkProcesses: boolean) {
+    for (const sibling of await verifiedSiblingsOf(thread)) {
+      if (sibling.status === "running") throw siblingStillRunning();
+      if (checkProcesses && hasRunningOf?.(sibling.id)) throw siblingHasBackgroundProcesses();
+    }
+  }
+
   async function discardWorktreeOf(thread: ConversationSummary): Promise<void> {
     if (await isSharedWithOthers(thread)) return;
     const facts = hasLiveWorktree(thread) ? await worktreeFactsIfPresent(thread) : undefined;
-    if (facts) {
-      await lock.run(facts.mainRoot, () => removeWorktreeAndBranch(facts, true));
-    }
+    if (!facts) return;
+    await withWriterBarrier(thread, facts, async () => {
+      if ((await verifiedSiblingsOf(thread)).length > 0) return;
+      await removeWorktreeAndBranch(facts, true);
+    });
   }
 
   const operations: WorkspaceService = {
@@ -155,9 +211,13 @@ export function createWorkspaceService({
           `Thread ${id} is still running. Wait for it to finish, or merge anyway with \`tau workspaces merge ${id} --force\`.`,
         );
       }
-      return lock.run(facts.mainRoot, async () => {
+      return withWriterBarrier(thread, facts, async () => {
+        const current = await threadOf(id);
+        requireLiveWorktree(current);
+        if (!force) requireIdle(current);
+        await requireNoRunningSiblings(current, false);
         const mergedSha = await mergeIntoBase(facts);
-        return update(thread, { state: "merged", mergedSha });
+        return update(current, { state: "merged", mergedSha });
       });
     },
 
@@ -177,25 +237,26 @@ export function createWorkspaceService({
       if (thread.workspace.state === "removed") return thread;
       const { facts } = await liveWorktreeOf(id);
       requireIdle(thread);
-      if (hasRunningOf?.(thread.id)) {
-        throw new AppError(
-          "thread_busy",
-          "This thread still has running background processes. Stop them first, then remove the worktree.",
-        );
-      }
-      return lock.run(facts.mainRoot, async () => {
-        const shared = await isSharedWithOthers(thread);
+      if (hasRunningOf?.(thread.id)) throw ownBackgroundProcesses();
+      return withWriterBarrier(thread, facts, async () => {
+        const current = await threadOf(id);
+        if (current.workspace.state === "removed") return current;
+        requireLiveWorktree(current);
+        requireIdle(current);
+        if (hasRunningOf?.(current.id)) throw ownBackgroundProcesses();
+        await requireNoRunningSiblings(current, true);
+        const shared = await isSharedWithOthers(current);
         if (!shared) {
-          const lost = await describeUnmergedWork(thread);
+          const lost = await describeUnmergedWork(current);
           if (lost.length > 0 && !force) {
             throw new AppError("has_unmerged_work", `This worktree has unmerged work: ${lost.join(", ")}`);
           }
         }
-        await closeTerminalsOf(thread.id);
+        await closeTerminalsOf(current.id);
         if (shared) {
-          return update(thread, { state: "removed", path: inWorktree(facts.mainRoot, facts.subpath) });
+          return update(current, { state: "removed", path: inWorktree(facts.mainRoot, facts.subpath) });
         }
-        return removeOne(thread, facts, false);
+        return removeOne(current, facts, false);
       });
     },
 

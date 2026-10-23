@@ -4,7 +4,7 @@ import { stat } from "node:fs/promises";
 import { defineTool } from "@earendil-works/pi-durable";
 import type { BashExecution } from "@earendil-works/pi-durable/tools";
 import { Type } from "typebox";
-import { governedScope, indexEntryOfCall } from "../../processes/governor/governed";
+import { callScopes, indexEntryOfCall, scopeFields } from "../../processes/governor/governed";
 import { stopMessage } from "../../processes/governor/governor-text";
 import type { ForegroundOutcome, ForegroundRun } from "../../processes/process-types";
 import type { ToolServicesRef } from "./tool-file";
@@ -124,7 +124,8 @@ export const createTauBashTool = ({ services, prepare }: TauBashOptions) =>
       const processes = services.current().processes;
       let waiting = true;
       const settings = processes.resourceSettings();
-      const scope = await governedScope(settings, indexEntryOfCall(api, context));
+      const scopes = await callScopes(settings, processes.sandboxSettings(), indexEntryOfCall(api, context));
+      const scope = scopes.governedScope;
       const scale =
         timeout === undefined && scope && settings.levels[scope] === "background"
           ? BACKGROUND_TIMEOUT_SCALE
@@ -138,7 +139,7 @@ export const createTauBashTool = ({ services, prepare }: TauBashOptions) =>
         env: execution.env,
         shell: bashPath(),
         origin: "tool",
-        ...(scope && { governed: true, scope }),
+        ...scopeFields(scopes),
         // A command's stragglers can write after the call settled; the call no longer takes output then.
         onOutput: (text) => {
           if (!waiting) return;

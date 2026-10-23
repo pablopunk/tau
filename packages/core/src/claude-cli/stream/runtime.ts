@@ -1,7 +1,8 @@
 import type { ClaudeMcpServerStatus, ClaudeSdkPort } from "../sdk-types";
 import type { Binding } from "./binding";
-import { type BindingSnapshot, loadBindingSnapshots, saveBindingSnapshots } from "./binding-store";
+import type { BindingSnapshot } from "./binding-store";
 import type { ClaudeCliStreamDeps } from "./claude-cli-stream";
+import { createSnapshotStore } from "./snapshot-store";
 
 /** The shared state of one streamer. */
 export interface Runtime {
@@ -19,7 +20,12 @@ export interface Runtime {
   persistBinding(binding: Binding): void;
   /** Drops the persisted binding. No-op without a file. */
   dropBinding(piSessionId: string): void;
+  /** Resolves when every persist and drop so far reached the file, or was reported as failed. */
+  flush(): Promise<void>;
 }
+
+const reportSaveFailure = (error: unknown): void =>
+  console.error("tau: could not save the Claude CLI bindings", error);
 
 export function createRuntime(deps: ClaudeCliStreamDeps): Runtime {
   let loaded: Promise<ClaudeSdkPort> | undefined;
@@ -27,17 +33,8 @@ export function createRuntime(deps: ClaudeCliStreamDeps): Runtime {
   const live = new Set<Binding>();
   const bindings = new Map<string, Binding>();
   const file = deps.bindingsFile;
-  let snapshots: Record<string, BindingSnapshot> | undefined;
-  const ensureSnapshots = async (): Promise<Record<string, BindingSnapshot>> => {
-    if (snapshots) return snapshots;
-    snapshots = file ? await loadBindingSnapshots(file) : {};
-    return snapshots;
-  };
-  // Best-effort: a failing write must never fail a turn, so saves are fire-and-forget.
-  const save = () => {
-    if (!file || !snapshots) return;
-    void saveBindingSnapshots(file, snapshots).catch(() => undefined);
-  };
+  const store = file ? createSnapshotStore(file, deps.onPersistError ?? reportSaveFailure) : undefined;
+  const restoring = new Map<string, Promise<Binding | undefined>>();
   const snapshotOf = (binding: Binding): BindingSnapshot | null => {
     if (!binding.sdkSessionId) return null;
     return {
@@ -48,6 +45,22 @@ export function createRuntime(deps: ClaudeCliStreamDeps): Runtime {
       model: binding.model,
     };
   };
+  const restoreFromSnapshot = async (piSessionId: string): Promise<Binding | undefined> => {
+    const saved = await store?.find(piSessionId);
+    if (!saved) return undefined;
+    const { createBinding } = await import("./binding");
+    const raced = bindings.get(piSessionId);
+    if (raced) return raced;
+    const binding = createBinding(piSessionId, saved.model);
+    binding.sdkSessionId = saved.sdkSessionId;
+    binding.checkpoints = [...saved.checkpoints];
+    binding.head = saved.head ? { ...saved.head } : null;
+    saved.created.forEach((sessionId) => {
+      binding.created.add(sessionId);
+    });
+    bindings.set(piSessionId, binding);
+    return binding;
+  };
   return {
     deps,
     bindings,
@@ -56,36 +69,30 @@ export function createRuntime(deps: ClaudeCliStreamDeps): Runtime {
     async restoreBinding(piSessionId) {
       const known = bindings.get(piSessionId);
       if (known) return known;
-      const saved = (await ensureSnapshots())[piSessionId];
-      if (!saved) return undefined;
-      const { createBinding } = await import("./binding");
-      const binding = createBinding(piSessionId, saved.model);
-      binding.sdkSessionId = saved.sdkSessionId;
-      binding.checkpoints = [...saved.checkpoints];
-      binding.head = saved.head ? { ...saved.head } : null;
-      saved.created.forEach((sessionId) => {
-        binding.created.add(sessionId);
-      });
-      bindings.set(piSessionId, binding);
-      return binding;
+      let pending = restoring.get(piSessionId);
+      if (!pending) {
+        pending = restoreFromSnapshot(piSessionId).finally(() => restoring.delete(piSessionId));
+        restoring.set(piSessionId, pending);
+      }
+      return pending;
     },
     persistBinding(binding) {
-      if (!file || binding.id.startsWith("anonymous-")) return;
-      void ensureSnapshots().then((all) => {
+      if (binding.id.startsWith("anonymous-")) return;
+      store?.update((rows) => {
         const snapshot = snapshotOf(binding);
-        if (!snapshot) return;
-        all[binding.id] = snapshot;
-        save();
+        if (!snapshot) return false;
+        rows[binding.id] = snapshot;
+        return true;
       });
     },
     dropBinding(piSessionId) {
-      if (!file) return;
-      void ensureSnapshots().then((all) => {
-        if (!(piSessionId in all)) return;
-        delete all[piSessionId];
-        save();
+      store?.update((rows) => {
+        if (!(piSessionId in rows)) return false;
+        delete rows[piSessionId];
+        return true;
       });
     },
+    flush: () => store?.flush() ?? Promise.resolve(),
     port() {
       loaded ??= deps.sdk().catch((error: unknown) => {
         loaded = undefined;

@@ -76,7 +76,7 @@ import { createFakeRemoteAdapter } from "./remote/fake-adapter";
 import { createOpenTunnelAdapter } from "./remote/opentunnel-adapter";
 import type { RemoteAdapter, RemoteAdapterDeps } from "./remote/ports";
 import { createRemoteService } from "./remote/remote-service";
-import type { RemovalHooks } from "./removal-hooks";
+import { conversationRemovedInOrder, type RemovalHooks } from "./removal-hooks";
 import { createSettingsApi } from "./settings-api";
 import { useBundledSkills } from "./skills/discover-skills";
 import { createSkillsApi } from "./skills/skills-api";
@@ -98,6 +98,7 @@ import { createVoiceApi } from "./voice-api";
 import { CRASH_LOOP_TEXT, recordStart, startRecordFiles } from "./watchdog/start-record";
 import { createWorkspaceService } from "./workspaces/workspace-service";
 import { hasLiveWorktree, sandboxRootOf } from "./workspaces/worktree-facts";
+import { createWriterBarrier } from "./workspaces/writer-barrier";
 
 export interface CoreDependencies {
   readonly env: Environment;
@@ -249,7 +250,9 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
       env: deps.env,
       now: deps.now,
     });
+    const workspaceBarrier = createWriterBarrier();
     const workspaces = createWorkspaceService({
+      writerBarrier: workspaceBarrier,
       home: home.root,
       closeTerminalsOf: (conversationId) => terminals.closeAllOf(conversationId),
       conversations,
@@ -385,15 +388,15 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
     };
     const removalHooks: RemovalHooks = {
       unmergedWork: (thread) => workspaces.unmergedWork(thread),
-      onConversationRemoved: [
-        (thread) => terminals.onConversationRemoved(thread),
-        (thread) => closeClaudeCliThread(thread.id),
-        (thread) => workspaces.onConversationRemoved(thread),
-        (thread) => checkpoints.onConversationRemoved(thread),
-        (thread) => processes.onConversationRemoved(thread),
-        async (thread) => goals.onConversationRemoved(thread.id),
-        (thread) => timersApi.onConversationRemoved(thread),
-      ],
+      onConversationRemoved: conversationRemovedInOrder({
+        terminals: (thread) => terminals.onConversationRemoved(thread),
+        claudeCliThread: (thread) => closeClaudeCliThread(thread.id),
+        processes: (thread) => processes.onConversationRemoved(thread),
+        workspace: (thread) => workspaces.onConversationRemoved(thread),
+        checkpoints: (thread) => checkpoints.onConversationRemoved(thread),
+        goals: async (thread) => goals.onConversationRemoved(thread.id),
+        timers: (thread) => timersApi.onConversationRemoved(thread),
+      }),
       onProjectRemoved: [(id) => workspaces.onProjectRemoved(id)],
     };
     const removal = createConversationRemoval({
@@ -588,6 +591,7 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
         titles,
         status,
         workspaces,
+        workspaceFence: workspaceBarrier,
         checkpoints,
         forker,
         harness,

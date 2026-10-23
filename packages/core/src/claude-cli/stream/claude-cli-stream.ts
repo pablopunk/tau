@@ -48,6 +48,8 @@ export interface ClaudeCliStreamDeps {
   readonly onConnectorsLate?: (notes: readonly string[]) => void;
   /** File holding persisted bindings (`sdkSessionId` + checkpoints) so a restart resumes. Absent: memory only. */
   readonly bindingsFile?: string;
+  /** A save of `bindingsFile` failed. The turn is unaffected. Absent: the error goes to the console. */
+  readonly onPersistError?: (error: unknown) => void;
 }
 
 export interface ClaudeCliStreamer extends InterruptConversationPort {
@@ -141,6 +143,7 @@ export function createClaudeCliStream(deps: ClaudeCliStreamDeps): ClaudeCliStrea
         closeQuery(rt, binding);
       }
       for (const binding of rt.bindings.values()) cancelIdle(binding);
+      await rt.flush();
     },
     processCount: () => rt.live.size,
     interruptConversation: async (piSessionId) => {
