@@ -49,7 +49,7 @@ test.describe("MVP6", () => {
     await sendAndWaitForDone(page, "agent second job", 2);
     await expect(notificationRows(page)).toHaveCount(1, { timeout: 20_000 });
     await expect(notificationRows(page).first()).toContainText("second job finished");
-    await page.getByRole("button", { name: "Stop", exact: true }).click();
+    await notificationRows(page).first().getByRole("button", { name: "Stop", exact: true }).click();
     await expect(notificationRows(page)).toHaveCount(2, { timeout: 20_000 });
     await expect(notificationRows(page).last()).toContainText(`${HELD} stopped`);
   });

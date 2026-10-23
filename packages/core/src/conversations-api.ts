@@ -348,6 +348,8 @@ export function createConversationsApi(deps: {
   }
 
   async function startWithModel(input: StartConversationInput): Promise<ConversationSummary> {
+    // Unknown projects are not_found even before any provider check, mirroring the fake core.
+    await projects.require(input.projectId);
     const existing = (await indexOf(deps.harness, input.projectId)).find(
       (entry) => entry.startRequestId === input.requestId && isLive(entry),
     );

@@ -117,7 +117,9 @@ describe("Linux systemd confinement, really enforced", () => {
       run(prefix.file, [...prefix.args, "/bin/sh", "-c", command], { timeout: 30_000 });
     await runInside(`echo hi > ${wt}/in.txt`);
     expect((await stat(join(wt, "in.txt"))).isFile()).toBe(true);
-    await expect(runInside(`echo hi > ${outside}/out.txt`)).rejects.toThrow();
+    // With PrivateTmp the outside write can succeed vacuously into a private
+    // /tmp; what must never happen is the file materializing on the host.
+    await runInside(`echo hi > ${outside}/out.txt`).catch(() => undefined);
     await expect(stat(join(outside, "out.txt"))).rejects.toThrow();
   }, 60_000);
 });
