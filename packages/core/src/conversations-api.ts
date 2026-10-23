@@ -33,10 +33,12 @@ import {
 } from "./bang-command";
 import type { ChangeEmitter } from "./change-emitter";
 import type { CheckpointService } from "./checkpoints/checkpoint-service";
+import { CLAUDE_CLI_PROVIDER_ID } from "./claude-cli/provider";
 import { requireContent, requireImageBytesMatchTheirType, requireImagesAllowed } from "./conversation-input";
 import type { ConversationRemoval } from "./conversation-removal";
 import { createConversationsMvp5Api } from "./conversations-mvp5-api";
 import type { ConversationForker } from "./harness/conversation-fork";
+import { indexOf, isLive } from "./harness/conversation-index";
 import type { ConversationStore } from "./harness/conversation-store";
 import type { NotificationSubmitter } from "./harness/notification-submitter";
 import { ThreadGoneError } from "./harness/notification-submitter";
@@ -56,7 +58,13 @@ import type { WorkspaceService } from "./workspaces/workspace-service";
 
 const FALLBACK_THINKING_LEVEL = "medium";
 
-export type NativeStartInput = Pick<StartConversationInput, "projectId" | "text" | "requestId" | "workspace">;
+export type NativeStartInput = Pick<
+  StartConversationInput,
+  "projectId" | "text" | "requestId" | "workspace"
+> & {
+  /** A Claude model id, already checked to belong to the claude-cli provider. */
+  model?: string;
+};
 
 export type NativeConversationsApi = {
   /** Core level only, not on the wire: starts a native thread and queues its first message. */
@@ -65,6 +73,17 @@ export type NativeConversationsApi = {
 
 const unsupportedOnNative = (capability: string): AppError =>
   new AppError("invalid_request", `Native Claude Code threads do not support ${capability} yet.`);
+
+function nativeModelIdOf(model: ModelRef | undefined): string | undefined {
+  if (model === undefined) return undefined;
+  if (model.provider !== CLAUDE_CLI_PROVIDER_ID) {
+    throw new AppError(
+      "invalid_request",
+      `Native Claude Code threads only run claude-cli models, not ${model.provider}.`,
+    );
+  }
+  return model.modelId;
+}
 
 const sequenceOfReceipt = (receiptId: string): number =>
   Number(receiptId.slice(receiptId.lastIndexOf(":") + 1));
@@ -234,10 +253,9 @@ export function createConversationsApi(deps: {
     return (await settings.lastWorkspaceMode(projectId)) ?? "worktree";
   }
 
-  async function startOnce(input: StartConversationInput): Promise<ConversationSummary> {
+  async function startOnce(input: StartConversationInput, ref: ModelRef): Promise<ConversationSummary> {
     const project = await projects.require(input.projectId);
     if (project.status !== "ready") throw new AppError("project_not_ready", "This project is not ready.");
-    const ref = await chooseModel(input.model);
     const model = lookUp(ref);
     if (!model) throw new AppError("invalid_request", "This model is not available.");
     await validateMessage(input, ref);
@@ -289,7 +307,13 @@ export function createConversationsApi(deps: {
       requestId,
       firstMessage: text,
     });
-    return native.startThread({ project, input: { text, requestId }, workspace, now: now() });
+    return native.startThread({
+      project,
+      input: { text, requestId },
+      workspace,
+      now: now(),
+      ...(input.model !== undefined && { model: input.model }),
+    });
   }
 
   const hasAttachments = (input: StartConversationInput) =>
@@ -300,16 +324,45 @@ export function createConversationsApi(deps: {
     if (!native) throw nativeDisabledError();
     if (hasAttachments(input)) throw nativeAttachmentsError();
     const { projectId, text, requestId, workspace } = input;
-    return startNative(native, { projectId, text, requestId, ...(workspace && { workspace }) });
+    const model = nativeModelIdOf(input.model);
+    if (!native.creationEnabled) throw retainedError();
+    return startNativeOnce(native, {
+      projectId,
+      text,
+      requestId,
+      ...(workspace && { workspace }),
+      ...(model !== undefined && { model }),
+    });
   }
 
-  function startNative(native: NativeService, input: NativeStartInput): Promise<ConversationSummary> {
-    if (!native.creationEnabled) return Promise.reject(retainedError());
-    const pending = startsInFlight.get(input.requestId) ?? startNativeOnce(native, input);
-    startsInFlight.set(input.requestId, pending);
+  function startSingleFlight(
+    input: Pick<StartConversationInput, "projectId" | "requestId">,
+    create: () => Promise<ConversationSummary>,
+  ): Promise<ConversationSummary> {
+    const key = `${input.projectId}:${input.requestId}`;
+    const pending = startsInFlight.get(key) ?? Promise.resolve().then(create);
+    startsInFlight.set(key, pending);
     return pending.finally(() => {
-      if (startsInFlight.get(input.requestId) === pending) startsInFlight.delete(input.requestId);
+      if (startsInFlight.get(key) === pending) startsInFlight.delete(key);
     });
+  }
+
+  async function startWithModel(input: StartConversationInput): Promise<ConversationSummary> {
+    const existing = (await indexOf(deps.harness, input.projectId)).find(
+      (entry) => entry.startRequestId === input.requestId && isLive(entry),
+    );
+    const executor = existing ? (existing.executor ?? "pi") : input.executor;
+    if (existing && input.executor && input.executor !== executor) {
+      throw new AppError("invalid_request", "This start request already belongs to a different executor.");
+    }
+    const model = existing ? existing.model : input.model;
+    if (executor === "claude-code") return startOnNativeExecutor({ ...input, model });
+    const ref = await chooseModel(model);
+    if (executor !== "pi" && ref.provider === CLAUDE_CLI_PROVIDER_ID) {
+      if (!lookUp(ref)) throw new AppError("invalid_request", "This model is not available.");
+      return startOnNativeExecutor({ ...input, model: ref });
+    }
+    return startOnce(input, ref);
   }
 
   async function whenBusyFor(input: SendMessageInput) {
@@ -386,14 +439,7 @@ export function createConversationsApi(deps: {
       );
       return perProject.flat().sort((a, b) => b.updatedAt - a.updatedAt || Number(b.id) - Number(a.id));
     },
-    start(input) {
-      if (input.executor === "claude-code") return startOnNativeExecutor(input);
-      const pending = startsInFlight.get(input.requestId) ?? startOnce(input);
-      startsInFlight.set(input.requestId, pending);
-      return pending.finally(() => {
-        if (startsInFlight.get(input.requestId) === pending) startsInFlight.delete(input.requestId);
-      });
-    },
+    start: (input) => startSingleFlight(input, () => startWithModel(input)),
     async rename(id, title) {
       announce(await conversations.rename(id, requireName(title)));
     },
@@ -475,6 +521,10 @@ export function createConversationsApi(deps: {
     );
   return {
     ...routeNativeThreads(api, native, stopBeforeRemove),
-    startNative: (input) => startNative(native, input),
+    startNative: (input) =>
+      startSingleFlight(input, () => {
+        if (!native.creationEnabled) throw retainedError();
+        return startNativeOnce(native, input);
+      }),
   };
 }

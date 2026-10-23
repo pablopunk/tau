@@ -1,7 +1,12 @@
 import type { NativeEvent } from "./events";
 import { ASK_USER_QUESTION_TOOL, denyEverything, type NativeCanUseTool } from "./permissions";
 
-export type OptionsContext = { readonly threadId: string; readonly cwd: string };
+export type OptionsContext = {
+  readonly threadId: string;
+  readonly cwd: string;
+  /** Claude model id for the SDK `model` option. Absent leaves Claude Code's default. */
+  readonly model?: string;
+};
 
 export type NativeSettingSource = "user" | "project" | "local";
 
@@ -24,6 +29,7 @@ const MAX_NAME_LENGTH = 60;
 export function buildNativeOptions(input: NativeOptionsInput): Record<string, unknown> {
   return {
     cwd: input.cwd,
+    ...(input.model !== undefined && { model: input.model }),
     tools: { type: "preset", preset: "claude_code" },
     systemPrompt: { type: "preset", preset: "claude_code", append: TAU_INSTRUCTIONS },
     settingSources: [...(input.settingSources ?? DEFAULT_SETTING_SOURCES)],

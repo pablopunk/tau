@@ -1,16 +1,10 @@
 import { useQueryClient } from "@tanstack/react-query";
-import type {
-  ExecutorKind,
-  FileRef,
-  ImageInput,
-  ModelRef,
-  ThinkingLevel,
-  WorkspaceMode,
-} from "@tau/protocol";
+import type { FileRef, ImageInput, ModelRef, ThinkingLevel, WorkspaceMode } from "@tau/protocol";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 import { ModelThinkingPickers, type PickersHandle } from "@/components/ModelThinkingPickers";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Spinner } from "@/components/ui/spinner";
 import { Composer } from "@/conversation";
 import type { CommandHandlers } from "@/conversation/composer/slash-commands";
 import { NATIVE_ATTACHMENTS_REASON } from "@/conversation/model/executor";
@@ -18,12 +12,10 @@ import { findModel, pickModel, pickProjectId, pickThinkingLevel } from "@/lib/ne
 import { clearNewThreadDraft, loadNewThreadDraft, saveNewThreadDraft } from "@/lib/new-thread-draft";
 import { conversationPath, newThreadPath } from "@/lib/paths";
 import { preferences } from "@/lib/preferences";
-import { queryKeys, useModels, useProjects, useRuntimes, useSettings } from "@/lib/queries";
-import { enabledClaudeCode } from "@/lib/runtimes";
+import { queryKeys, useModels, useProjects, useSettings } from "@/lib/queries";
 import { clearDraftRequestId, draftRequestId } from "@/lib/start-request";
 import { useApi, useNodeId } from "@/nodes/node-context";
 import { WorktreeToggle } from "@/workspaces/WorktreeToggle";
-import { EngineToggle } from "./EngineToggle";
 import { NotSetUpNotice } from "./NotSetUpNotice";
 import { ProjectPicker } from "./ProjectPicker";
 
@@ -38,13 +30,11 @@ export function NewThreadPage() {
   const projects = useProjects();
   const models = useModels();
   const settings = useSettings();
-  const runtimes = useRuntimes();
   const [initialDraft] = useState(() => loadNewThreadDraft(nodeId));
   const [chosenProject, setProject] = useState<string | null>(initialDraft.projectId);
   const [chosenModel, setModel] = useState<ModelRef | null>(initialDraft.model);
   const [chosenLevel, setLevel] = useState<ThinkingLevel | null>(initialDraft.thinkingLevel);
   const [workspace, setWorkspace] = useState<WorkspaceMode | null>(initialDraft.workspace);
-  const [chosenEngine, setEngine] = useState<ExecutorKind | null>(() => preferences.getLastEngine(nodeId));
   const [busy, setBusy] = useState(false);
   const paramProject = params.get("project");
 
@@ -67,13 +57,6 @@ export function NewThreadPage() {
     }),
     [],
   );
-  const engineChoice = enabledClaudeCode(runtimes.data) ? (chosenEngine ?? "claude-code") : undefined;
-  const native = engineChoice === "claude-code";
-  const chooseEngine = (engine: ExecutorKind) => {
-    setEngine(engine);
-    preferences.setLastEngine(engine, nodeId);
-  };
-
   if (!projects.data || !models.data || !settings.data) return <NewThreadSkeleton />;
 
   const wantedProject = paramProject ?? chosenProject ?? preferences.getLastProjectId(nodeId);
@@ -84,9 +67,12 @@ export function NewThreadPage() {
     model,
     chosenLevel ?? settings.data.defaultThinkingLevel ?? preferences.getLastThinkingLevel(nodeId),
   );
-  const levels = findModel(models.data, model ?? null)?.thinkingLevels ?? ["off"];
+  const native = model?.provider === "claude-cli";
+  const levels = native
+    ? ["off" as const]
+    : (findModel(models.data, model ?? null)?.thinkingLevels ?? ["off"]);
 
-  const notSetUp = models.data.length === 0 && !native;
+  const notSetUp = models.data.length === 0;
   const cloning = projects.data.find((project) => project.id === projectId)?.status === "cloning";
 
   const start = async ({ text, images, files }: { text: string; images: ImageInput[]; files: FileRef[] }) => {
@@ -96,7 +82,7 @@ export function NewThreadPage() {
         projectId,
         text,
         requestId: draftRequestId(),
-        ...(!native && model && { model: toRef(model) }),
+        ...(model && { model: toRef(model) }),
         ...(!native && { thinkingLevel: level }),
         ...(workspace && { workspace }),
         ...(images.length > 0 && { images }),
@@ -107,7 +93,7 @@ export function NewThreadPage() {
       clearNewThreadDraft(nodeId);
       void queryClient.invalidateQueries({ queryKey: queryKeys.projects });
       preferences.setLastProjectId(created.projectId, nodeId);
-      if (model && !native) preferences.setLastModel(toRef(model), nodeId);
+      if (model) preferences.setLastModel(toRef(model), nodeId);
       if (!native) preferences.setLastThinkingLevel(level, nodeId);
       navigate(conversationPath(created.projectId, created.id, nodeId));
     } finally {
@@ -126,19 +112,16 @@ export function NewThreadPage() {
       />
       <WorktreeToggle projectId={projectId} value={workspace} onChange={setWorkspace} disabled={busy} />
       {cloning ? <span className="text-xs text-muted-foreground">Cloning…</span> : null}
-      {engineChoice ? <EngineToggle value={engineChoice} onChange={chooseEngine} disabled={busy} /> : null}
-      {native ? null : (
-        <ModelThinkingPickers
-          ref={pickers}
-          models={models.data}
-          model={model ? toRef(model) : null}
-          onModel={setModel}
-          levels={levels}
-          level={level}
-          onLevel={setLevel}
-          disabled={busy}
-        />
-      )}
+      <ModelThinkingPickers
+        ref={pickers}
+        models={models.data}
+        model={model ? toRef(model) : null}
+        onModel={setModel}
+        levels={levels}
+        level={level}
+        onLevel={setLevel}
+        disabled={busy}
+      />
     </>
   );
 
@@ -152,10 +135,12 @@ export function NewThreadPage() {
           imagesAllowed={!native && (model?.images ?? true)}
           attachmentsBlockedReason={native ? NATIVE_ATTACHMENTS_REASON : undefined}
           busy={busy}
-          disabled={cloning || notSetUp}
+          disabled={busy || cloning || notSetUp}
+          disabledReason={busy ? "Starting thread…" : undefined}
+          hint={busy ? <Spinner aria-label="Starting thread" /> : undefined}
           toolbar={toolbar}
           projectId={projectId}
-          commands={native ? {} : commands}
+          commands={native ? { model: commands.model } : commands}
           onSend={start}
         />
       </div>

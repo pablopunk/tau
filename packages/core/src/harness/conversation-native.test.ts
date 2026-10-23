@@ -6,6 +6,7 @@ import {
   isNativeConversation,
   listNativeConversations,
   type NativeStartRequest,
+  readNativeModel,
   recordNativeActivity,
   touchNativeConversation,
 } from "./conversation-native";
@@ -120,6 +121,29 @@ describe("a native conversation container", () => {
     expect(modelCallsOf(second.setup)).toBe(0);
     const repeated = await createNativeConversation(second.harness, requestIn(directory));
     expect(repeated).toEqual({ summary, created: false });
+  });
+
+  it("keeps a chosen model on the summary and the thread state across a restart", async () => {
+    const directory = await tempDir();
+    const first = await openWorld(directory);
+    const model = { provider: "claude-cli", modelId: "claude-opus-4-6" };
+    const { summary } = await createNativeConversation(first.harness, {
+      ...requestIn(directory),
+      model: model.modelId,
+    });
+    await first.close();
+
+    const second = await openWorld(directory, first);
+    expect(summary.model).toEqual(model);
+    expect((await storeOf(second).find(summary.id))?.model).toEqual(model);
+    expect(await readNativeModel(second.harness, summary.id)).toBe(model.modelId);
+  });
+
+  it("reads no model for a thread started without one", async () => {
+    const world = await openWorld(await tempDir());
+    const { summary } = await createNativeConversation(world.harness, requestIn(world.directory));
+
+    expect(await readNativeModel(world.harness, summary.id)).toBeUndefined();
   });
 
   it("mirrors a run on the sidebar entry and unarchives only on a new message", async () => {

@@ -47,6 +47,8 @@ export const NativeThreadSchema = Type.Object({
   lifecycle: Type.Optional(RuntimeLifecycleSchema),
   sessionId: Type.Optional(Type.String()),
   createdAt: Type.Number(),
+  /** The Claude model id chosen at start. Absent on older threads and on starts that took Claude Code's default. */
+  model: Type.Optional(Type.String({ minLength: 1 })),
 });
 export type NativeThread = Static<typeof NativeThreadSchema>;
 

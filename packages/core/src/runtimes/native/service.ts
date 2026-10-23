@@ -17,6 +17,7 @@ import {
   listNativeConversations,
   type NativeStartRequest,
   type NativeThreadRef,
+  readNativeModel,
   recordNativeActivity,
   touchNativeConversation,
 } from "../../harness/conversation-native";
@@ -256,7 +257,7 @@ export function createNativeService(deps: NativeServiceDeps): NativeService {
     });
   }
 
-  function controllerFor(runtime: ThreadRuntime, cwd: string): NativeController {
+  function controllerFor(runtime: ThreadRuntime, cwd: string, model: string | undefined): NativeController {
     const { id } = runtime.thread;
     const policy = deps.policyFor?.(id, cwd);
     const prepare: NativeControllerDeps["prepare"] = async (item) => {
@@ -272,6 +273,7 @@ export function createNativeService(deps: NativeServiceDeps): NativeService {
       store: runtime.store,
       query: deps.query,
       cwd,
+      ...(model !== undefined && { model }),
       prepare,
       now,
       ...(permissions && { permissions }),
@@ -295,7 +297,7 @@ export function createNativeService(deps: NativeServiceDeps): NativeService {
       rescan: false,
       gate: Promise.resolve(),
     };
-    runtime.controller = controllerFor(runtime, cwd);
+    runtime.controller = controllerFor(runtime, cwd, await readNativeModel(harness, thread.id));
     return runtime;
   }
 

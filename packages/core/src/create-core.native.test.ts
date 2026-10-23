@@ -167,6 +167,123 @@ describe("createCore wire start and runtimes.list", () => {
   });
 });
 
+interface Recording {
+  readonly query: NativeQueryFn;
+  readonly options: () => readonly Record<string, unknown>[];
+}
+
+function recordingAnswer(): Recording {
+  const captured: Record<string, unknown>[] = [];
+  const counted = countedAnswer();
+  const query: NativeQueryFn = (input) => {
+    captured.push(input.options);
+    return counted.query(input);
+  };
+  return { query, options: () => captured };
+}
+
+const CLAUDE_MODEL = { provider: "claude-cli", modelId: "claude-opus-4-6" };
+
+describe("createCore and the model of a native thread", () => {
+  it("routes new Claude models to native but keeps explicit legacy Pi starts and sends on Pi", async () => {
+    const root = await tempDir();
+    const recording = recordingAnswer();
+    const core = await openCore(root, { TAU_FAKE_CLAUDE_CLI: "1" }, recording.query, CLAUDE_INSTALLED);
+    await core.providers.acknowledgeClaudeCli();
+    const model = (await core.models.list()).find((entry) => entry.provider === "claude-cli");
+    if (!model) throw new Error("Missing fake Claude model");
+    const ref = { provider: model.provider, modelId: model.modelId };
+    const project = await core.projects.add({ path: root });
+    const legacy = await core.conversations.start({
+      projectId: project.id,
+      text: "hello legacy",
+      requestId: "legacy",
+      model: ref,
+      executor: "pi",
+    });
+    expect(legacy.executor).toBeUndefined();
+    await core.conversations.send(legacy.id, { text: "legacy follow-up", requestId: "legacy-send" });
+    expect(recording.options()).toEqual([]);
+    const native = await core.conversations.start({
+      projectId: project.id,
+      text: "hello native",
+      requestId: "automatic",
+      model: ref,
+    });
+    expect(native).toMatchObject({ executor: "claude-code", model: ref });
+    await finishedRun(core, project.id, native.id);
+    expect(recording.options()[0]).toMatchObject({ model: ref.modelId });
+  });
+
+  it("runs the chosen claude-cli model, reports it, and keeps it for follow-ups and after a reopen", async () => {
+    const root = await tempDir();
+    const recording = recordingAnswer();
+    const first = await openCore(root, {}, recording.query, CLAUDE_INSTALLED);
+    const project = await first.projects.add({ path: root });
+
+    const native = await first.conversations.start({
+      projectId: project.id,
+      text: "hello native",
+      requestId: "m-1",
+      executor: "claude-code",
+      model: CLAUDE_MODEL,
+    });
+    await finishedRun(first, project.id, native.id);
+
+    expect(native.model).toEqual(CLAUDE_MODEL);
+    expect(recording.options()[0]).toMatchObject({ model: CLAUDE_MODEL.modelId });
+    await first.conversations.send(native.id, { text: "again", requestId: "m-2" });
+    await waitFor(async () => (recording.options().length === 2 ? true : undefined), "the follow-up run");
+    expect(recording.options()[1]).toMatchObject({ model: CLAUDE_MODEL.modelId });
+
+    await first.close();
+    const reopened = await openCore(root, {}, recording.query, CLAUDE_INSTALLED);
+    const [listed] = await reopened.conversations.list(project.id);
+    expect(listed?.model).toEqual(CLAUDE_MODEL);
+    await reopened.conversations.send(native.id, { text: "after restart", requestId: "m-3" });
+    await waitFor(async () => (recording.options().length === 3 ? true : undefined), "the run after reopen");
+    expect(recording.options()[2]).toMatchObject({ model: CLAUDE_MODEL.modelId });
+  });
+
+  it("refuses a native start with a model of another provider and creates nothing", async () => {
+    const root = await tempDir();
+    const recording = recordingAnswer();
+    const core = await openCore(root, {}, recording.query, CLAUDE_INSTALLED);
+    const project = await core.projects.add({ path: root });
+
+    await expect(
+      core.conversations.start({
+        projectId: project.id,
+        text: "hello",
+        requestId: "m-1",
+        executor: "claude-code",
+        model: { provider: "faux", modelId: "faux-1" },
+      }),
+    ).rejects.toMatchObject({ code: "invalid_request" });
+
+    expect(await core.conversations.list(project.id)).toEqual([]);
+    expect(recording.options()).toEqual([]);
+  });
+
+  it("starts without a model option and a null summary model when none is chosen", async () => {
+    const root = await tempDir();
+    const recording = recordingAnswer();
+    const core = await openCore(root, {}, recording.query, CLAUDE_INSTALLED);
+    const project = await core.projects.add({ path: root });
+
+    const native = await core.conversations.start({
+      projectId: project.id,
+      text: "hello native",
+      requestId: "m-1",
+      executor: "claude-code",
+    });
+    await finishedRun(core, project.id, native.id);
+
+    expect(native.model).toBeNull();
+    expect("model" in (recording.options()[0] ?? {})).toBe(false);
+  });
+});
+
 interface Asking {
   readonly query: NativeQueryFn;
   readonly options: () => Record<string, unknown> | undefined;

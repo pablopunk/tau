@@ -1,11 +1,10 @@
-import type { ExecutorKind, ModelRef, ThinkingLevel } from "@tau/protocol";
+import type { ModelRef, ThinkingLevel } from "@tau/protocol";
 import { nodeKey } from "./node-keys";
 import { clampSidebarWidth, SIDEBAR_WIDTH_DEFAULT } from "./sidebar-width";
 
 const PREFIX = "tau:";
 const KEYS = {
   lastProject: `${PREFIX}last-project`,
-  lastEngine: `${PREFIX}last-engine`,
   lastModel: `${PREFIX}last-model`,
   lastThinkingLevel: `${PREFIX}last-thinking-level`,
   notifications: `${PREFIX}notifications`,
@@ -131,12 +130,6 @@ export const preferences = {
     };
   },
 
-  getLastEngine: (nodeId?: string): ExecutorKind | null => {
-    const stored = readString(nodeKey(KEYS.lastEngine, nodeId));
-    return stored === "pi" || stored === "claude-code" ? stored : null;
-  },
-  setLastEngine: (engine: ExecutorKind, nodeId?: string): void =>
-    writeString(nodeKey(KEYS.lastEngine, nodeId), engine),
   getLastProjectId: (nodeId?: string): string | null => readString(nodeKey(KEYS.lastProject, nodeId)),
   setLastProjectId: (id: string, nodeId?: string): void => writeString(nodeKey(KEYS.lastProject, nodeId), id),
 

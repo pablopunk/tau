@@ -440,7 +440,7 @@ export const StartConversationInputSchema = Type.Object({
   model: Type.Optional(ModelRefSchema),
   thinkingLevel: Type.Optional(ThinkingLevelSchema),
   workspace: Type.Optional(WorkspaceModeSchema),
-  /** Omitted means Pi. `claude-code` is refused with `invalid_request` unless the node enables it. */
+  /** Omitted routes claude-cli models to Claude Code, other models to Pi. Explicit pi preserves legacy starts. */
   executor: Type.Optional(ExecutorKindSchema),
 });
 export type StartConversationInput = Type.Static<typeof StartConversationInputSchema>;

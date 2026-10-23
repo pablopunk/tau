@@ -40,6 +40,11 @@ describe("buildNativeOptions", () => {
     expect(buildNativeOptions({ ...ctx, settingSources: ["project"] }).settingSources).toEqual(["project"]);
   });
 
+  it("passes the model to the SDK only when one is given", () => {
+    expect(buildNativeOptions({ ...ctx, model: "claude-opus-4-6" }).model).toBe("claude-opus-4-6");
+    expect("model" in buildNativeOptions(ctx)).toBe(false);
+  });
+
   it("uses the given canUseTool", () => {
     const canUseTool: NativeCanUseTool = async (_name, input) => ({ behavior: "allow", updatedInput: input });
     expect(buildNativeOptions({ ...ctx, canUseTool }).canUseTool).toBe(canUseTool);

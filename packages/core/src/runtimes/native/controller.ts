@@ -36,6 +36,8 @@ export interface NativeControllerDeps {
   readonly store: RuntimeStore;
   readonly query: NativeQueryFn;
   readonly cwd: string;
+  /** Claude model id of this thread, passed to the SDK on every run. */
+  readonly model?: string;
   readonly buildOptions?: (ctx: OptionsContext) => Record<string, unknown>;
   /** Which Claude Code settings the default options load. Tests pass `[]`. */
   readonly settingSources?: readonly NativeSettingSource[];
@@ -394,7 +396,11 @@ export function createNativeController(deps: NativeControllerDeps): NativeContro
 
   async function execute(run: ActiveRun): Promise<RunResult> {
     const item = await oldestQueued();
-    const options = buildOptions({ threadId: store.threadId, cwd: deps.cwd });
+    const options = buildOptions({
+      threadId: store.threadId,
+      cwd: deps.cwd,
+      ...(deps.model !== undefined && { model: deps.model }),
+    });
     assertNeverBypassing(options);
     run.settingSources = sourcesOf(options);
     await store.beginOperation();

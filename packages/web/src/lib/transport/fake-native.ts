@@ -89,7 +89,7 @@ export function installFakeNative(core: Core): void {
     return {
       ...summary,
       executor: "claude-code",
-      model: null,
+      model: summary.model?.provider === "claude-cli" ? summary.model : null,
       status: thread.isRunning ? "running" : "idle",
       updatedAt: thread.updatedAt,
       lastActivityAt: thread.updatedAt,

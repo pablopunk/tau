@@ -8,7 +8,9 @@ A thread owns exactly one executor. A native thread runs the real Claude Agent S
 
 ## Availability
 
-There is no switch. At startup the node runs `claude --version` (`TAU_CLAUDE_PATH`, else `claude` on the `PATH`; the SDK's bundled binary does not count). If that works, native threads can be created and run, and the new-thread screen offers the engine toggle with Claude Code preselected (the last engine you pick is remembered per node). If not, the toggle is absent. Install Claude Code, then restart the node.
+There is no engine switch. Pick a model as usual: a new thread using a `claude-cli` model runs on native Claude Code; other models run on Pi. The web UI, CLI and REST API share this routing in Core, including the default model when no model is specified. The selected Claude model is retained for later runs. Existing threads keep their executor; explicit `executor: "pi"` remains available to API/CLI callers for legacy starts.
+
+At startup the node runs `claude --version` (`TAU_CLAUDE_PATH`, else `claude` on the `PATH`; the SDK's bundled binary does not count). Native creation requires that check to pass. Model choices still come from the connected provider catalog: installation alone does not invent models or imply that Claude is logged in. Install Claude Code, then restart the node if needed.
 
 Runs use the Agent SDK's own pinned Claude Code build, not the binary on your `PATH`. The local install decides availability and holds your `~/.claude` settings, which native threads read.
 

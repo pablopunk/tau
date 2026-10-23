@@ -139,6 +139,9 @@ function ComposerForm({
   const [showInput, setShowInput] = useState(false);
   const [error, setError] = useState<string>();
   const [stopping, setStopping] = useState(false);
+  const [starting, setStarting] = useState(false);
+  const startingThread = useRef(false);
+  const draftLocked = starting || (threadTarget === "new" && busy && disabled);
   const picker = useRef<HTMLInputElement>(null);
   const { attachments, preparing, addFiles, remove, replace } = useAttachments(target, imagesAllowed);
   const {
@@ -149,7 +152,7 @@ function ComposerForm({
     replace: replaceFiles,
   } = useFileAttachments(target);
   const attachmentsBlocked = attachmentsBlockedReason !== undefined;
-  const [pageDragging, endPageDrag] = usePageDrag(!attachmentsBlocked);
+  const [pageDragging, endPageDrag] = usePageDrag(!attachmentsBlocked && !draftLocked);
   const [caret, setCaret] = useState(0);
   const [anchor, setAnchor] = useState<HTMLElement | null>(null);
   const [pastedText, setPastedText] = useState<string | null>(null);
@@ -171,11 +174,12 @@ function ComposerForm({
     !(attachmentsBlocked && hasStagedFiles) &&
     !preparing &&
     !stagingFiles &&
-    !disabled;
+    !disabled &&
+    !draftLocked;
 
   /** Images stay on the vision path; everything else stages as a generic file, even when the model disallows images. */
   const addSelection = (selection: File[]) => {
-    if (selection.length === 0) return;
+    if (selection.length === 0 || startingThread.current) return;
     if (attachmentsBlockedReason !== undefined) return setError(attachmentsBlockedReason);
     const images = selection.filter((file) => file.type.startsWith("image/"));
     const rest = selection.filter((file) => !file.type.startsWith("image/"));
@@ -199,6 +203,7 @@ function ComposerForm({
   useEffect(
     () =>
       onComposerRestore(target, () => {
+        if (startingThread.current) return;
         setTextState(loadDraft(target));
         replace(loadAttachments(target));
         replaceFiles(loadFileAttachments(target));
@@ -221,7 +226,7 @@ function ComposerForm({
   const appendDictation = useCallback(
     (transcript: string) => {
       const clean = transcript.replace(/\s+/g, " ").trim();
-      if (!clean) return;
+      if (!clean || startingThread.current) return;
       setShowInput(true);
       const base = textRef.current.replace(/\s+$/, "");
       setText(base ? `${base} ${clean} ` : `${clean} `);
@@ -242,6 +247,7 @@ function ComposerForm({
   );
 
   const runCommand = (name: CommandName, args: string) => {
+    if (startingThread.current) return;
     setText("");
     setError(undefined);
     Promise.resolve(commands[name]?.(args)).catch((failure: unknown) => setError(errorText(failure)));
@@ -256,7 +262,7 @@ function ComposerForm({
   };
 
   const pick = (item: MentionItem) => {
-    if (item.disabled) return;
+    if (item.disabled || startingThread.current) return;
     if (!item.id.startsWith(commandItemId(""))) return insertMention(insertionOf(item.id));
     const name = insertionOf(item.id) as CommandName;
     if (name === "compact" || name === "goal" || name === "loop") return setText(`/${name} `);
@@ -273,7 +279,12 @@ function ComposerForm({
     const message = text.trim();
     const sent = attachments;
     const sentFiles = fileAttachments;
-    if (!canSend) return;
+    if (!canSend || startingThread.current) return;
+    const trackInTranscript = threadTarget !== "new";
+    if (!trackInTranscript) {
+      startingThread.current = true;
+      setStarting(true);
+    }
     // Approval pending: a steer would wait for the post-approval boundary anyway — queue it.
     const sendMode = queueOnly ? ("followUp" as const) : mode;
     const outgoing = {
@@ -283,40 +294,51 @@ function ComposerForm({
       ...(busy && sendMode && { whenBusy: sendMode }),
     };
     const token = markAction("send");
-    setText("");
-    replace([]);
-    replaceFiles([]);
+    if (trackInTranscript) {
+      setText("");
+      replace([]);
+      replaceFiles([]);
+    }
     setError(undefined);
     onSent?.();
-    const trackInTranscript = threadTarget !== "new";
-    void onSend(outgoing).then(
-      (receipt) => {
-        // The pending bubble (R3.6) is keyed by the returned submissionId and
-        // swaps on the exact entry/submission id — never by text. Pre-contract
-        // nodes resolve `void`: nothing to key on, live sync covers it.
-        if (trackInTranscript && hasReceipt(receipt)) {
-          noteSending(threadTarget, receipt, { ...outgoing, ...(sendMode && { whenBusy: sendMode }) });
-          markConfirm(token, receipt, busy ? "queued" : "sent");
-        }
-      },
-      (failure: unknown) => {
-        if (trackInTranscript) {
-          // Failed bubble with retry in the transcript — never a silent vanish.
-          // (A stale ref rejects `file_expired`: the bubble keeps everything for the retry.)
-          noteFailed(
-            threadTarget,
-            { ...outgoing, ...(sendMode && { whenBusy: sendMode }) },
-            errorText(failure),
-          );
-        } else {
-          // A stale ref rejects `file_expired`: put everything back so nothing is silently lost.
-          setText(message);
-          replace(sent);
-          replaceFiles(sentFiles);
-        }
-        setError(errorText(failure));
-      },
-    );
+    void onSend(outgoing)
+      .then(
+        (receipt) => {
+          if (!trackInTranscript) {
+            setText("");
+            replace([]);
+            replaceFiles([]);
+          }
+          // The pending bubble (R3.6) is keyed by the returned submissionId and
+          // swaps on the exact entry/submission id — never by text. Pre-contract
+          // nodes resolve `void`: nothing to key on, live sync covers it.
+          if (trackInTranscript && hasReceipt(receipt)) {
+            noteSending(threadTarget, receipt, { ...outgoing, ...(sendMode && { whenBusy: sendMode }) });
+            markConfirm(token, receipt, busy ? "queued" : "sent");
+          }
+        },
+        (failure: unknown) => {
+          if (trackInTranscript) {
+            // Failed bubble with retry in the transcript — never a silent vanish.
+            // (A stale ref rejects `file_expired`: the bubble keeps everything for the retry.)
+            noteFailed(
+              threadTarget,
+              { ...outgoing, ...(sendMode && { whenBusy: sendMode }) },
+              errorText(failure),
+            );
+          } else {
+            // A stale ref rejects `file_expired`: put everything back so nothing is silently lost.
+            setText(message);
+            replace(sent);
+            replaceFiles(sentFiles);
+          }
+          setError(errorText(failure));
+        },
+      )
+      .finally(() => {
+        startingThread.current = false;
+        setStarting(false);
+      });
   };
 
   const stop = () => {
@@ -351,6 +373,7 @@ function ComposerForm({
   };
 
   const onChange = (event: ChangeEvent<HTMLTextAreaElement>) => {
+    if (startingThread.current) return;
     setCaret(event.target.selectionStart);
     if (pasting.current) setPastedText(event.target.value);
     pasting.current = false;
@@ -358,6 +381,10 @@ function ComposerForm({
   };
 
   const onPaste = (event: ClipboardEvent<HTMLTextAreaElement>) => {
+    if (startingThread.current) {
+      event.preventDefault();
+      return;
+    }
     const files = pastedFiles(event).filter((file) => file.type.startsWith("image/"));
     if (files.length === 0) {
       pasting.current = true;
@@ -412,7 +439,7 @@ function ComposerForm({
         ) : null}
       </AnimatePresence>
       <MentionMenu
-        open={menu.open}
+        open={menu.open && !draftLocked}
         items={menu.items}
         activeIndex={menu.activeIndex}
         onActiveIndexChange={menu.setActiveIndex}
@@ -438,9 +465,14 @@ function ComposerForm({
         />
         <AttachmentRow
           attachments={attachments}
-          onRemove={remove}
+          disabled={draftLocked}
+          onRemove={(id) => {
+            if (!startingThread.current) remove(id);
+          }}
           files={fileAttachments}
-          onRemoveFile={removeFile}
+          onRemoveFile={(id) => {
+            if (!startingThread.current) removeFile(id);
+          }}
         />
         {bangMode ? (
           <span
@@ -454,6 +486,7 @@ function ComposerForm({
         <Textarea
           ref={textarea}
           aria-label="Message"
+          readOnly={draftLocked}
           value={text}
           onChange={onChange}
           onSelect={(event) => setCaret(event.currentTarget.selectionStart)}
@@ -486,7 +519,10 @@ function ComposerForm({
                     variant="ghost"
                     size="icon"
                     aria-label="Attach files"
-                    onClick={() => picker.current?.click()}
+                    disabled={draftLocked}
+                    onClick={() => {
+                      if (!startingThread.current) picker.current?.click();
+                    }}
                     className="size-11 rounded-full"
                   >
                     <Paperclip className="size-5" />
@@ -511,7 +547,10 @@ function ComposerForm({
               size="icon"
               aria-label={dictation.listening ? "Stop dictation" : "Dictate"}
               aria-pressed={dictation.listening}
-              onClick={dictation.toggle}
+              disabled={draftLocked}
+              onClick={() => {
+                if (!startingThread.current) dictation.toggle();
+              }}
               className="size-14 rounded-full"
             >
               {dictation.listening ? <Square className="size-6 fill-current" /> : <Mic className="size-6" />}
@@ -542,6 +581,7 @@ function ComposerForm({
                 multiple
                 tabIndex={-1}
                 aria-label="Choose files"
+                disabled={draftLocked}
                 className="hidden"
                 onChange={(event) => onPicked(event.target.files)}
               />
@@ -553,7 +593,10 @@ function ComposerForm({
                       variant="ghost"
                       size="icon-sm"
                       aria-label="Attach files"
-                      onClick={() => picker.current?.click()}
+                      disabled={draftLocked}
+                      onClick={() => {
+                        if (!startingThread.current) picker.current?.click();
+                      }}
                     >
                       <Paperclip />
                     </Button>

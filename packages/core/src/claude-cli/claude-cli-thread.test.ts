@@ -31,13 +31,14 @@ async function startClaudeThread() {
     text: "bash echo from-claude",
     requestId: "claude-1",
     model: HAIKU,
+    executor: "pi",
   });
   const tracker = await trackView(core, thread.id);
   await waitForAnswerAfter(tracker, 0);
   return { thread, tracker, project };
 }
 
-describe("a thread on a Claude CLI model", () => {
+describe("a legacy Pi thread on a Claude CLI model", () => {
   it("runs through the adapter and the fake Agent SDK, tool call included", async () => {
     const { tracker } = await startClaudeThread();
     expect(entryKinds(tracker.view())).toContain("pi.tool-result");

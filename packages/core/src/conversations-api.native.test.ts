@@ -1,4 +1,4 @@
-import type { Project } from "@tau/protocol";
+import type { ModelRef, Project } from "@tau/protocol";
 import { afterEach, describe, expect, it } from "vitest";
 import { createChangeEmitter } from "./change-emitter";
 import { createConversationsApi } from "./conversations-api";
@@ -68,7 +68,7 @@ interface World {
   service(query?: NativeQueryFn): NativeService;
 }
 
-async function openWorld(): Promise<World> {
+async function openWorld(defaultModel?: ModelRef): Promise<World> {
   const directory = await tempDir();
   const runtime = await openRuntimeWorld(directory);
   open.push(runtime);
@@ -103,9 +103,19 @@ async function openWorld(): Promise<World> {
     createConversationsApi({
       conversations: store,
       projects: { require: async () => project, list: async () => [project] } as never,
-      provider: { isConfigured: async () => true, models: runtime.setup.models } as never,
+      provider: {
+        isConfigured: async () => true,
+        models: {
+          getModel(provider: string, modelId: string) {
+            const model = runtime.setup.models.getModel(provider, modelId);
+            if (provider !== "claude-cli" || modelId !== "opus") return model;
+            const faux = runtime.setup.models.getModel(FAUX_MODEL.provider, FAUX_MODEL.modelId);
+            return faux && { ...faux, provider, id: modelId };
+          },
+        },
+      } as never,
       settings: {
-        get: async () => ({ workspaceDefault: "checkout", messageMode: "steer" }),
+        get: async () => ({ workspaceDefault: "checkout", messageMode: "steer", defaultModel }),
         setLastWorkspaceMode: async () => undefined,
         lastWorkspaceMode: async () => undefined,
       } as never,
@@ -176,6 +186,102 @@ const expectNoSideEffects = async (world: World) => {
   expect(world.spies.calls).toEqual([]);
 };
 
+describe("new-thread model routing", () => {
+  const model = { provider: "claude-cli", modelId: "opus" };
+  const input = { projectId: "p1", text: "hello", requestId: "by-model" };
+
+  it("routes the selected Claude model to native without an executor flag", async () => {
+    const world = await openWorld();
+    const summary = await world.api(true).start({ ...input, model });
+    expect(summary).toMatchObject({ executor: "claude-code", model });
+    await waitForResultCount(world, summary.id, 1);
+    expect(modelCallsOf(world.runtime.setup)).toBe(0);
+    expect(await submissionCount(world)).toBe(0);
+  });
+
+  it("routes the default Claude model to native without an executor flag", async () => {
+    const world = await openWorld(model);
+    expect(await world.api(true).start(input)).toMatchObject({ executor: "claude-code", model });
+  });
+
+  it("keeps other default models on Pi", async () => {
+    const world = await openWorld(FAUX_MODEL);
+    expect((await world.api(true).start(input)).executor).toBeUndefined();
+  });
+
+  it("refuses unavailable native execution without falling back or creating anything", async () => {
+    const world = await openWorld();
+    await expect(world.api(false).start({ ...input, model })).rejects.toMatchObject({
+      code: "invalid_request",
+      message: "Claude Code is not installed on this node",
+    });
+    await expectNoSideEffects(world);
+  });
+
+  it("preserves the missing-default error rather than inventing a Claude model", async () => {
+    const world = await openWorld();
+    await expect(world.api(true).start(input)).rejects.toMatchObject({ code: "no_default_model" });
+    await expectNoSideEffects(world);
+  });
+
+  it("rejects an unknown automatic Claude model before side effects", async () => {
+    const world = await openWorld();
+    await expect(
+      world.api(true).start({ ...input, model: { provider: "claude-cli", modelId: "missing" } }),
+    ).rejects.toMatchObject({ code: "invalid_request", message: "This model is not available." });
+    await expectNoSideEffects(world);
+  });
+
+  it("rejects an unavailable Claude default before side effects", async () => {
+    const world = await openWorld({ provider: "claude-cli", modelId: "missing" });
+    await expect(world.api(true).start(input)).rejects.toMatchObject({
+      code: "invalid_request",
+      message: "This model is not available.",
+    });
+    await expectNoSideEffects(world);
+  });
+
+  it("single-flights concurrent automatic native starts", async () => {
+    const world = await openWorld();
+    const api = world.api(true);
+    const starts = await Promise.all([api.start({ ...input, model }), api.start({ ...input, model })]);
+    expect(starts[0]?.id).toBe(starts[1]?.id);
+    expect(await world.store.list("p1")).toHaveLength(1);
+  });
+
+  it("keeps a retried native request on its original model and executor", async () => {
+    const world = await openWorld();
+    const api = world.api(true);
+    const first = await api.start({ ...input, model });
+    const retry = await api.start({ ...input, model: FAUX_MODEL });
+    expect(retry).toMatchObject({ id: first.id, executor: "claude-code", model });
+    expect(await world.store.list("p1")).toHaveLength(1);
+  });
+
+  it("keeps an existing Pi request on Pi even if the requested model changes to Claude", async () => {
+    const world = await openWorld();
+    const api = world.api(true);
+    const first = await startPiThread(world, api);
+    const retry = await api.start({ ...input, requestId: "pi-start", model });
+    expect(retry).toMatchObject({ id: first.id, model: FAUX_MODEL });
+    expect(retry.executor).toBeUndefined();
+    expect(await world.store.list("p1")).toHaveLength(1);
+  });
+
+  it("rejects an explicit cross-executor retry before corrupting the existing container", async () => {
+    const world = await openWorld();
+    const api = world.api(true);
+    const first = await startPiThread(world, api);
+    await expect(
+      api.start({ ...input, requestId: "pi-start", executor: "claude-code", model }),
+    ).rejects.toMatchObject({
+      code: "invalid_request",
+      message: expect.stringContaining("different executor"),
+    });
+    expect((await world.store.find(first.id))?.executor).toBeUndefined();
+  });
+});
+
 describe("conversations api start with an explicit executor", () => {
   it("rejects claude-code when native is off, creating nothing and calling no model", async () => {
     const world = await openWorld();
@@ -192,7 +298,7 @@ describe("conversations api start with an explicit executor", () => {
     const world = await openWorld();
     const api = world.api(true);
 
-    const summary = await api.start(nativeStart({ model: FAUX_MODEL, thinkingLevel: "high" }));
+    const summary = await api.start(nativeStart({ thinkingLevel: "high" }));
 
     expect(summary).toMatchObject({ executor: "claude-code", model: null, title: "hello native" });
     await waitForResultCount(world, summary.id, 1);
@@ -200,6 +306,29 @@ describe("conversations api start with an explicit executor", () => {
     expect(await world.store.list("p1")).toHaveLength(1);
     expect(modelCallsOf(world.runtime.setup)).toBe(0);
     expect(await submissionCount(world)).toBe(0);
+  });
+
+  it("refuses a native start whose model is not a claude-cli model, creating nothing", async () => {
+    const world = await openWorld();
+
+    await expect(world.api(true).start(nativeStart({ model: FAUX_MODEL }))).rejects.toMatchObject({
+      code: "invalid_request",
+      message: expect.stringContaining(FAUX_MODEL.provider),
+    });
+
+    await expectNoSideEffects(world);
+  });
+
+  it("starts a native thread on a claude-cli model and reports it on the summary", async () => {
+    const world = await openWorld();
+    const api = world.api(true);
+    const model = { provider: "claude-cli", modelId: "claude-opus-4-6" };
+
+    const summary = await api.start(nativeStart({ model }));
+
+    expect(summary).toMatchObject({ executor: "claude-code", model });
+    expect((await world.store.list("p1"))[0]?.model).toEqual(model);
+    await waitForResultCount(world, summary.id, 1);
   });
 
   it.each([

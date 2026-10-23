@@ -3,9 +3,11 @@ import {
   AppError,
   type ConversationStatus,
   type ConversationSummary,
+  type ModelRef,
   type SendMessageInput,
   type ThreadWorkspace,
 } from "@tau/protocol";
+import { CLAUDE_CLI_PROVIDER_ID } from "../claude-cli/provider";
 import { titleFromFirstMessage } from "../conversation-title";
 import { ConversationDoc, INDEX_SEED, ProjectIndexDoc } from "./conversation-docs";
 import {
@@ -33,7 +35,12 @@ export type NativeStartRequest = {
   readonly input: SendMessageInput;
   readonly workspace: ThreadWorkspace;
   readonly now: number;
+  /** A Claude model id for every run of the thread. Absent means Claude Code's own default. */
+  readonly model?: string;
 };
+
+const modelRefOf = (modelId: string | undefined): ModelRef | undefined =>
+  modelId === undefined ? undefined : { provider: CLAUDE_CLI_PROVIDER_ID, modelId };
 
 export type NativeStartResult = { readonly summary: ConversationSummary; readonly created: boolean };
 
@@ -44,10 +51,15 @@ class ExistingNativeStart extends Error {
   }
 }
 
-async function materializeRuntimeDocs(tx: Tx, conversationId: ConversationId, now: number): Promise<void> {
+async function materializeRuntimeDocs(
+  tx: Tx,
+  conversationId: ConversationId,
+  request: NativeStartRequest,
+): Promise<void> {
   const thread = await tx.doc(NativeThreadDoc, conversationId);
   thread.executor = NATIVE_EXECUTOR;
-  thread.createdAt = now;
+  thread.createdAt = request.now;
+  if (request.model !== undefined) thread.model = request.model;
   await tx.doc(NativeInboxDoc, conversationId);
   await tx.doc(NativeProjectionDoc, conversationId);
   await tx.doc(NativeCancelsDoc, conversationId);
@@ -57,6 +69,7 @@ async function materializeRuntimeDocs(tx: Tx, conversationId: ConversationId, no
 
 function createContainer(harness: Harness, request: NativeStartRequest): Promise<Conversation> {
   const { project, input, workspace, now } = request;
+  const model = modelRefOf(request.model);
   return harness.createConversation(
     {
       ownership: { kind: "ownerless" },
@@ -73,7 +86,7 @@ function createContainer(harness: Harness, request: NativeStartRequest): Promise
         meta.title = title;
         meta.titleSource = "first-message";
         meta.executor = NATIVE_EXECUTOR;
-        await materializeRuntimeDocs(tx, conversationId, now);
+        await materializeRuntimeDocs(tx, conversationId, request);
         index.conversations.push({
           conversationId: Number(conversationId),
           title,
@@ -83,6 +96,7 @@ function createContainer(harness: Harness, request: NativeStartRequest): Promise
           status: "idle",
           workspace,
           executor: NATIVE_EXECUTOR,
+          ...(model && { model }),
         });
       },
     },
@@ -123,6 +137,14 @@ export async function createNativeConversation(
       created: false,
     };
   }
+}
+
+/** The model id persisted at start; undefined for threads that run on Claude Code's default. */
+export async function readNativeModel(harness: Harness, id: string): Promise<string | undefined> {
+  const thread = await harness
+    .snapshot(NativeThreadDoc, Number(id) as ConversationId, BACKGROUND)
+    .catch(() => undefined);
+  return thread?.model;
 }
 
 export async function isNativeConversation(harness: Harness, id: string): Promise<boolean> {
