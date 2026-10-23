@@ -1,6 +1,7 @@
 import {
   keepPreviousData,
   type QueryClient,
+  type QueryFunctionContext,
   useMutation,
   useQuery,
   useQueryClient,
@@ -25,6 +26,7 @@ import { toast } from "sonner";
 import { errorMessage } from "@/lib/error-message";
 import { isJobActive } from "@/lib/updates";
 import { useApi } from "@/nodes/node-context";
+import type { Api } from "./api";
 
 const RUNTIMES_STALE_MS = 60_000;
 
@@ -248,50 +250,55 @@ export const useIconCandidates = (projectId: string, enabled = true) => {
   });
 };
 
+export const workspaceStatusOptions = (api: Api, conversationId: string) => ({
+  queryKey: queryKeys.workspace(conversationId),
+  queryFn: ({ signal }: QueryFunctionContext) => api.workspaces.status(conversationId, { signal }),
+  staleTime: 5_000,
+});
+
 export const useWorkspaceStatus = (conversationId: string, enabled = true) => {
   const api = useApi();
-  return useQuery({
-    queryKey: queryKeys.workspace(conversationId),
-    queryFn: ({ signal }) => api.workspaces.status(conversationId, { signal }),
-    staleTime: 5_000,
-    enabled,
-  });
+  return useQuery({ ...workspaceStatusOptions(api, conversationId), enabled });
 };
+
+export const checkpointsOptions = (api: Api, conversationId: string) => ({
+  queryKey: queryKeys.checkpoints(conversationId),
+  queryFn: () => api.conversations.checkpoints(conversationId),
+});
 
 export const useCheckpoints = (conversationId: string, enabled = true) => {
   const api = useApi();
-  return useQuery({
-    queryKey: queryKeys.checkpoints(conversationId),
-    queryFn: () => api.conversations.checkpoints(conversationId),
-    enabled,
-  });
+  return useQuery({ ...checkpointsOptions(api, conversationId), enabled });
 };
+
+export const processesOptions = (api: Api, conversationId: string) => ({
+  queryKey: queryKeys.processes(conversationId),
+  queryFn: () => api.processes.list(conversationId),
+});
 
 export const useProcesses = (conversationId: string, enabled = true) => {
   const api = useApi();
-  return useQuery({
-    queryKey: queryKeys.processes(conversationId),
-    queryFn: () => api.processes.list(conversationId),
-    enabled,
-  });
+  return useQuery({ ...processesOptions(api, conversationId), enabled });
 };
+
+export const timersOptions = (api: Api, conversationId: string) => ({
+  queryKey: queryKeys.timers(conversationId),
+  queryFn: () => api.timers.list(conversationId),
+});
 
 export const useTimers = (conversationId: string, enabled = true) => {
   const api = useApi();
-  return useQuery({
-    queryKey: queryKeys.timers(conversationId),
-    queryFn: () => api.timers.list(conversationId),
-    enabled,
-  });
+  return useQuery({ ...timersOptions(api, conversationId), enabled });
 };
+
+export const approvalsOptions = (api: Api, conversationId: string) => ({
+  queryKey: queryKeys.approvals(conversationId),
+  queryFn: () => api.approvals.list(conversationId),
+});
 
 export const useApprovals = (conversationId: string, enabled = true) => {
   const api = useApi();
-  return useQuery({
-    queryKey: queryKeys.approvals(conversationId),
-    queryFn: () => api.approvals.list(conversationId),
-    enabled,
-  });
+  return useQuery({ ...approvalsOptions(api, conversationId), enabled });
 };
 
 export function useDecideApproval(conversationId: string) {
@@ -458,13 +465,14 @@ export function useStopResourceCommand() {
   });
 }
 
+export const goalOptions = (api: Api, conversationId: string) => ({
+  queryKey: queryKeys.goal(conversationId),
+  queryFn: () => api.goals.get(conversationId),
+});
+
 export const useGoal = (conversationId: string, enabled = true) => {
   const api = useApi();
-  return useQuery({
-    queryKey: queryKeys.goal(conversationId),
-    queryFn: () => api.goals.get(conversationId),
-    enabled,
-  });
+  return useQuery({ ...goalOptions(api, conversationId), enabled });
 };
 
 export const useProcessLogs = (processId: string, tail?: number, enabled = true) => {
