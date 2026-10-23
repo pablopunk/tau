@@ -4,6 +4,7 @@ import {
   executorOf,
   lastAssistantText,
   readLive,
+  readRuntimeLive,
 } from "@tau/protocol";
 import { CliExit, EXIT_TIMEOUT, failure } from "./cli-exit";
 import { callRoute, type Server } from "./client";
@@ -109,8 +110,26 @@ export function waitForThread(server: Server, env: CommandEnv, request: WaitRequ
       if (view === null) throw failure(`not_found: Unknown conversation: ${request.conversationId}`);
       const all = await listAll(server, env);
       const result = assessThread(all, request.conversationId, view, request.endedAfter);
-      if (result.state === "done") finish(() => resolve(result.answer));
-      if (result.state === "error") finish(() => reject(failure(result.message)));
+      const summary = all.find((item) => item.id === request.conversationId);
+      const lifecycle = readRuntimeLive(view, summary?.executor).lifecycle ?? null;
+      if (result.state === "done")
+        finish(() => {
+          env.machine?.emit("terminal", { result: result.answer, lifecycle, observation: "thread-idle" });
+          resolve(result.answer);
+        });
+      if (result.state === "error")
+        finish(() => {
+          const error = failure(result.message);
+          if (env.machine) {
+            env.machine.emit("terminal", {
+              result: { message: result.message },
+              lifecycle,
+              observation: "thread-idle",
+            });
+            error.reported = true;
+          }
+          reject(error);
+        });
     };
     const evaluate = async () => {
       if (finished) return;
@@ -138,12 +157,22 @@ export function waitForThread(server: Server, env: CommandEnv, request: WaitRequ
       );
     };
     live.onFrame(() => void evaluate());
-    live.onClose(() => finish(() => reject(failure("Lost the connection to tau."))));
+    live.onClose(() =>
+      finish(() => reject(new CliExit(1, "Lost the connection to tau.", "connection_lost"))),
+    );
     cancels.push(
       env.after(request.timeoutSeconds * 1000, () =>
         finish(() => reject(new CliExit(EXIT_TIMEOUT, `Timed out after ${request.timeoutSeconds}s`))),
       ),
     );
+    if (env.machine && env.onInterrupt)
+      cancels.push(
+        env.onInterrupt(() =>
+          finish(() =>
+            reject(new CliExit(130, "Observation interrupted; the run was not stopped.", "wait_interrupted")),
+          ),
+        ),
+      );
     poll();
   });
 }

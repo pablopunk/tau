@@ -33,11 +33,19 @@ export async function runThreadExtra(verb: string, argv: readonly string[], env:
   const server = await discoverServer(scoped);
   if (verb === "read") {
     const last = positiveNumber(flags.get("last"), "last");
-    env.stdout(await readThread(server, scoped, id, last));
+    const result = await readThread(server, scoped, id, last);
+    if (env.machine) {
+      env.machine.identify({ threadId: id });
+      env.machine.emit("terminal", { result, observation: "response" });
+    } else env.stdout(result);
     return;
   }
   const timeoutSeconds = positiveNumber(flags.get("timeout"), "timeout") ?? DEFAULT_TIMEOUT_SECONDS;
-  env.stdout(
-    await waitForThread(server, scoped, { conversationId: id, endedAfter: undefined, timeoutSeconds }),
-  );
+  env.machine?.identify({ threadId: id });
+  const answer = await waitForThread(server, scoped, {
+    conversationId: id,
+    endedAfter: undefined,
+    timeoutSeconds,
+  });
+  if (!env.machine) env.stdout(answer);
 }

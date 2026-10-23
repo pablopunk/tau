@@ -1,5 +1,5 @@
 import { type ConversationView, executorOf, viewToText } from "@tau/protocol";
-import { failure } from "./cli-exit";
+import { CliExit, failure } from "./cli-exit";
 import type { Server } from "./client";
 import type { CommandEnv } from "./command-env";
 import { connectLive } from "./live";
@@ -44,12 +44,21 @@ function readFirstView(
     const cancel = env.after(READ_TIMEOUT_MS, () =>
       end(() => reject(failure("Timed out reading the thread."))),
     );
+    let finished = false;
+    let removeInterrupt: (() => void) | undefined;
     const end = (settle: () => void) => {
+      if (finished) return;
+      finished = true;
       cancel();
+      removeInterrupt?.();
       live.close();
       settle();
     };
-    live.onClose(() => end(() => reject(failure("Lost the connection to tau."))));
+    if (env.machine && env.onInterrupt)
+      removeInterrupt = env.onInterrupt(() =>
+        end(() => reject(new CliExit(130, "Read observation interrupted", "wait_interrupted"))),
+      );
+    live.onClose(() => end(() => reject(new CliExit(1, "Lost the connection to tau.", "connection_lost"))));
     live.onFrame(() => {
       const view = live.view(conversationId);
       if (view === undefined) return;

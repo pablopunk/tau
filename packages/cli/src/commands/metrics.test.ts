@@ -1,6 +1,7 @@
 import type { MetricsResponse } from "@tau/protocol";
 import { describe, expect, it, vi } from "vitest";
 import { EXIT_USAGE } from "./cli-exit";
+import type { CommandEnv } from "./command-env";
 import { formatMetrics, METRICS_USAGE, parseMetricsArgs } from "./metrics";
 
 const response: MetricsResponse = {
@@ -60,7 +61,19 @@ describe("metrics CLI", () => {
     const server = vi
       .spyOn(client, "discoverServer")
       .mockResolvedValue({ url: "http://localhost:4317", token: "secret" });
-    const env = { home: "/tmp/tau", stdout: out, fetch, now: () => 9000 } as unknown as Parameters<
+    const timers = new Set<ReturnType<typeof setTimeout>>();
+    const after: CommandEnv["after"] = (ms, fn) => {
+      const timer = setTimeout(() => {
+        timers.delete(timer);
+        fn();
+      }, ms);
+      timers.add(timer);
+      return () => {
+        clearTimeout(timer);
+        timers.delete(timer);
+      };
+    };
+    const env = { home: "/tmp/tau", stdout: out, fetch, now: () => 9000, after } as unknown as Parameters<
       typeof executeMetrics
     >[1];
     try {
@@ -70,7 +83,9 @@ describe("metrics CLI", () => {
         expect.objectContaining({ method: "GET" }),
       );
       expect(JSON.parse(out.mock.calls[0]?.[0] as string)).toEqual(response);
+      expect(timers.size).toBe(0);
     } finally {
+      for (const timer of timers) clearTimeout(timer);
       server.mockRestore();
     }
   });

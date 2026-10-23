@@ -19,18 +19,31 @@ const LINK = "https://hub.example.com/pair#ABCD2345.Home%20hub&node=n-peer";
 
 function envFor(home: string, fetchImpl: typeof fetch) {
   const out: string[] = [];
+  const timers = new Set<ReturnType<typeof setTimeout>>();
+  const after: CommandEnv["after"] = (ms, fn) => {
+    const timer = setTimeout(() => {
+      timers.delete(timer);
+      fn();
+    }, ms);
+    timers.add(timer);
+    return () => {
+      clearTimeout(timer);
+      timers.delete(timer);
+    };
+  };
   const env = {
     home,
     env: {},
     stdout: (text: string) => void out.push(text),
     stderr: (text: string) => void out.push(text),
     fetch: fetchImpl,
+    after,
     sleep: async () => undefined,
     now: Date.now,
     startupWaitMs: 10,
     pollMs: 10,
   } as unknown as CommandEnv;
-  return { env, out };
+  return { env, out, timers };
 }
 
 const io = (answer = true, start: AfterLink = "none"): ConnectIo => ({
@@ -201,8 +214,9 @@ describe("tau disconnect", () => {
       calls.push(`${init?.method ?? "GET"} ${new URL(url).pathname}`);
       return new Response(null, { status: 204 });
     }) as unknown as typeof fetch;
-    const { env } = envFor(home, fetchImpl);
+    const { env, timers } = envFor(home, fetchImpl);
     await executeDisconnect([], env);
+    expect(timers.size).toBe(0);
     expect(calls).toEqual(["DELETE /api/nodes/n-a"]);
     expect(await peersOf(home).read()).toEqual([]);
   });

@@ -2,6 +2,8 @@ import type { MetricsResponse } from "@tau/protocol";
 import { CliExit, usageError } from "./cli-exit";
 import { callRoute, discoverServer } from "./client";
 import { type CommandEnv, processEnv } from "./command-env";
+import { MachineOutput } from "./machine-output";
+import { takeContextFlags } from "./node-target";
 
 export const METRICS_USAGE = "Usage: tau metrics [--json] [--home <dir>]";
 
@@ -40,11 +42,26 @@ export function formatMetrics(metrics: MetricsResponse, now: number): string {
 
 /** Fetches local, owner-only metrics. */
 export async function executeMetrics(argv: readonly string[], env: CommandEnv): Promise<void> {
-  const args = parseMetricsArgs(argv);
-  if (args.help) return env.stdout(METRICS_USAGE);
-  const scoped = args.home === undefined ? env : { ...env, home: args.home };
-  const result = (await callRoute(await discoverServer(scoped), "getMetrics", {}, scoped)) as MetricsResponse;
-  scoped.stdout(args.json ? JSON.stringify(result, null, 2) : formatMetrics(result, scoped.now()));
+  const machine = argv.includes("--machine") ? new MachineOutput(env, "metrics") : undefined;
+  try {
+    const context = takeContextFlags(argv);
+    const args = parseMetricsArgs(context.rest);
+    env = { ...env, machine, nodeId: context.nodeId };
+    machine?.identify({ nodeId: context.nodeId ?? null });
+    if (args.help) return env.stdout(METRICS_USAGE);
+    const scoped = args.home === undefined ? env : { ...env, home: args.home };
+    const result = (await callRoute(
+      await discoverServer(scoped),
+      "getMetrics",
+      {},
+      scoped,
+    )) as MetricsResponse;
+    if (machine) machine.emit("terminal", { result, observation: "response" });
+    else scoped.stdout(args.json ? JSON.stringify(result, null, 2) : formatMetrics(result, scoped.now()));
+  } catch (error) {
+    if (machine) throw machine.fail(error);
+    throw error;
+  }
 }
 
 export async function runMetrics(argv: readonly string[]): Promise<void> {

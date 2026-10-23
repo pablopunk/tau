@@ -32,29 +32,46 @@ function instructionOf(raw: string | boolean | undefined): string | undefined {
   return raw;
 }
 
-async function perform(server: Server, env: CommandEnv, id: string, instruction: string | undefined) {
-  const body = { requestId: randomUUID(), ...(instruction !== undefined && { instruction }) };
+async function perform(
+  server: Server,
+  env: CommandEnv,
+  id: string,
+  instruction: string | undefined,
+  requestId: string,
+) {
+  const body = { requestId, ...(instruction !== undefined && { instruction }) };
   const created = await callRoute(server, "handoffConversation", { params: { id }, body }, env);
-  env.stdout(JSON.stringify(created, null, 2));
+  if (env.machine) {
+    env.machine.identify({ requestId });
+    env.machine.emit("receipt", { result: created, observation: "response" });
+  } else env.stdout(JSON.stringify(created, null, 2));
 }
 
 /**
  * `tau threads handoff <id> [--instruction <text>] [--yes]`: a dry run by default, so nothing is created until `--yes`.
  */
 export async function runHandoff(argv: readonly string[], env: CommandEnv): Promise<void> {
-  const { positionals, flags } = scanArgs(argv, { instruction: "value", yes: "boolean", home: "value" });
+  const { positionals, flags } = scanArgs(argv, {
+    instruction: "value",
+    yes: "boolean",
+    home: "value",
+    "request-id": "value",
+  });
   if (positionals.length !== 1) throw usageError(USAGE);
   const id = positionals[0] as string;
   const instruction = instructionOf(flags.get("instruction"));
   const home = flags.get("home");
   const scoped = typeof home === "string" ? { ...env, home } : env;
   const server = await discoverServer(scoped);
-  if (flags.get("yes") === true) return perform(server, scoped, id, instruction);
+  env.machine?.identify({ threadId: id });
+  if (flags.get("yes") === true)
+    return perform(server, scoped, id, instruction, String(flags.get("request-id") ?? randomUUID()));
   const preview = (await callRoute(
     server,
     "getHandoffPreview",
     { params: { id } },
     scoped,
   )) as HandoffPreview;
-  env.stdout(describePreview(id, preview));
+  if (env.machine) env.machine.emit("terminal", { result: preview, observation: "response" });
+  else env.stdout(describePreview(id, preview));
 }

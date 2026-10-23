@@ -2,6 +2,7 @@ import { decodeServerFrame, encodeFrame, LIVE_PATH, nextViewState, type ViewStat
 import type { Server } from "./client";
 import type { CommandEnv, SocketLike } from "./command-env";
 import { createNativeLineCursor, type NativeLineCursor } from "./native-text";
+import { targetPath } from "./node-target";
 
 export interface LiveClient {
   subscribe(conversationId: string): void;
@@ -13,7 +14,8 @@ export interface LiveClient {
   close(): void;
 }
 
-const websocketUrlOf = (server: Server): string => `${server.url.replace(/^http/, "ws")}${LIVE_PATH}`;
+const websocketUrlOf = (server: Server): string =>
+  `${server.url.replace(/^http/, "ws")}${targetPath(server, LIVE_PATH)}`;
 
 class NodeLiveClient implements LiveClient {
   private readonly socket: SocketLike;

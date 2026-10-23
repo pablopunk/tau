@@ -52,6 +52,206 @@ export const AUTO_FIELDS: readonly string[] = ["requestId"];
 
 export const commands: readonly CommandDef[] = [
   {
+    command: "settings runtimes",
+    route: "listRuntimes",
+    summary: "listRuntimes: existing node API operation",
+    positionals: [],
+    destructive: false,
+  },
+  {
+    command: "nodes direct-list",
+    route: "listNodes",
+    summary: "listNodes: existing node API operation",
+    positionals: [],
+    destructive: false,
+  },
+  {
+    command: "projects icon-candidates",
+    route: "listIconCandidates",
+    summary: "listIconCandidates: existing node API operation",
+    positionals: ["params.id"],
+    destructive: false,
+  },
+  {
+    command: "projects set-icon",
+    route: "setProjectIcon",
+    summary: "setProjectIcon: existing node API operation",
+    positionals: ["params.id"],
+    destructive: false,
+  },
+  {
+    command: "projects reset-icon",
+    route: "resetProjectIcon",
+    summary: "resetProjectIcon: existing node API operation",
+    positionals: ["params.id"],
+    destructive: false,
+  },
+  {
+    command: "providers login",
+    route: "startLogin",
+    summary: "startLogin: existing node API operation",
+    positionals: ["params.id"],
+    destructive: false,
+  },
+  {
+    command: "providers login-status",
+    route: "getLogin",
+    summary: "getLogin: existing node API operation",
+    positionals: ["params.sid"],
+    destructive: false,
+  },
+  {
+    command: "providers login-url",
+    route: "submitLoginUrl",
+    summary: "submitLoginUrl: existing node API operation",
+    positionals: ["params.sid", "body.url"],
+    destructive: false,
+  },
+  {
+    command: "providers login-cancel",
+    route: "cancelLogin",
+    summary: "cancelLogin: existing node API operation",
+    positionals: ["params.sid"],
+    destructive: false,
+  },
+  {
+    command: "providers claude-cli acknowledge",
+    route: "acknowledgeClaudeCli",
+    summary: "acknowledgeClaudeCli: existing node API operation",
+    positionals: [],
+    destructive: false,
+  },
+  {
+    command: "settings update-status",
+    route: "getUpdateStatus",
+    summary: "getUpdateStatus: existing node API operation",
+    positionals: [],
+    destructive: false,
+  },
+  {
+    command: "settings update-refresh",
+    route: "refreshUpdateStatus",
+    summary: "refreshUpdateStatus: existing node API operation",
+    positionals: [],
+    destructive: false,
+  },
+  {
+    command: "settings update-start",
+    route: "startUpdate",
+    summary: "startUpdate: existing node API operation",
+    positionals: [],
+    destructive: true,
+  },
+  {
+    command: "terminals open",
+    route: "openTerminal",
+    summary: "openTerminal: existing node API operation",
+    positionals: ["params.id"],
+    destructive: false,
+  },
+  {
+    command: "terminals available",
+    route: "getTerminalsAvailable",
+    summary: "getTerminalsAvailable: existing node API operation",
+    positionals: [],
+    destructive: false,
+  },
+  {
+    command: "projects suggest-directories",
+    route: "suggestDirectories",
+    summary: "suggestDirectories: existing node API operation",
+    positionals: [],
+    destructive: false,
+  },
+  {
+    command: "settings voice-options",
+    route: "getVoiceOptions",
+    summary: "getVoiceOptions: existing node API operation",
+    positionals: [],
+    destructive: false,
+  },
+  {
+    command: "settings voice-transcribe",
+    route: "transcribeVoice",
+    summary: "transcribeVoice: existing node API operation",
+    positionals: [],
+    destructive: false,
+    json: true,
+  },
+  {
+    command: "settings voice-remove",
+    route: "removeVoiceModel",
+    summary: "removeVoiceModel: existing node API operation",
+    positionals: [],
+    destructive: true,
+  },
+  {
+    command: "settings voice-warm",
+    route: "warmVoice",
+    summary: "warmVoice: existing node API operation",
+    positionals: [],
+    destructive: false,
+  },
+  {
+    command: "settings suggested-folder",
+    route: "getSuggestedCodeFolder",
+    summary: "getSuggestedCodeFolder: existing node API operation",
+    positionals: [],
+    destructive: false,
+  },
+  {
+    command: "projects suggest-files",
+    route: "suggestProjectFiles",
+    summary: "suggestProjectFiles: existing node API operation",
+    positionals: ["params.id"],
+    destructive: false,
+  },
+  {
+    command: "pair redeem",
+    route: "redeemPairing",
+    summary: "redeemPairing: existing node API operation",
+    positionals: [],
+    destructive: false,
+    json: true,
+  },
+  {
+    command: "remote health",
+    route: "getHealth",
+    summary: "getHealth: existing node API operation",
+    positionals: [],
+    destructive: false,
+  },
+  {
+    command: "remote recreate",
+    route: "recreateRemote",
+    summary: "recreateRemote: existing node API operation",
+    positionals: [],
+    destructive: true,
+  },
+  {
+    command: "devices sign-out-all",
+    route: "signOutAllDevices",
+    summary: "signOutAllDevices: existing node API operation",
+    positionals: [],
+    destructive: true,
+  },
+  {
+    command: "threads todos",
+    route: "updateTodos",
+    summary: "updateTodos: existing node API operation",
+    positionals: ["params.id"],
+    destructive: false,
+    json: true,
+  },
+  {
+    command: "threads upload",
+    route: "stageUpload",
+    summary: "stageUpload: existing node API operation",
+    positionals: [],
+    destructive: false,
+    json: true,
+  },
+  {
     command: "settings get",
     route: "getSettings",
     summary: "Show the settings",
@@ -749,53 +949,18 @@ export const commands: readonly CommandDef[] = [
   },
 ];
 
-const IMAGES = "Images are not text; agents have no use for them here.";
-const BROWSER_LOGIN = "Browser sign-in needs a person at the browser.";
-const TYPING_HELPER = "A typing helper for the UI; agents have `ls`.";
-
-const HANDOFF_FLOW =
-  "`tau threads handoff` has its own flow: it prints the preview and changes nothing until --yes.";
-
-const UPDATE_CHECK = "`tau update --check` covers it.";
+const HANDOFF_FLOW = "Dedicated threads handoff preview/create flow; --yes creates the new thread.";
 
 export const COMMAND_EXCLUSIONS = {
-  listRuntimes:
-    "A state the web reads to offer an executor; the CLI picks one with `threads start --executor`.",
-  listNodes: "`tau nodes list` shows the directory (`getNodeDirectory`), a superset.",
   getHandoffPreview: HANDOFF_FLOW,
   handoffConversation: HANDOFF_FLOW,
-  getProjectIcon: IMAGES,
-  getIconCandidate: IMAGES,
-  listIconCandidates: IMAGES,
-  setProjectIcon: IMAGES,
-  resetProjectIcon: IMAGES,
-  startLogin: BROWSER_LOGIN,
-  getLogin: BROWSER_LOGIN,
-  submitLoginUrl: BROWSER_LOGIN,
-  cancelLogin: BROWSER_LOGIN,
-  acknowledgeClaudeCli: "The notice is read by a person in Settings.",
-  getUpdateStatus: UPDATE_CHECK,
-  refreshUpdateStatus: UPDATE_CHECK,
-  startUpdate: "Owner only, and `tau update` runs the update itself.",
-  openTerminal: "A terminal needs a screen.",
-  getTerminalsAvailable: "A state the web reads to show or hide the Terminal button.",
-  suggestDirectories: TYPING_HELPER,
-  getVoiceOptions: "The web settings row reads it to render the voice picker; agents have no microphone.",
-  transcribeVoice: "Needs recorded audio bytes; agents have no microphone.",
-  removeVoiceModel: "The web settings row deletes the download next to unsetting the default.",
-  warmVoice: "Prefetch from the composer mic toggle; agents have no microphone.",
-  getSuggestedCodeFolder: TYPING_HELPER,
-  suggestProjectFiles: TYPING_HELPER,
-  redeemPairing:
-    "Called by the pair page and `tau connect` with a one-time code, never by an agent or the CLI.",
-  getHealth: "A probe for the watchdog and the service manager; `tau status` shows the same facts.",
-  getMetrics: "Handled by the dedicated `tau metrics` command with human-readable output.",
-  recreateRemote: "UI only: it clears every linked device, so it needs the confirmation dialog.",
-  linkNode: "A WebSocket one node's server dials with a node secret; not an HTTP call.",
-  signOutAllDevices: "UI only: it signs out every browser and phone, this one included.",
-  updateTodos: "UI only: the todo panel sends the edited list; the CLI has no todo surface.",
-  stageUpload:
-    "Raw file bytes go over multipart from the web composer; no agent types those on a command line.",
+  getProjectIcon:
+    "Display bytes only; projects icon-candidates, set-icon and reset-icon cover controllable icon state.",
+  getIconCandidate:
+    "Display bytes only; projects icon-candidates returns stable names/links and projects set-icon accepts PNG bytes.",
+  getMetrics: "Dedicated tau metrics command; --json retains its legacy output meaning.",
+  linkNode:
+    "Server-to-server authenticated WebSocket handshake, not a user HTTP operation; connect establishes the link.",
 } as const satisfies Partial<Record<RouteName, string>>;
 
 export type ExcludedRoute = keyof typeof COMMAND_EXCLUSIONS;

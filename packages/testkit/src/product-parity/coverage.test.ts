@@ -240,7 +240,7 @@ describe("starting operation ledger", () => {
       "openTerminal",
       "stageUpload",
     ]) {
-      expect(ledger.operations.find((row) => row.route === route)?.classification).toBe("missing");
+      expect(ledger.operations.find((row) => row.route === route)?.classification).toBe("generic");
     }
   });
 });
