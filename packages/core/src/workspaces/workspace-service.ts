@@ -239,6 +239,7 @@ export function createWorkspaceService({
   }
 
   const operations: WorkspaceService = {
+    refreshStatuses: () => statusCache.invalidate(),
     async create(request) {
       if (request.mode === "checkout" || request.project.kind === "home") {
         return legacyWorkspace(request.project.path);
