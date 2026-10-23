@@ -57,6 +57,12 @@ export type StoreInspection = {
 
 export type LaunchIntent = { operationId: string; nonce: string };
 
+export const CANCELLED_BEFORE_LAUNCH = "cancelled before launch";
+
+export type LaunchIntentResult = { readonly kind: "recorded" } | { readonly kind: "cancelled-before-launch" };
+
+export type CancelBeforeLaunchRequest = "requested" | "launched" | "nothing-pending";
+
 export type SettleOutcome = Extract<
   RuntimeLifecycle,
   "completed" | "failed" | "cancelled" | "interrupted" | "outcome-unknown"
@@ -71,6 +77,7 @@ export type OperationState = {
   sessionId: string | undefined;
   acknowledgement: OperationAcknowledgement | undefined;
   history: readonly OperationSummary[];
+  cancelRequested: boolean;
 };
 
 export type SetLifecycleOptions = { restart?: boolean };
@@ -91,7 +98,9 @@ export interface RuntimeStore {
   acknowledgeUnknown(input: { operationId: string; note: string }): Promise<void>;
   recordCancel(operationId: string): Promise<CancelState>;
   settleCancels(outcome?: CancelSettlement, reason?: string): Promise<void>;
-  recordLaunchIntent(intent: LaunchIntent): Promise<void>;
+  requestCancelBeforeLaunch(): Promise<CancelBeforeLaunchRequest>;
+  clearCancelRequest(): Promise<void>;
+  recordLaunchIntent(intent: LaunchIntent): Promise<LaunchIntentResult>;
   recordIdentity(identity: OperationIdentity): Promise<void>;
   recordSession(sessionId: string): Promise<void>;
   markDeliveredOnce(requestId: string): Promise<void>;
@@ -429,10 +438,44 @@ export function createRuntimeStore(
     });
   }
 
-  async function recordLaunchIntent(intent: LaunchIntent): Promise<void> {
+  async function requestCancelBeforeLaunch(): Promise<CancelBeforeLaunchRequest> {
+    return commit(async (tx) => {
+      const { thread, inbox, operation } = await docs(tx);
+      if (isUnresolved(operation.operation)) return "launched";
+      if (thread.lifecycle === undefined || countQueued(inbox.items) === 0) return "nothing-pending";
+      operation.cancelRequested = true;
+      return "requested";
+    });
+  }
+
+  async function clearCancelRequest(): Promise<void> {
+    await commit(async (tx) => {
+      const { operation } = await docs(tx);
+      if (operation.cancelRequested !== undefined) delete operation.cancelRequested;
+    });
+  }
+
+  function settleCancelledBeforeLaunch(state: Docs, emit: Emit, intent: LaunchIntent): LaunchIntentResult {
+    const { thread, projection, operation } = state;
+    delete operation.cancelRequested;
+    thread.lifecycle = "cancelled";
+    operation.operation = {
+      operationId: intent.operationId,
+      nonce: intent.nonce,
+      terminal: { lifecycle: "cancelled", at: now(), reason: CANCELLED_BEFORE_LAUNCH },
+    };
+    appendFrame(projection, 1);
+    emitLifecycle(state, emit, "cancelled", {
+      operationId: intent.operationId,
+      reason: CANCELLED_BEFORE_LAUNCH,
+    });
+    return { kind: "cancelled-before-launch" };
+  }
+
+  async function recordLaunchIntent(intent: LaunchIntent): Promise<LaunchIntentResult> {
     if (!intent.operationId || !intent.nonce)
       throw invalidRequest("A launch intent needs an operation id and a nonce.");
-    await mutate((state, emit) => {
+    return mutate((state, emit) => {
       const { thread, projection, operation } = state;
       const previous = operation.operation;
       if (previous && isUnresolved(previous)) {
@@ -441,10 +484,12 @@ export function createRuntimeStore(
       if (thread.lifecycle === undefined || !nextLifecycle(thread.lifecycle, "starting")) {
         throw invalidRequest(`Cannot launch from lifecycle ${thread.lifecycle ?? "none"}.`);
       }
+      if (operation.cancelRequested) return settleCancelledBeforeLaunch(state, emit, intent);
       thread.lifecycle = "starting";
       operation.operation = { operationId: intent.operationId, nonce: intent.nonce, launchIntentAt: now() };
       appendFrame(projection, 1);
       emitLifecycle(state, emit, "starting", { operationId: intent.operationId });
+      return { kind: "recorded" };
     });
   }
 
@@ -533,6 +578,7 @@ export function createRuntimeStore(
     return commit(async (tx) => {
       const { thread, operation, eventLog } = await docs(tx);
       return {
+        cancelRequested: operation.cancelRequested === true,
         lifecycle: thread.lifecycle,
         operation: operation.operation ? plainOperation(operation.operation) : undefined,
         eventCount: eventLog.entries.length,
@@ -564,6 +610,8 @@ export function createRuntimeStore(
     acknowledgeUnknown,
     recordCancel,
     settleCancels,
+    requestCancelBeforeLaunch,
+    clearCancelRequest,
     recordLaunchIntent,
     recordIdentity,
     recordSession,

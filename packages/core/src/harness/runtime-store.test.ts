@@ -760,3 +760,153 @@ describe("runtime store multi-turn restart", () => {
     ]);
   });
 });
+
+function deferred() {
+  let release: () => void = () => undefined;
+  const settled = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  return { settled, release };
+}
+
+async function prepareOk(store: RuntimeStore) {
+  await store.beginOperation();
+  for (const step of ["preparing", "ready"] as const) await store.setLifecycle(step);
+}
+
+describe("runtime store cancel before launch", () => {
+  it("records no launch intent when the cancel lands between a finished prepare and the launch commit", async () => {
+    const { store, threadId } = await newStore();
+    await store.admit(requestOf(threadId, "r1"));
+    await prepareOk(store);
+    const prepareReturned = deferred();
+    const launching = prepareReturned.settled.then(() =>
+      store.recordLaunchIntent({ operationId: "op1", nonce: "n1" }),
+    );
+    const before = (await store.inspect()).cursorRevision;
+
+    expect(await store.requestCancelBeforeLaunch()).toBe("requested");
+    prepareReturned.release();
+
+    expect(await launching).toEqual({ kind: "cancelled-before-launch" });
+    const state = await store.operationState();
+    expect(state.lifecycle).toBe("cancelled");
+    expect(state.cancelRequested).toBe(false);
+    expect(state.operation).toMatchObject({
+      operationId: "op1",
+      terminal: { lifecycle: "cancelled", reason: "cancelled before launch" },
+    });
+    expect(state.operation?.launchIntentAt).toBeUndefined();
+    expect(state.operation?.deliveredRequestId).toBeUndefined();
+    expect((await store.inspect()).cursorRevision).toBe(before + 1);
+    expect((await store.pending()).map((item) => item.requestId)).toEqual(["r1"]);
+  });
+
+  it("settles each racing launch exactly one way: cancelled when the cancel committed first, launched otherwise", async () => {
+    const { store, threadId } = await newStore();
+    await store.admit(requestOf(threadId, "r1"));
+    for (let round = 0; round < 12; round += 1) {
+      await prepareOk(store);
+      const [requested, launched] = await Promise.all([
+        store.requestCancelBeforeLaunch(),
+        store.recordLaunchIntent({ operationId: `op${round}`, nonce: `n${round}` }),
+      ]);
+      const state = await store.operationState();
+      if (requested === "requested") {
+        expect(launched.kind).toBe("cancelled-before-launch");
+        expect(state.operation?.terminal?.lifecycle).toBe("cancelled");
+      } else {
+        expect(requested).toBe("launched");
+        expect(launched.kind).toBe("recorded");
+        expect(state.operation?.terminal).toBeUndefined();
+        await store.settle("completed");
+      }
+      expect(state.cancelRequested).toBe(false);
+    }
+  });
+
+  it("keeps the marker across a restart and still refuses the launch", async () => {
+    const first = await track(openRuntimeWorld(directory));
+    const threadId = await createPassiveThread(first);
+    const store = createRuntimeStore(first.harness, threadId);
+    await store.admit(requestOf(threadId, "r1"));
+    await prepareOk(store);
+    await store.requestCancelBeforeLaunch();
+    await first.close();
+
+    const second = await track(openRuntimeWorld(directory, first.setup));
+    const reopened = createRuntimeStore(second.harness, threadId);
+
+    expect((await reopened.operationState()).cancelRequested).toBe(true);
+    expect(await reopened.recordLaunchIntent({ operationId: "op1", nonce: "n1" })).toEqual({
+      kind: "cancelled-before-launch",
+    });
+    expect((await reopened.operationState()).operation?.launchIntentAt).toBeUndefined();
+  });
+
+  it("lets the next operation run normally once the cancelled terminal is recorded", async () => {
+    const { store, threadId } = await newStore();
+    await store.admit(requestOf(threadId, "r1"));
+    await prepareOk(store);
+    await store.requestCancelBeforeLaunch();
+    await store.recordLaunchIntent({ operationId: "op1", nonce: "n1" });
+
+    await prepareOk(store);
+    expect(await store.recordLaunchIntent({ operationId: "op2", nonce: "n2" })).toEqual({ kind: "recorded" });
+
+    const state = await store.operationState();
+    expect(state.lifecycle).toBe("starting");
+    expect(state.history).toEqual([{ operationId: "op1", lifecycle: "cancelled", at: expect.any(Number) }]);
+  });
+
+  it("sets no marker when nothing is in flight, so a cancel with nothing to cancel never poisons the next run", async () => {
+    const { store, threadId } = await newStore();
+    expect(await store.requestCancelBeforeLaunch()).toBe("nothing-pending");
+    await store.admit(requestOf(threadId, "r1"));
+    await prepareOk(store);
+    await store.recordLaunchIntent({ operationId: "op1", nonce: "n1" });
+    await store.settle("completed");
+    await store.markDelivered("r1");
+
+    expect(await store.requestCancelBeforeLaunch()).toBe("nothing-pending");
+    expect((await store.operationState()).cancelRequested).toBe(false);
+
+    await store.admit(requestOf(threadId, "r2"));
+    await prepareOk(store);
+    expect(await store.recordLaunchIntent({ operationId: "op2", nonce: "n2" })).toEqual({ kind: "recorded" });
+  });
+
+  it("leaves a launched operation to the process cancel path", async () => {
+    const { store, threadId } = await newStore();
+    await store.admit(requestOf(threadId, "r1"));
+    await prepareOk(store);
+    await store.recordLaunchIntent({ operationId: "op1", nonce: "n1" });
+
+    expect(await store.requestCancelBeforeLaunch()).toBe("launched");
+    expect((await store.operationState()).cancelRequested).toBe(false);
+  });
+
+  it("drops a stale marker on clear so the next launch is recorded", async () => {
+    const { store, threadId } = await newStore();
+    await store.admit(requestOf(threadId, "r1"));
+    await prepareOk(store);
+    await store.requestCancelBeforeLaunch();
+    await store.clearCancelRequest();
+    await store.clearCancelRequest();
+
+    expect((await store.operationState()).cancelRequested).toBe(false);
+    expect(await store.recordLaunchIntent({ operationId: "op1", nonce: "n1" })).toEqual({ kind: "recorded" });
+  });
+
+  it("keeps the queued input queued after a cancelled-before-launch operation", async () => {
+    const { store, threadId } = await newStore();
+    await store.admit(requestOf(threadId, "r1"));
+    await store.admit(requestOf(threadId, "r2"));
+    await prepareOk(store);
+    await store.requestCancelBeforeLaunch();
+    await store.recordLaunchIntent({ operationId: "op1", nonce: "n1" });
+
+    expect((await store.pending()).map((item) => item.requestId)).toEqual(["r1", "r2"]);
+    expect((await store.operationState()).operation?.deliveredRequestId).toBeUndefined();
+  });
+});

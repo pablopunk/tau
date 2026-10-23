@@ -13,7 +13,7 @@ import { createChangeEmitter } from "../../change-emitter";
 import { legacyWorkspace } from "../../harness/conversation-index";
 import { createNativeConversation, type NativeStartRequest } from "../../harness/conversation-native";
 import { type ConversationStore, createConversationStore } from "../../harness/conversation-store";
-import { createRuntimeStore, type RuntimeStore } from "../../harness/runtime-store";
+import { createRuntimeStore, type LaunchIntent, type RuntimeStore } from "../../harness/runtime-store";
 import { modelCallsOf, openRuntimeWorld, type RuntimeWorld } from "../../harness/runtime-store-fixture";
 import { useTempDir } from "../../test-support/temp-dir";
 import type { SupervisorDeps } from "../supervisor";
@@ -128,6 +128,31 @@ interface Rig {
   start(text?: string, requestId?: string): Promise<string>;
 }
 
+function launchIntentGate(): LaunchIntentGate {
+  const { held, release } = releasable();
+  let onReached: () => void = () => undefined;
+  const reached = new Promise<void>((resolve) => {
+    onReached = resolve;
+  });
+  return { reached, held, onReached, release };
+}
+
+function gatedLaunchStore(runtime: RuntimeWorld, gate: LaunchIntentGate): (threadId: string) => RuntimeStore {
+  return (threadId) => {
+    const real = createRuntimeStore(runtime.harness, threadId);
+    return new Proxy(real, {
+      get: (target, property, receiver) =>
+        property === "recordLaunchIntent"
+          ? async (intent: LaunchIntent) => {
+              gate.onReached();
+              await gate.held;
+              return target.recordLaunchIntent(intent);
+            }
+          : Reflect.get(target, property, receiver),
+    });
+  };
+}
+
 const realQuery: NativeQueryFn = ({ prompt, options }) => sdkQuery({ prompt, options: options as Options });
 
 const hermeticEnv = (env: NodeJS.ProcessEnv): NodeJS.ProcessEnv =>
@@ -161,6 +186,15 @@ interface SdkRigOptions {
   /** Runs with `default` permissions: Claude Code's own tools, every ask goes to canUseTool. */
   readonly asking?: { readonly approvals?: Approvals };
   readonly checkpoints?: NativeCheckpointPort;
+  /** Holds every launch-intent commit: after prepare returned, before the commit that would launch. */
+  readonly launchIntentGate?: LaunchIntentGate;
+}
+
+interface LaunchIntentGate {
+  readonly reached: Promise<void>;
+  readonly held: Promise<void>;
+  readonly onReached: () => void;
+  readonly release: () => void;
 }
 
 interface SdkWorld {
@@ -177,7 +211,7 @@ function assemble(
   projectPath: string,
   deps: Pick<
     NativeServiceDeps,
-    "query" | "policyFor" | "buildOptions" | "supervisor" | "approvals" | "checkpoints"
+    "query" | "policyFor" | "buildOptions" | "supervisor" | "approvals" | "checkpoints" | "createStore"
   >,
 ): Rig {
   const conversations = createConversationStore(runtime.harness, async () => projectPath);
@@ -273,6 +307,9 @@ async function sdkWorld(
       buildOptions,
       ...(options.asking?.approvals && { approvals: options.asking.approvals }),
       ...(options.checkpoints && { checkpoints: options.checkpoints }),
+      ...(options.launchIntentGate && {
+        createStore: gatedLaunchStore(forRuntime, options.launchIntentGate),
+      }),
     });
   const rig = make(runtime);
   cleanups.push(() => rig.service.close());
@@ -458,6 +495,47 @@ describe.skipIf(!sandboxExecAvailable())(
       expect(await rig.conversations.find(threadId)).toMatchObject({ status: "idle" });
     });
 
+    it("starts nothing when Stop lands after prepare and before the launch intent commits, keeps the input and runs it on the next send", async () => {
+      const gate = launchIntentGate();
+      const sdk = await sdkWorld(() => [finalTurn(FIRST_ANSWER), finalTurn(SECOND_ANSWER)], {
+        launchIntentGate: gate,
+      });
+      const { rig } = sdk;
+      const threadId = await rig.start();
+      await gate.reached;
+      expect(await lifecycleOf(rig, threadId)).toBe("ready");
+
+      const result = await rig.service.cancel(threadId);
+      gate.release();
+      await waitForLifecycle(rig, threadId, "cancelled");
+      await rig.service.settled();
+
+      expect(result).toEqual({ status: "cancel-before-launch" });
+      expect(spawnedPids).toEqual([]);
+      expect(spawnedFiles).toEqual([]);
+      expect(sdk.server.messageRequests).toHaveLength(0);
+      expect(rig.queries).toEqual([]);
+      expect(sdk.server.violations, context(sdk)).toEqual([]);
+      const state = await rig.storeOf(threadId).operationState();
+      expect(state.operation).toMatchObject({
+        terminal: { lifecycle: "cancelled", reason: "cancelled before launch" },
+      });
+      expect(state.operation?.identity).toBeUndefined();
+      expect(state.cancelRequested).toBe(false);
+      expect((await rig.storeOf(threadId).pending()).map((item) => item.requestId)).toEqual(["start-1"]);
+      expect(await rig.conversations.find(threadId)).toMatchObject({ status: "idle" });
+      expect(await rig.service.cancel(threadId)).toEqual({ status: "idle" });
+
+      await rig.service.send(threadId, input(SECOND_PROMPT, "send-2"));
+      await waitUntil(async () => (await rig.storeOf(threadId).pending()).length === 0, "the queue to drain");
+      await rig.service.settled();
+
+      expect(sdk.server.violations, context(sdk)).toEqual([]);
+      expect(sdk.server.messageRequests).toHaveLength(2);
+      expect(spawnedPids).toHaveLength(2);
+      expect(await lifecycleOf(rig, threadId)).toBe("completed");
+    });
+
     it("marks a run cut off by a restart outcome-unknown, stops its child and never relaunches", async () => {
       const { held } = releasable();
       const directory = await tempDir();
@@ -633,13 +711,20 @@ const fakeAnswer = (answer: string): NativeQueryFn => {
 };
 
 async function plainRig(
-  deps: Partial<Pick<NativeServiceDeps, "query" | "policyFor" | "supervisor">> = {},
+  deps: Partial<Pick<NativeServiceDeps, "query" | "policyFor" | "supervisor">> & {
+    readonly launchIntentGate?: LaunchIntentGate;
+  } = {},
   directory?: string,
 ): Promise<Rig> {
   const root = directory ?? (await tempDir());
   const runtime = await openRuntimeWorld(root);
   cleanups.push(() => runtime.close().catch(() => undefined));
-  const rig = assemble(runtime, root, { query: fakeAnswer("plain answer"), ...deps });
+  const { launchIntentGate: gate, ...serviceDeps } = deps;
+  const rig = assemble(runtime, root, {
+    query: fakeAnswer("plain answer"),
+    ...serviceDeps,
+    ...(gate && { createStore: gatedLaunchStore(runtime, gate) }),
+  });
   cleanups.push(() => rig.service.close());
   return rig;
 }
@@ -848,6 +933,86 @@ describe("native service without a process", () => {
     await rig.service.settled();
 
     expect(launched).toBe(3);
+  });
+
+  it("does not let a Stop with nothing in flight affect the next run", async () => {
+    let runs = 0;
+    const answerer = fakeAnswer("again");
+    const query: NativeQueryFn = (args) => {
+      runs += 1;
+      return answerer(args);
+    };
+    const rig = await plainRig({ query });
+    const threadId = await rig.start();
+    await waitForLifecycle(rig, threadId, "completed");
+    await rig.service.settled();
+
+    expect(await rig.service.cancel(threadId)).toEqual({ status: "idle" });
+    expect((await rig.storeOf(threadId).operationState()).cancelRequested).toBe(false);
+    await rig.service.send(threadId, input(SECOND_PROMPT, "send-2"));
+    await waitUntil(async () => runs === 2, "the second run");
+    await rig.service.settled();
+
+    expect(await lifecycleOf(rig, threadId)).toBe("completed");
+    expect((await rig.storeOf(threadId).operationState()).history).toHaveLength(1);
+  });
+
+  it("does not let a Stop during a prepare that then blocks poison the next run", async () => {
+    const { held, release } = releasable();
+    let allowed = false;
+    let runs = 0;
+    const answerer = fakeAnswer("after block");
+    const query: NativeQueryFn = (args) => {
+      runs += 1;
+      return answerer(args);
+    };
+    const policyFor = (): NativeRunPolicy => ({
+      prepare: async () => {
+        if (!allowed) await held;
+        return allowed ? { ok: true } : { ok: false, reason: "held back" };
+      },
+      launch: () => {
+        throw new Error("never launched in this test");
+      },
+    });
+    const rig = await plainRig({ policyFor, query });
+    const threadId = await rig.start();
+    await waitForLifecycle(rig, threadId, "preparing");
+
+    expect(await rig.service.cancel(threadId)).toEqual({ status: "cancel-before-launch" });
+    release();
+    await waitForLifecycle(rig, threadId, "blocked");
+    await rig.service.settled();
+    expect(runs).toBe(0);
+
+    allowed = true;
+    await rig.service.send(threadId, input(SECOND_PROMPT, "send-2"));
+    await waitUntil(async () => (await rig.storeOf(threadId).pending()).length === 0, "the queue to drain");
+    await rig.service.settled();
+
+    expect(runs).toBe(2);
+    expect(await lifecycleOf(rig, threadId)).toBe("completed");
+  });
+
+  it("starts nothing when the thread is removed after prepare and before the launch intent commits", async () => {
+    const gate = launchIntentGate();
+    let runs = 0;
+    const answerer = fakeAnswer("never");
+    const query: NativeQueryFn = (args) => {
+      runs += 1;
+      return answerer(args);
+    };
+    const rig = await plainRig({ query, launchIntentGate: gate });
+    const threadId = await rig.start();
+    await gate.reached;
+
+    await rig.service.onConversationRemoved(threadId);
+    gate.release();
+    await waitForLifecycle(rig, threadId, "cancelled");
+    await rig.service.settled();
+
+    expect(runs).toBe(0);
+    expect((await rig.storeOf(threadId).pending()).map((item) => item.requestId)).toEqual(["start-1"]);
   });
 
   it("reports a thread that is not native, and a deleted one", async () => {

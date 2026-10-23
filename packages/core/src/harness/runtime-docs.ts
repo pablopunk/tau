@@ -94,7 +94,7 @@ export type OperationTerminal = Static<typeof OperationTerminalSchema>;
 export const NativeOperationSchema = Type.Object({
   operationId: Type.String({ minLength: 1 }),
   nonce: Type.String({ minLength: 1 }),
-  launchIntentAt: Type.Number(),
+  launchIntentAt: Type.Optional(Type.Number()),
   identity: Type.Optional(OperationIdentitySchema),
   sessionId: Type.Optional(Type.String({ minLength: 1 })),
   deliveredRequestId: Type.Optional(Type.String({ minLength: 1 })),
@@ -115,6 +115,7 @@ export type OperationSummary = {
 
 export type NativeOperationRecord = {
   operation?: NativeOperation;
+  cancelRequested?: boolean;
   acknowledgement?: OperationAcknowledgement;
   history?: OperationSummary[];
 };

@@ -362,6 +362,70 @@ describe("waiting and stopping", () => {
   });
 });
 
+describe("stopping a child that has not launched yet", () => {
+  async function preparingRig(allowAfter: Promise<void>, run: ReturnType<typeof fakeQuery>) {
+    const base = await fakeRig(await tempDir(), run.query, cleanups);
+    const rig = await assembleRig(base.runtime, {
+      project: base.project,
+      query: run.query,
+      pollMs: 10,
+      parentId: base.parentId,
+      policyFor: () => ({
+        prepare: async () => {
+          await allowAfter;
+          return { ok: true };
+        },
+        launch: launchDetached,
+      }),
+    });
+    cleanups.push(() => rig.service.close());
+    return rig;
+  }
+
+  it("never launches the child when the parent call is aborted while the child is still preparing", async () => {
+    const prepareGate = releasable();
+    const run = fakeQuery({ text: "must not run" });
+    const rig = await preparingRig(prepareGate.held, run);
+    const abort = new AbortController();
+
+    const waiting = rig.delegation.runNativeChild(callOf(rig, "c", { signal: abort.signal }));
+    await waitUntil(async () => (await rig.childrenOf()).length === 1, "the child");
+    abort.abort();
+    await sleep(50);
+    prepareGate.release();
+
+    const result = failed(await waiting);
+    expect(result.status).toBe("stopped");
+    expect(result.message).toContain("because this call was stopped");
+    expect(run.runs()).toBe(0);
+    expect(await rig.storeOf(result.childId).operationState()).toMatchObject({
+      lifecycle: "cancelled",
+      cancelRequested: false,
+    });
+    expect(await rig.storeOf(result.childId).pending()).toEqual([]);
+    expect((await rig.conversations.find(result.childId))?.agentStatus).toBe("stopped");
+  });
+
+  it("reports a child stopped by someone else while it was preparing as cancelled instead of waiting forever", async () => {
+    const prepareGate = releasable();
+    const run = fakeQuery({ text: "must not run" });
+    const rig = await preparingRig(prepareGate.held, run);
+
+    const waiting = rig.delegation.runNativeChild(callOf(rig, "c"));
+    await waitUntil(async () => (await rig.childrenOf()).length === 1, "the child");
+    const [childId = ""] = await rig.childrenOf();
+    expect(await rig.service.cancel(childId)).toEqual({ status: "cancel-before-launch" });
+    prepareGate.release();
+
+    const result = failed(await waiting);
+    expect(result).toMatchObject({ status: "stopped", message: expect.stringContaining("was cancelled") });
+    expect(run.runs()).toBe(0);
+    expect((await rig.storeOf(childId).pending()).map((item) => item.requestId)).toEqual([
+      nativeChildRequestId(rig.parentId, "c"),
+    ]);
+  });
+});
+
 describe("native child removal", () => {
   it("cancels the child's run first when it is removed", async () => {
     const { held } = releasable();

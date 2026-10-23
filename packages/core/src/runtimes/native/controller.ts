@@ -92,6 +92,11 @@ interface ActiveRun {
   result?: Extract<NativeEvent, { type: "result" }>;
 }
 
+type StartOutcome =
+  | { readonly started: NativeQuery }
+  | { readonly failure: unknown }
+  | { readonly cancelledBeforeLaunch: true };
+
 type Death = { readonly kind: "dead" } | { readonly kind: "unknown"; readonly reason: string };
 
 const sessionIdOf = (message: unknown): string | undefined => {
@@ -341,7 +346,11 @@ export function createNativeController(deps: NativeControllerDeps): NativeContro
     return terminalOf();
   }
 
-  async function startQuery(run: ActiveRun, item: InboxItem, options: Record<string, unknown>) {
+  async function startQuery(
+    run: ActiveRun,
+    item: InboxItem,
+    options: Record<string, unknown>,
+  ): Promise<NativeQuery | undefined> {
     const { sessionId } = await store.operationState();
     const operationId = newId();
     const nonce = newId();
@@ -353,7 +362,8 @@ export function createNativeController(deps: NativeControllerDeps): NativeContro
       recordIdentity: (identity) => store.recordIdentity(toStoredIdentity(identity)),
       refuseSpawn: () => run.cancelRequested,
     });
-    await store.recordLaunchIntent({ operationId, nonce });
+    const intent = await store.recordLaunchIntent({ operationId, nonce });
+    if (intent.kind === "cancelled-before-launch") return undefined;
     run.intentRecorded = true;
     await store.markDeliveredOnce(item.requestId);
     await store.markDelivered(item.requestId);
@@ -372,9 +382,10 @@ export function createNativeController(deps: NativeControllerDeps): NativeContro
     run: ActiveRun,
     item: InboxItem,
     options: Record<string, unknown>,
-  ): Promise<{ started: NativeQuery; failure?: undefined } | { started?: undefined; failure: unknown }> {
+  ): Promise<StartOutcome> {
     try {
-      return { started: await startQuery(run, item, options) };
+      const started = await startQuery(run, item, options);
+      return started ? { started } : { cancelledBeforeLaunch: true };
     } catch (failure) {
       if (!run.intentRecorded) throw failure;
       return { failure };
@@ -392,12 +403,13 @@ export function createNativeController(deps: NativeControllerDeps): NativeContro
     const outcome = await prepared(item);
     if (!outcome.ok) return block(item, outcome.reason);
     if (lifecycle !== "ready") await store.setLifecycle("ready");
-    const query = await startQueryOrFail(run, item, {
+    const start = await startQueryOrFail(run, item, {
       ...options,
       permissionMode: options.permissionMode ?? "dontAsk",
       ...(deps.permissions && { canUseTool: deps.permissions.canUseTool }),
     });
-    const failure = "failure" in query ? query.failure : await drive(run, query.started as NativeQuery);
+    if ("cancelledBeforeLaunch" in start) return terminalOf();
+    const failure = "failure" in start ? start.failure : await drive(run, start.started);
     return conclude(run, failure);
   }
 

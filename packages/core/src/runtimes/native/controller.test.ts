@@ -334,6 +334,44 @@ describe("native controller without a process", () => {
     expect(modelCallsOf(runtime.setup)).toBe(0);
   });
 
+  it("settles cancelled before launch without a process, an SDK call or a delivery when a cancel lands after prepare", async () => {
+    const runtime = await openRuntimeWorld(await tempDir());
+    cleanups.push(() => runtime.close());
+    const threadId = await createPassiveThread(runtime);
+    const store = createRuntimeStore(runtime.harness, threadId);
+    await admit(store);
+    await admit(store, "r2", "second");
+    const launches: unknown[] = [];
+    const controller = createNativeController({
+      store,
+      query: neverCalled,
+      cwd: runtime.directory,
+      launch: (spec) => {
+        launches.push(spec);
+        throw new Error("the launch must not be called");
+      },
+      prepare: async () => {
+        await store.requestCancelBeforeLaunch();
+        return { ok: true };
+      },
+    });
+
+    const result = await controller.runNext(threadId);
+
+    expect(result).toMatchObject({
+      status: "settled",
+      outcome: "cancelled",
+      reason: "cancelled before launch",
+    });
+    expect(launches).toEqual([]);
+    expect((await store.pending()).map((item) => item.requestId)).toEqual(["r1", "r2"]);
+    const state = await store.operationState();
+    expect(state).toMatchObject({ lifecycle: "cancelled", cancelRequested: false });
+    expect(state.operation?.terminal?.lifecycle).toBe("cancelled");
+    expect((await eventsOf(store)).filter((event) => event.type === "result")).toEqual([]);
+    expect(modelCallsOf(runtime.setup)).toBe(0);
+  });
+
   async function idleControllerWith(deps: Partial<Parameters<typeof createNativeController>[0]>) {
     const runtime = await openRuntimeWorld(await tempDir());
     cleanups.push(() => runtime.close());
@@ -666,6 +704,46 @@ describe.skipIf(!sandboxExecAvailable())("native controller with the real SDK, o
     expect((await rig.store.inspect()).cancelsInFlight).toBe(0);
     expect(rig.server.messageRequests).toHaveLength(2);
     expect(rig.sandbox.pids).toHaveLength(1);
+    expectNoLeftovers(rig);
+    expect(modelCallsOf(rig.runtime.setup)).toBe(0);
+  });
+
+  it("never launches when a cancel commits between a finished prepare and the launch intent, then runs the kept input next", async () => {
+    let cancelDuringPrepare = true;
+    let target: RuntimeStore | undefined;
+    const rig = await newRig(() => [finalTurn(FINAL_TEXT)], {
+      prepare: async () => {
+        if (cancelDuringPrepare) await target?.requestCancelBeforeLaunch();
+        return { ok: true };
+      },
+    });
+    target = rig.store;
+    await admit(rig.store);
+
+    const result = await rig.controller.runNext(rig.threadId);
+
+    expect(result).toMatchObject({
+      status: "settled",
+      outcome: "cancelled",
+      reason: "cancelled before launch",
+    });
+    const state = await rig.store.operationState();
+    expect(state.lifecycle).toBe("cancelled");
+    expect(state.cancelRequested).toBe(false);
+    expect(state.operation?.identity).toBeUndefined();
+    expect(state.operation?.deliveredRequestId).toBeUndefined();
+    expect((await rig.store.pending()).map((item) => item.requestId)).toEqual(["r1"]);
+    expect(rig.sandbox.pids).toEqual([]);
+    expect(rig.server.messageRequests).toHaveLength(0);
+
+    cancelDuringPrepare = false;
+    const next = await rig.controller.runNext(rig.threadId);
+
+    expect(next).toMatchObject({ status: "settled", outcome: "completed" });
+    expect(rig.server.messageRequests).toHaveLength(1);
+    expect(rig.sandbox.pids).toHaveLength(1);
+    expect(await rig.store.pending()).toEqual([]);
+    expect(rig.server.violations, failureContext(rig)).toEqual([]);
     expectNoLeftovers(rig);
     expect(modelCallsOf(rig.runtime.setup)).toBe(0);
   });

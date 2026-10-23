@@ -24,6 +24,7 @@ import type { ConversationStore } from "../../harness/conversation-store";
 import { BACKGROUND } from "../../harness/open";
 import { isUnresolved, NativeInboxDoc } from "../../harness/runtime-docs";
 import {
+  CANCELLED_BEFORE_LAUNCH,
   createRuntimeStore,
   type OperationState,
   type RuntimeStore,
@@ -151,9 +152,13 @@ interface ThreadRuntime {
   permissions?: NativePermissionBroker;
   pump: Promise<void> | undefined;
   rescan: boolean;
-  cancelRequested: boolean;
   gate: Promise<unknown>;
 }
+
+type PendingCancel =
+  | { readonly kind: "idle" }
+  | { readonly kind: "marked" }
+  | { readonly kind: "launched"; readonly operationId: string };
 
 const STARTABLE_LIFECYCLES: readonly (RuntimeLifecycle | undefined)[] = [
   undefined,
@@ -173,6 +178,8 @@ const DEFAULT_CANCEL_WAIT_MS = 30_000;
 const WORKSPACE_FENCED =
   "This workspace is being changed (merge/remove). Nothing was started and your message is kept.";
 
+const CANCELLED_BEFORE_START = { ok: false, reason: "The run was cancelled before it started." } as const;
+
 const describeError = (error: unknown): string => (error instanceof Error ? error.message : String(error));
 
 const invalidRequest = (message: string): AppError => new AppError("invalid_request", message);
@@ -183,6 +190,11 @@ export function requireNativeInput(input: SendMessageInput): void {
     throw invalidRequest("Native threads do not accept attachments yet.");
   }
 }
+
+const isCancelledBeforeLaunch = ({ lifecycle, operation }: OperationState): boolean =>
+  lifecycle === "cancelled" &&
+  operation?.terminal?.reason === CANCELLED_BEFORE_LAUNCH &&
+  operation.deliveredRequestId === undefined;
 
 const isUnknownAcknowledged = (state: OperationState): boolean =>
   state.lifecycle === "outcome-unknown" &&
@@ -248,7 +260,7 @@ export function createNativeService(deps: NativeServiceDeps): NativeService {
     const { id } = runtime.thread;
     const policy = deps.policyFor?.(id, cwd);
     const prepare: NativeControllerDeps["prepare"] = async (item) => {
-      if (runtime.cancelRequested) return { ok: false, reason: "The run was cancelled before it started." };
+      if ((await runtime.store.operationState()).cancelRequested) return CANCELLED_BEFORE_START;
       if (isFenced(cwd, id)) return { ok: false, reason: WORKSPACE_FENCED };
       const launchable = policy ? await policy.prepare() : { ok: true as const };
       if (!launchable.ok) return launchable;
@@ -281,7 +293,6 @@ export function createNativeService(deps: NativeServiceDeps): NativeService {
       controller: undefined as unknown as NativeController,
       pump: undefined,
       rescan: false,
-      cancelRequested: false,
       gate: Promise.resolve(),
     };
     runtime.controller = controllerFor(runtime, cwd);
@@ -361,7 +372,6 @@ export function createNativeService(deps: NativeServiceDeps): NativeService {
   }
 
   async function runOne(runtime: ThreadRuntime): Promise<boolean> {
-    runtime.cancelRequested = false;
     await mirror(runtime, "running", false);
     let result: RunResult;
     try {
@@ -380,6 +390,7 @@ export function createNativeService(deps: NativeServiceDeps): NativeService {
 
   async function drain(runtime: ThreadRuntime): Promise<void> {
     try {
+      await runtime.store.clearCancelRequest();
       for (;;) {
         runtime.rescan = false;
         const runnable = await hasRunnableWork(runtime);
@@ -484,6 +495,13 @@ export function createNativeService(deps: NativeServiceDeps): NativeService {
     return inbox?.items.find((item) => item.requestId === requestId)?.disposition;
   }
 
+  async function outcomeOf(store: RuntimeStore, requestId: string): Promise<ChildOutcome> {
+    const disposition = await dispositionOf(store.threadId, requestId);
+    const outcome = await readChildOutcome(store, requestId, disposition);
+    if (outcome.kind !== "pending" || disposition !== "queued") return outcome;
+    return isCancelledBeforeLaunch(await store.operationState()) ? { kind: "cancelled" } : outcome;
+  }
+
   async function waitForOutcome(
     store: RuntimeStore,
     requestId: string,
@@ -492,11 +510,7 @@ export function createNativeService(deps: NativeServiceDeps): NativeService {
     const pollMs = options.pollMs ?? DEFAULT_AWAIT_POLL_MS;
     const deadline = options.timeoutMs === undefined ? undefined : now() + options.timeoutMs;
     for (;;) {
-      const outcome: ChildOutcome = await readChildOutcome(
-        store,
-        requestId,
-        await dispositionOf(store.threadId, requestId),
-      );
+      const outcome = await outcomeOf(store, requestId);
       if (outcome.kind !== "pending") return outcome;
       if (options.signal?.aborted) return { kind: "wait-stopped" };
       if (deadline !== undefined && now() >= deadline) return { kind: "timed-out" };
@@ -553,15 +567,23 @@ export function createNativeService(deps: NativeServiceDeps): NativeService {
     return receipt;
   }
 
+  async function pendingCancelOf(runtime: ThreadRuntime): Promise<PendingCancel> {
+    for (;;) {
+      const { operation } = await runtime.store.operationState();
+      if (operation && !operation.terminal) return { kind: "launched", operationId: operation.operationId };
+      if (!runtime.pump) return { kind: "idle" };
+      const requested = await runtime.store.requestCancelBeforeLaunch();
+      if (requested === "requested") return { kind: "marked" };
+      if (requested === "nothing-pending") return { kind: "idle" };
+    }
+  }
+
   async function cancel(threadId: string): Promise<NativeCancelResult> {
     const runtime = await runtimeOf(await resolveThread(threadId));
-    const { operation } = await runtime.store.operationState();
-    if (!operation || operation.terminal) {
-      if (!runtime.pump) return { status: "idle" };
-      runtime.cancelRequested = true;
-      return { status: "cancel-before-launch" };
-    }
-    const outcome = await runtime.controller.cancel(threadId, operation.operationId);
+    const pending = await pendingCancelOf(runtime);
+    if (pending.kind === "idle") return { status: "idle" };
+    if (pending.kind === "marked") return { status: "cancel-before-launch" };
+    const outcome = await runtime.controller.cancel(threadId, pending.operationId);
     await finalizeIfSettled(runtime);
     return { status: "cancelled", outcome };
   }
@@ -615,9 +637,9 @@ export function createNativeService(deps: NativeServiceDeps): NativeService {
   async function onConversationRemoved(threadId: string): Promise<void> {
     const runtime = await runtimes.get(threadId)?.catch(() => undefined);
     if (!runtime) return;
-    const { operation } = await runtime.store.operationState();
-    if (operation && !operation.terminal) {
-      await runtime.controller.cancel(threadId, operation.operationId).catch(() => undefined);
+    const pending = await pendingCancelOf(runtime);
+    if (pending.kind === "launched") {
+      await runtime.controller.cancel(threadId, pending.operationId).catch(() => undefined);
     }
     runtime.permissions?.denyAll();
   }
