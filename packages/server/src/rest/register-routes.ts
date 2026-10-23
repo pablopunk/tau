@@ -135,6 +135,10 @@ export function registerRoutes(app: FastifyInstance, core: Core, sockets: Device
     core.conversations.compact(params.id, body),
   );
   defineRoute(app, routes.retryConversation, ({ params, body }) => core.conversations.retry(params.id, body));
+  defineRoute(app, routes.getHandoffPreview, ({ params }) => core.conversations.handoffPreview(params.id));
+  defineRoute(app, routes.handoffConversation, ({ params, body }) =>
+    core.conversations.handoff(params.id, body),
+  );
   registerWorkspaceRoutes(app, core);
   registerResourceRoutes(app, core);
   registerTerminalRoutes(app, core, sockets);

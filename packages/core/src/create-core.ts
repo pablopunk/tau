@@ -699,6 +699,10 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
         harness,
         notifications,
         ...(native && { native }),
+        handoffGuards: {
+          hasPendingApprovals: (id) => approvals.hasPending(id),
+          hasRunningProcesses: (id) => processes.hasRunning(id),
+        },
         removal,
         archivedCleanup,
         closeClaudeCliThread,

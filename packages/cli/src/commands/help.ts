@@ -2,10 +2,12 @@ import { COMMAND_NOUNS, commandOf, commands, FLOW_COMMANDS } from "@tau/protocol
 import { usageError } from "./cli-exit";
 import { commandFlags } from "./command-flags";
 import { usageOf } from "./parse";
+import { EXTRA_THREAD_VERBS } from "./thread-extras";
 
 const THREAD_EXTRAS = [
   "  wait <id>       Wait until the thread is done, then print the answer (--timeout <s>)",
   "  read <id>       Print the thread as text (--last <n>)",
+  "  handoff <id>    Preview handing a Pi thread off to a new native Claude thread; --yes does it (--instruction <text>)",
 ];
 
 const LIFECYCLE = [
@@ -89,7 +91,7 @@ export function helpText(noun?: string, verb?: string): string {
   if (noun === undefined) return rootHelp();
   if (!(COMMAND_NOUNS as readonly string[]).includes(noun)) throw usageError(`Unknown command: ${noun}`);
   if (verb === undefined) return nounHelp(noun);
-  if (noun === "threads" && (verb === "wait" || verb === "read")) return nounHelp(noun);
+  if (noun === "threads" && EXTRA_THREAD_VERBS.includes(verb)) return nounHelp(noun);
   return commandHelp(`${noun} ${verb}`);
 }
 

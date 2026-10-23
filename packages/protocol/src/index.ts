@@ -5,6 +5,7 @@ export * from "./commands";
 export * from "./core";
 export * from "./entities";
 export * from "./errors";
+export * from "./handoff";
 export * from "./icons";
 export * from "./live";
 export * from "./live-info";

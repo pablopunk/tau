@@ -49,6 +49,7 @@ import type {
   WhenBusy,
   WorkspaceDefault,
 } from "./entities";
+import type { HandoffInput, HandoffPreview } from "./handoff";
 import type {
   Checkpoint,
   McpServerConfig,
@@ -331,6 +332,19 @@ export interface Core {
     stopAgent(id: string): Promise<void>;
     /** New thread in the same checkout or worktree, with history up to and including the entry. Rejects `not_found`. */
     fork(id: string, entryId: string): Promise<ConversationSummary>;
+    /**
+     * What `handoff` would put in the new thread and what it would leave out, plus whether it can run now (`reason` says
+     * why not). Reads only. Rejects `not_found`.
+     */
+    handoffPreview(id: string): Promise<HandoffPreview>;
+    /**
+     * Starts a NEW native thread in the same folder whose first message is a deterministic text export of this Pi thread
+     * (no summarizing model call; images, thinking and attachments never travel). The source thread is not changed.
+     * Needs native on, a Pi source at an idle boundary (no run, approvals, queued items, children or processes).
+     * A repeated `requestId` returns the same new thread. Rejects `not_found`, `thread_busy` while the source works,
+     * and `invalid_request` for a native source, native off, a removed workspace or an empty thread, before any side effect.
+     */
+    handoff(id: string, input: HandoffInput): Promise<ConversationSummary>;
     /** The files a rewind would change. Rejects `not_found` for an unknown thread, entry or checkpoint. */
     rewindPreview(id: string, entryId: string): Promise<RestorePreview>;
     /** Restores files, forks before the entry; `draft` is the message text. Rejects `thread_busy`, `not_found`. */

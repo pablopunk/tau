@@ -46,6 +46,7 @@ import { createSubagentStopper } from "./harness/subagent-stop";
 import type { SettingsStore } from "./home/settings-store";
 import type { ProviderService } from "./provider/provider-service";
 import { requireName } from "./require-name";
+import { createHandoffService, type HandoffDeps } from "./runtimes/handoff/handoff";
 import { retainedError } from "./runtimes/native/native-mode";
 import { type NativeService, requireNativeInput } from "./runtimes/native/service";
 import type { StatusTracker } from "./status/status-tracker";
@@ -143,6 +144,8 @@ export function createConversationsApi(deps: {
   notifications: NotificationSubmitter;
   /** Present while the native flag is on, or while native threads exist and only their reading and cancelling is kept. */
   native?: NativeService;
+  /** What makes a Pi thread not idle for a handoff besides its run and queue. Default: nothing. */
+  handoffGuards?: Pick<HandoffDeps, "hasPendingApprovals" | "hasRunningProcesses">;
   now: () => number;
 }): Core["conversations"] & Partial<NativeConversationsApi> {
   const { conversations, projects, provider, settings, titles, workspaces, checkpoints, changes, now } = deps;
@@ -362,6 +365,16 @@ export function createConversationsApi(deps: {
     });
   }
 
+  const handoff = createHandoffService({
+    harness: deps.harness,
+    conversations,
+    native: deps.native,
+    hasPendingApprovals: deps.handoffGuards?.hasPendingApprovals ?? (() => false),
+    hasRunningProcesses: deps.handoffGuards?.hasRunningProcesses ?? (() => false),
+    announce,
+    now,
+  });
+
   const api: Core["conversations"] = {
     async list(projectId) {
       await projects.require(projectId);
@@ -444,6 +457,8 @@ export function createConversationsApi(deps: {
       return result;
     },
     watch: (id, onOps) => conversations.watch(id, onOps),
+    handoffPreview: (id) => handoff.preview(id),
+    handoff: (id, input) => handoff.handoff(id, input),
     ...createConversationsMvp5Api({
       forker: deps.forker,
       checkpoints,

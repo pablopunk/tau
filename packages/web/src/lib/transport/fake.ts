@@ -79,6 +79,8 @@ const handlers: Handlers = {
   cancelLogin: (core, { params }) => core.providers.cancelLogin(params.sid),
   listModels: (core) => core.models.list(),
   listRuntimes: (core) => core.runtimes.list(),
+  getHandoffPreview: (core, { params }) => core.conversations.handoffPreview(params.id),
+  handoffConversation: (core, { params, body }) => core.conversations.handoff(params.id, body as never),
   listSkills: (core, { query }) => core.skills.list(query?.projectId ?? null),
   suggestProjectFiles: (core, { params, body }) =>
     core.projects.suggestFiles(params.id, body.query as string),

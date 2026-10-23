@@ -51,6 +51,7 @@ import {
   WhenBusySchema,
   WorkspaceDefaultSchema,
 } from "./entities";
+import { HandoffInputSchema, HandoffPreviewSchema } from "./handoff";
 import { ICON_BODY_LIMIT } from "./icons";
 import { MetricsResponseSchema } from "./metrics";
 import {
@@ -705,6 +706,23 @@ export const routes = {
     status: 201,
     params: IdParams,
     body: EntryBody,
+    response: ConversationSummarySchema,
+  },
+  /** What a contextual handoff to a new native thread would carry and lose; `canHandoff` is false with a `reason` when it cannot run now. */
+  getHandoffPreview: {
+    method: "GET",
+    path: `${API_PREFIX}/conversations/:id/handoff-preview`,
+    status: 200,
+    params: IdParams,
+    response: HandoffPreviewSchema,
+  },
+  /** Starts a NEW native thread from a text export of this Pi thread; the source is never changed. Idempotent by `requestId`. */
+  handoffConversation: {
+    method: "POST",
+    path: `${API_PREFIX}/conversations/:id/handoff`,
+    status: 201,
+    params: IdParams,
+    body: HandoffInputSchema,
     response: ConversationSummarySchema,
   },
   rewindPreview: {
