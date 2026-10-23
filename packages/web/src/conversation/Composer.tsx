@@ -47,6 +47,8 @@ export interface ComposerProps {
   busy?: boolean;
   /** Sending is blocked, e.g. while the project is cloning. */
   disabled?: boolean;
+  /** Why sending is blocked, shown under the input box while `disabled`. */
+  disabledReason?: string;
   /** Rendered under the input box, e.g. the project picker. */
   footer?: ReactNode;
   /** Rendered inside the input box next to the stop button, e.g. the busy key hint. */
@@ -57,6 +59,10 @@ export interface ComposerProps {
   toolbarStart?: ReactNode;
   /** Rendered above the input box, e.g. the todo panel. */
   abovePanel?: ReactNode;
+  /** Why files cannot be attached here (e.g. an engine without attachments); omitted when they can. */
+  attachmentsBlockedReason?: string;
+  /** Only follow-up delivery exists: no steer, no Alt+Enter mode switch. */
+  followUpOnly?: boolean;
   /** Delivery mode used while busy; Alt+Enter sends with the other one. Omitted: the server default. */
   whenBusy?: WhenBusy;
   /** Slash commands the menu offers; a command without a handler is hidden. */
@@ -107,12 +113,15 @@ function ComposerForm({
   imagesAllowed,
   busy = false,
   disabled = false,
+  disabledReason,
   footer,
   hint,
   toolbar,
   toolbarStart,
   abovePanel,
   whenBusy,
+  attachmentsBlockedReason,
+  followUpOnly = false,
   commands = {},
   projectId,
   onSend,
@@ -139,7 +148,8 @@ function ComposerForm({
     remove: removeFile,
     replace: replaceFiles,
   } = useFileAttachments(target);
-  const [pageDragging, endPageDrag] = usePageDrag(true);
+  const attachmentsBlocked = attachmentsBlockedReason !== undefined;
+  const [pageDragging, endPageDrag] = usePageDrag(!attachmentsBlocked);
   const [caret, setCaret] = useState(0);
   const [anchor, setAnchor] = useState<HTMLElement | null>(null);
   const [pastedText, setPastedText] = useState<string | null>(null);
@@ -153,9 +163,12 @@ function ComposerForm({
   // `threadTarget` (not the node-scoped draft key): approvals live per conversation.
   const approvals = useApprovals(threadTarget, threadTarget !== "new");
   const approvalPending = (approvals.data?.length ?? 0) > 0;
-  const effectiveMode = approvalPending ? ("followUp" as const) : whenBusy;
+  const queueOnly = approvalPending || followUpOnly;
+  const effectiveMode = queueOnly ? ("followUp" as const) : whenBusy;
+  const hasStagedFiles = attachments.length > 0 || fileAttachments.length > 0;
   const canSend =
-    (text.trim().length > 0 || attachments.length > 0 || fileAttachments.length > 0) &&
+    (text.trim().length > 0 || hasStagedFiles) &&
+    !(attachmentsBlocked && hasStagedFiles) &&
     !preparing &&
     !stagingFiles &&
     !disabled;
@@ -163,6 +176,7 @@ function ComposerForm({
   /** Images stay on the vision path; everything else stages as a generic file, even when the model disallows images. */
   const addSelection = (selection: File[]) => {
     if (selection.length === 0) return;
+    if (attachmentsBlockedReason !== undefined) return setError(attachmentsBlockedReason);
     const images = selection.filter((file) => file.type.startsWith("image/"));
     const rest = selection.filter((file) => !file.type.startsWith("image/"));
     if (images.length > 0) addFiles(images);
@@ -261,7 +275,7 @@ function ComposerForm({
     const sentFiles = fileAttachments;
     if (!canSend) return;
     // Approval pending: a steer would wait for the post-approval boundary anyway — queue it.
-    const sendMode = approvalPending ? ("followUp" as const) : mode;
+    const sendMode = queueOnly ? ("followUp" as const) : mode;
     const outgoing = {
       text: message,
       images: sent.map((item) => item.image),
@@ -332,11 +346,7 @@ function ComposerForm({
     event.preventDefault();
     // Approval pending hides the steer affordance: Alt+Enter queues too.
     submit(
-      approvalPending
-        ? ("followUp" as const)
-        : event.altKey || event.metaKey
-          ? otherMode(whenBusy)
-          : whenBusy,
+      queueOnly ? ("followUp" as const) : event.altKey || event.metaKey ? otherMode(whenBusy) : whenBusy,
     );
   };
 
@@ -354,6 +364,7 @@ function ComposerForm({
       return;
     }
     event.preventDefault();
+    if (attachmentsBlockedReason !== undefined) return setError(attachmentsBlockedReason);
     addFiles(files);
   };
 
@@ -467,7 +478,7 @@ function ComposerForm({
         ) : null}
         {coarse ? (
           <fieldset className="flex items-center justify-center gap-4 py-2" aria-label="Composer actions">
-            {bangMode ? null : (
+            {bangMode || attachmentsBlocked ? null : (
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
@@ -534,7 +545,7 @@ function ComposerForm({
                 className="hidden"
                 onChange={(event) => onPicked(event.target.files)}
               />
-              {!coarse ? (
+              {!coarse && !attachmentsBlocked ? (
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button
@@ -605,6 +616,16 @@ function ComposerForm({
           </div>
         </div>
       </div>
+      {attachmentsBlockedReason ? (
+        <p role="note" className="px-2 text-xs text-muted-foreground">
+          {attachmentsBlockedReason}
+        </p>
+      ) : null}
+      {disabled && disabledReason ? (
+        <p role="note" className="px-2 text-xs text-muted-foreground">
+          {disabledReason}
+        </p>
+      ) : null}
       {footer}
     </form>
   );

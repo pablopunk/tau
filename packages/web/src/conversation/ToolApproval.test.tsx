@@ -18,7 +18,11 @@ vi.mock("@/lib/api", async (importOriginal) => {
   };
 });
 
-async function renderApproval() {
+type Seed = { server: string; tool: string; arguments: Record<string, unknown> };
+
+async function renderApproval(
+  seed: Seed = { server: "Linear", tool: "save_comment", arguments: { body: "ok" } },
+) {
   const core = createFakeCore({ configured: true });
   mocks.api = createApi(createFakeTransport(core));
   const [project] = await core.projects.list();
@@ -27,7 +31,7 @@ async function renderApproval() {
     text: "hi",
     requestId: "r1",
   });
-  core.seedApproval(conversation.id, { server: "Linear", tool: "save_comment", arguments: { body: "ok" } });
+  core.seedApproval(conversation.id, seed);
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
     <QueryClientProvider client={client}>
@@ -58,6 +62,13 @@ describe("ToolApproval", () => {
       "mcp__claude_ai_Linear__save_comment",
     ]);
     await waitFor(() => expect(screen.queryByText("Linear · save_comment")).toBeNull());
+  });
+
+  it("offers no always-allow for a native Claude tool", async () => {
+    await renderApproval({ server: "Claude Code", tool: "Bash", arguments: { command: "ls" } });
+    expect(await screen.findByRole("button", { name: "Allow once" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Always allow this tool" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Deny" })).toBeTruthy();
   });
 
   it("denies", async () => {

@@ -23,6 +23,7 @@ import { FileCredentialStore } from "./auth/file-credential-store";
 import { entryOfThread, recoverBangs } from "./bang-command";
 import { createChangeEmitter } from "./change-emitter";
 import { createCheckpointService } from "./checkpoints/checkpoint-service";
+import { createCheckpointStore } from "./checkpoints/checkpoint-store";
 import { createConnectorToolServices } from "./claude-cli/connectors/connector-tool-services";
 import { writeTauShim } from "./cli-shim/write-shim";
 import { createConversationRecovery } from "./conversation-recovery";
@@ -47,13 +48,16 @@ import { harnessNotificationSubmitter } from "./harness/notification-submitter";
 import { BACKGROUND, openAgentHarness, openSqliteStorage } from "./harness/open";
 import { createProjectStore } from "./harness/project-store";
 import { providerSessionOf } from "./harness/provider-session";
-import { createAgentRegistry } from "./harness/registry";
+import { createAgentRegistry, TOOL_FILES } from "./harness/registry";
 import { createSubagentRemover } from "./harness/subagent-removal";
 import { createLocalTerminalDaemon, type TerminalDaemon } from "./harness/terminal-daemon";
+import { agentToolFile, buildAgentToolFile } from "./harness/tools/agent";
+import { nativeChildGuard, nativeDelegationFlagOn } from "./harness/tools/agent-native";
 import { clampThinkingFor } from "./harness/tools/agent-thinking";
 import { createToolServicesRef } from "./harness/tools/tool-file";
 import { openDataHome } from "./home/data-home";
 import { acquireHomeLock } from "./home/lock";
+import { ensureRuntimeFormat, guardRuntimeFormatAtStartup } from "./home/runtime-format-file";
 import { createSettingsStore } from "./home/settings-store";
 import { createIconService } from "./icons/icon-service";
 import { createNodeIdentityStore } from "./identity/node-identity";
@@ -63,7 +67,7 @@ import { createNodes } from "./nodes/create-nodes";
 import { createDirectory } from "./nodes/directory";
 import { createSelfThreadCount } from "./nodes/self-thread-count";
 import { createFilePeersStore, migrateHubFile, migrateSummaryDirectory } from "./peers/peers-store";
-import { classifyThread } from "./processes/governor/governed";
+import { classifyThread, type SandboxScope } from "./processes/governor/governed";
 import { createResourceState } from "./processes/governor/resource-state";
 import { createProcessService } from "./processes/process-service";
 import { resourceActivityOf } from "./processes/resource-activity";
@@ -77,6 +81,24 @@ import { createOpenTunnelAdapter } from "./remote/opentunnel-adapter";
 import type { RemoteAdapter, RemoteAdapterDeps } from "./remote/ports";
 import { createRemoteService } from "./remote/remote-service";
 import { conversationRemovedInOrder, type RemovalHooks } from "./removal-hooks";
+import type { NativeQueryFn } from "./runtimes/native/controller";
+import { createNativeDelegation, type NativeDelegation } from "./runtimes/native/delegation";
+import {
+  createNativeCheckpointPort,
+  refuseGoalsOnNative,
+  refuseLoopsOnNative,
+} from "./runtimes/native/finalize";
+import { nativeLaunchPolicy } from "./runtimes/native/launch-policy";
+import {
+  type NativeMode,
+  nativeModeOf,
+  nativeStateExistsIn,
+  refusingQuery,
+} from "./runtimes/native/native-mode";
+import { withNativeThreads } from "./runtimes/native/permissions";
+import { createNativeService, type NativeService } from "./runtimes/native/service";
+import { nativeWriterPort } from "./runtimes/native/writer-state";
+import { createRuntimesApi } from "./runtimes-api";
 import { createSettingsApi } from "./settings-api";
 import { useBundledSkills } from "./skills/discover-skills";
 import { createSkillsApi } from "./skills/skills-api";
@@ -115,6 +137,21 @@ export interface CoreDependencies {
   /** Tests replace the tunnel with the fake adapter. Default: the OpenTunnel adapter. */
   readonly remoteAdapter?: (deps: RemoteAdapterDeps) => RemoteAdapter;
   readonly terminalService?: (deps: TerminalServiceDeps) => TerminalService;
+  /** Tests replace the Agent SDK behind native threads. Used only while the native flag is on; a retained node never launches. */
+  readonly nativeQuery?: NativeQueryFn;
+}
+
+const NATIVE_FLAG = "TAU_EXPERIMENTAL_NATIVE_CLAUDE";
+
+const nativeEnabledIn = (env: Environment): boolean => env[NATIVE_FLAG] === "1";
+
+const delegationOffered = (mode: NativeMode, env: Environment): boolean =>
+  mode === "active" && nativeDelegationFlagOn(env);
+
+/** Loaded only when the flag is on, so a default start never imports the Agent SDK. */
+async function loadAgentSdkQuery(): Promise<NativeQueryFn> {
+  const { query } = await import("@anthropic-ai/claude-agent-sdk");
+  return ({ prompt, options }) => query({ prompt, options });
 }
 
 const exitAfterLogging = (error: unknown) => {
@@ -148,6 +185,11 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
   const home = await openDataHome(options.home);
   const lock = await acquireHomeLock(home.lockFile);
   try {
+    await guardRuntimeFormatAtStartup(home.root);
+    const nativeMode: NativeMode = nativeModeOf({
+      creationEnabled: nativeEnabledIn(deps.env),
+      stateExists: await nativeStateExistsIn(home.root),
+    });
     useBundledSkills(options.assets?.versionDir);
     if (options.cliCommand !== undefined) await writeTauShim(home.root, options.cliCommand);
     const changes = createChangeEmitter();
@@ -173,6 +215,12 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
     });
     const status = createStatusTracker({ changes, now: deps.now });
     const toolServices = createToolServicesRef();
+    const nativeDelegation: { current?: NativeDelegation } = {};
+    const delegationToolFiles = delegationOffered(nativeMode, deps.env)
+      ? TOOL_FILES.map((file) =>
+          file === agentToolFile ? buildAgentToolFile({ delegation: () => nativeDelegation.current }) : file,
+        )
+      : undefined;
     const fastCompaction = makeFastCompactionExtension({
       settingsStore: settings,
       credentials: new FileCredentialStore(home.credentialsFile),
@@ -181,7 +229,10 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
       availability: createAvailabilityCache(),
     });
     const harness = await openAgentHarness({
-      registry: createAgentRegistry(toolServices, undefined, home.root, [fastCompaction]),
+      registry: createAgentRegistry(toolServices, delegationToolFiles, home.root, [
+        fastCompaction,
+        ...(nativeMode === "off" ? [] : [nativeChildGuard(() => nativeDelegation.current)]),
+      ]),
       storage: await openSqliteStorage(home.agentDatabase),
       models: provider.models,
       onReport: (error) => console.error("tau: agent report", error),
@@ -195,7 +246,7 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
     });
 
     const projects = createProjectStore(harness);
-    sessionLookup.current = createConversationOfSession(harness);
+    sessionLookup.current = withNativeThreads(createConversationOfSession(harness));
     const connectorOffering = createConnectorOffering({
       harness,
       settings: async () => (await settings.get()).claudeConnectors,
@@ -251,8 +302,12 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
       now: deps.now,
     });
     const workspaceBarrier = createWriterBarrier();
+    const nativeForWorkspaces: { current?: NativeService } = {};
     const workspaces = createWorkspaceService({
       writerBarrier: workspaceBarrier,
+      ...(nativeMode !== "off" && {
+        writerStateOf: nativeWriterPort(() => nativeForWorkspaces.current),
+      }),
       home: home.root,
       closeTerminalsOf: (conversationId) => terminals.closeAllOf(conversationId),
       conversations,
@@ -388,15 +443,18 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
     };
     const removalHooks: RemovalHooks = {
       unmergedWork: (thread) => workspaces.unmergedWork(thread),
-      onConversationRemoved: conversationRemovedInOrder({
-        terminals: (thread) => terminals.onConversationRemoved(thread),
-        claudeCliThread: (thread) => closeClaudeCliThread(thread.id),
-        processes: (thread) => processes.onConversationRemoved(thread),
-        workspace: (thread) => workspaces.onConversationRemoved(thread),
-        checkpoints: (thread) => checkpoints.onConversationRemoved(thread),
-        goals: async (thread) => goals.onConversationRemoved(thread.id),
-        timers: (thread) => timersApi.onConversationRemoved(thread),
-      }),
+      onConversationRemoved: [
+        async (thread) => native?.onConversationRemoved(thread.id),
+        ...conversationRemovedInOrder({
+          terminals: (thread) => terminals.onConversationRemoved(thread),
+          claudeCliThread: (thread) => closeClaudeCliThread(thread.id),
+          processes: (thread) => processes.onConversationRemoved(thread),
+          workspace: (thread) => workspaces.onConversationRemoved(thread),
+          checkpoints: (thread) => checkpoints.onConversationRemoved(thread),
+          goals: async (thread) => goals.onConversationRemoved(thread.id),
+          timers: (thread) => timersApi.onConversationRemoved(thread),
+        }),
+      ],
       onProjectRemoved: [(id) => workspaces.onProjectRemoved(id)],
     };
     const removal = createConversationRemoval({
@@ -420,9 +478,52 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
       announce: (projectId) => changes.emit({ resource: "conversations", projectId }),
     });
     const recovery = createConversationRecovery({ harness, conversations, changes });
+    const native: NativeService | undefined =
+      nativeMode !== "off"
+        ? createNativeService({
+            harness,
+            conversations,
+            mode: nativeMode,
+            query:
+              nativeMode === "retained" ? refusingQuery : (deps.nativeQuery ?? (await loadAgentSdkQuery())),
+            approvals,
+            checkpoints: createNativeCheckpointPort({
+              checkpoints,
+              store: createCheckpointStore(harness),
+              find: (id) => conversations.find(id),
+            }),
+            ensureFormat: () => ensureRuntimeFormat(home.root, deps.now),
+            workspaceFence: workspaceBarrier,
+            policyFor: nativeLaunchPolicy({
+              sandbox: {
+                settings: async () => (await settings.get()).sandbox,
+                scopeOf: async (id): Promise<SandboxScope> => {
+                  const thread = await sandboxThreadOf(id);
+                  return thread
+                    ? classifyThread({ parentId: thread.parentId ?? undefined, workspace: thread.workspace })
+                    : "unknown";
+                },
+                trustOf: sandboxTrustOf,
+              },
+            }).forThread,
+            onChange: (projectId) => changes.emit({ resource: "conversations", projectId }),
+            now: deps.now,
+          })
+        : undefined;
+    nativeForWorkspaces.current = native;
+    if (native) {
+      nativeDelegation.current = createNativeDelegation({
+        service: native,
+        harness,
+        conversations,
+        onChange: (projectId) => changes.emit({ resource: "conversations", projectId }),
+      });
+    }
+    const isNativeThread = async (id: string) => (await native?.isNative(id)) ?? false;
     await status.recoverAtStartup();
     await clones.recoverAtStartup();
     await recovery.recoverAtStartup();
+    await native?.reconcileAll();
     await processes.reapStaleAtStartup();
     // Dispatch admitted-but-unspawned bangs; stale groups are dead by now,
     // so a redispatch can't double-run a live process.
@@ -574,6 +675,7 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
       },
       voice: voiceApi,
       ...createProvidersApi(provider),
+      runtimes: createRuntimesApi(native),
       skills: createSkillsApi({ projects }),
       projects: createProjectsApi({
         ...shared,
@@ -596,6 +698,11 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
         forker,
         harness,
         notifications,
+        ...(native && { native }),
+        handoffGuards: {
+          hasPendingApprovals: (id) => approvals.hasPending(id),
+          hasRunningProcesses: (id) => processes.hasRunning(id),
+        },
         removal,
         archivedCleanup,
         closeClaudeCliThread,
@@ -617,8 +724,8 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
       },
       terminals: terminals.api,
       approvals: createApprovalsApi(approvals, conversations),
-      timers: timersApi,
-      goals: createGoalsApi(goals),
+      timers: refuseLoopsOnNative(timersApi, isNativeThread),
+      goals: refuseGoalsOnNative(createGoalsApi(goals), isNativeThread),
       uploads: {
         stage: (input) => uploads.stage(input),
       },
@@ -642,6 +749,7 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
             await processes.stopAll();
             await terminals.close();
             await status.settled();
+            await native?.close();
             await mcp.closeAll();
             await harness.close(BACKGROUND);
             await voiceApi.close();

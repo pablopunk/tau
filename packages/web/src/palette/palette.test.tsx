@@ -1,3 +1,4 @@
+import { describeExecutors, emptyHandoffLosses, PI_RUNTIME_CAPABILITIES } from "@tau/protocol";
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -16,8 +17,9 @@ const api = apiOfNode();
 vi.mock("@/lib/api", () => ({
   api: {
     projects: { list: vi.fn() },
-    conversations: { listAll: vi.fn(), configure: vi.fn() },
+    conversations: { listAll: vi.fn(), configure: vi.fn(), handoffPreview: vi.fn() },
     models: { list: vi.fn() },
+    runtimes: { list: vi.fn() },
   },
 }));
 
@@ -40,6 +42,12 @@ beforeEach(() => {
     } as never,
   ]);
   vi.mocked(api.conversations.configure).mockResolvedValue(undefined);
+  vi.mocked(api.runtimes.list).mockResolvedValue(describeExecutors(PI_RUNTIME_CAPABILITIES));
+  vi.mocked(api.conversations.handoffPreview).mockResolvedValue({
+    canHandoff: true,
+    losses: { ...emptyHandoffLosses(), imagesOmitted: 3 },
+    preview: "[user]\nfix login",
+  });
   vi.mocked(api.conversations.listAll).mockResolvedValue([
     conversation({ title: "Fix login bug" }),
     conversation({ id: "c2", projectId: "p2", title: "Add dark mode" }),
@@ -217,5 +225,43 @@ describe("models", () => {
     await user.type(screen.getByRole("combobox"), "gpt");
 
     expect(screen.queryByRole("option", { name: /GPT 9/ })).not.toBeInTheDocument();
+  });
+});
+
+describe("continue in Claude Code", () => {
+  it("asks the node for its runtimes only once the palette opens", async () => {
+    const user = userEvent.setup();
+    renderPalette("/p/p1/c/c1");
+    await waitFor(() => expect(api.conversations.listAll).toHaveBeenCalled());
+
+    expect(api.runtimes.list).not.toHaveBeenCalled();
+    await user.keyboard("{Control>}k{/Control}");
+    await screen.findByRole("option", { name: "Continue in Claude Code…" });
+
+    expect(api.runtimes.list).toHaveBeenCalledTimes(1);
+  });
+
+  it("opens the handoff dialog from the action", async () => {
+    const user = userEvent.setup();
+    renderPalette("/p/p1/c/c1");
+
+    await user.keyboard("{Control>}k{/Control}");
+    await user.click(await screen.findByRole("option", { name: "Continue in Claude Code…" }));
+
+    expect(await screen.findByRole("heading", { name: "Continue in Claude Code" })).toBeInTheDocument();
+    expect(await screen.findByText("3 images omitted")).toBeInTheDocument();
+    expect(api.conversations.handoffPreview).toHaveBeenCalledWith("c1");
+  });
+
+  it("is not offered while the node has Claude Code off", async () => {
+    vi.mocked(api.runtimes.list).mockResolvedValue(describeExecutors(undefined));
+    const user = userEvent.setup();
+    renderPalette("/p/p1/c/c1");
+
+    await user.keyboard("{Control>}k{/Control}");
+    await screen.findByRole("option", { name: "Change model…" });
+    await waitFor(() => expect(api.runtimes.list).toHaveBeenCalled());
+
+    expect(screen.queryByRole("option", { name: "Continue in Claude Code…" })).not.toBeInTheDocument();
   });
 });

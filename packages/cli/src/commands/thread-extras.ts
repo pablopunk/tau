@@ -1,12 +1,13 @@
 import { usageError } from "./cli-exit";
 import { discoverServer } from "./client";
 import type { CommandEnv } from "./command-env";
+import { runHandoff } from "./handoff-command";
 import { DEFAULT_TIMEOUT_SECONDS } from "./parse";
 import { readThread } from "./read";
 import { type FlagSpec, scanArgs } from "./scan-args";
 import { waitForThread } from "./wait";
 
-export const EXTRA_THREAD_VERBS: readonly string[] = ["wait", "read"];
+export const EXTRA_THREAD_VERBS: readonly string[] = ["wait", "read", "handoff"];
 
 function positiveNumber(raw: string | boolean | undefined, flag: string): number | undefined {
   if (raw === undefined) return undefined;
@@ -20,8 +21,9 @@ function threadIdOf(verb: string, positionals: readonly string[]): string {
   return positionals[0] as string;
 }
 
-/** `tau threads wait <id> [--timeout s]` and `tau threads read <id> [--last N]`. They are not routes. */
+/** `tau threads wait <id> [--timeout s]`, `tau threads read <id> [--last N]` and `tau threads handoff <id>`: own flows, no table row. */
 export async function runThreadExtra(verb: string, argv: readonly string[], env: CommandEnv): Promise<void> {
+  if (verb === "handoff") return runHandoff(argv, env);
   const spec: FlagSpec =
     verb === "wait" ? { timeout: "value", home: "value" } : { last: "value", home: "value" };
   const { positionals, flags } = scanArgs(argv, spec);

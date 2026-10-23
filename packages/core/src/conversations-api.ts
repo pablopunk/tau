@@ -9,6 +9,8 @@ import {
   diffTodos,
   latestTodos,
   type ModelRef,
+  nativeAttachmentsError,
+  nativeDisabledError,
   type SendMessageInput,
   type SendReceipt,
   type StartConversationInput,
@@ -44,12 +46,73 @@ import { createSubagentStopper } from "./harness/subagent-stop";
 import type { SettingsStore } from "./home/settings-store";
 import type { ProviderService } from "./provider/provider-service";
 import { requireName } from "./require-name";
+import { createHandoffService, type HandoffDeps } from "./runtimes/handoff/handoff";
+import { retainedError } from "./runtimes/native/native-mode";
+import { type NativeService, requireNativeInput } from "./runtimes/native/service";
 import type { StatusTracker } from "./status/status-tracker";
 import type { TitleService } from "./titles/title-service";
 import type { UploadStore } from "./upload-store";
 import type { WorkspaceService } from "./workspaces/workspace-service";
 
 const FALLBACK_THINKING_LEVEL = "medium";
+
+export type NativeStartInput = Pick<StartConversationInput, "projectId" | "text" | "requestId" | "workspace">;
+
+export type NativeConversationsApi = {
+  /** Core level only, not on the wire: starts a native thread and queues its first message. */
+  startNative(input: NativeStartInput): Promise<ConversationSummary>;
+};
+
+const unsupportedOnNative = (capability: string): AppError =>
+  new AppError("invalid_request", `Native Claude Code threads do not support ${capability} yet.`);
+
+const sequenceOfReceipt = (receiptId: string): number =>
+  Number(receiptId.slice(receiptId.lastIndexOf(":") + 1));
+
+/** Everything that assumes a Pi conversation refuses a native thread before any side effect. */
+function routeNativeThreads(
+  api: Core["conversations"],
+  native: NativeService,
+  cancelBeforeRemove: (id: string) => Promise<void>,
+): Core["conversations"] {
+  const piOnly =
+    <Args extends [string, ...unknown[]], Result>(
+      capability: string,
+      method: (...args: Args) => Promise<Result>,
+    ) =>
+    async (...args: Args): Promise<Result> => {
+      if (await native.isNative(args[0])) throw unsupportedOnNative(capability);
+      return method(...args);
+    };
+  return {
+    ...api,
+    async send(id, input) {
+      if (!(await native.isNative(id))) return api.send(id, input);
+      const receipt = await native.send(id, input);
+      return { submissionId: sequenceOfReceipt(receipt.receiptId) };
+    },
+    async abort(id) {
+      if (!(await native.isNative(id))) return api.abort(id);
+      await native.cancel(id);
+      return { restored: [] };
+    },
+    async remove(id, options) {
+      if (await native.isNative(id)) await cancelBeforeRemove(id);
+      return api.remove(id, options);
+    },
+    retry: piOnly("retry", api.retry),
+    sendNow: piOnly("send now", api.sendNow),
+    configure: piOnly("changing the model", api.configure),
+    compact: piOnly("compaction", api.compact),
+    fork: piOnly("fork", api.fork),
+    rewind: piOnly("rewind", api.rewind),
+    rewindPreview: piOnly("rewind", api.rewindPreview),
+    cancelQueued: piOnly("editing queued messages", api.cancelQueued),
+    setQueuedMode: piOnly("editing queued messages", api.setQueuedMode),
+    updateTodos: piOnly("todo updates", api.updateTodos),
+    stopAgent: piOnly("stopping subagents", api.stopAgent),
+  };
+}
 
 export function createConversationsApi(deps: {
   conversations: ConversationStore;
@@ -79,8 +142,12 @@ export function createConversationsApi(deps: {
   };
   changes: ChangeEmitter;
   notifications: NotificationSubmitter;
+  /** Present while the native flag is on, or while native threads exist and only their reading and cancelling is kept. */
+  native?: NativeService;
+  /** What makes a Pi thread not idle for a handoff besides its run and queue. Default: nothing. */
+  handoffGuards?: Pick<HandoffDeps, "hasPendingApprovals" | "hasRunningProcesses">;
   now: () => number;
-}): Core["conversations"] {
+}): Core["conversations"] & Partial<NativeConversationsApi> {
   const { conversations, projects, provider, settings, titles, workspaces, checkpoints, changes, now } = deps;
   const { notifications } = deps;
   const announce = (projectId: string) => changes.emit({ resource: "conversations", projectId });
@@ -208,6 +275,43 @@ export function createConversationsApi(deps: {
     return summary;
   }
 
+  async function startNativeOnce(
+    native: NativeService,
+    input: NativeStartInput,
+  ): Promise<ConversationSummary> {
+    const { text, requestId } = input;
+    requireNativeInput({ text, requestId });
+    const project = await projects.require(input.projectId);
+    if (project.status !== "ready") throw new AppError("project_not_ready", "This project is not ready.");
+    const workspace = await workspaces.create({
+      project,
+      mode: await workspaceModeFor(project.id, input.workspace),
+      requestId,
+      firstMessage: text,
+    });
+    return native.startThread({ project, input: { text, requestId }, workspace, now: now() });
+  }
+
+  const hasAttachments = (input: StartConversationInput) =>
+    (input.images ?? []).length > 0 || (input.files ?? []).length > 0;
+
+  async function startOnNativeExecutor(input: StartConversationInput): Promise<ConversationSummary> {
+    const { native } = deps;
+    if (!native) throw nativeDisabledError();
+    if (hasAttachments(input)) throw nativeAttachmentsError();
+    const { projectId, text, requestId, workspace } = input;
+    return startNative(native, { projectId, text, requestId, ...(workspace && { workspace }) });
+  }
+
+  function startNative(native: NativeService, input: NativeStartInput): Promise<ConversationSummary> {
+    if (!native.creationEnabled) return Promise.reject(retainedError());
+    const pending = startsInFlight.get(input.requestId) ?? startNativeOnce(native, input);
+    startsInFlight.set(input.requestId, pending);
+    return pending.finally(() => {
+      if (startsInFlight.get(input.requestId) === pending) startsInFlight.delete(input.requestId);
+    });
+  }
+
   async function whenBusyFor(input: SendMessageInput) {
     if (input.whenBusy !== undefined) return input.whenBusy;
     return (await settings.get()).messageMode === "queue" ? "followUp" : "steer";
@@ -261,7 +365,17 @@ export function createConversationsApi(deps: {
     });
   }
 
-  return {
+  const handoff = createHandoffService({
+    harness: deps.harness,
+    conversations,
+    native: deps.native,
+    hasPendingApprovals: deps.handoffGuards?.hasPendingApprovals ?? (() => false),
+    hasRunningProcesses: deps.handoffGuards?.hasRunningProcesses ?? (() => false),
+    announce,
+    now,
+  });
+
+  const api: Core["conversations"] = {
     async list(projectId) {
       await projects.require(projectId);
       return conversations.list(projectId);
@@ -273,6 +387,7 @@ export function createConversationsApi(deps: {
       return perProject.flat().sort((a, b) => b.updatedAt - a.updatedAt || Number(b.id) - Number(a.id));
     },
     start(input) {
+      if (input.executor === "claude-code") return startOnNativeExecutor(input);
       const pending = startsInFlight.get(input.requestId) ?? startOnce(input);
       startsInFlight.set(input.requestId, pending);
       return pending.finally(() => {
@@ -342,11 +457,24 @@ export function createConversationsApi(deps: {
       return result;
     },
     watch: (id, onOps) => conversations.watch(id, onOps),
+    handoffPreview: (id) => handoff.preview(id),
+    handoff: (id, input) => handoff.handoff(id, input),
     ...createConversationsMvp5Api({
       forker: deps.forker,
       checkpoints,
       conversations,
       subagents: createSubagentStopper(conversations, deps.harness),
     }),
+  };
+  const { native } = deps;
+  if (!native) return api;
+  const stopBeforeRemove = (id: string) =>
+    native.cancel(id).then(
+      () => undefined,
+      (error: unknown) => console.error("tau: could not stop a native run before removal", error),
+    );
+  return {
+    ...routeNativeThreads(api, native, stopBeforeRemove),
+    startNative: (input) => startNative(native, input),
   };
 }

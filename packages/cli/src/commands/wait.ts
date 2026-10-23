@@ -1,8 +1,16 @@
-import { type ConversationSummary, type ConversationView, lastAssistantText, readLive } from "@tau/protocol";
+import {
+  type ConversationSummary,
+  type ConversationView,
+  executorOf,
+  lastAssistantText,
+  readLive,
+} from "@tau/protocol";
 import { CliExit, EXIT_TIMEOUT, failure } from "./cli-exit";
 import { callRoute, type Server } from "./client";
 import type { CommandEnv } from "./command-env";
 import { connectLive } from "./live";
+import { hasNativeEntries, nativeEntriesWithoutExecutorMessage } from "./native-text";
+import { assessNativeThread } from "./wait-native";
 
 export interface WaitRequest {
   readonly conversationId: string;
@@ -35,6 +43,31 @@ function errorMessageOf(view: ConversationView): string {
   return "the thread ended in error";
 }
 
+const childRunningUnder = (all: readonly ConversationSummary[], id: string): boolean =>
+  descendantsOf(all, id).some((child) => child.agentStatus === "running");
+
+function assessPiThread(
+  all: readonly ConversationSummary[],
+  summary: ConversationSummary,
+  view: ConversationView,
+  endedAfter: number | null | undefined,
+): Assessment {
+  const conversationId = summary.id;
+  if (hasNativeEntries(view)) {
+    throw failure(nativeEntriesWithoutExecutorMessage(conversationId));
+  }
+  if (summary.status === "error" && runEndedAfter(summary, endedAfter)) {
+    return { state: "error", message: errorMessageOf(view) };
+  }
+  const idle = summary.status === "idle";
+  const live = readLive(view);
+  const queueEmpty = live.queued.length === 0;
+  const viewCaughtUp = !live.busy;
+  const childRunning = childRunningUnder(all, conversationId);
+  const settled = idle && runEndedAfter(summary, endedAfter) && queueEmpty && viewCaughtUp && !childRunning;
+  return settled ? { state: "done", answer: lastAssistantText(view) } : { state: "waiting" };
+}
+
 /** The 4-condition rule: idle, a run ended after R0, an empty queue, and no running child. */
 export function assessThread(
   all: readonly ConversationSummary[],
@@ -44,19 +77,14 @@ export function assessThread(
 ): Assessment {
   const summary = all.find((item) => item.id === conversationId);
   if (!summary) throw failure(`not_found: Unknown conversation: ${conversationId}`);
-  if (summary.status === "error" && runEndedAfter(summary, endedAfter)) {
-    return { state: "error", message: errorMessageOf(view) };
-  }
-  const idle = summary.status === "idle";
-  const live = readLive(view);
-  const queueEmpty = live.queued.length === 0;
-  const viewCaughtUp = !live.busy;
-  const childRunning = descendantsOf(all, conversationId).some((child) => child.agentStatus === "running");
-  const settled = idle && runEndedAfter(summary, endedAfter) && queueEmpty && viewCaughtUp && !childRunning;
-  return settled ? { state: "done", answer: lastAssistantText(view) } : { state: "waiting" };
+  if (executorOf(summary) === "pi") return assessPiThread(all, summary, view, endedAfter);
+  return assessNativeThread(summary, view, {
+    endedAfterR0: runEndedAfter(summary, endedAfter),
+    childRunning: childRunningUnder(all, conversationId),
+  });
 }
 
-const listAll = async (server: Server, env: CommandEnv) =>
+export const listAll = async (server: Server, env: CommandEnv) =>
   (await callRoute(server, "listAllConversations", {}, env)) as ConversationSummary[];
 
 /** Resolves with the last assistant answer. Exits 1 on an error thread, 3 on timeout. */

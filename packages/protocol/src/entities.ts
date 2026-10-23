@@ -3,6 +3,7 @@ import { Type } from "typebox";
 import { GoalSummarySchema } from "./mvp8";
 import { RemoteSettingsSchema } from "./remote";
 import { ResourceSettingsSchema } from "./resources";
+import { ExecutorKindSchema } from "./runtime";
 import { SandboxSettingsSchema } from "./sandbox";
 
 export const ModelRefSchema = Type.Object({ provider: Type.String(), modelId: Type.String() });
@@ -365,6 +366,7 @@ export const ConversationSummarySchema = Type.Object({
   nextTimerAt: Type.Union([Type.String(), Type.Null()]),
   goal: Type.Union([GoalSummarySchema, Type.Null()]),
   unmergedWarning: Type.Union([Type.String(), Type.Null()]),
+  executor: Type.Optional(ExecutorKindSchema),
 });
 export type ConversationSummary = Type.Static<typeof ConversationSummarySchema>;
 
@@ -438,6 +440,8 @@ export const StartConversationInputSchema = Type.Object({
   model: Type.Optional(ModelRefSchema),
   thinkingLevel: Type.Optional(ThinkingLevelSchema),
   workspace: Type.Optional(WorkspaceModeSchema),
+  /** Omitted means Pi. `claude-code` is refused with `invalid_request` unless the node enables it. */
+  executor: Type.Optional(ExecutorKindSchema),
 });
 export type StartConversationInput = Type.Static<typeof StartConversationInputSchema>;
 

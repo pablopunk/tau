@@ -51,6 +51,7 @@ import {
   WhenBusySchema,
   WorkspaceDefaultSchema,
 } from "./entities";
+import { HandoffInputSchema, HandoffPreviewSchema } from "./handoff";
 import { ICON_BODY_LIMIT } from "./icons";
 import { MetricsResponseSchema } from "./metrics";
 import {
@@ -67,6 +68,7 @@ import { DirectoryNodeSchema, ExpulsionSchema, RemoveNodeBodySchema } from "./no
 import { NodeSchema, NodeSelfSchema, NodeSummarySchema, RenameNodeBodySchema } from "./nodes";
 import { HealthSchema, RemoteStatusSchema } from "./remote";
 import { ResourceActivitySchema, ResourceSettingsSchema, ResourceSupportSchema } from "./resources";
+import { RuntimeDescriptorListSchema } from "./runtime";
 import { SandboxSettingsSchema } from "./sandbox";
 import { OpenTerminalInputSchema, TerminalAvailabilitySchema, TerminalInfoSchema } from "./terminals";
 import { UpdateTodosInputSchema } from "./todos";
@@ -483,6 +485,13 @@ export const routes = {
     status: 200,
     response: Type.Array(ModelInfoSchema),
   },
+  /** Which executors this node offers a new thread, and what each supports. `claude-code` is listed even when off. */
+  listRuntimes: {
+    method: "GET",
+    path: `${API_PREFIX}/runtimes`,
+    status: 200,
+    response: RuntimeDescriptorListSchema,
+  },
   listProjects: {
     method: "GET",
     path: `${API_PREFIX}/projects`,
@@ -697,6 +706,23 @@ export const routes = {
     status: 201,
     params: IdParams,
     body: EntryBody,
+    response: ConversationSummarySchema,
+  },
+  /** What a contextual handoff to a new native thread would carry and lose; `canHandoff` is false with a `reason` when it cannot run now. */
+  getHandoffPreview: {
+    method: "GET",
+    path: `${API_PREFIX}/conversations/:id/handoff-preview`,
+    status: 200,
+    params: IdParams,
+    response: HandoffPreviewSchema,
+  },
+  /** Starts a NEW native thread from a text export of this Pi thread; the source is never changed. Idempotent by `requestId`. */
+  handoffConversation: {
+    method: "POST",
+    path: `${API_PREFIX}/conversations/:id/handoff`,
+    status: 201,
+    params: IdParams,
+    body: HandoffInputSchema,
     response: ConversationSummarySchema,
   },
   rewindPreview: {
