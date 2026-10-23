@@ -58,13 +58,14 @@ test.describe("MVP2 flow", () => {
     await send(page, "write hello.txt hi");
 
     const runningDot = sidebar(page).locator('[data-slot="bot-avatar"][data-working="true"]');
-    await expect(sidebar(page).getByRole("link", { name: "write hello.txt hi" })).toBeVisible();
+    // A serial group retry re-sends into a second same-titled thread: assert on the first.
+    await expect(sidebar(page).getByRole("link", { name: "write hello.txt hi" }).first()).toBeVisible();
     await expect(runningDot).toHaveCount(0);
 
     const hello = join(homeDir(), "hello.txt");
     await expect.poll(() => existsSync(hello)).toBe(true);
     expect(readFileSync(hello, "utf8")).toBe("hi");
-    await expect(sidebar(page).getByRole("link", { name: "write hello.txt hi" })).toBeVisible();
+    await expect(sidebar(page).getByRole("link", { name: "write hello.txt hi" }).first()).toBeVisible();
     await expect(conversation(page).getByText("write hello.txt hi", { exact: true }).last()).toBeVisible();
   });
 
