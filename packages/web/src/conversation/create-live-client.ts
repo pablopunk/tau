@@ -6,9 +6,16 @@ import { reconnectDelayMs } from "./reconnect-delay";
 
 type ViewListener = (view: ConversationView | null) => void;
 
+/** How long a conversation nobody shows stays subscribed, so coming back to it is instant and already up to date. */
+const KEEP_IDLE_MS = 120_000;
+/** Idle conversations kept at once; the longest idle goes first. Each one is a server-side watcher. */
+const MAX_IDLE = 8;
+
 interface Subscription {
   view: ViewState;
   readonly listeners: Set<ViewListener>;
+  /** Set while no listener is attached and the subscription is only being kept warm. */
+  idleTimer?: ReturnType<typeof setTimeout>;
   /** Last applied ops `seq`; undefined until the first sequenced frame. Gaps trigger a resync. */
   lastSeq: number | undefined;
 }
@@ -38,6 +45,22 @@ export function createLiveClient(transport: LiveTransport): LiveClient {
   let failedAttempts = 0;
   let retryTimer: ReturnType<typeof setTimeout> | undefined;
   let closed = false;
+
+  const drop = (conversationId: string) => {
+    const subscription = subscriptions.get(conversationId);
+    if (!subscription) return;
+    clearTimeout(subscription.idleTimer);
+    subscriptions.delete(conversationId);
+    sendIfOpen({ type: "unsubscribe", conversationId });
+  };
+
+  /** No listener left: keep the subscription for a while, evicting the longest idle past the cap. */
+  const keepIdle = (conversationId: string, subscription: Subscription) => {
+    clearTimeout(subscription.idleTimer);
+    subscription.idleTimer = setTimeout(() => drop(conversationId), KEEP_IDLE_MS);
+    const idle = [...subscriptions].filter(([, other]) => other.idleTimer !== undefined);
+    for (const [oldest] of idle.slice(0, Math.max(0, idle.length - MAX_IDLE))) drop(oldest);
+  };
 
   const setStatus = (next: LiveStatus) => {
     if (next === status) return;
@@ -191,23 +214,32 @@ export function createLiveClient(transport: LiveTransport): LiveClient {
     connect();
   };
 
+  const subscribe: LiveClient["subscribe"] = (conversationId, onView) => {
+    let subscription = subscriptions.get(conversationId);
+    if (!subscription) {
+      subscription = { view: undefined, listeners: new Set(), lastSeq: undefined };
+      subscriptions.set(conversationId, subscription);
+      sendIfOpen({ type: "subscribe", conversationId });
+    }
+    clearTimeout(subscription.idleTimer);
+    delete subscription.idleTimer;
+    subscription.listeners.add(onView);
+    if (subscription.view !== undefined) onView(subscription.view);
+    ensureConnected();
+    return () => {
+      const current = subscriptions.get(conversationId);
+      if (!current?.listeners.delete(onView) || current.listeners.size > 0) return;
+      keepIdle(conversationId, current);
+    };
+  };
+
   return {
-    subscribe(conversationId, onView) {
-      let subscription = subscriptions.get(conversationId);
-      if (!subscription) {
-        subscription = { view: undefined, listeners: new Set(), lastSeq: undefined };
-        subscriptions.set(conversationId, subscription);
-        sendIfOpen({ type: "subscribe", conversationId });
-      }
-      subscription.listeners.add(onView);
-      if (subscription.view !== undefined) onView(subscription.view);
-      ensureConnected();
-      return () => {
-        const current = subscriptions.get(conversationId);
-        if (!current?.listeners.delete(onView) || current.listeners.size > 0) return;
-        subscriptions.delete(conversationId);
-        sendIfOpen({ type: "unsubscribe", conversationId });
-      };
+    subscribe,
+    peek: (conversationId) => subscriptions.get(conversationId)?.view ?? undefined,
+    warm(conversationId) {
+      const subscription = subscriptions.get(conversationId);
+      if (subscription?.listeners.size) return;
+      subscribe(conversationId, () => {})();
     },
     onChanged(listener) {
       const remove = addListener(changedListeners, listener);
@@ -224,6 +256,7 @@ export function createLiveClient(transport: LiveTransport): LiveClient {
       retryTimer = undefined;
       socket?.close();
       socket = undefined;
+      for (const subscription of subscriptions.values()) clearTimeout(subscription.idleTimer);
       subscriptions.clear();
       changedListeners.clear();
       setStatus("closed");

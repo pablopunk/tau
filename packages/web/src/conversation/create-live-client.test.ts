@@ -56,7 +56,81 @@ describe("createLiveClient", () => {
     first();
     expect(last().sent).toHaveLength(1);
     second();
+    expect(last().sent).toHaveLength(1);
+    vi.advanceTimersByTime(120_000);
     expect(last().sent[1]).toEqual({ type: "unsubscribe", conversationId: "c1" });
+  });
+
+  describe("keeping left conversations warm", () => {
+    const open = () => {
+      const fake = createFakeTransport();
+      const client = createLiveClient(fake.transport);
+      client.onChanged(() => {});
+      fake.last().handlers.onOpen();
+      return { ...fake, client };
+    };
+
+    it("hands a revisit the held view at once and keeps applying ops while it is idle", () => {
+      const { client, last } = open();
+      const leave = client.subscribe("c1", () => {});
+      last().handlers.onFrame(opsFrame("c1", [["r", emptyView(1)]]));
+      leave();
+      expect(client.peek("c1")).toBeDefined();
+      const views: (ConversationView | null)[] = [];
+      client.subscribe("c1", (view) => views.push(view));
+      expect(views).toHaveLength(1);
+      expect(last().sent.filter((frame) => frame.type === "subscribe")).toHaveLength(1);
+    });
+
+    it("peeks nothing for a conversation it never held", () => {
+      const { client } = open();
+      expect(client.peek("c9")).toBeUndefined();
+    });
+
+    it("does not unsubscribe if the conversation comes back before the idle time is up", () => {
+      const { client, last } = open();
+      client.subscribe("c1", () => {})();
+      vi.advanceTimersByTime(100_000);
+      const back = client.subscribe("c1", () => {});
+      vi.advanceTimersByTime(100_000);
+      expect(last().sent.some((frame) => frame.type === "unsubscribe")).toBe(false);
+      back();
+    });
+
+    it("lets go of an idle conversation after the idle time", () => {
+      const { client, last } = open();
+      client.subscribe("c1", () => {})();
+      vi.advanceTimersByTime(120_000);
+      expect(last().sent.at(-1)).toEqual({ type: "unsubscribe", conversationId: "c1" });
+      expect(client.peek("c1")).toBeUndefined();
+    });
+
+    it("keeps at most eight idle conversations, letting the longest idle go first", () => {
+      const { client, last } = open();
+      for (let i = 1; i <= 9; i++) client.subscribe(`c${i}`, () => {})();
+      expect(last().sent.filter((frame) => frame.type === "unsubscribe")).toEqual([
+        { type: "unsubscribe", conversationId: "c1" },
+      ]);
+    });
+
+    it("warms a conversation without a listener and does not drop one that is open", () => {
+      const { client, last } = open();
+      client.warm("c1");
+      expect(last().sent).toContainEqual({ type: "subscribe", conversationId: "c1" });
+      const shown = client.subscribe("c2", () => {});
+      client.warm("c2");
+      vi.advanceTimersByTime(200_000);
+      expect(last().sent).not.toContainEqual({ type: "unsubscribe", conversationId: "c2" });
+      shown();
+    });
+
+    it("stops the idle timers when the client closes", () => {
+      const { client, last } = open();
+      client.subscribe("c1", () => {})();
+      client.close();
+      vi.advanceTimersByTime(200_000);
+      expect(last().sent.some((frame) => frame.type === "unsubscribe")).toBe(false);
+    });
   });
 
   it("sends subscribe immediately when the socket is already open", () => {

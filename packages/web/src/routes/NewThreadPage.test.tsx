@@ -1,22 +1,35 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { AppError, type ConversationSummary, type ModelRef } from "@tau/protocol";
+import { AppError, type ConversationSummary, type FileRef, type ModelRef } from "@tau/protocol";
 import { createFakeCore } from "@tau/testkit";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { SidebarProvider } from "@/components/ui/sidebar";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { saveDraft } from "@/conversation/composer/drafts";
+import { newFileAttachment, saveFileAttachments } from "@/conversation/files/attachments";
+import { newAttachment, saveAttachments } from "@/conversation/images/attachments";
 import { createApi } from "@/lib/api";
 import { preferences } from "@/lib/preferences";
 import { createFakeTransport } from "@/lib/transport/fake";
 import { installFakeNative } from "@/lib/transport/fake-native";
 import { createHttpTransport } from "@/lib/transport/http";
 import { NodeApiProvider } from "@/nodes/node-context";
+import { firstMessageOf } from "./first-message";
 import { NewThreadPage } from "./NewThreadPage";
 
+const pngData =
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+
 function ThreadRoute() {
-  return <h1>Opened {useLocation().pathname}</h1>;
+  const location = useLocation();
+  return (
+    <>
+      <h1>Opened {location.pathname}</h1>
+      <output aria-label="Navigation state">{JSON.stringify(firstMessageOf(location.state))}</output>
+    </>
+  );
 }
 
 async function renderPage({
@@ -51,10 +64,12 @@ async function renderPage({
       <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
         <NodeApiProvider api={api}>
           <TooltipProvider>
-            <Routes>
-              <Route path="/new" element={<NewThreadPage />} />
-              <Route path="/p/:projectId/c/:conversationId" element={<ThreadRoute />} />
-            </Routes>
+            <SidebarProvider>
+              <Routes>
+                <Route path="/new" element={<NewThreadPage />} />
+                <Route path="/p/:projectId/c/:conversationId" element={<ThreadRoute />} />
+              </Routes>
+            </SidebarProvider>
           </TooltipProvider>
         </NodeApiProvider>
       </QueryClientProvider>
@@ -72,6 +87,8 @@ async function submit(user: ReturnType<typeof userEvent.setup>, text = "hello") 
 beforeEach(() => {
   window.localStorage.clear();
   window.sessionStorage.clear();
+  saveAttachments("new", []);
+  saveFileAttachments("new", []);
 });
 afterEach(() => vi.unstubAllGlobals());
 
@@ -94,6 +111,9 @@ describe("<NewThreadPage> model selection", () => {
     const { start, user } = await renderPage({ claude: true });
     await submit(user);
     await screen.findByRole("heading", { name: /^Opened \/p\/home\/c\// });
+    expect(screen.getByLabelText("Navigation state")).toHaveTextContent(
+      JSON.stringify({ text: "hello", images: [], files: [] }),
+    );
     expect(start.mock.calls[0]?.[0]).toMatchObject({
       projectId: "home",
       text: "hello",
@@ -144,6 +164,8 @@ describe("<NewThreadPage> loading failures", () => {
 
 describe("<NewThreadPage> start lifecycle", () => {
   it("keeps the draft visible, shows progress and blocks duplicate submits until navigation", async () => {
+    const file = { name: "notes.txt", path: "uploads/notes.txt", size: 5 } satisfies FileRef;
+    saveFileAttachments("new", [newFileAttachment(file)]);
     const { core, start, user } = await renderPage();
     const created = await core.conversations.start({
       projectId: "home",
@@ -158,8 +180,17 @@ describe("<NewThreadPage> start lifecycle", () => {
     );
     await submit(user);
     const message = screen.getByLabelText("Message");
+    const conversation = screen.getByRole("region", { name: "Conversation" });
+    expect(within(conversation).getByText((content) => content.startsWith("hello"))).toBeInTheDocument();
+    expect(
+      within(conversation).getByText((content) => content.includes('Attached file: "uploads/notes.txt"')),
+    ).toBeInTheDocument();
+    expect(within(conversation).getByRole("status")).toHaveTextContent("Sending…");
+    expect(screen.getAllByRole("heading", { name: "New thread" })).toHaveLength(2);
+    expect(screen.queryByText("Loading conversation")).not.toBeInTheDocument();
     expect(message).toHaveValue("hello");
     expect(message).toHaveAttribute("readonly");
+    expect(screen.getByRole("button", { name: "Send as steer" })).toBeDisabled();
     expect(screen.getByRole("status", { name: "Starting thread" })).toBeInTheDocument();
     expect(screen.getByText("Starting thread…")).toBeInTheDocument();
     const form = message.closest("form");
@@ -167,18 +198,42 @@ describe("<NewThreadPage> start lifecycle", () => {
     fireEvent.submit(form);
     fireEvent.submit(form);
     expect(start).toHaveBeenCalledOnce();
+    expect(start.mock.calls[0]?.[0].files).toEqual([file]);
     resolve(created);
     await screen.findByRole("heading", { name: `Opened /p/home/c/${created.id}` });
+    expect(screen.getByLabelText("Navigation state")).toHaveTextContent(
+      JSON.stringify({ text: "hello", images: [], files: [file] }),
+    );
   });
 
-  it("restores a failed start and reuses its request id on retry", async () => {
-    const { start, user } = await renderPage();
+  it("restores a failed start with its image and alert, then reuses its request id on retry", async () => {
+    saveAttachments("new", [newAttachment({ mimeType: "image/png", data: pngData })]);
+    const file = { name: "notes.txt", path: "uploads/notes.txt", size: 5 } satisfies FileRef;
+    saveFileAttachments("new", [newFileAttachment(file)]);
+    const { core, start, user } = await renderPage();
+    const created = await core.conversations.start({
+      projectId: "home",
+      text: "hello",
+      requestId: "fixture",
+    });
     start.mockRejectedValueOnce(new AppError("internal", "Could not create the worktree"));
+    start.mockResolvedValueOnce(created);
     await submit(user);
-    await screen.findByText("Could not create the worktree");
+    await screen.findByRole("alert");
+    expect(screen.getByRole("alert")).toHaveTextContent("Could not create the worktree");
+    expect(screen.queryByRole("region", { name: "Conversation" })).not.toBeInTheDocument();
     expect(screen.getByLabelText("Message")).toHaveValue("hello");
     expect(screen.getByLabelText("Message")).not.toHaveAttribute("readonly");
+    expect(screen.getByRole("list", { name: "Attached images" })).toBeInTheDocument();
+    expect(screen.getByRole("list", { name: "Attached files" })).toBeInTheDocument();
+    expect(screen.getByText("notes.txt")).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "Attachment 1" })).toHaveAttribute(
+      "src",
+      `data:image/png;base64,${pngData}`,
+    );
     expect(screen.queryByRole("status", { name: "Starting thread" })).not.toBeInTheDocument();
+    expect(start.mock.calls[0]?.[0].images).toEqual([{ mimeType: "image/png", data: pngData }]);
+    expect(start.mock.calls[0]?.[0].files).toEqual([file]);
     await user.click(screen.getByRole("button", { name: "Send" }));
     await screen.findByRole("heading", { name: /^Opened \/p\/home\/c\// });
     expect(start).toHaveBeenCalledTimes(2);

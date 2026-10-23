@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ConversationView } from "@tau/protocol";
 import { type FixtureName, finalView, fixtures, fixtureViews } from "@tau/testkit";
 import { render } from "@testing-library/react";
-import { MemoryRouter } from "react-router";
+import { MemoryRouter, type MemoryRouterProps } from "react-router";
 import { vi } from "vitest";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -22,6 +22,8 @@ export function createStubLiveClient(initial?: ConversationView | null): StubLiv
   const listeners = new Set<ViewListener>();
   const subscribedIds: string[] = [];
   return {
+    peek: () => undefined,
+    warm: () => {},
     subscribe(conversationId, onView) {
       subscribedIds.push(conversationId);
       listeners.add(onView);
@@ -39,7 +41,11 @@ export function createStubLiveClient(initial?: ConversationView | null): StubLiv
   };
 }
 
-export function renderConversation(client: LiveClient, id = "2", initialEntries: string[] = ["/"]) {
+export function renderConversation(
+  client: LiveClient,
+  id = "2",
+  initialEntries: MemoryRouterProps["initialEntries"] = ["/"],
+) {
   return render(
     <MemoryRouter initialEntries={initialEntries}>
       <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>

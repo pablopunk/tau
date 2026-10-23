@@ -1,16 +1,18 @@
 import { type ExecutorKind, readRuntimeLive } from "@tau/protocol";
 import { ArrowDown } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Link, useMatch } from "react-router";
+import { Link, useLocation, useMatch } from "react-router";
 import type { PickersHandle } from "@/components/ModelThinkingPickers";
 import { Button } from "@/components/ui/button";
 import { AnimatePresence, gentle, motion } from "@/components/ui/motion";
 import { Skeleton } from "@/components/ui/skeleton";
+import { PendingFirstMessage } from "@/conversation/PendingFirstMessage";
 import { GoalChip } from "@/goal/GoalChip";
 import { useAllConversations, useModels, useRuntimes, useSettings } from "@/lib/queries";
 import { claudeCodeDisabledReason } from "@/lib/runtimes";
 import { useApi, useNodeId } from "@/nodes/node-context";
 import { ThreadTerminalButton } from "@/panes";
+import { firstMessageOf, forgetFirstMessage } from "@/routes/first-message";
 import { NameDialog } from "@/sidebar/NameDialog";
 import { SubagentBanner } from "@/sidebar/subagents/SubagentBanner";
 import { WorkspaceChip } from "@/workspaces/WorkspaceChip";
@@ -71,13 +73,18 @@ function Body({
   onRetry?: (requestId: string) => Promise<unknown>;
   executor?: ExecutorKind;
 }) {
-  if (state.status === "loading") return <LoadingTranscript />;
+  const location = useLocation();
+  if (state.status === "loading") {
+    const firstMessage = firstMessageOf(location.state);
+    return firstMessage ? <PendingFirstMessage message={firstMessage} /> : <LoadingTranscript />;
+  }
   if (state.status === "gone") return <DeletedThread />;
   return <Transcript view={state.view} onRetry={onRetry} conversationId={id} executor={executor} />;
 }
 
 function ConversationPanel({ id }: ConversationProps) {
   const state = useConversationView(id);
+  const location = useLocation();
   const actions = useConversationActions(id);
   const api = useApi();
   const nodeId = useNodeId();
@@ -96,6 +103,9 @@ function ConversationPanel({ id }: ConversationProps) {
   const handleStop = useCallback(() => stopAndRestore(api, id, nodeId, queued), [api, id, nodeId, queued]);
   const messageMode = useSettings().data?.messageMode;
   const whenBusy = messageMode ? whenBusyOf(messageMode) : undefined;
+  useEffect(() => {
+    if (state.status !== "loading") forgetFirstMessage(location.state);
+  }, [location.state, state.status]);
   const parentId = summary?.parentId ?? null;
   const { open: sidebarPref, setOpen: setSidebarOpen, toggle: toggleSidebar } = useConversationSidebarOpen();
   // Terminal masks the sidebar without touching the stored preference.

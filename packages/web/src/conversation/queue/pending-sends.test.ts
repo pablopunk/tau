@@ -1,6 +1,15 @@
 import { renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
-import { clearPending, noteFailed, noteSending, resolvePending, usePendingSends } from "./pending-sends";
+import {
+  attachReceipt,
+  clearPending,
+  failOptimistic,
+  noteFailed,
+  noteOptimistic,
+  noteSending,
+  resolvePending,
+  usePendingSends,
+} from "./pending-sends";
 
 const message = { text: "hello", images: [], files: [] };
 
@@ -48,5 +57,38 @@ describe("pending sends", () => {
     resolvePending("c1", first.key);
     const { result } = renderHook(() => usePendingSends("c1"));
     expect(result.current.map((item) => item.submissionId)).toEqual([2]);
+  });
+
+  it("shows an optimistic bubble at tap, before any receipt exists", () => {
+    const entry = noteOptimistic("c1", "r1", message);
+    expect(entry.status).toBe("sending");
+    expect(entry.requestId).toBe("r1");
+    expect(entry.submissionId).toBeUndefined();
+    expect(renderHook(() => usePendingSends("c1")).result.current).toHaveLength(1);
+  });
+
+  it("attaches the receipt in place, keeping the key and position", () => {
+    const first = noteOptimistic("c1", "r1", message);
+    noteOptimistic("c1", "r2", message);
+    attachReceipt("c1", "r1", { submissionId: 7, entryId: 3 });
+    const { result } = renderHook(() => usePendingSends("c1"));
+    expect(result.current.map((item) => item.key)).toEqual([first.key, "req-r2"]);
+    expect(result.current[0]).toMatchObject({ submissionId: 7, entryId: 3, status: "sending" });
+  });
+
+  it("turns an optimistic bubble into a failed one in place", () => {
+    noteOptimistic("c1", "r1", message);
+    failOptimistic("c1", "r1", "offline");
+    const { result } = renderHook(() => usePendingSends("c1"));
+    expect(result.current).toHaveLength(1);
+    expect(result.current[0]).toMatchObject({ status: "failed", error: "offline", text: "hello" });
+  });
+
+  it("ignores a receipt or failure for a bubble live state already placed", () => {
+    noteOptimistic("c1", "r1", message);
+    resolvePending("c1", "req-r1");
+    attachReceipt("c1", "r1", { submissionId: 7 });
+    failOptimistic("c1", "r1", "late");
+    expect(renderHook(() => usePendingSends("c1")).result.current).toHaveLength(0);
   });
 });

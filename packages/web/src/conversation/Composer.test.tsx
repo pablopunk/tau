@@ -5,6 +5,7 @@ import { apiOfNode } from "@/nodes/node-apis";
 import { Composer } from "./Composer";
 import { restoreToComposer } from "./composer/restore";
 import { ComposerTestWrapper } from "./composer/test-wrapper";
+import { clearPending } from "./queue/pending-sends";
 import { endOf, renderView, viewWhere } from "./test-utils";
 
 const api = apiOfNode();
@@ -15,6 +16,7 @@ const send = vi.mocked(api.conversations.send);
 const abort = vi.mocked(api.conversations.abort);
 
 beforeEach(() => {
+  clearPending();
   window.localStorage.clear();
   send.mockReset().mockResolvedValue({ submissionId: 1 });
   abort.mockReset().mockResolvedValue({ restored: [] });
@@ -132,6 +134,31 @@ describe("<Conversation> composer wiring", () => {
     expect(send.mock.calls[1]?.[1].text).toBe("second");
     expect(firstId).toBeTruthy();
     expect(firstId).not.toBe(secondId);
+  });
+
+  it("shows the message as sending before the server answers, then keeps it on the receipt", async () => {
+    let answer: (receipt: { submissionId: number }) => void = () => {};
+    send.mockReset().mockReturnValue(new Promise((resolve) => (answer = resolve)));
+    renderView(endOf("text"));
+    await userEvent.type(screen.getByLabelText("Message"), "instant{Enter}");
+    expect(screen.getByText("instant")).toBeInTheDocument();
+    expect(screen.getByText("Sending…")).toBeInTheDocument();
+    expect(screen.getByLabelText("Message")).toHaveValue("");
+    await act(async () => answer({ submissionId: 5 }));
+    expect(screen.getByText("instant")).toBeInTheDocument();
+  });
+
+  it("turns the sending bubble into a failed one with retry when the send is rejected", async () => {
+    send.mockReset().mockRejectedValueOnce(new Error("Server unreachable"));
+    renderView(endOf("text"));
+    await userEvent.type(screen.getByLabelText("Message"), "lost?{Enter}");
+    expect((await screen.findAllByRole("alert"))[0]).toHaveTextContent("Server unreachable");
+    expect(screen.getByText("lost?")).toBeInTheDocument();
+    expect(screen.queryByText("Sending…")).not.toBeInTheDocument();
+    send.mockResolvedValueOnce({ submissionId: 6 });
+    await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(await screen.findByText("lost?")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Retry" })).not.toBeInTheDocument();
   });
 
   it("steers while the conversation is busy and aborts with the stop button", async () => {

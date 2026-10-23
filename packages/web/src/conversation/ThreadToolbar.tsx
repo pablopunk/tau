@@ -6,7 +6,7 @@ import type {
   ThinkingLevel,
 } from "@tau/protocol";
 import { contextUsageInputOf } from "@tau/protocol";
-import type { Ref } from "react";
+import { type Ref, useCallback } from "react";
 import { toast } from "sonner";
 import { ModelThinkingPickers, type PickersHandle } from "@/components/ModelThinkingPickers";
 import { Badge } from "@/components/ui/badge";
@@ -21,6 +21,7 @@ import { contextUsage } from "./composer/context-usage";
 import { findModel, readAgent } from "./model/agent";
 import { isNativeExecutor, NATIVE_LABEL } from "./model/executor";
 import type { SidebarSectionId } from "./sidebar/sections";
+import { useOptimisticAgent } from "./use-optimistic-agent";
 
 export function ThreadToolbar({
   id,
@@ -42,12 +43,14 @@ export function ThreadToolbar({
 }) {
   const api = useApi();
   const models = useModels().data;
-  const configure = (conversationId: string, input: ConfigureConversationInput) =>
-    api.conversations
-      .configure(conversationId, input)
-      .catch((error) => void toast.error(errorMessage(error)));
+  const send = useCallback(
+    (input: ConfigureConversationInput) => api.conversations.configure(id, input),
+    [api, id],
+  );
+  const { agent, configure } = useOptimisticAgent(readAgent(view), send, (error) =>
+    toast.error(errorMessage(error)),
+  );
   if (isNativeExecutor(executor)) return <Badge variant="outline">{NATIVE_LABEL}</Badge>;
-  const agent = readAgent(view);
   if (!models) return null;
   const current = findModel(agent, models);
   const model: ModelRef | null = current ? { provider: current.provider, modelId: current.modelId } : null;
@@ -58,10 +61,10 @@ export function ThreadToolbar({
         ref={pickers}
         models={models}
         model={model}
-        onModel={(ref) => void configure(id, { model: ref })}
+        onModel={(ref) => configure({ model: ref })}
         levels={current?.thinkingLevels ?? ["off"]}
         level={agent.thinkingLevel}
-        onLevel={(thinkingLevel: ThinkingLevel) => void configure(id, { thinkingLevel })}
+        onLevel={(thinkingLevel: ThinkingLevel) => configure({ thinkingLevel })}
       />
       <div className="ml-auto flex items-center gap-2 self-center">
         {sidebarOpen ? null : (

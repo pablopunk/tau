@@ -25,13 +25,14 @@ import { isActive, resolveToolCall } from "./model/tool-state";
 import { buildTranscript } from "./model/transcript";
 import { isMvpNotificationItem, MvpNotificationRow } from "./notifications/MvpNotificationRow";
 import { SubagentNotificationRow } from "./notifications/SubagentNotificationRow";
-import { hasReceipt, noteSending, resolvePending, usePendingSends } from "./queue/pending-sends";
+import { resolvePending, usePendingSends } from "./queue/pending-sends";
 import { RetryButton } from "./RetryButton";
 import { ToolApproval } from "./ToolApproval";
 import { LatestTodoCallProvider } from "./todos/latest-todo-call";
 import { ToolCall as ToolCallView } from "./tools/ToolCall";
 import { ToolConversationProvider } from "./tools/tool-conversation";
-import { newRequestId } from "./use-conversation-actions";
+import { newRequestId, sendOptimistically } from "./use-conversation-actions";
+import { useProgressiveCount } from "./use-progressive-count";
 
 function hasVisibleContent(message: AssistantMessageData | undefined): message is AssistantMessageData {
   return (
@@ -155,6 +156,7 @@ export function Transcript({
   const live = readRuntimeLive(view, executor);
   const api = useApi();
   const pendings = usePendingSends(conversationId);
+  const firstDrawn = items.length - useProgressiveCount(items.length);
   const resolveTool = (call: ToolCall) =>
     resolveToolCall(call, { results, slots: live.slots, busy: live.busy });
   const committedIds = new Set<string>();
@@ -192,18 +194,23 @@ export function Transcript({
     if (conversationId === undefined) return;
     const pending = pendings.find((item) => item.key === key);
     if (!pending) return;
+    const requestId = newRequestId();
+    const { text, images, files, whenBusy } = pending;
+    // The failed bubble becomes a sending one at the tap; a failure turns it back.
+    resolvePending(conversationId, key);
     try {
-      const requestId = newRequestId();
-      const receipt = await api.conversations.send(conversationId, {
-        text: pending.text,
-        ...(pending.images.length > 0 && { images: [...pending.images] }),
-        ...(pending.files.length > 0 && { files: [...pending.files] }),
-        ...(pending.whenBusy && { whenBusy: pending.whenBusy }),
+      await sendOptimistically(
+        conversationId,
         requestId,
-      });
-      resolvePending(conversationId, key);
-      // Pre-contract nodes resolve `void`: keep the failed bubble so the message never vanishes silently.
-      if (hasReceipt(receipt)) noteSending(conversationId, { ...receipt, requestId }, pending);
+        { text, images: [...images], files: [...files], ...(whenBusy && { whenBusy }) },
+        api.conversations.send(conversationId, {
+          text,
+          ...(images.length > 0 && { images: [...images] }),
+          ...(files.length > 0 && { files: [...files] }),
+          ...(whenBusy && { whenBusy }),
+          requestId,
+        }),
+      );
     } catch (error) {
       toast.error(errorMessage(error));
     }
@@ -227,6 +234,7 @@ export function Transcript({
       <LatestTodoCallProvider value={todosProjectionOf(view).source}>
         <div className="space-y-5">
           {items.map((item, index) => {
+            if (index < firstDrawn) return null;
             if (item.kind === "compaction") return <CompactedDivider key={item.key} />;
             if (item.kind === "subagent-notification")
               return <SubagentNotificationRow key={item.key} data={item.data} />;

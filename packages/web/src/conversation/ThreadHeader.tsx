@@ -12,18 +12,20 @@ import { useHeaderSlot } from "@/routes/header-slot";
 
 export function ThreadHeader({
   id,
+  title: titleOverride,
   extras,
   actions,
   hideMachine,
 }: {
   id: string;
+  title?: string;
   extras?: ReactNode;
   actions?: ReactNode;
   /** When the right sidebar is open the machine badge lives there instead. */
   hideMachine?: boolean;
 }) {
   const summary = useAllConversations().data?.find((item) => item.id === id);
-  const title = summary?.title || "Conversation";
+  const title = titleOverride ?? (summary?.title || "Conversation");
   const nodeId = useNodeId();
   const nodeName = useNodeName(nodeId);
   const avatar = useNodeAvatar(nodeId);
