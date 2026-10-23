@@ -43,7 +43,7 @@ function initOf(recorder: Recorder): ClaudeSdkMessage {
   return init;
 }
 
-async function parallelToolRound(ctx: PinContext, host: PinHost, recorder: Recorder) {
+async function parallelToolRound(_ctx: PinContext, host: PinHost, recorder: Recorder) {
   await pollUntil(() => toolUsesIn(recorder).length >= 2, TURN_TIMEOUT_MS, "two parallel tool_use blocks");
   const [first, second] = toolUsesIn(recorder);
   if (!first || !second) throw new Error("fewer than two tool_use blocks");

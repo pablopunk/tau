@@ -65,7 +65,7 @@ function copyAssets(out: string): void {
   });
 }
 
-const SDK = "@anthropic-ai/claude-agent-sdk";
+const _SDK = "@anthropic-ai/claude-agent-sdk";
 
 /** The pure-JS+WASM speech engine the voice worker loads at runtime (never bundled: Emscripten glue only inits from real files). */
 function copyVoiceEngine(out: string): void {

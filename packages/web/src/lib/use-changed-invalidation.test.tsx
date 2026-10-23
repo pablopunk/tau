@@ -44,6 +44,21 @@ function setup() {
 }
 
 describe("useChangedInvalidation", () => {
+  it.each([32, 8192])("characterizes advisory invalidations for %s conversation changes", (count) => {
+    const { change, invalidate } = setup();
+    const start = performance.now();
+    for (let i = 0; i < count; i++) change({ resource: "conversations", projectId: "p1" });
+    console.log(
+      JSON.stringify({
+        changes: count,
+        invalidations: invalidate.mock.calls.length,
+        dispatchMs: performance.now() - start,
+        scope: "inactive query client; not network/backend cost",
+      }),
+    );
+    expect(invalidate).toHaveBeenCalledTimes(count * 5);
+  });
+
   it("invalidates the resource activity on a node-wide resources change", () => {
     const { change, invalidate } = setup();
     change({ resource: "resources" });

@@ -17,6 +17,7 @@ export interface RetryInfo {
 export interface QueuedMessage {
   readonly id: number;
   readonly mode: "steer" | "followUp";
+  readonly entryKind: string;
   readonly text: string;
   readonly images: readonly ImageContent[];
 }
@@ -69,7 +70,13 @@ function queuedImages(item: QueuedItem): readonly ImageContent[] {
 }
 
 function queuedOf(item: QueuedItem): QueuedMessage {
-  return { id: Number(item.id), mode: item.mode, text: queuedText(item), images: queuedImages(item) };
+  return {
+    id: Number(item.id),
+    mode: item.mode,
+    entryKind: item.entry?.kind ?? "pi.user",
+    text: queuedText(item),
+    images: queuedImages(item),
+  };
 }
 
 function retryOf(live: LiveState): RetryInfo | undefined {

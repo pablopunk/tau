@@ -36,13 +36,25 @@ Dependencies point one way: `protocol` <- `testkit` <- `core`, `server`, `web`. 
 ## Subagent workflow
 
 1. Talk with the user. Agree on scope.
-2. Write a plan doc.
+2. Write a plan doc in `plans/`.
 3. Adversarial review rounds with evidence (`file:line`, command output). Repeat until approved.
 4. One foundation agent freezes the contract, stubs and fake. Done when check, test and build pass.
 5. Parallel agents, each owning folders. The plan lists who owns what. Nobody edits files they do not own. Needed changes go in a note for the integrator.
 6. One integration agent applies the notes and merges each branch as it finishes. It runs check and test after each merge.
 7. Verify for real: run the built app in a browser and use it with real user actions.
 
-* Agents run on Sonnet with low effort.
 * Never work around git hooks. If a hook blocks git, leave work uncommitted and say so.
 * Announce each finished step with `say`.
+
+## Subagent context contract (isolated worktrees only see tracked files)
+
+A subagent in an isolated worktree cannot see untracked or gitignored files (`plans/`, scratch notes, local
+fixtures). Never reference such a path bare in a subagent prompt — it does not exist for them.
+
+Parent side: state `base: <branch>@<shortSHA>`; tag each referenced file `[REQUIRED]` or `[OPTIONAL]`;
+inline ignored/untracked content (tight excerpt + `Omitted:` line ranges) instead of its path.
+
+Subagent step zero, before any other work, reply with a filled `CONTEXT_CHECK` (base FRESH/STALE, each
+file OK/MISSING): any REQUIRED gap (or STALE checkout on a review task) is verdict BLOCKED — stop and
+request the inline content. Otherwise PROCEED_WITH_GAPS listing the gaps. STALE with zero
+`git diff --name-only` overlap with the task scope may proceed with the skew noted.

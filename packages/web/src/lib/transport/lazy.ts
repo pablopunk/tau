@@ -45,7 +45,12 @@ export function createLazyTransport(load: () => Promise<Transport>): Transport {
     return loading;
   };
   return {
-    request: async (name, input) => (await loadOnce()).request(name, input),
+    request: async (name, input, options) => {
+      options?.signal?.throwIfAborted();
+      const transport = await loadOnce();
+      options?.signal?.throwIfAborted();
+      return transport.request(name, input, options);
+    },
     live: { open: (handlers) => lazyLiveSocket(loadOnce, handlers) },
     openStream: (path, handlers) => lazyStream(loadOnce, path, handlers),
   };

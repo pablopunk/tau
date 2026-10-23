@@ -11,6 +11,8 @@ import {
 } from "./access";
 import { DeleteArchivedInputSchema, DeleteArchivedResultSchema } from "./archived";
 import {
+  AbortResultSchema,
+  CancelQueuedResultSchema,
   ClaudeConnectorSettingsSchema,
   CompactInputSchema,
   CompactionSettingsSchema,
@@ -31,6 +33,10 @@ import {
   ProviderInfoSchema,
   RetryInputSchema,
   SendMessageInputSchema,
+  SendNowInputSchema,
+  SendNowResultSchema,
+  SendReceiptSchema,
+  SetQueuedModeResultSchema,
   SettingsSchema,
   SkillSchema,
   StartConversationInputSchema,
@@ -42,9 +48,12 @@ import {
   UseGithubRepoInputSchema,
   VoiceModelSettingSchema,
   VoiceOptionsSchema,
+  WhenBusySchema,
   WorkspaceDefaultSchema,
 } from "./entities";
+import { HandoffInputSchema, HandoffPreviewSchema } from "./handoff";
 import { ICON_BODY_LIMIT } from "./icons";
+import { MetricsResponseSchema } from "./metrics";
 import {
   CheckpointSchema,
   McpServerConfigSchema,
@@ -59,6 +68,8 @@ import { DirectoryNodeSchema, ExpulsionSchema, RemoveNodeBodySchema } from "./no
 import { NodeSchema, NodeSelfSchema, NodeSummarySchema, RenameNodeBodySchema } from "./nodes";
 import { HealthSchema, RemoteStatusSchema } from "./remote";
 import { ResourceActivitySchema, ResourceSettingsSchema, ResourceSupportSchema } from "./resources";
+import { RuntimeDescriptorListSchema } from "./runtime";
+import { SandboxSettingsSchema } from "./sandbox";
 import { OpenTerminalInputSchema, TerminalAvailabilitySchema, TerminalInfoSchema } from "./terminals";
 import { UpdateTodosInputSchema } from "./todos";
 import { UpdateStartBodySchema, UpdateStatusSchema } from "./updates";
@@ -118,6 +129,13 @@ const EntryBody = Type.Object({ entryId: Type.String({ minLength: 1 }) });
 
 export const routes = {
   getHealth: { method: "GET", path: `${API_PREFIX}/health`, status: 200, response: HealthSchema },
+  getMetrics: {
+    method: "GET",
+    path: `${API_PREFIX}/metrics`,
+    status: 200,
+    ownerOnly: true,
+    response: MetricsResponseSchema,
+  },
   getRemoteStatus: { method: "GET", path: `${API_PREFIX}/remote`, status: 200, response: RemoteStatusSchema },
   enableRemote: {
     method: "POST",
@@ -325,6 +343,12 @@ export const routes = {
     status: 204,
     body: ResourceSettingsSchema,
   },
+  setSandbox: {
+    method: "PUT",
+    path: `${API_PREFIX}/settings/sandbox`,
+    status: 204,
+    body: SandboxSettingsSchema,
+  },
   setCompaction: {
     method: "PUT",
     path: `${API_PREFIX}/settings/compaction`,
@@ -460,6 +484,13 @@ export const routes = {
     path: `${API_PREFIX}/models`,
     status: 200,
     response: Type.Array(ModelInfoSchema),
+  },
+  /** Which executors this node offers a new thread, and what each supports. `claude-code` is listed even when off. */
+  listRuntimes: {
+    method: "GET",
+    path: `${API_PREFIX}/runtimes`,
+    status: 200,
+    response: RuntimeDescriptorListSchema,
   },
   listProjects: {
     method: "GET",
@@ -600,9 +631,10 @@ export const routes = {
   sendMessage: {
     method: "POST",
     path: `${API_PREFIX}/conversations/:id/messages`,
-    status: 204,
+    status: 200,
     params: IdParams,
     body: SendMessageInputSchema,
+    response: SendReceiptSchema,
     bodyLimit: MESSAGE_BODY_LIMIT,
   },
   updateTodos: {
@@ -643,9 +675,10 @@ export const routes = {
   retryConversation: {
     method: "POST",
     path: `${API_PREFIX}/conversations/:id/retry`,
-    status: 204,
+    status: 200,
     params: IdParams,
     body: RetryInputSchema,
+    response: SendReceiptSchema,
   },
   compactConversation: {
     method: "POST",
@@ -657,8 +690,9 @@ export const routes = {
   abortConversation: {
     method: "POST",
     path: `${API_PREFIX}/conversations/:id/abort`,
-    status: 204,
+    status: 200,
     params: IdParams,
+    response: AbortResultSchema,
   },
   stopAgent: {
     method: "POST",
@@ -672,6 +706,23 @@ export const routes = {
     status: 201,
     params: IdParams,
     body: EntryBody,
+    response: ConversationSummarySchema,
+  },
+  /** What a contextual handoff to a new native thread would carry and lose; `canHandoff` is false with a `reason` when it cannot run now. */
+  getHandoffPreview: {
+    method: "GET",
+    path: `${API_PREFIX}/conversations/:id/handoff-preview`,
+    status: 200,
+    params: IdParams,
+    response: HandoffPreviewSchema,
+  },
+  /** Starts a NEW native thread from a text export of this Pi thread; the source is never changed. Idempotent by `requestId`. */
+  handoffConversation: {
+    method: "POST",
+    path: `${API_PREFIX}/conversations/:id/handoff`,
+    status: 201,
+    params: IdParams,
+    body: HandoffInputSchema,
     response: ConversationSummarySchema,
   },
   rewindPreview: {
@@ -690,12 +741,28 @@ export const routes = {
     body: EntryBody,
     response: Type.Object({ conversation: ConversationSummarySchema, draft: Type.String() }),
   },
+  sendNow: {
+    method: "POST",
+    path: `${API_PREFIX}/conversations/:id/send-now`,
+    status: 200,
+    params: IdParams,
+    body: SendNowInputSchema,
+    response: SendNowResultSchema,
+  },
   cancelQueued: {
     method: "DELETE",
     path: `${API_PREFIX}/conversations/:id/queue/:itemId`,
     status: 200,
     params: QueueItemParams,
-    response: Type.Object({ cancelled: Type.Boolean() }),
+    response: CancelQueuedResultSchema,
+  },
+  setQueuedMode: {
+    method: "PATCH",
+    path: `${API_PREFIX}/conversations/:id/queue/:itemId`,
+    status: 200,
+    params: QueueItemParams,
+    body: Type.Object({ mode: WhenBusySchema }),
+    response: SetQueuedModeResultSchema,
   },
   listCheckpoints: {
     method: "GET",
@@ -724,6 +791,7 @@ export const routes = {
     path: `${API_PREFIX}/conversations/:id/workspace/merge`,
     status: 200,
     params: IdParams,
+    query: ForceQuery,
     response: ConversationSummarySchema,
   },
   createPullRequest: {

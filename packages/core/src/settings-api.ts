@@ -12,6 +12,8 @@ import {
   type ResourceSettings,
   ResourceSettingsSchema,
   type ResourceSupport,
+  type SandboxSettings,
+  SandboxSettingsSchema,
   type ThinkingLevel,
   type VoiceModelSetting,
   VoiceModelSettingSchema,
@@ -52,6 +54,7 @@ export function createSettingsApi(deps: {
   onClaudeConnectorsChanged?: () => Promise<void>;
   /** Receives the stored value after `setResources`; the core wires it to the governor. */
   onResourcesChanged?: (value: ResourceSettings) => void;
+  onSandboxChanged?: (value: SandboxSettings) => void;
   /** The governor's side of the resource calls; without it the Phase 1 stubs answer. */
   resources?: {
     support(): Promise<ResourceSupport>;
@@ -66,6 +69,7 @@ export function createSettingsApi(deps: {
     onProjectsFolderChanged,
     onClaudeConnectorsChanged,
     onResourcesChanged,
+    onSandboxChanged,
     resources,
   } = deps;
   const requireListedModel = async (ref: ModelRef) => {
@@ -118,6 +122,13 @@ export function createSettingsApi(deps: {
       }
       await settings.setResources(value);
       onResourcesChanged?.(value);
+    },
+    async setSandbox(value: SandboxSettings) {
+      if (!Value.Check(SandboxSettingsSchema, value)) {
+        throw new AppError("invalid_request", "Each sandbox scope is on or off.");
+      }
+      await settings.setSandbox(value);
+      onSandboxChanged?.(value);
     },
     async setCompaction(value: CompactionSettings) {
       if (!Value.Check(CompactionSettingsSchema, value)) {

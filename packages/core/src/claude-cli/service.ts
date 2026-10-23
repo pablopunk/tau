@@ -51,6 +51,8 @@ export interface ClaudeCliServiceDeps {
   readonly clock?: ClaudeCliClock;
   /** Tests inject a fake SDK; production loads the real one on first use. */
   readonly sdk?: ClaudeSdkLoader;
+  /** File holding persisted Claude bindings so a restart resumes instead of rebinding. Absent: memory only. */
+  readonly bindingsFile?: string;
   /** `<tau home>/claude-sdk`. Where the SDK is installed and loaded from. */
   readonly sdkHome?: string;
   readonly installer?: ClaudeSdkInstaller;
@@ -160,6 +162,7 @@ export function createClaudeCliService(deps: ClaudeCliServiceDeps): ClaudeCliSer
     noteContextWindow: (value, window) => models.noteContextWindow(value, window),
     onAuthError: () => void detector.refresh(),
     onProcessCount: deps.onChange,
+    ...(deps.bindingsFile && { bindingsFile: deps.bindingsFile }),
     ...(deps.connectorSettings && { connectorSettings: deps.connectorSettings }),
     ...(deps.approvals && { approvals: deps.approvals }),
     ...(deps.observed && { observed: deps.observed }),

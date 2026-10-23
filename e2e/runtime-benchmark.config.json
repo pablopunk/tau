@@ -1,0 +1,153 @@
+{
+  "deterministicOverheadOnly": true,
+  "fixtureRepo": {
+    "directories": 64,
+    "files": 4096,
+    "bytesPerFile": 4096
+  },
+  "executors": ["pi", "claude-code"],
+  "samples": 20,
+  "warmup": 2,
+  "concurrency": [1, 4],
+  "sampleTimeoutMs": 30000,
+  "rawSampleLimit": 100,
+  "idleCpuWindowMs": 1000,
+  "budgets": {
+    "label": "UNSELECTED: historical proposed numeric targets retained unchanged, pending controlled baseline/operator agreement. No performance qualification.",
+    "targets": [
+      {
+        "id": "pi-receipt-p95-c1",
+        "description": "Pi submit to receipt p95, one start",
+        "kind": "stage-percentile",
+        "executor": "pi",
+        "concurrency": 1,
+        "stage": "submitToReceipt",
+        "percentile": "p95",
+        "maxMs": 100
+      },
+      {
+        "id": "pi-receipt-p95-c4",
+        "description": "Pi submit to receipt p95, four simultaneous starts",
+        "kind": "stage-percentile",
+        "executor": "pi",
+        "concurrency": 4,
+        "stage": "submitToReceipt",
+        "percentile": "p95",
+        "maxMs": 100
+      },
+      {
+        "id": "native-receipt-p95-c1",
+        "description": "Native submit to receipt p95 (admission returns; preparation is a separate stage), one start",
+        "kind": "stage-percentile",
+        "executor": "claude-code",
+        "concurrency": 1,
+        "stage": "submitToReceipt",
+        "percentile": "p95",
+        "maxMs": 100
+      },
+      {
+        "id": "native-receipt-p95-c4",
+        "description": "Native submit to receipt p95 (admission returns; preparation is a separate stage), four simultaneous starts",
+        "kind": "stage-percentile",
+        "executor": "claude-code",
+        "concurrency": 4,
+        "stage": "submitToReceipt",
+        "percentile": "p95",
+        "maxMs": 100
+      },
+      {
+        "id": "native-preparation-p95-c1",
+        "description": "Native receipt to SDK query seam p95, one start",
+        "kind": "stage-percentile",
+        "executor": "claude-code",
+        "concurrency": 1,
+        "stage": "preparation",
+        "percentile": "p95",
+        "maxMs": 500
+      },
+      {
+        "id": "native-launch-first-event-p95-c1",
+        "description": "Native SDK query to first message p95 (includes sandbox-exec spawn), one start",
+        "kind": "stage-percentile",
+        "executor": "claude-code",
+        "concurrency": 1,
+        "stage": "launchToFirstEvent",
+        "percentile": "p95",
+        "maxMs": 3000
+      },
+      {
+        "id": "pi-idle-cpu-delta",
+        "description": "Pi: this process's idle CPU after the runs minus before, in percentage points of one core",
+        "kind": "idle-cpu-delta",
+        "executor": "pi",
+        "maxPercentagePoints": 2
+      },
+      {
+        "id": "native-idle-cpu-delta",
+        "description": "Native: this process's idle CPU after the runs minus before, in percentage points of one core",
+        "kind": "idle-cpu-delta",
+        "executor": "claude-code",
+        "maxPercentagePoints": 2
+      },
+      {
+        "id": "native-no-leftover-processes",
+        "description": "Native: no owned child or new descendant process alive after the runs",
+        "kind": "no-leftover-processes",
+        "executor": "claude-code"
+      },
+      {
+        "id": "pi-no-leftover-processes",
+        "description": "Pi: no new descendant process alive after the runs",
+        "kind": "no-leftover-processes",
+        "executor": "pi"
+      },
+      {
+        "id": "pi-no-errors",
+        "description": "Pi: every sample completed with every stage recorded",
+        "kind": "no-errors",
+        "executor": "pi"
+      },
+      {
+        "id": "native-no-errors",
+        "description": "Native: every sample completed with every stage recorded",
+        "kind": "no-errors",
+        "executor": "claude-code"
+      }
+    ],
+    "selection": "UNSELECTED"
+  },
+  "cells": [
+    {
+      "id": "nested-worktree-warm-foreground",
+      "workspace": "worktree",
+      "cwd": "nested",
+      "cache": "warm",
+      "scenario": "success",
+      "waiting": "foreground"
+    },
+    {
+      "id": "root-checkout-cold-background",
+      "workspace": "checkout",
+      "cwd": "root",
+      "cache": "cold",
+      "scenario": "success",
+      "waiting": "background"
+    },
+    {
+      "id": "nested-failing-local-filter",
+      "workspace": "worktree",
+      "cwd": "nested",
+      "cache": "cold",
+      "scenario": "failure",
+      "waiting": "foreground"
+    },
+    {
+      "id": "root-worktree-cancel",
+      "workspace": "worktree",
+      "cwd": "root",
+      "cache": "warm",
+      "scenario": "cancel",
+      "waiting": "foreground"
+    }
+  ]
+}

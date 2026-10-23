@@ -1,6 +1,7 @@
 import { COMMAND_NOUNS } from "@tau/protocol";
 import { runConnect, runDisconnect } from "./commands/connect-command";
 import { runHelp } from "./commands/help";
+import { runMetrics } from "./commands/metrics";
 import { runPair } from "./commands/pair-command";
 import { runApiCommand } from "./commands/run-command";
 import { runSkill } from "./commands/skill";
@@ -33,6 +34,7 @@ export const commandTable: Readonly<Record<string, CommandHandler>> = {
   status: runStatus,
   open: runOpen,
   logs: runLogs,
+  metrics: runMetrics,
   update: runUpdate,
   service: runServiceCommand,
   skill: runSkill,

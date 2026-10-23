@@ -23,6 +23,7 @@ const makeService = (batchMs = 30, sink: Sink = sent) =>
     stopGraceMs: 300,
     notifications: {
       notify: async (conversationId, notification) => void sink.push({ conversationId, notification }),
+      submitWrite: async () => undefined,
     },
   });
 
@@ -191,5 +192,35 @@ describe("exit notifications", () => {
     expect(reaped).toEqual([]);
     await other.stopAll();
     await later.stopAll();
+  });
+});
+
+describe("bang exit write", () => {
+  it("prefixes the model text with the command and marks the bang origin", async () => {
+    const { bangExitWrite, interruptedBangText } = await import("./process-notifications");
+    const write = bangExitWrite(
+      {
+        id: "proc-1",
+        conversationId: "c1",
+        name: "echo hi",
+        command: "echo hi",
+        state: "exited",
+        exitCode: 0,
+        startedAt: 0,
+        urls: [],
+        kind: "process",
+        origin: "bang",
+      },
+      0,
+      "hi",
+    );
+    expect(write.kind).toBe("app.process_exit");
+    expect(write.data).toMatchObject({ command: "echo hi", exitCode: 0, logTail: "hi", origin: "bang" });
+    expect(write.text).toMatch(/^You ran: echo hi\n<process-exit/);
+    expect(write.requestId).toBe("process-exit:proc-1");
+    // The rendered transcript omits the prefix; only the model text carries it.
+    expect(write.data).not.toMatchObject({ logTail: expect.stringContaining("You ran") });
+    expect(interruptedBangText("sleep 30")).toContain("sleep 30");
+    expect(interruptedBangText("sleep 30")).toContain("interrupted by a restart");
   });
 });

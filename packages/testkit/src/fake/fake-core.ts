@@ -5,9 +5,11 @@ import {
   CompactionSettingsSchema,
   type ConversationSummary,
   type Core,
+  describeExecutors,
   type MessageMode,
   type ModelRef,
   type NodeLinkDirection,
+  nativeDisabledError,
   type Project,
   type ProviderId,
   type Settings,
@@ -40,6 +42,7 @@ import {
 } from "./fake-fs";
 import { cloneWouldFail, folderNameFor, repositoryKeyOf } from "./fake-git";
 import { createFakeGithub, type FakeGithubOptions } from "./fake-github";
+import { createFakeHandoff } from "./fake-handoff";
 import { createFakeIcons } from "./fake-icons";
 import { assertImageMatchesMimeType } from "./fake-images";
 import { createFakeMvp5 } from "./fake-mvp5";
@@ -48,6 +51,7 @@ import { createFakeNodes, FAKE_NODE_SEEDS, type FakeNodes } from "./fake-nodes";
 import { createFakeProviders } from "./fake-providers";
 import { createFakeRemote, type FakeRemote } from "./fake-remote";
 import { createFakeResources, type FakeResources } from "./fake-resources";
+import { createFakeSandbox } from "./fake-sandbox";
 import { suggestFakeDirectories } from "./fake-suggest";
 import { createFakeTerminals } from "./fake-terminals";
 import type { SpawnParams } from "./fake-thread-ops";
@@ -325,6 +329,8 @@ export function createFakeCore(options: FakeCoreOptions = {}): FakeCore {
   const mvp8 = createFakeMvp8({ emit, now, requireConversation });
   const connectors = createFakeConnectors({ emit, now, requireConversation });
   const resources = createFakeResources({ emit });
+  const sandbox = createFakeSandbox({ emit });
+  const handoff = createFakeHandoff({ requireConversation });
 
   function workspaceModeFor(projectId: string, requested: WorkspaceMode | undefined): WorkspaceMode {
     if (requested) {
@@ -336,6 +342,7 @@ export function createFakeCore(options: FakeCoreOptions = {}): FakeCore {
   }
 
   async function startConversation(input: StartConversationInput) {
+    if (input.executor === "claude-code") throw nativeDisabledError();
     const project = requireProject(input.projectId);
     if (project.status !== "ready") throw new AppError("project_not_ready", "This project is not ready.");
     requireProvider();
@@ -509,11 +516,13 @@ export function createFakeCore(options: FakeCoreOptions = {}): FakeCore {
           claudeConnectors: connectors.settings(),
           remote: { enabled: remote.status().state !== "off" },
           resources: resources.settings(),
+          sandbox: sandbox.settings(),
           compaction: { ...compaction },
           setupSkipped,
         };
       },
       ...resources.api,
+      ...sandbox.api,
       async setSetupSkipped(skipped) {
         setupSkipped = skipped;
       },
@@ -606,6 +615,7 @@ export function createFakeCore(options: FakeCoreOptions = {}): FakeCore {
     },
     providers: connections.providers,
     models: connections.models,
+    runtimes: { list: async () => describeExecutors(undefined) },
     voice: {
       async options() {
         const openrouter = (await connections.providers.list()).find(
@@ -729,12 +739,13 @@ export function createFakeCore(options: FakeCoreOptions = {}): FakeCore {
         const conversation = requireConversation(id);
         validateInput(input, conversation.model);
         const whenBusy = input.whenBusy ?? (messageMode === "queue" ? "followUp" : "steer");
-        conversation.send(
+        const receipt = conversation.send(
           input.requestId,
           { text: input.text, images: input.images, files: input.files },
           whenBusy,
         );
         mvp5.afterMessage(conversation, input.text);
+        return receipt;
       },
       async updateTodos(id, input) {
         if (!Value.Check(UpdateTodosInputSchema, input)) {
@@ -751,7 +762,7 @@ export function createFakeCore(options: FakeCoreOptions = {}): FakeCore {
         conversation.updateTodos(input.requestId, todos);
       },
       async abort(id) {
-        await requireConversation(id).abort();
+        return requireConversation(id).abort();
       },
       async archive(id, archived) {
         const conversation = requireConversation(id);
@@ -776,6 +787,7 @@ export function createFakeCore(options: FakeCoreOptions = {}): FakeCore {
         announce: (conversation) => emit({ resource: "conversations", projectId: conversation.projectId }),
       }),
       ...mvp5.threadOps,
+      ...handoff,
       async configure(id, input) {
         const conversation = requireConversation(id);
         if (input.model === undefined && input.thinkingLevel === undefined) {
@@ -788,8 +800,11 @@ export function createFakeCore(options: FakeCoreOptions = {}): FakeCore {
           clampFakeThinkingLevel(info, input.thinkingLevel ?? conversation.thinkingLevel()),
         );
       },
+      async sendNow(id, itemId) {
+        return requireConversation(id).sendNow(itemId);
+      },
       async retry(id, input) {
-        requireConversation(id).retry(input.requestId);
+        return requireConversation(id).retry(input.requestId);
       },
       async compact(id) {
         if (!requireConversation(id).hasHistoryToCompact()) {

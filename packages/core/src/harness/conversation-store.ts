@@ -5,7 +5,9 @@ import {
   type Harness,
 } from "@earendil-works/pi-durable";
 import {
+  type AbortResult,
   AppError,
+  type CancelQueuedResult,
   type ConversationSummary,
   type ConversationView,
   isRetryable,
@@ -13,6 +15,8 @@ import {
   type OpsListener,
   type RetryInput,
   type SendMessageInput,
+  type SendNowResult,
+  type SetQueuedModeResult,
   type ThinkingLevel,
   type ThreadWorkspace,
   type WhenBusy,
@@ -39,7 +43,24 @@ import {
   type StartRequest,
   type StartResult,
 } from "./conversation-start";
-import { cancelQueued, submitOnce } from "./conversation-submit";
+import {
+  type AdmissionReceipt,
+  abortAndRestore,
+  cancelQueued,
+  entryOfSubmission,
+  isNotificationItem,
+  isUserItem,
+  mintServerRequestId,
+  type QueuedSnapshot,
+  rememberUserItem,
+  setQueuedMode,
+  snapshotQueued,
+  snapshotUserItem,
+  submitOnce,
+  submitUnlocked,
+  waitForRunStart,
+  withAdmissionGate,
+} from "./conversation-submit";
 import { createWatcherRegistry } from "./conversation-watchers";
 import { isBusy } from "./live-state";
 import { BACKGROUND } from "./open";
@@ -61,13 +82,34 @@ interface KnownConversation {
 
 export type AgentSettings = { readonly model: ModelRef; readonly thinkingLevel: ThinkingLevel };
 
+export type RetryResult = {
+  readonly projectId: string;
+  readonly submissionId: number;
+  readonly entryId?: number;
+};
+
 export type SendResult = {
   readonly projectId: string;
   /** Set when this send gave an untitled legacy thread its provisional title: the title job should run. */
   readonly titleText?: string;
   /** False when another send with the same `requestId` won: nothing was admitted. */
   readonly admitted: boolean;
+  readonly submissionId: number;
+  readonly entryId?: number;
 };
+
+export interface SendNowHooks {
+  /**
+   * Test seam: runs while the gate is held, between the snapshot and the
+   * abort. Fire-and-forget only — awaiting an admission here deadlocks on
+   * the held gate. Lets a test race a notification into the steal window.
+   */
+  readonly afterSnapshot?: () => void;
+  /** Test seam: fails the chosen admission after the abort to exercise the durable rollback. */
+  readonly failChosenAdmit?: boolean;
+}
+
+export type SendNowResultWithProject = SendNowResult & { readonly projectId: string };
 
 export interface ConversationStore
   extends Pick<ConversationStarter, "resumePendingStarts" | "createPendingOnly"> {
@@ -77,8 +119,25 @@ export interface ConversationStore
   find(id: string): Promise<ConversationSummary | undefined>;
   /** Stores the workspace in the index entry and points the agent's cwd at `workspace.path`. */
   setWorkspace(id: string, workspace: ThreadWorkspace): Promise<ConversationSummary>;
-  /** Withdraws one queued message; `{ cancelled: false }` once it was delivered. */
-  cancelQueued(id: string, itemId: string): Promise<{ cancelled: boolean }>;
+  /**
+   * Withdraws one queued user message, returning its snapshot for composer
+   * restore. `{ cancelled: false }` once it was delivered. Rejects
+   * `not_found` for unknown or foreign items, `invalid_request` for
+   * notification items.
+   */
+  cancelQueued(id: string, itemId: string): Promise<CancelQueuedResult>;
+  /**
+   * Switches one queued user item between steer and followUp in place: the id (and inbox
+   * position) is preserved. `{ switched: false }` once it was delivered. Rejects `not_found`
+   * for unknown or foreign items, `invalid_request` for notification items.
+   */
+  setQueuedMode(id: string, itemId: string, mode: WhenBusy): Promise<SetQueuedModeResult>;
+  /**
+   * Atomically delivers one queued user item now: snapshots the queued user
+   * items, aborts, then re-admits the chosen item ahead of every other
+   * surviving item. The other user items return for composer restoration.
+   */
+  sendNow(id: string, itemId: string, hooks?: SendNowHooks): Promise<SendNowResultWithProject>;
   start(request: StartRequest): Promise<StartResult>;
   /** `not_found` for an unknown or deleted thread. */
   modelOf(id: string): Promise<ModelRef | undefined>;
@@ -91,8 +150,8 @@ export interface ConversationStore
   /** Admits the message (steering when busy) exactly once per `requestId`, and unarchives. */
   send(id: string, input: SendMessageInput, now: number, whenBusy?: WhenBusy): Promise<SendResult>;
   /** One `app.retry` submission, exactly once per `requestId`. `invalid_request` unless the thread is retryable. */
-  retry(id: string, input: RetryInput, now: number): Promise<string>;
-  abort(id: string): Promise<void>;
+  retry(id: string, input: RetryInput, now: number): Promise<RetryResult>;
+  abort(id: string): Promise<AbortResult>;
   /** Resolves when the compaction ends. `not_found`; `nothing_to_compact`; `internal` with pi's message on failure. */
   compact(id: string, instructions: string | undefined): Promise<void>;
   archive(id: string, archived: boolean, now: number): Promise<string>;
@@ -197,8 +256,97 @@ export function createConversationStore(
     },
 
     async cancelQueued(id, itemId) {
+      const { conversation, id: conversationId } = await known(id);
+      return cancelQueued(harness, conversation, String(conversationId), itemId);
+    },
+
+    async setQueuedMode(id, itemId, mode) {
       const { conversation } = await known(id);
-      return cancelQueued(harness, conversation, itemId);
+      return setQueuedMode(harness, conversation, itemId, mode);
+    },
+
+    async sendNow(id, itemId, hooks) {
+      const { conversation, id: conversationId, projectId } = await known(id);
+      const key = String(conversationId);
+      return withAdmissionGate(key, async () => {
+        // The snapshot must precede the abort: submission records keep no content.
+        const queued = await snapshotQueued(harness, conversationId);
+        const chosen = queued.find((item) => String(item.id) === itemId);
+        if (!chosen) throw notFound();
+        if (!isUserItem(chosen)) {
+          throw new AppError("invalid_request", "Only user messages can be sent now.");
+        }
+        hooks?.afterSnapshot?.();
+        await conversation.abort(BACKGROUND);
+        const readmitNotice = async (
+          item: QueuedSnapshot & { entry: NonNullable<QueuedSnapshot["entry"]> },
+        ) => {
+          const requestId = mintServerRequestId("reattempt", key, item.id);
+          await submitUnlocked(harness, conversation, {
+            type: "write",
+            entry: {
+              kind: item.entry.kind,
+              ...(item.entry.data !== undefined && { data: item.entry.data as never }),
+              model: [{ role: "user", content: item.content } as never],
+            },
+            requestId,
+          });
+        };
+        const readmitUser = async (item: QueuedSnapshot, label: string) => {
+          const requestId = mintServerRequestId(label, key, item.id);
+          const receipt = await submitUnlocked(harness, conversation, {
+            type: "input",
+            content: item.content,
+            ...(item.entry === undefined ? {} : { entry: item.entry }),
+            requestId,
+            whenBusy: item.mode === "write" ? "followUp" : item.mode,
+          });
+          // Carry the refs forward so a later cancel of the re-admitted item still restores them.
+          rememberUserItem(requestId, receipt.submissionId, snapshotUserItem(item));
+          return receipt;
+        };
+        let receipt: AdmissionReceipt;
+        try {
+          if (hooks?.failChosenAdmit === true) throw new AppError("internal", "sendNow admit failed");
+          receipt = await readmitUser(chosen, "sendnow");
+        } catch (error) {
+          // Durable rollback: everything withdrawn returns under fresh ids — never draft, never lost.
+          const users = [chosen, ...queued.filter((item) => item.id !== chosen.id && isUserItem(item))];
+          for (const item of users) {
+            try {
+              await readmitUser(item, "sendnow-rollback");
+            } catch {
+              // Best effort: the original failure is what the caller must see.
+            }
+          }
+          for (const item of queued) {
+            if (isNotificationItem(item)) await readmitNotice(item);
+          }
+          await waitForRunStart(harness, conversationId);
+          throw error;
+        }
+        // Chosen first, so user content always lands ahead of re-admitted notifications.
+        for (const item of queued) {
+          if (isNotificationItem(item)) await readmitNotice(item);
+        }
+        const restored = queued
+          .filter((item) => item.id !== chosen.id && isUserItem(item))
+          .map(snapshotUserItem);
+        // The gate stays held until the chosen run starts: only then can a
+        // racing notification no longer steal the idle slot (F4).
+        await waitForRunStart(harness, conversationId);
+        await updateLiveConversation(harness, conversationId, projectId, (_meta, entry) => {
+          entry.updatedAt = Date.now();
+          delete entry.archivedAt;
+          return true;
+        });
+        return {
+          submissionId: receipt.submissionId,
+          ...(receipt.entryId === undefined ? {} : { entryId: receipt.entryId }),
+          restored,
+          projectId,
+        };
+      });
     },
 
     async modelOf(id) {
@@ -245,16 +393,27 @@ export function createConversationStore(
         (tx) => tx.submissionByRequest(conversationId, input.requestId),
         BACKGROUND,
       );
-      if (duplicate) return { projectId, admitted: false };
+      if (duplicate)
+        return {
+          projectId,
+          admitted: false,
+          submissionId: duplicate.id,
+          entryId: entryOfSubmission(duplicate),
+        };
       // Revalidate staged refs before re-admitting: expiry fails here, before the run.
       const resolved = (await hooks.uploads?.resolveRefs(input.files ?? [])) ?? [];
-      const admitted = await submitOnce(harness, conversation, {
+      const receipt = await submitOnce(harness, conversation, {
         type: "input",
         content: toUserInput(input, readFromResolved(resolved)),
         requestId: input.requestId,
         whenBusy,
       });
-      if (!admitted) return { projectId, admitted };
+      if (receipt.admitted)
+        rememberUserItem(input.requestId, receipt.submissionId, {
+          text: input.text,
+          files: [...(input.files ?? [])],
+        });
+      if (!receipt.admitted) return { projectId, ...receipt };
       let provisionalFor: string | undefined;
       // A bang command titles from `ls`, but the stored entry keeps its verbatim `! ls` text.
       const titleSource = stripBangPrefix(input.text);
@@ -268,7 +427,7 @@ export function createConversationStore(
         delete entry.archivedAt;
         return true;
       });
-      return { projectId, titleText: provisionalFor, admitted };
+      return { projectId, titleText: provisionalFor, ...receipt };
     },
 
     async retry(id, input, now) {
@@ -278,32 +437,37 @@ export function createConversationStore(
         (tx) => tx.submissionByRequest(conversationId, input.requestId),
         BACKGROUND,
       );
-      if (alreadyAdmitted) return projectId;
+      if (alreadyAdmitted)
+        return {
+          projectId,
+          submissionId: alreadyAdmitted.id,
+          entryId: entryOfSubmission(alreadyAdmitted),
+        };
       if (!isRetryable(view)) throw new AppError("invalid_request", "There is nothing to retry.");
       try {
-        await submitOnce(harness, conversation, {
+        const receipt = await submitOnce(harness, conversation, {
           type: "input",
           content: RETRY_PROMPT,
           entry: { kind: "app.retry" },
           requestId: input.requestId,
           whenBusy: "reject",
         });
+        await updateLiveConversation(harness, conversationId, projectId, (_meta, entry) => {
+          entry.updatedAt = now;
+          delete entry.archivedAt;
+          return true;
+        });
+        return { projectId, submissionId: receipt.submissionId, entryId: receipt.entryId };
       } catch (error) {
         if (error instanceof ConversationBusy) throw new AppError("invalid_request", "The thread is busy.");
         throw error;
       }
-      await updateLiveConversation(harness, conversationId, projectId, (_meta, entry) => {
-        entry.updatedAt = now;
-        delete entry.archivedAt;
-        return true;
-      });
-      return projectId;
     },
 
     async abort(id) {
-      const { conversation } = await known(id);
+      const { conversation, id: conversationId } = await known(id);
       hooks.beforeAbort?.(id);
-      await conversation.abort(BACKGROUND);
+      return abortAndRestore(harness, conversation, String(conversationId));
     },
 
     async compact(id, instructions) {

@@ -26,7 +26,7 @@ describe("path filter: allowed", () => {
   });
 
   it("accepts every routes entry outside the denylist, with its own body limit", () => {
-    const denied = /^\/api\/(access|remote|nodes|n|pair|health|update)(\/|$)/;
+    const denied = /^\/api\/(access|remote|nodes|n|pair|health|metrics|update)(\/|$)/;
     for (const [name, route] of Object.entries(routes)) {
       if (denied.test(route.path)) continue;
       const path = route.path.replace(/:\w+/g, "x1");
@@ -47,7 +47,7 @@ describe("path filter: allowed", () => {
   });
 
   it("marks only the upload route owner-only", () => {
-    const denied = /^\/api\/(access|remote|nodes|n|pair|health|update)(\/|$)/;
+    const denied = /^\/api\/(access|remote|nodes|n|pair|health|metrics|update)(\/|$)/;
     for (const [name, route] of Object.entries(routes as Record<string, RouteDef>)) {
       if (denied.test(route.path)) continue;
       const path = route.path.replace(/:\w+/g, "x1");
@@ -81,6 +81,7 @@ describe("path filter: denied", () => {
       "/api/pair",
       "/api/pair/redeem",
       "/api/health",
+      "/api/metrics",
       "/api/update",
       "/api/update/refresh",
       "/api/update/start",

@@ -16,6 +16,18 @@ export const WAIT_COMMANDS: readonly string[] = ["threads start", "threads send"
 
 const COMMON_FLAGS: readonly CommandFlag[] = [
   {
+    name: "machine",
+    kind: "boolean",
+    valueKind: "output",
+    summary: "NDJSON v1 envelopes on stdout (legacy output otherwise)",
+  },
+  {
+    name: "node",
+    kind: "value",
+    valueKind: "output",
+    summary: "Stable linked-node ID, fixed for HTTP and streams; never falls back locally",
+  },
+  {
     name: "json",
     kind: "value",
     valueKind: "output",

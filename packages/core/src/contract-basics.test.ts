@@ -5,6 +5,7 @@ import { makeRealTarget, REAL_CORE_IMPLEMENTED } from "./contract-target";
 const MODULES: readonly ContractModule[] = [
   "settings",
   "resources",
+  "sandbox",
   "projects",
   "fs",
   "conversations",

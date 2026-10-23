@@ -1,6 +1,7 @@
-import { access } from "node:fs/promises";
+import { access, realpath, stat } from "node:fs/promises";
 import { AppError, type ConversationSummary, type WorkspaceStatus } from "@tau/protocol";
-import { countCommits, dirtyFilesOf, localRef, locateRepo, mainCheckoutRoot } from "./repo-facts";
+import { locateRepo, mainCheckoutRoot } from "./repo-facts";
+import { readWorkspaceGitStatus, workspaceStatusOf } from "./workspace-git-status";
 
 export interface WorktreeFacts {
   readonly worktreeRoot: string;
@@ -50,21 +51,30 @@ export async function worktreeFactsIfPresent(
 
 const SUMMARY_PREVIEW = 5;
 
-function mergeBlocker(thread: ConversationSummary, dirty: readonly string[], ahead: number): string | null {
-  if (thread.status === "running") return "The thread is running.";
-  if (dirty.length > 0) return "The worktree has uncommitted changes.";
-  if (thread.workspace.state === "merged" && ahead === 0) return "Already merged.";
-  return null;
+/**
+ * Trust root for Layer 1 (spawns) and Layer 2 (in-process writes): the canonical
+ * root resolved from trusted thread metadata (mode + workspace path), never
+ * from a tool's `cwd`. Worktree threads resolve to their worktree, checkout
+ * threads to the main checkout; removed threads and unresolvable paths deny
+ * with `undefined` (fail closed), so callers reject the write or spawn.
+ */
+export async function sandboxRootOf(thread: ConversationSummary): Promise<string | undefined> {
+  if (thread.workspace.state === "removed") return undefined;
+  if (hasLiveWorktree(thread)) {
+    const facts = await worktreeFactsIfPresent(thread).catch(() => undefined);
+    if (!facts) return undefined;
+    return realpath(facts.worktreeRoot).catch(() => undefined);
+  }
+  try {
+    const canonical = await realpath(thread.workspace.path);
+    return (await stat(canonical)).isDirectory() ? canonical : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 export async function readStatus(thread: ConversationSummary): Promise<WorkspaceStatus> {
-  const facts = await worktreeFactsOf(thread);
-  const { worktreeRoot, branch, base } = facts;
-  const ahead = await countCommits(worktreeRoot, `${localRef(base)}..${localRef(branch)}`);
-  const behind = await countCommits(worktreeRoot, `${localRef(branch)}..${localRef(base)}`);
-  const dirtyFiles = await dirtyFilesOf(worktreeRoot);
-  const reason = mergeBlocker(thread, dirtyFiles, ahead);
-  return { ahead, behind, dirtyFiles, unmergedCommits: ahead, canMerge: reason === null, reason };
+  return workspaceStatusOf(thread, await readWorkspaceGitStatus(thread.workspace));
 }
 
 export async function describeUnmergedWork(thread: ConversationSummary): Promise<string[]> {

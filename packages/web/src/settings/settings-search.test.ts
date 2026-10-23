@@ -15,7 +15,8 @@ describe("settings ranking", () => {
     expect(idsFor("theme")[0]).toBe("appearance");
     expect(idsFor("steer")[0]).toBe("message-mode");
     expect(idsFor("interrupt")[0]).toBe("message-mode");
-    expect(idsFor("worktree")[0]).toBe("workspace-default");
+    expect(idsFor("worktree")[0]).toBe("resources-levels-worktree");
+    expect(idsFor("worktree")).toContain("workspace-default");
     expect(idsFor("checkout")[0]).toBe("workspace-default");
     expect(idsFor("mcp")[0]).toBe("mcp-servers");
     expect(idsFor("connector")).toContain("mcp-servers");
@@ -25,7 +26,8 @@ describe("settings ranking", () => {
   it("forgives typos within reason", () => {
     expect(idsFor("notifcations")[0]).toBe("notifications");
     expect(idsFor("apperance")[0]).toBe("appearance");
-    expect(idsFor("wroktree")[0]).toBe("workspace-default");
+    expect(idsFor("wroktree")[0]).toBe("resources-levels-worktree");
+    expect(idsFor("wroktree")).toContain("workspace-default");
     expect(idsFor("zzzzzz")).toEqual([]);
   });
 

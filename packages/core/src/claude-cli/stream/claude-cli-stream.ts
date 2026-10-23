@@ -46,6 +46,10 @@ export interface ClaudeCliStreamDeps {
   readonly connectorStatus?: () => Promise<readonly ClaudeMcpServerStatus[] | null>;
   /** The chosen servers that were not connected when the first input went in. */
   readonly onConnectorsLate?: (notes: readonly string[]) => void;
+  /** File holding persisted bindings (`sdkSessionId` + checkpoints) so a restart resumes. Absent: memory only. */
+  readonly bindingsFile?: string;
+  /** A save of `bindingsFile` failed. The turn is unaffected. Absent: the error goes to the console. */
+  readonly onPersistError?: (error: unknown) => void;
 }
 
 export interface ClaudeCliStreamer extends InterruptConversationPort {
@@ -81,7 +85,9 @@ async function runCall(
     stream.push(finalEvent(message, { kind: "aborted" }, null));
     return;
   }
-  const existing = call.sessionId ? rt.bindings.get(call.sessionId) : undefined;
+  const existing = call.sessionId
+    ? (rt.bindings.get(call.sessionId) ?? (await rt.restoreBinding(call.sessionId)))
+    : undefined;
   await existing?.settling;
   if (existing) await closeIfOptionsStale(rt, existing);
   const plan = choosePath({
@@ -120,7 +126,8 @@ export function createClaudeCliStream(deps: ClaudeCliStreamDeps): ClaudeCliStrea
       return stream;
     },
     async closeThread(piSessionId) {
-      const binding = rt.bindings.get(piSessionId);
+      const binding = rt.bindings.get(piSessionId) ?? (await rt.restoreBinding(piSessionId));
+      rt.dropBinding(piSessionId);
       if (!binding) return;
       rt.bindings.delete(piSessionId);
       cancelIdle(binding);
@@ -136,6 +143,7 @@ export function createClaudeCliStream(deps: ClaudeCliStreamDeps): ClaudeCliStrea
         closeQuery(rt, binding);
       }
       for (const binding of rt.bindings.values()) cancelIdle(binding);
+      await rt.flush();
     },
     processCount: () => rt.live.size,
     interruptConversation: async (piSessionId) => {

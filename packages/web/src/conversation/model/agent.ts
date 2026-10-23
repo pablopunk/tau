@@ -1,18 +1,10 @@
-import type { AgentState, ConversationView, ModelInfo, ThinkingLevel } from "@tau/protocol";
+import type { AgentInfo, ConversationView, ModelInfo } from "@tau/protocol";
+import { agentInfoOf } from "@tau/protocol";
 
-export interface AgentInfo {
-  readonly provider: string | undefined;
-  readonly modelId: string | undefined;
-  readonly thinkingLevel: ThinkingLevel;
-}
+export type { AgentInfo };
 
 export function readAgent(view: ConversationView): AgentInfo {
-  const agent = view.docs["pi.agent"] as unknown as Partial<AgentState> | undefined;
-  return {
-    provider: agent?.model?.provider,
-    modelId: agent?.model?.modelId,
-    thinkingLevel: (agent?.thinkingLevel as ThinkingLevel | undefined) ?? "off",
-  };
+  return agentInfoOf(view);
 }
 
 export function findModel(agent: AgentInfo, models: readonly ModelInfo[] | undefined): ModelInfo | undefined {

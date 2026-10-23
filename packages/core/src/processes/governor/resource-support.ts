@@ -1,9 +1,13 @@
 import { createHash, randomBytes } from "node:crypto";
 import { readFileSync } from "node:fs";
-import type { ResourceSupport } from "@tau/protocol";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import type { ResourceSupport, SandboxMechanism, SandboxSupport } from "@tau/protocol";
+import { assertWriteAllowed, SandboxDenied } from "../../harness/tools/sandbox-path";
 import { type Exec, execCommand, systemdEnv } from "./exec";
 import { POLLED_NOTE, probeFailedText, UNSUPPORTED_NOTE } from "./governor-text";
-import { type Binaries, type HostPlatform, hostPlatform, resolveBinaries } from "./wrap-command";
+import { type Binaries, findOnPath, type HostPlatform, hostPlatform, resolveBinaries } from "./wrap-command";
 
 export const PROBE_TTL_MS = 5000;
 export const PROBE_TIMEOUT_MS = 2000;
@@ -33,7 +37,11 @@ export interface ResourceSupportProbe {
   binaries(): Binaries;
   /** Lazy; only the memory-limit spawn on Linux calls it. */
   prepareMemory(): Promise<MemoryPreparation>;
-  /** For the settings panel. */
+  /**
+   * For the settings panel. Also carries the sandbox capability result (typed
+   * as `SandboxSupport` in `@tau/protocol`): the response schema gains the
+   * field in the integrator's pass; the runtime already reports it.
+   */
   describe(): Promise<ResourceSupport>;
   /** The unit name for a scope of one command. */
   unitFor(entryId: string): string;
@@ -76,6 +84,68 @@ const readSelfCgroup = () => {
     return undefined;
   }
 };
+
+/**
+ * Which Layer-1 backend could confine a spawn here. Binary presence only
+ * narrows the mechanism; `enforced` additionally needs the Layer-2 probe below.
+ */
+export function sandboxMechanism(
+  platform: HostPlatform,
+  binaries: Binaries,
+  find: (name: string) => string | undefined = (name) => findOnPath(name),
+): SandboxMechanism {
+  if (platform === "macos") {
+    return find("sandbox-exec") === undefined ? "none" : "seatbelt";
+  }
+  if (platform === "linux") {
+    if (binaries.systemdRun !== undefined) return "systemd";
+    return find("bwrap") === undefined ? "none" : "bwrap";
+  }
+  return "none";
+}
+
+/**
+ * Tests the actual Layer-2 enforcement path at probe time: an inside write
+ * through the confined open must succeed while an outside write must deny.
+ * Never a bare platform check.
+ */
+export async function probeSandboxLayer2(): Promise<{ ok: boolean; note: string | null }> {
+  const scratch = await mkdtemp(join(tmpdir(), "tau-sandbox-probe-"));
+  try {
+    await assertWriteAllowed(join(scratch, "inside.txt"), scratch, scratch);
+    try {
+      await assertWriteAllowed(join(scratch, "..", "outside.txt"), scratch, scratch);
+    } catch (error) {
+      if (error instanceof SandboxDenied) return { ok: true, note: null };
+      throw error;
+    }
+    return { ok: false, note: "The confinement check allowed a write outside its root." };
+  } catch (error) {
+    if (error instanceof SandboxDenied) {
+      return { ok: false, note: "The confinement check denied a write inside its own root." };
+    }
+    return { ok: false, note: error instanceof Error ? error.message : String(error) };
+  } finally {
+    await rm(scratch, { recursive: true, force: true });
+  }
+}
+
+/** Capability result for the support query: mechanism plus a live Layer-2 test. */
+export async function sandboxSupportOf(
+  platform: HostPlatform,
+  binaries: Binaries,
+  find?: (name: string) => string | undefined,
+): Promise<SandboxSupport> {
+  const mechanism = sandboxMechanism(platform, binaries, find);
+  const layer2 = await probeSandboxLayer2();
+  const enforced = mechanism !== "none" && layer2.ok;
+  const note = !layer2.ok
+    ? layer2.note
+    : mechanism === "none"
+      ? "No Layer-1 backend here (sandbox-exec on macOS, systemd-run or bwrap on Linux): spawns run unenforced."
+      : "Probe-tested with a scratch root; threads are confined only while the sandbox switch is on.";
+  return { enforced, mechanism, tested: true, note };
+}
 
 /** Fixed-length and `[0-9a-f]` only, so `tau-<id>-*` never matches another node id. */
 export const unitNodeId = (nodeId: string) => createHash("sha256").update(nodeId).digest("hex").slice(0, 12);
@@ -202,6 +272,7 @@ export function createResourceSupport(deps: SupportDeps): ResourceSupportProbe {
       return { cgroupMemory: false, failure: probeFailedText(outcome.reason ?? "unknown reason") };
     },
     async describe() {
+      const sandbox = await sandboxSupportOf(platform, binaries());
       if (platform === "macos") {
         return {
           platform,
@@ -209,6 +280,7 @@ export function createResourceSupport(deps: SupportDeps): ResourceSupportProbe {
           prioritySupported: binaries().taskpolicy !== undefined,
           sameCgroupOnly: false,
           note: POLLED_NOTE,
+          ...{ sandbox },
         };
       }
       if (platform !== "linux") {
@@ -218,6 +290,7 @@ export function createResourceSupport(deps: SupportDeps): ResourceSupportProbe {
           prioritySupported: false,
           sameCgroupOnly: false,
           note: UNSUPPORTED_NOTE,
+          ...{ sandbox },
         };
       }
       const outcome = await probe();
@@ -227,6 +300,7 @@ export function createResourceSupport(deps: SupportDeps): ResourceSupportProbe {
         prioritySupported: binaries().nice !== undefined,
         sameCgroupOnly: priorityIsCgroupLimited((deps.selfCgroup ?? readSelfCgroup)()),
         note: outcome.ok ? null : `${outcome.reason ?? "cgroups unavailable"}. ${POLLED_NOTE}`,
+        ...{ sandbox },
       };
     },
     unitFor: (entryId) => `${prefix()}-${entryId}`,

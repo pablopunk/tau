@@ -1,6 +1,8 @@
 import type {
+  AbortResult,
   Approval,
   ApprovalDecision,
+  CancelQueuedResult,
   Checkpoint,
   ClaudeConnectorSettings,
   CompactInput,
@@ -17,6 +19,8 @@ import type {
   GithubRepo,
   GithubStatus,
   Goal,
+  HandoffInput,
+  HandoffPreview,
   LoginSession,
   LoopInput,
   McpServerConfig,
@@ -42,7 +46,12 @@ import type {
   ResourceSupport,
   RestorePreview,
   RetryInput,
+  RuntimeDescriptorList,
+  SandboxSettings,
   SendMessageInput,
+  SendNowResult,
+  SendReceipt,
+  SetQueuedModeResult,
   Settings,
   Skill,
   StartConversationInput,
@@ -58,6 +67,7 @@ import type {
   UseGithubRepoInput,
   VoiceModelSetting,
   VoiceOptions,
+  WhenBusy,
   WorkspaceDefault,
   WorkspaceStatus,
 } from "@tau/protocol";
@@ -71,7 +81,14 @@ import {
 } from "@tau/protocol";
 import { createHttpTransport } from "./transport/http";
 import { createLazyTransport } from "./transport/lazy";
-import type { LiveTransport, StreamHandlers, StreamSocket, Transport } from "./transport/types";
+import type {
+  LiveTransport,
+  RequestOptions,
+  StreamHandlers,
+  StreamSocket,
+  Transport,
+} from "./transport/types";
+import { createWorkspaceStatusQueue } from "./workspace-status-queue";
 
 export type { LiveHandlers, LiveSocket, LiveTransport, Transport } from "./transport/types";
 
@@ -93,6 +110,7 @@ export interface Api {
     setWorkspaceDefault(mode: WorkspaceDefault): Promise<void>;
     setClaudeConnectors(value: ClaudeConnectorSettings): Promise<void>;
     setResources(value: ResourceSettings): Promise<void>;
+    setSandbox(value: SandboxSettings): Promise<void>;
     setCompaction(value: CompactionSettings): Promise<void>;
     /** `null`: this node is older than resource control (404), so the controls are not supported there. */
     resourceSupport(): Promise<ResourceSupport | null>;
@@ -135,6 +153,9 @@ export interface Api {
   models: {
     list(): Promise<ModelInfo[]>;
   };
+  runtimes: {
+    list(): Promise<RuntimeDescriptorList>;
+  };
   skills: {
     list(projectId: string | null): Promise<Skill[]>;
   };
@@ -159,27 +180,33 @@ export interface Api {
     listAll(): Promise<ConversationSummary[]>;
     start(input: StartConversationInput): Promise<ConversationSummary>;
     rename(id: string, title: string): Promise<void>;
-    send(id: string, input: SendMessageInput): Promise<void>;
+    send(id: string, input: SendMessageInput): Promise<SendReceipt>;
     /** Replaces the thread's todo list with the user's edit and pings the agent with the diff. */
     updateTodos(id: string, input: UpdateTodosInput): Promise<void>;
-    abort(id: string): Promise<void>;
+    abort(id: string): Promise<AbortResult>;
     archive(id: string, archived: boolean): Promise<void>;
     remove(id: string, options?: { force?: boolean }): Promise<void>;
     deleteArchived(input: DeleteArchivedInput): Promise<DeleteArchivedResult>;
     fork(id: string, entryId: string): Promise<ConversationSummary>;
+    /** What a contextual handoff to a new native thread carries and loses. */
+    handoffPreview(id: string): Promise<HandoffPreview>;
+    /** Starts a NEW native thread from this Pi thread; idempotent by `requestId`. */
+    handoff(id: string, input: HandoffInput): Promise<ConversationSummary>;
     rewindPreview(id: string, entryId: string): Promise<RestorePreview>;
     rewind(id: string, entryId: string): Promise<{ conversation: ConversationSummary; draft: string }>;
     stopAgent(id: string): Promise<void>;
-    cancelQueued(id: string, itemId: string): Promise<{ cancelled: boolean }>;
+    cancelQueued(id: string, itemId: string): Promise<CancelQueuedResult>;
+    sendNow(id: string, itemId: string): Promise<SendNowResult>;
+    setQueuedMode(id: string, itemId: string, mode: WhenBusy): Promise<SetQueuedModeResult>;
     checkpoints(id: string): Promise<Checkpoint[]>;
     checkpointDiff(id: string, checkpointId: string, path: string): Promise<string>;
     configure(id: string, input: ConfigureConversationInput): Promise<void>;
-    retry(id: string, input: RetryInput): Promise<void>;
+    retry(id: string, input: RetryInput): Promise<SendReceipt>;
     compact(id: string, input: CompactInput): Promise<void>;
   };
   workspaces: {
-    status(conversationId: string): Promise<WorkspaceStatus>;
-    merge(conversationId: string): Promise<ConversationSummary>;
+    status(conversationId: string, options?: RequestOptions): Promise<WorkspaceStatus>;
+    merge(conversationId: string, force?: boolean): Promise<ConversationSummary>;
     createPullRequest(conversationId: string): Promise<ConversationSummary>;
     remove(conversationId: string, force?: boolean): Promise<ConversationSummary>;
   };
@@ -305,6 +332,7 @@ export function isUnknownRoute(error: unknown): boolean {
 
 export function createApi(transport: Transport): Api {
   const { request } = transport;
+  const readWorkspaceStatus = createWorkspaceStatusQueue();
   return {
     fs: {
       suggestDirectories: (input) => request("suggestDirectories", { body: input }),
@@ -322,6 +350,7 @@ export function createApi(transport: Transport): Api {
       setClaudeConnectors: (value) => request("setClaudeConnectors", { body: value }),
       setSetupSkipped: (skipped) => request("setSetupSkipped", { body: { skipped } }),
       setResources: (value) => request("setResources", { body: value }),
+      setSandbox: (value) => request("setSandbox", { body: value }),
       setCompaction: (value) => request("setCompaction", { body: value }),
       resourceSupport: () => nullWhenMissing(request("getResourceSupport", {})),
       resourceActivity: () => nullWhenMissing(request("getResourceActivity", {})),
@@ -357,6 +386,9 @@ export function createApi(transport: Transport): Api {
     models: {
       list: () => request("listModels", {}),
     },
+    runtimes: {
+      list: () => request("listRuntimes", {}),
+    },
     skills: {
       list: (projectId) => request("listSkills", { query: projectId ? { projectId } : {} }),
     },
@@ -387,10 +419,15 @@ export function createApi(transport: Transport): Api {
         request("removeConversation", { params: { id }, query: options?.force ? { force: "true" } : {} }),
       deleteArchived: (input) => request("deleteArchivedConversations", { body: input }),
       fork: (id, entryId) => request("forkConversation", { params: { id }, body: { entryId } }),
+      handoffPreview: (id) => request("getHandoffPreview", { params: { id } }),
+      handoff: (id, input) => request("handoffConversation", { params: { id }, body: input }),
       rewindPreview: (id, entryId) => request("rewindPreview", { params: { id }, body: { entryId } }),
       rewind: (id, entryId) => request("rewindConversation", { params: { id }, body: { entryId } }),
       stopAgent: (id) => request("stopAgent", { params: { id } }),
       cancelQueued: (id, itemId) => request("cancelQueued", { params: { id, itemId } }),
+      sendNow: (id, itemId) => request("sendNow", { params: { id }, body: { itemId } }),
+      setQueuedMode: (id, itemId, mode) =>
+        request("setQueuedMode", { params: { id, itemId }, body: { mode } }),
       checkpoints: (id) => request("listCheckpoints", { params: { id } }),
       checkpointDiff: async (id, cid, path) =>
         (await request("getCheckpointDiff", { params: { id, cid }, query: { path } })).diff,
@@ -399,8 +436,13 @@ export function createApi(transport: Transport): Api {
       compact: (id, input) => request("compactConversation", { params: { id }, body: input }),
     },
     workspaces: {
-      status: (id) => request("getWorkspace", { params: { id } }),
-      merge: (id) => request("mergeWorkspace", { params: { id } }),
+      status: (id, options) =>
+        readWorkspaceStatus(
+          (signal) => request("getWorkspace", { params: { id } }, { signal }),
+          options?.signal,
+        ),
+      merge: (id, force = false) =>
+        request("mergeWorkspace", { params: { id }, query: { force: force ? "true" : "false" } }),
       createPullRequest: (id) => request("createPullRequest", { params: { id } }),
       remove: (id, force = false) =>
         request("removeWorkspace", { params: { id }, query: { force: force ? "true" : "false" } }),

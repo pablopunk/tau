@@ -49,21 +49,31 @@ function MainHeader() {
 }
 
 /**
- * Track the visual viewport height in a CSS var. `100dvh` ignores the iOS
- * keyboard (it sizes to the large viewport), so without this the composer
- * slides behind the keyboard with no way to see what you type. Browsers
- * without visualViewport keep the `100dvh` fallback.
+ * Shrink the app to the visual viewport only while the keyboard is open.
+ * `100dvh` ignores the iOS keyboard, so the composer would slide behind it.
+ * With no keyboard the var is removed: a stale or toolbar-sized viewport
+ * height would leave a blank band under the composer.
  */
+const KEYBOARD_MIN_PX = 120;
+
 function useVisualViewportHeight() {
   useEffect(() => {
     const viewport = window.visualViewport;
     if (!viewport) return;
+    const root = document.documentElement.style;
     const update = () => {
-      document.documentElement.style.setProperty("--tau-app-height", `${viewport.height}px`);
+      const keyboardOpen = window.innerHeight - viewport.height > KEYBOARD_MIN_PX;
+      if (keyboardOpen) root.setProperty("--tau-app-height", `${viewport.height}px`);
+      else root.removeProperty("--tau-app-height");
     };
     update();
     viewport.addEventListener("resize", update);
-    return () => viewport.removeEventListener("resize", update);
+    window.addEventListener("orientationchange", update);
+    return () => {
+      viewport.removeEventListener("resize", update);
+      window.removeEventListener("orientationchange", update);
+      root.removeProperty("--tau-app-height");
+    };
   }, []);
 }
 

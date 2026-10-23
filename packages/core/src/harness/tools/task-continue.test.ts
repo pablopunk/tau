@@ -1,7 +1,7 @@
 import { mkdir, mkdtemp, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { Conversation, ConversationId, Harness, PromptInput } from "@earendil-works/pi-durable";
+import type { Conversation, Harness, PromptInput } from "@earendil-works/pi-durable";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createFauxSetup } from "../../testing/faux-provider";
 import { legacyWorkspace } from "../conversation-index";

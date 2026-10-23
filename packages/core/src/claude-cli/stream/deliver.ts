@@ -52,4 +52,5 @@ export async function continueLive(
   const asText = resolveDeferreds(binding, suffix, viaMcp);
   if (asText.length > 0) pushInput(binding, contentOfEntries(asText));
   binding.head = headOf(call);
+  rt.persistBinding(binding);
 }

@@ -42,7 +42,13 @@ function retireSession(port: ClaudeSdkPort, binding: Binding, previous: string |
   void port.deleteSession(previous).catch(() => undefined);
 }
 
-function commitOnFirstMessage(port: ClaudeSdkPort, binding: Binding, call: CallContext, launch: Launch) {
+function commitOnFirstMessage(
+  rt: Runtime,
+  port: ClaudeSdkPort,
+  binding: Binding,
+  call: CallContext,
+  launch: Launch,
+) {
   const previous = binding.sdkSessionId;
   binding.onFirstMessage = (sessionId) => {
     binding.sdkSessionId = sessionId;
@@ -50,6 +56,7 @@ function commitOnFirstMessage(port: ClaudeSdkPort, binding: Binding, call: CallC
     binding.head = headOf(call);
     if (!launch.keepCheckpoints) binding.checkpoints = [];
     retireSession(port, binding, previous, sessionId);
+    rt.persistBinding(binding);
   };
 }
 
@@ -116,7 +123,8 @@ export async function launchQuery(
   binding.cliBusy = false;
   binding.optionsKey = key;
   binding.expected.clear();
-  commitOnFirstMessage(port, binding, call, launch);
+  rt.persistBinding(binding);
+  commitOnFirstMessage(rt, port, binding, call, launch);
   const query = port.startQuery(
     buildQueryOptions({
       prompt: input.stream,

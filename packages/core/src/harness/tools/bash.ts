@@ -4,7 +4,7 @@ import { stat } from "node:fs/promises";
 import { defineTool } from "@earendil-works/pi-durable";
 import type { BashExecution } from "@earendil-works/pi-durable/tools";
 import { Type } from "typebox";
-import { governedScope, indexEntryOfCall } from "../../processes/governor/governed";
+import { callScopes, indexEntryOfCall, scopeFields } from "../../processes/governor/governed";
 import { stopMessage } from "../../processes/governor/governor-text";
 import type { ForegroundOutcome, ForegroundRun } from "../../processes/process-types";
 import type { ToolServicesRef } from "./tool-file";
@@ -110,7 +110,7 @@ function guard(run: ForegroundRun, timeout: number | undefined, abortSignal: Abo
 export const createTauBashTool = ({ services, prepare }: TauBashOptions) =>
   defineTool({
     name: "bash",
-    description: `Execute a bash command in the current working directory. Returns combined stdout and stderr. Output is truncated to last ${MAX_LINES} lines or ${MAX_KB}KB (whichever is hit first). If truncated, full output is saved to a temp file. Optionally provide a timeout in seconds.`,
+    description: `Execute a bash command in the current working directory. Use it to run commands and search (grep/rg/find/ls); never to read/edit/write files — use the read/write/edit tools instead (no cat >, heredocs, sed -i, or python file writes). Returns combined stdout and stderr. Output is truncated to last ${MAX_LINES} lines or ${MAX_KB}KB (whichever is hit first). If truncated, full output is saved to a temp file. Optionally provide a timeout in seconds.`,
     parameters: BashParameters,
     structuredOutputSchema: BashStructuredOutput,
     outputLimits: { retain: "tail" },
@@ -124,7 +124,8 @@ export const createTauBashTool = ({ services, prepare }: TauBashOptions) =>
       const processes = services.current().processes;
       let waiting = true;
       const settings = processes.resourceSettings();
-      const scope = await governedScope(settings, indexEntryOfCall(api, context));
+      const scopes = await callScopes(settings, processes.sandboxSettings(), indexEntryOfCall(api, context));
+      const scope = scopes.governedScope;
       const scale =
         timeout === undefined && scope && settings.levels[scope] === "background"
           ? BACKGROUND_TIMEOUT_SCALE
@@ -137,7 +138,8 @@ export const createTauBashTool = ({ services, prepare }: TauBashOptions) =>
         command: execution.command,
         env: execution.env,
         shell: bashPath(),
-        ...(scope && { governed: true, scope }),
+        origin: "tool",
+        ...scopeFields(scopes),
         // A command's stragglers can write after the call settled; the call no longer takes output then.
         onOutput: (text) => {
           if (!waiting) return;

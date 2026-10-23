@@ -152,7 +152,7 @@ export function createNodes(deps: NodesDeps): NodesService {
   const learnedName = (peer: Peer, info: NodePeerInfo): string =>
     info.name && peer.name === hostOf(peer.url) ? info.name : peer.name;
 
-  async function bindDialled(peerId: string, id: string, info: NodePeerInfo): Promise<Settled> {
+  async function bindDialled(peerId: string, _id: string, info: NodePeerInfo): Promise<Settled> {
     const peers = await deps.peers.read();
     const peer = peers.find((entry) => peerIdOf(entry) === peerId);
     if (!peer) throw new AppError("not_found", `No node ${peerId}.`);

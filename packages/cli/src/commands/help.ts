@@ -2,10 +2,12 @@ import { COMMAND_NOUNS, commandOf, commands, FLOW_COMMANDS } from "@tau/protocol
 import { usageError } from "./cli-exit";
 import { commandFlags } from "./command-flags";
 import { usageOf } from "./parse";
+import { EXTRA_THREAD_VERBS } from "./thread-extras";
 
 const THREAD_EXTRAS = [
   "  wait <id>       Wait until the thread is done, then print the answer (--timeout <s>)",
   "  read <id>       Print the thread as text (--last <n>)",
+  "  handoff <id>    Preview handing a Pi thread off to a new native Claude thread; --yes does it (--instruction <text>)",
 ];
 
 const LIFECYCLE = [
@@ -13,6 +15,7 @@ const LIFECYCLE = [
   "  serve           Run the server in the foreground (for debugging; bare `tau` installs and starts the service)",
   "  update          Install the latest tau and restart the server (--check, --yes, --force, --no-restart)",
   "  skill           Print the tau skill for agents",
+  "  metrics         Show Tau process CPU/memory and local request metrics (--json)",
 ];
 
 const UPDATE_FLAGS = [
@@ -44,7 +47,15 @@ function rootHelp(): string {
     "Server:",
     ...LIFECYCLE,
     "",
-    "API commands (output is JSON):",
+    "API commands (legacy output is JSON; waits append answer text):",
+    "  --machine       NDJSON v1 receipts/events/terminal/errors; diagnostics on stderr",
+    "  --node <id>     Stable linked-node ID, shared by HTTP/read/wait/terminal streams",
+    "  settings discover --machine   Machine command inventory; settings runtimes lists capabilities",
+    "  terminals attach <id> --machine   NDJSON base64 input/output and resize; EOF detaches",
+    "  --json <body>   Request body, NOT an output flag (metrics --json is unchanged)",
+    "  Wait observes thread-idle, not a specific submission. Deadline/disconnect/SIGINT never stop the run.",
+    "  Exit 0=response/admission, 1=failed/blocked/unknown, 2=usage, 3=wait deadline, 130=observer SIGINT.",
+    "  Reconcile unknown mutations by request ID; never blindly retry or auto-confirm destructive work.",
     ...COMMAND_NOUNS.map((noun) => `  ${noun}`),
     ...FLOW_COMMANDS.map((word) => `  ${word}`),
     "",
@@ -88,7 +99,7 @@ export function helpText(noun?: string, verb?: string): string {
   if (noun === undefined) return rootHelp();
   if (!(COMMAND_NOUNS as readonly string[]).includes(noun)) throw usageError(`Unknown command: ${noun}`);
   if (verb === undefined) return nounHelp(noun);
-  if (noun === "threads" && (verb === "wait" || verb === "read")) return nounHelp(noun);
+  if (noun === "threads" && EXTRA_THREAD_VERBS.includes(verb)) return nounHelp(noun);
   return commandHelp(`${noun} ${verb}`);
 }
 

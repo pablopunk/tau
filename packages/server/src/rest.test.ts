@@ -121,18 +121,16 @@ describe("REST routes", () => {
         })
       ).statusCode,
     ).toBe(204);
-    expect(
-      (
-        await ctx.request({
-          method: "POST",
-          url: `/api/conversations/${conversation.id}/messages`,
-          payload: { text: "hi", requestId: "r1" },
-        })
-      ).statusCode,
-    ).toBe(204);
+    const sent = await ctx.request({
+      method: "POST",
+      url: `/api/conversations/${conversation.id}/messages`,
+      payload: { text: "hi", requestId: "r1" },
+    });
+    expect(sent.statusCode).toBe(200);
+    expect(sent.json()).toMatchObject({ submissionId: expect.any(Number) });
     expect(
       (await ctx.request({ method: "POST", url: `/api/conversations/${conversation.id}/abort` })).statusCode,
-    ).toBe(204);
+    ).toBe(200);
     expect((await ctx.request({ method: "DELETE", url: `/api/projects/${project.id}` })).statusCode).toBe(
       204,
     );

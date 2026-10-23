@@ -9,6 +9,7 @@ import { cancelIdle, interruptAndSettle, touchIdle } from "./lifecycle";
 import { assistantKey, chainHash } from "./normalize";
 import { prepare } from "./prepare";
 import type { Runtime } from "./runtime";
+import { invalidateStaleSession, isStaleSessionError, resumedSessionOf } from "./stale-session";
 import { createTurn, type TurnOutcome } from "./turn";
 
 const messageOf = (error: unknown): string => (error instanceof Error ? error.message : String(error));
@@ -46,11 +47,45 @@ function settleAfter(
   if (outcome.kind !== "complete") return;
   const { summary } = outcome;
   const isToolRound = summary.stopReason === "toolUse";
-  if (summary.errorCode === null) recordCheckpoint(binding, call, message, summary.lastUuid);
-  else if (isAuthCode(summary.errorCode)) rt.deps.onAuthError();
+  if (summary.errorCode === null) {
+    recordCheckpoint(binding, call, message, summary.lastUuid);
+    rt.persistBinding(binding);
+  } else if (isAuthCode(summary.errorCode)) rt.deps.onAuthError();
   if (isToolRound) for (const id of tauCallIds(binding, summary.toolUseIds)) binding.expected.add(id);
   else owePendingResult(binding);
   if (summary.errorCode !== null && binding.expected.size > 0) void interruptAndSettle(rt, binding);
+}
+
+const failureKindOf = (error: unknown) => (isStaleSessionError(error) ? "stale" : "other");
+
+/** One attempt: a turn that reads one API message from the query `prepare` brings up. */
+async function runTurn(
+  rt: Runtime,
+  binding: Binding,
+  plan: Exclude<Plan, { kind: "oneShot" }>,
+  call: CallContext,
+  message: AssistantMessage,
+  stream: AssistantMessageEventStream,
+): Promise<TurnOutcome> {
+  const turn = createTurn(message, (event) => stream.push(event));
+  binding.listener = turn;
+  binding.apiPartSeen = false;
+  if (plan.kind === "continue") drainInbox(binding, turn);
+  const onAbort = () => {
+    turn.abort();
+    void interruptAndSettle(rt, binding);
+  };
+  call.signal?.addEventListener("abort", onAbort, { once: true });
+  if (call.signal?.aborted) onAbort();
+  try {
+    await prepare(rt, binding, plan, call);
+  } catch (error) {
+    turn.fail(neutralText(messageOf(error)), failureKindOf(error));
+  }
+  const outcome = await turn.outcome;
+  call.signal?.removeEventListener("abort", onAbort);
+  binding.listener = null;
+  return outcome;
 }
 
 /** One Pi request on a bound SDK session: Continue, Resume, Resume-at or Rebind. */
@@ -63,23 +98,11 @@ export async function runBound(
   stream: AssistantMessageEventStream,
 ): Promise<void> {
   cancelIdle(binding);
-  const turn = createTurn(message, (event) => stream.push(event));
-  binding.listener = turn;
-  if (plan.kind === "continue") drainInbox(binding, turn);
-  const onAbort = () => {
-    turn.abort();
-    void interruptAndSettle(rt, binding);
-  };
-  call.signal?.addEventListener("abort", onAbort, { once: true });
-  if (call.signal?.aborted) onAbort();
-  try {
-    await prepare(rt, binding, plan, call);
-  } catch (error) {
-    turn.fail(neutralText(messageOf(error)));
+  const resumed = resumedSessionOf(plan, binding);
+  let outcome = await runTurn(rt, binding, plan, call, message, stream);
+  if (invalidateStaleSession(rt, binding, resumed, outcome)) {
+    outcome = await runTurn(rt, binding, { kind: "rebind" }, call, message, stream);
   }
-  const outcome = await turn.outcome;
-  call.signal?.removeEventListener("abort", onAbort);
-  binding.listener = null;
   settleAfter(rt, binding, call, message, outcome);
   stream.push(finalEvent(message, outcome, binding.latestResetsAt));
   touchIdle(rt, binding);

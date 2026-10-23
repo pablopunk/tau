@@ -1,4 +1,4 @@
-import { DEFAULT_RESOURCE_SETTINGS } from "@tau/protocol";
+import { DEFAULT_RESOURCE_SETTINGS, DEFAULT_SANDBOX_SETTINGS } from "@tau/protocol";
 import { afterEach, beforeEach, describe, expect } from "vitest";
 import type { CaseRunner } from "./case-runner";
 import { FAST_MODEL, hasConnectedProvider, rejectsWithCode, SECOND_MODEL } from "./helpers";
@@ -39,6 +39,7 @@ export function settingsAndProviderCases(make: MakeContractTarget, test: CaseRun
         claudeConnectors: { disabled: [], alwaysAllow: [], askBeforeWrites: false },
         remote: { enabled: false },
         resources: DEFAULT_RESOURCE_SETTINGS,
+        sandbox: DEFAULT_SANDBOX_SETTINGS,
         compaction: { mode: "summary", backend: "auto" },
         setupSkipped: false,
       });

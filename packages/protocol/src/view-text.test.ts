@@ -51,4 +51,13 @@ describe("viewToText", () => {
   it("finds the last answer", () => {
     expect(lastAssistantText(view)).toBe("Done.");
   });
+
+  it("skips display-only bang rows like any other unknown kind", () => {
+    const withBang = {
+      ...view,
+      entries: [...view.entries, entry(8, "app.bang", undefined, { command: "echo hi" })],
+    } as unknown as ConversationView;
+    expect(viewToText(withBang)).toBe(viewToText(view));
+    expect(lastAssistantText(withBang)).toBe("Done.");
+  });
 });

@@ -12,6 +12,7 @@ export const NODE_SECTIONS = [
   { id: "projects", label: "Projects" },
   { id: "github", label: "GitHub" },
   { id: "agent", label: "Agent" },
+  { id: "limits", label: "Sandbox & limits" },
   { id: "tools", label: "Tools" },
 ] as const;
 

@@ -12,6 +12,12 @@ describe("claude connector tool", () => {
     expect(connectorLabel("Tool search", "search")).toBe("Looked up connector tools");
   });
 
+  it("leaves the label undefined when both args are missing", () => {
+    expect(connectorLabel(undefined, undefined)).toBeUndefined();
+    expect(connectorLabel("Slack", undefined)).toBe("Slack · …");
+    expect(connectorLabel(undefined, "search")).toBe("… · search");
+  });
+
   it("explains the unavailable error", () => {
     expect(connectorOutput("Tool claude_connector is not available for this model")).toBe(
       "Claude connectors need a Claude CLI model",

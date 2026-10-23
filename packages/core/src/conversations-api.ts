@@ -9,7 +9,10 @@ import {
   diffTodos,
   latestTodos,
   type ModelRef,
+  nativeAttachmentsError,
+  nativeDisabledError,
   type SendMessageInput,
+  type SendReceipt,
   type StartConversationInput,
   type ThinkingLevel,
   TODOS_UPDATED_KIND,
@@ -21,13 +24,21 @@ import {
 } from "@tau/protocol";
 import { Value } from "typebox/value";
 import type { ArchivedCleanup } from "./archived-cleanup";
-import { type BangCommandDeps, entryOfThread, parseBangCommand, runBangCommand } from "./bang-command";
+import {
+  admitAndDispatchBang,
+  type BangCommandDeps,
+  dispatchBang,
+  entryOfThread,
+  parseBangCommand,
+} from "./bang-command";
 import type { ChangeEmitter } from "./change-emitter";
 import type { CheckpointService } from "./checkpoints/checkpoint-service";
+import { CLAUDE_CLI_PROVIDER_ID } from "./claude-cli/provider";
 import { requireContent, requireImageBytesMatchTheirType, requireImagesAllowed } from "./conversation-input";
 import type { ConversationRemoval } from "./conversation-removal";
 import { createConversationsMvp5Api } from "./conversations-mvp5-api";
 import type { ConversationForker } from "./harness/conversation-fork";
+import { indexOf, isLive } from "./harness/conversation-index";
 import type { ConversationStore } from "./harness/conversation-store";
 import type { NotificationSubmitter } from "./harness/notification-submitter";
 import { ThreadGoneError } from "./harness/notification-submitter";
@@ -37,13 +48,90 @@ import { createSubagentStopper } from "./harness/subagent-stop";
 import type { SettingsStore } from "./home/settings-store";
 import type { ProviderService } from "./provider/provider-service";
 import { requireName } from "./require-name";
+import { createHandoffService, type HandoffDeps } from "./runtimes/handoff/handoff";
+import { retainedError } from "./runtimes/native/native-mode";
+import { type NativeService, requireNativeInput } from "./runtimes/native/service";
 import type { StatusTracker } from "./status/status-tracker";
-import { cwdOf } from "./terminals/cwd-of";
 import type { TitleService } from "./titles/title-service";
 import type { UploadStore } from "./upload-store";
 import type { WorkspaceService } from "./workspaces/workspace-service";
 
 const FALLBACK_THINKING_LEVEL = "medium";
+
+export type NativeStartInput = Pick<
+  StartConversationInput,
+  "projectId" | "text" | "requestId" | "workspace"
+> & {
+  /** A Claude model id, already checked to belong to the claude-cli provider. */
+  model?: string;
+};
+
+export type NativeConversationsApi = {
+  /** Core level only, not on the wire: starts a native thread and queues its first message. */
+  startNative(input: NativeStartInput): Promise<ConversationSummary>;
+};
+
+const unsupportedOnNative = (capability: string): AppError =>
+  new AppError("invalid_request", `Native Claude Code threads do not support ${capability} yet.`);
+
+function nativeModelIdOf(model: ModelRef | undefined): string | undefined {
+  if (model === undefined) return undefined;
+  if (model.provider !== CLAUDE_CLI_PROVIDER_ID) {
+    throw new AppError(
+      "invalid_request",
+      `Native Claude Code threads only run claude-cli models, not ${model.provider}.`,
+    );
+  }
+  return model.modelId;
+}
+
+const sequenceOfReceipt = (receiptId: string): number =>
+  Number(receiptId.slice(receiptId.lastIndexOf(":") + 1));
+
+/** Everything that assumes a Pi conversation refuses a native thread before any side effect. */
+function routeNativeThreads(
+  api: Core["conversations"],
+  native: NativeService,
+  cancelBeforeRemove: (id: string) => Promise<void>,
+): Core["conversations"] {
+  const piOnly =
+    <Args extends [string, ...unknown[]], Result>(
+      capability: string,
+      method: (...args: Args) => Promise<Result>,
+    ) =>
+    async (...args: Args): Promise<Result> => {
+      if (await native.isNative(args[0])) throw unsupportedOnNative(capability);
+      return method(...args);
+    };
+  return {
+    ...api,
+    async send(id, input) {
+      if (!(await native.isNative(id))) return api.send(id, input);
+      const receipt = await native.send(id, input);
+      return { submissionId: sequenceOfReceipt(receipt.receiptId) };
+    },
+    async abort(id) {
+      if (!(await native.isNative(id))) return api.abort(id);
+      await native.cancel(id);
+      return { restored: [] };
+    },
+    async remove(id, options) {
+      if (await native.isNative(id)) await cancelBeforeRemove(id);
+      return api.remove(id, options);
+    },
+    retry: piOnly("retry", api.retry),
+    sendNow: piOnly("send now", api.sendNow),
+    configure: piOnly("changing the model", api.configure),
+    compact: piOnly("compaction", api.compact),
+    fork: piOnly("fork", api.fork),
+    rewind: piOnly("rewind", api.rewind),
+    rewindPreview: piOnly("rewind", api.rewindPreview),
+    cancelQueued: piOnly("editing queued messages", api.cancelQueued),
+    setQueuedMode: piOnly("editing queued messages", api.setQueuedMode),
+    updateTodos: piOnly("todo updates", api.updateTodos),
+    stopAgent: piOnly("stopping subagents", api.stopAgent),
+  };
+}
 
 export function createConversationsApi(deps: {
   conversations: ConversationStore;
@@ -61,6 +149,8 @@ export function createConversationsApi(deps: {
   closeClaudeCliThread: (id: string) => Promise<void>;
   /** Closes the thread's terminals; called before an archive and never blocks it. */
   closeTerminalsOf?: (conversationId: string) => Promise<void>;
+  /** Refuses a message for a thread whose workspace is being merged or removed by another thread. Default: open. */
+  workspaceFence?: { assertOpen(workspaceKey: string, thread: string): void };
   /** Staged file refs validate through this before any side effect (workspace, checkpoint, exec). */
   uploads?: Pick<UploadStore, "resolveRefs">;
   /** What a `!` bang command spawns with: the process service, the home, and the notifier. */
@@ -71,8 +161,12 @@ export function createConversationsApi(deps: {
   };
   changes: ChangeEmitter;
   notifications: NotificationSubmitter;
+  /** Present while Claude Code is installed, or while native threads exist and only their reading and cancelling is kept. */
+  native?: NativeService;
+  /** What makes a Pi thread not idle for a handoff besides its run and queue. Default: nothing. */
+  handoffGuards?: Pick<HandoffDeps, "hasPendingApprovals" | "hasRunningProcesses">;
   now: () => number;
-}): Core["conversations"] {
+}): Core["conversations"] & Partial<NativeConversationsApi> {
   const { conversations, projects, provider, settings, titles, workspaces, checkpoints, changes, now } = deps;
   const { notifications } = deps;
   const announce = (projectId: string) => changes.emit({ resource: "conversations", projectId });
@@ -80,7 +174,7 @@ export function createConversationsApi(deps: {
   const reportCheckpointFailure = (error: unknown) =>
     console.error("tau: could not take a checkpoint", error);
   const startsInFlight = new Map<string, Promise<ConversationSummary>>();
-  const sendsInFlight = new Map<string, Promise<void>>();
+  const sendsInFlight = new Map<string, Promise<SendReceipt>>();
 
   const nameTheThread = (id: string, text: string) => void titles.generateFor(id, text);
   const lookUp = (ref: ModelRef) => provider.models.getModel(ref.provider, ref.modelId);
@@ -104,15 +198,41 @@ export function createConversationsApi(deps: {
     if ((input.files ?? []).length > 0) await deps.uploads?.resolveRefs(input.files ?? []);
   }
 
-  async function sendOnce(id: string, input: SendMessageInput): Promise<void> {
+  const bangDeps = () => ({
+    threads: conversations,
+    processes: deps.bang.processes,
+    notifications: deps.bang.notifications,
+    home: deps.bang.home,
+    entryOf: (conversationId: string) => entryOfThread(deps.harness, conversationId),
+    harness: deps.harness,
+    ...(deps.uploads === undefined ? {} : { uploads: deps.uploads }),
+  });
+
+  async function requireWorkspaceOpen(id: string): Promise<void> {
+    if (!deps.workspaceFence) return;
+    const thread = await conversations.find(id);
+    if (thread) deps.workspaceFence.assertOpen(thread.workspace.path, id);
+  }
+
+  async function sendOnce(id: string, input: SendMessageInput): Promise<SendReceipt> {
+    await requireWorkspaceOpen(id);
     await validateMessage(input, await modelOfThread(id));
     const bang = parseBangCommand(input.text);
+    if (bang.kind === "command") {
+      // Display-only admission + dispatch under one gate: no checkpoint (nothing will ever anchor it),
+      // no exec without a folder, and a concurrent bang refuses before any row is admitted.
+      const admission = await admitAndDispatchBang(bangDeps(), id, input, now());
+      announce(admission.projectId);
+      if (admission.titleText !== undefined) nameTheThread(id, admission.titleText);
+      return {
+        submissionId: admission.submissionId,
+        ...(admission.entryId === undefined ? {} : { entryId: admission.entryId }),
+      };
+    }
     // The server strips one `!`; web sends verbatim so every client behaves the same.
     const effective = bang.kind === "escaped" ? { ...input, text: bang.text } : input;
-    // A bang command resolves its workspace before admission: no exec without a folder.
-    if (bang.kind === "command") await cwdOf(conversations, id);
     await checkpoints.snapshotBefore(id, input.requestId).catch(reportCheckpointFailure);
-    const { projectId, titleText, admitted } = await conversations.send(
+    const { projectId, titleText, submissionId, entryId } = await conversations.send(
       id,
       effective,
       now(),
@@ -120,20 +240,7 @@ export function createConversationsApi(deps: {
     );
     announce(projectId);
     if (titleText !== undefined) nameTheThread(id, titleText);
-    // Only the admitted winner spawns: losers deduped by `requestId` never exec. The exit is never awaited.
-    if (admitted && bang.kind === "command") {
-      await runBangCommand(
-        {
-          threads: conversations,
-          processes: deps.bang.processes,
-          notifications: deps.bang.notifications,
-          home: deps.bang.home,
-          entryOf: (conversationId) => entryOfThread(deps.harness, conversationId),
-        },
-        id,
-        bang.command,
-      );
-    }
+    return { submissionId, entryId };
   }
 
   async function workspaceModeFor(projectId: string, requested: WorkspaceMode | undefined) {
@@ -146,13 +253,13 @@ export function createConversationsApi(deps: {
     return (await settings.lastWorkspaceMode(projectId)) ?? "worktree";
   }
 
-  async function startOnce(input: StartConversationInput): Promise<ConversationSummary> {
+  async function startOnce(input: StartConversationInput, ref: ModelRef): Promise<ConversationSummary> {
     const project = await projects.require(input.projectId);
     if (project.status !== "ready") throw new AppError("project_not_ready", "This project is not ready.");
-    const ref = await chooseModel(input.model);
     const model = lookUp(ref);
     if (!model) throw new AppError("invalid_request", "This model is not available.");
     await validateMessage(input, ref);
+    const bang = parseBangCommand(input.text);
     const thinkingLevel = clampThinkingLevel(model, input.thinkingLevel ?? (await defaultLevel()));
     const workspace = await workspaces.create({
       project,
@@ -166,13 +273,96 @@ export function createConversationsApi(deps: {
       thinkingLevel,
       input,
       workspace,
-      beforeFirstInput: (id) =>
-        checkpoints.snapshotBefore(id, input.requestId).catch(reportCheckpointFailure),
+      // Bang sends never anchor a rewind: skip the snapshot on both admission paths.
+      beforeFirstInput:
+        bang.kind === "command"
+          ? undefined
+          : (id) => checkpoints.snapshotBefore(id, input.requestId).catch(reportCheckpointFailure),
       now: now(),
     });
     announce(project.id);
-    if (created && input.text.trim() !== "") nameTheThread(summary.id, input.text);
+    // A bang titles from the stripped command; the stored entry keeps its display row, never model text.
+    if (created && input.text.trim() !== "") {
+      nameTheThread(summary.id, bang.kind === "command" ? bang.command : input.text);
+    }
+    if (bang.kind === "command") {
+      // The first message admitted as a display-only row above; dispatch it. A retried start
+      // re-admits under the same `requestId` and the marker makes the second dispatch a no-op.
+      await dispatchBang(bangDeps(), summary.id, bang.command, input.requestId);
+    }
     return summary;
+  }
+
+  async function startNativeOnce(
+    native: NativeService,
+    input: NativeStartInput,
+  ): Promise<ConversationSummary> {
+    const { text, requestId } = input;
+    requireNativeInput({ text, requestId });
+    const project = await projects.require(input.projectId);
+    if (project.status !== "ready") throw new AppError("project_not_ready", "This project is not ready.");
+    const workspace = await workspaces.create({
+      project,
+      mode: await workspaceModeFor(project.id, input.workspace),
+      requestId,
+      firstMessage: text,
+    });
+    return native.startThread({
+      project,
+      input: { text, requestId },
+      workspace,
+      now: now(),
+      ...(input.model !== undefined && { model: input.model }),
+    });
+  }
+
+  const hasAttachments = (input: StartConversationInput) =>
+    (input.images ?? []).length > 0 || (input.files ?? []).length > 0;
+
+  async function startOnNativeExecutor(input: StartConversationInput): Promise<ConversationSummary> {
+    const { native } = deps;
+    if (!native) throw nativeDisabledError();
+    if (hasAttachments(input)) throw nativeAttachmentsError();
+    const { projectId, text, requestId, workspace } = input;
+    const model = nativeModelIdOf(input.model);
+    if (!native.creationEnabled) throw retainedError();
+    return startNativeOnce(native, {
+      projectId,
+      text,
+      requestId,
+      ...(workspace && { workspace }),
+      ...(model !== undefined && { model }),
+    });
+  }
+
+  function startSingleFlight(
+    input: Pick<StartConversationInput, "projectId" | "requestId">,
+    create: () => Promise<ConversationSummary>,
+  ): Promise<ConversationSummary> {
+    const key = `${input.projectId}:${input.requestId}`;
+    const pending = startsInFlight.get(key) ?? Promise.resolve().then(create);
+    startsInFlight.set(key, pending);
+    return pending.finally(() => {
+      if (startsInFlight.get(key) === pending) startsInFlight.delete(key);
+    });
+  }
+
+  async function startWithModel(input: StartConversationInput): Promise<ConversationSummary> {
+    const existing = (await indexOf(deps.harness, input.projectId)).find(
+      (entry) => entry.startRequestId === input.requestId && isLive(entry),
+    );
+    const executor = existing ? (existing.executor ?? "pi") : input.executor;
+    if (existing && input.executor && input.executor !== executor) {
+      throw new AppError("invalid_request", "This start request already belongs to a different executor.");
+    }
+    const model = existing ? existing.model : input.model;
+    if (executor === "claude-code") return startOnNativeExecutor({ ...input, model });
+    const ref = await chooseModel(model);
+    if (executor !== "pi" && ref.provider === CLAUDE_CLI_PROVIDER_ID) {
+      if (!lookUp(ref)) throw new AppError("invalid_request", "This model is not available.");
+      return startOnNativeExecutor({ ...input, model: ref });
+    }
+    return startOnce(input, ref);
   }
 
   async function whenBusyFor(input: SendMessageInput) {
@@ -228,7 +418,17 @@ export function createConversationsApi(deps: {
     });
   }
 
-  return {
+  const handoff = createHandoffService({
+    harness: deps.harness,
+    conversations,
+    native: deps.native,
+    hasPendingApprovals: deps.handoffGuards?.hasPendingApprovals ?? (() => false),
+    hasRunningProcesses: deps.handoffGuards?.hasRunningProcesses ?? (() => false),
+    announce,
+    now,
+  });
+
+  const api: Core["conversations"] = {
     async list(projectId) {
       await projects.require(projectId);
       return conversations.list(projectId);
@@ -239,13 +439,7 @@ export function createConversationsApi(deps: {
       );
       return perProject.flat().sort((a, b) => b.updatedAt - a.updatedAt || Number(b.id) - Number(a.id));
     },
-    start(input) {
-      const pending = startsInFlight.get(input.requestId) ?? startOnce(input);
-      startsInFlight.set(input.requestId, pending);
-      return pending.finally(() => {
-        if (startsInFlight.get(input.requestId) === pending) startsInFlight.delete(input.requestId);
-      });
-    },
+    start: (input) => startSingleFlight(input, () => startWithModel(input)),
     async rename(id, title) {
       announce(await conversations.rename(id, requireName(title)));
     },
@@ -297,14 +491,40 @@ export function createConversationsApi(deps: {
     configure: configureThread,
     compact: (id, input) => conversations.compact(id, input.instructions),
     async retry(id, input) {
-      announce(await conversations.retry(id, input, now()));
+      await requireWorkspaceOpen(id);
+      const { projectId, submissionId, entryId } = await conversations.retry(id, input, now());
+      announce(projectId);
+      return { submissionId, entryId };
+    },
+    async sendNow(id, itemId) {
+      await requireWorkspaceOpen(id);
+      const { projectId, ...result } = await conversations.sendNow(id, itemId);
+      announce(projectId);
+      return result;
     },
     watch: (id, onOps) => conversations.watch(id, onOps),
+    handoffPreview: (id) => handoff.preview(id),
+    handoff: (id, input) => handoff.handoff(id, input),
     ...createConversationsMvp5Api({
       forker: deps.forker,
       checkpoints,
       conversations,
       subagents: createSubagentStopper(conversations, deps.harness),
     }),
+  };
+  const { native } = deps;
+  if (!native) return api;
+  const stopBeforeRemove = (id: string) =>
+    native.cancel(id).then(
+      () => undefined,
+      (error: unknown) => console.error("tau: could not stop a native run before removal", error),
+    );
+  return {
+    ...routeNativeThreads(api, native, stopBeforeRemove),
+    startNative: (input) =>
+      startSingleFlight(input, () => {
+        if (!native.creationEnabled) throw retainedError();
+        return startNativeOnce(native, input);
+      }),
   };
 }

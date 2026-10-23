@@ -32,3 +32,27 @@ export async function runConversationRemoved(
 export async function runProjectRemoved(hooks: RemovalHooks, projectId: string): Promise<void> {
   for (const hook of hooks.onProjectRemoved) await hook(projectId);
 }
+
+export interface ConversationRemovedParts {
+  readonly terminals: ConversationRemovedHook;
+  readonly claudeCliThread: ConversationRemovedHook;
+  readonly processes: ConversationRemovedHook;
+  readonly workspace: ConversationRemovedHook;
+  readonly checkpoints: ConversationRemovedHook;
+  readonly goals: ConversationRemovedHook;
+  readonly timers: ConversationRemovedHook;
+}
+
+export function conversationRemovedInOrder(
+  parts: ConversationRemovedParts,
+): readonly ConversationRemovedHook[] {
+  return [
+    parts.terminals,
+    parts.claudeCliThread,
+    parts.processes,
+    parts.workspace,
+    parts.checkpoints,
+    parts.goals,
+    parts.timers,
+  ];
+}

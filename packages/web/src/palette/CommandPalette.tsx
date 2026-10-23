@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/command";
 import { NodeName } from "@/components/ui/node-name";
 import { useSidebar } from "@/components/ui/sidebar";
+import { HandoffDialog } from "@/handoff/HandoffDialog";
 import { useHotkey } from "@/lib/hotkeys";
 import { conversationPath, newThreadPath } from "@/lib/paths";
 import { type NodeData, useNodesData } from "@/nodes";
@@ -28,6 +29,11 @@ import { SettingsSearchGroup, useSettingResults } from "./SettingsSearchGroup";
 import { ThinkingPage } from "./ThinkingPage";
 import { ThreadActions } from "./ThreadActions";
 
+interface HandoffTarget {
+  conversationId: string;
+  nodeId: string | undefined;
+}
+
 const nodeKeyOf = (nodeId: string | undefined) => nodeId ?? "local";
 
 interface SectionsProps {
@@ -39,6 +45,7 @@ interface SectionsProps {
   startAddProject: (nodeId: string | undefined) => void;
   openModelPage: () => void;
   openThinkingPage: () => void;
+  startHandoff: (target: HandoffTarget) => void;
 }
 
 function MainSections({
@@ -50,6 +57,7 @@ function MainSections({
   startAddProject,
   openModelPage,
   openThinkingPage,
+  startHandoff,
 }: SectionsProps) {
   const navigate = useNavigate();
   const adjacent = useAdjacentThread();
@@ -80,6 +88,7 @@ function MainSections({
             archived={openThread?.archivedAt != null}
             onChangeModel={openModelPage}
             onChangeThinking={openThinkingPage}
+            onHandoff={() => startHandoff({ conversationId, nodeId: openNodeId })}
             run={run}
           />
         </NodeScope>
@@ -165,6 +174,7 @@ export function CommandPalette() {
   const [page, setPage] = useState<"model" | "thinking" | "node" | null>(null);
   const [nodePick, setNodePick] = useState<NodePick | null>(null);
   const [addProject, setAddProject] = useState<AddProjectStep | null>(null);
+  const [handoff, setHandoff] = useState<HandoffTarget | null>(null);
   const { conversationId, nodeId: openNodeId } = useOpenConversation();
   const everyNode = useNodesData();
   useHotkey("mod+k", () => setOpen((current) => !current));
@@ -200,6 +210,11 @@ export function CommandPalette() {
   return (
     <>
       <AddProjectFlow state={addProject} onChange={setAddProject} />
+      {handoff ? (
+        <NodeScope nodeId={handoff.nodeId}>
+          <HandoffDialog conversationId={handoff.conversationId} onClose={() => setHandoff(null)} />
+        </NodeScope>
+      ) : null}
       <CommandDialog open={open} onOpenChange={changeOpen} title="Command palette">
         <Command key={page ?? "main"} onKeyDown={backFromEmptySearch}>
           <CommandInput
@@ -233,6 +248,7 @@ export function CommandPalette() {
                 startAddProject={startAddProject}
                 openModelPage={openPage("model")}
                 openThinkingPage={openPage("thinking")}
+                startHandoff={setHandoff}
               />
             )}
           </CommandList>

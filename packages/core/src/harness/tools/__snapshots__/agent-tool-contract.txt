@@ -1,0 +1,64 @@
+{
+  "name": "agent",
+  "description": "Start a subagent: a separate agent thread that works on one task while you keep going. The user can open it from the sidebar.\n\nHow to use it:\n- The subagent does not see this conversation. Write `prompt` as a complete, self-contained brief: the goal, the relevant files and paths, what to return, and any constraints.\n- `subagent_type` picks an agent type from the available types. Omit it for \"general-purpose\". Use \"fork\" to start a subagent that inherits this whole conversation; the prompt is then its next message.\n- `model` is optional. The default is your own model, and when you are unsure keep it and change `thinking` instead. Pick another model only when the task clearly needs it: lighter for bulk or mechanical work, smarter for work such as reviewing a plan or a hard bug, even when you are a fast model yourself; an explicit user instruction about the model always wins; the connected models, with bands and prices, are listed in the subagents section of your instructions. A subagent can only use models of your own provider: use `provider/modelId` of that provider, or an alias such as `sonnet`, `opus`, `haiku` or `fast`. Models of other providers are refused.\n- `thinking` is optional: off, minimal, low, medium, high, xhigh or max. Effort is your main lever: set `thinking` on every subagent from what its task needs, and keep your own model unless the task clearly needs another one. If you are unsure which model to use, use your own and change only `thinking`. `off`, `minimal` or `low`: summaries, searching, listing, mechanical edits, bulk fan-out. Fast and cheap, but shallow, so never for judgment. `medium`: ordinary implementation. `high`, `xhigh` or `max`: reviewing a plan, a hard bug, an architecture decision, anything where a wrong answer is costly. A small model on high effort can beat a big one on low. Do not just inherit your own level: yours may be wrong for the task. It is clamped to what the subagent's model supports. An explicit user instruction about the model or the effort always wins.\n- `isolation: \"worktree\"` gives the subagent its own git worktree and branch, so parallel agents do not touch the same files. Use merge_agent to bring its committed work back. It fails in a project that is not a git repository.\n- By default the subagent runs in the background and this call returns at once with its id. You get a notification with its report when it answers, and that wakes you if you are idle. Do not poll, sleep or check on it; keep working on something else, or end your turn and wait for the notification.\n- Set `run_in_background: false` only when you cannot continue without the answer. The call then waits and returns the final report.\n- Launch independent subagents in the same turn so they run in parallel.\n- Never invent or guess a subagent's result. Until its notification arrives, say that it is still running. A notification can be queued until the user's next message when your last run failed.\n- Subagents cannot start subagents. Use send_message to continue one, stop_agent to stop one, remove_agent to delete finished ones, list_agents to see yours.",
+  "parameters": {
+    "type": "object",
+    "required": [
+      "description",
+      "prompt"
+    ],
+    "properties": {
+      "description": {
+        "type": "string"
+      },
+      "prompt": {
+        "type": "string"
+      },
+      "subagent_type": {
+        "type": "string"
+      },
+      "model": {
+        "type": "string"
+      },
+      "thinking": {
+        "anyOf": [
+          {
+            "type": "string",
+            "const": "off"
+          },
+          {
+            "type": "string",
+            "const": "minimal"
+          },
+          {
+            "type": "string",
+            "const": "low"
+          },
+          {
+            "type": "string",
+            "const": "medium"
+          },
+          {
+            "type": "string",
+            "const": "high"
+          },
+          {
+            "type": "string",
+            "const": "xhigh"
+          },
+          {
+            "type": "string",
+            "const": "max"
+          }
+        ]
+      },
+      "isolation": {
+        "type": "string",
+        "const": "worktree"
+      },
+      "run_in_background": {
+        "type": "boolean"
+      }
+    }
+  }
+}

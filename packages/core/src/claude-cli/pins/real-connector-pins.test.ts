@@ -45,7 +45,10 @@ describe.skipIf(!REAL)("real connector pins (TAU_REAL_CLAUDE=1)", () => {
       };
       const guarded = (name: string, body: () => Promise<void>) =>
         ONLY.includes(name)
-          ? report.run(`scenario:${name}`, "the scenario ran to its end", async () => (await body(), "ok"))
+          ? report.run(`scenario:${name}`, "the scenario ran to its end", async () => {
+              await body();
+              return "ok";
+            })
           : Promise.resolve(true);
       try {
         await guarded("gates", () => runGatePins(ctx));

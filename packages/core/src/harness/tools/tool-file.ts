@@ -1,5 +1,5 @@
 import { defineTool, type Extension, type ToolRegistration } from "@earendil-works/pi-durable";
-import type { ModelInfo } from "@tau/protocol";
+import type { ModelInfo, ResourceScope } from "@tau/protocol";
 import type { TSchema } from "typebox";
 import type { ClaudeConnectorToolServices } from "../../claude-cli/connectors/connector-tool-services";
 import type { McpService } from "../../mcp/mcp-service";
@@ -23,6 +23,21 @@ export interface ToolServices {
   readonly timers: TimerToolServices;
   readonly liveWork: LiveWork;
   readonly claudeConnectors: ClaudeConnectorToolServices;
+  /**
+   * Layer-2 sandbox plumbing. Absent until the integrator wires it (settings +
+   * worktree roots); tools treat absence as unenforced, never as sandboxed.
+   */
+  readonly sandbox?: SandboxToolServices;
+}
+
+/** What confined tools need: the thread's scope when sandboxed, and the MCP allowlist. */
+export interface SandboxToolServices {
+  /** The thread's scope when the sandbox switch confines it; `undefined` when off or unknown. */
+  readonly scopeOf: (conversationId: string | number) => Promise<ResourceScope | undefined>;
+  /** The thread's canonical sandbox root; `undefined` when off, unknown or unresolvable (fail closed). */
+  readonly rootOf: (conversationId: string | number) => Promise<string | undefined>;
+  /** Whether a sandboxed thread may reach this MCP server (per-server allowlist, stdio and HTTP alike). */
+  readonly mcpAllowed: (server: string) => Promise<boolean>;
 }
 
 /** The tools are built before the services exist (the Harness needs the registry first), so they read this lazily. */

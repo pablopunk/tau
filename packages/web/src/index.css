@@ -31,6 +31,7 @@
   }
   #root {
     height: 100dvh;
+    /* biome-ignore lint/suspicious/noDuplicateProperties: intentional fallback first, live value second */
     height: var(--tau-app-height, 100dvh);
   }
 }

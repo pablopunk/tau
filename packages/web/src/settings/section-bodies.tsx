@@ -3,6 +3,7 @@ import { CodeFolderSuggestion } from "@/github/CodeFolderSuggestion";
 import { GithubSettingsRow } from "@/github/GithubSettingsRow";
 import { AgentSection } from "./agent/AgentSection";
 import { GeneralSection } from "./GeneralSection";
+import { LimitsSection } from "./limits/LimitsSection";
 import { NodesSection } from "./NodesSection";
 import { ProjectsFolderField } from "./ProjectsFolderField";
 import { ProvidersSection } from "./ProvidersSection";
@@ -26,5 +27,6 @@ export const SECTION_BODIES: Record<SettingsSectionId, () => ReactNode> = {
   ),
   github: () => <GithubSettingsRow />,
   agent: () => <AgentSection />,
+  limits: () => <LimitsSection />,
   tools: () => <ToolsSection />,
 };

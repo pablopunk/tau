@@ -3,7 +3,7 @@ import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { newRequestId } from "./use-conversation-actions";
 
-export function RetryButton({ onRetry }: { onRetry(requestId: string): Promise<void> }) {
+export function RetryButton({ onRetry }: { onRetry(requestId: string): Promise<unknown> }) {
   const requestId = useRef<string | undefined>(undefined);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string>();

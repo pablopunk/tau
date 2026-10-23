@@ -5,24 +5,29 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
-import type {
-  ApprovalDecision,
-  ClaudeConnectorSettings,
-  CompactionSettings,
-  ConversationSummary,
-  MintPairingInput,
-  ProviderId,
-  RemoteStatus,
-  ResourceSettings,
-  UpdateStatus,
+import {
+  type ApprovalDecision,
+  type ClaudeConnectorSettings,
+  type CompactionSettings,
+  type ConversationSummary,
+  DEFAULT_SANDBOX_SETTINGS,
+  type MintPairingInput,
+  type ProviderId,
+  type RemoteStatus,
+  type ResourceSettings,
+  type SandboxSettings,
+  type UpdateStatus,
 } from "@tau/protocol";
 import { isJobActive } from "@/lib/updates";
 import { useApi } from "@/nodes/node-context";
+
+const RUNTIMES_STALE_MS = 60_000;
 
 export const queryKeys = {
   providers: ["providers"] as const,
   settings: ["settings"] as const,
   models: ["models"] as const,
+  runtimes: ["runtimes"] as const,
   skills: (projectId: string | null) => ["skills", projectId] as const,
   projects: ["projects"] as const,
   conversations: (projectId: string) => ["conversations", projectId] as const,
@@ -34,6 +39,7 @@ export const queryKeys = {
   pathSuggestions: (prefix: string) => ["fs", "suggest", prefix] as const,
   iconCandidates: (projectId: string) => ["projects", projectId, "icon-candidates"] as const,
   workspace: (conversationId: string) => ["workspace", conversationId] as const,
+  handoffPreview: (conversationId: string) => ["handoff-preview", conversationId] as const,
   checkpoints: (conversationId: string) => ["checkpoints", conversationId] as const,
   processes: (conversationId: string) => ["processes", conversationId] as const,
   allProcesses: ["processes"] as const,
@@ -77,6 +83,30 @@ export const useProjects = () => {
 export const useModels = () => {
   const api = useApi();
   return useQuery({ queryKey: queryKeys.models, queryFn: () => api.models.list() });
+};
+
+/** Which engines this node offers a new thread. A failing or old node just has no answer: callers fall back to Pi. */
+export const useRuntimes = ({ enabled = true }: { enabled?: boolean } = {}) => {
+  const api = useApi();
+  return useQuery({
+    queryKey: queryKeys.runtimes,
+    queryFn: () => api.runtimes.list(),
+    retry: false,
+    staleTime: RUNTIMES_STALE_MS,
+    enabled,
+  });
+};
+
+/** What a handoff of this thread would carry and lose; always fresh, never kept after the dialog closes. */
+export const useHandoffPreview = (conversationId: string) => {
+  const api = useApi();
+  return useQuery({
+    queryKey: queryKeys.handoffPreview(conversationId),
+    queryFn: () => api.conversations.handoffPreview(conversationId),
+    retry: false,
+    gcTime: 0,
+    staleTime: 0,
+  });
 };
 
 export const useSkills = (projectId: string | null) => {
@@ -217,7 +247,8 @@ export const useWorkspaceStatus = (conversationId: string, enabled = true) => {
   const api = useApi();
   return useQuery({
     queryKey: queryKeys.workspace(conversationId),
-    queryFn: () => api.workspaces.status(conversationId),
+    queryFn: ({ signal }) => api.workspaces.status(conversationId, { signal }),
+    staleTime: 5_000,
     enabled,
   });
 };
@@ -292,6 +323,26 @@ export function useSetCompaction() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (value: CompactionSettings) => api.settings.setCompaction(value),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.settings }),
+  });
+}
+
+/**
+ * The persisted sandbox switch from `useSettings` (real data path via `settings.get`).
+ * `data` is the shipped default when the node predates the switch; the group reads
+ * `useSettings` directly so it can tell “unsupported” apart from “off”.
+ */
+export const useSandboxSettings = () => {
+  const settings = useSettings();
+  return { ...settings, data: settings.data?.sandbox ?? DEFAULT_SANDBOX_SETTINGS };
+};
+
+/** Saves the sandbox switch (`PUT /api/settings/sandbox`); the UI is `SandboxGroup`. */
+export function useSetSandbox() {
+  const api = useApi();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (value: SandboxSettings) => api.settings.setSandbox(value),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.settings }),
   });
 }

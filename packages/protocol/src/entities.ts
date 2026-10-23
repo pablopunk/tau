@@ -3,6 +3,8 @@ import { Type } from "typebox";
 import { GoalSummarySchema } from "./mvp8";
 import { RemoteSettingsSchema } from "./remote";
 import { ResourceSettingsSchema } from "./resources";
+import { ExecutorKindSchema } from "./runtime";
+import { SandboxSettingsSchema } from "./sandbox";
 
 export const ModelRefSchema = Type.Object({ provider: Type.String(), modelId: Type.String() });
 export type ModelRef = Type.Static<typeof ModelRefSchema>;
@@ -138,6 +140,8 @@ export const SettingsSchema = Type.Object({
   remote: RemoteSettingsSchema,
   /** Optional only so a web can read an older node (the response is validated): absent means "not supported there". A current node always sends it. */
   resources: Type.Optional(ResourceSettingsSchema),
+  /** Phase 1: persisted only, never enforced (staging gate: all false). Absent means "not supported there", like `resources`. */
+  sandbox: Type.Optional(SandboxSettingsSchema),
   /** Which speech-to-text the composer uses; `null`/absent is the browser fallback. Absent means "not supported there", like `resources`. */
   voiceModel: Type.Optional(VoiceModelSettingSchema),
   /** Fast-compaction preference. Optional so an older node still validates; a current node always sends it. */
@@ -362,6 +366,7 @@ export const ConversationSummarySchema = Type.Object({
   nextTimerAt: Type.Union([Type.String(), Type.Null()]),
   goal: Type.Union([GoalSummarySchema, Type.Null()]),
   unmergedWarning: Type.Union([Type.String(), Type.Null()]),
+  executor: Type.Optional(ExecutorKindSchema),
 });
 export type ConversationSummary = Type.Static<typeof ConversationSummarySchema>;
 
@@ -435,6 +440,8 @@ export const StartConversationInputSchema = Type.Object({
   model: Type.Optional(ModelRefSchema),
   thinkingLevel: Type.Optional(ThinkingLevelSchema),
   workspace: Type.Optional(WorkspaceModeSchema),
+  /** Omitted routes claude-cli models to Claude Code, other models to Pi. Explicit pi preserves legacy starts. */
+  executor: Type.Optional(ExecutorKindSchema),
 });
 export type StartConversationInput = Type.Static<typeof StartConversationInputSchema>;
 
@@ -446,6 +453,42 @@ export type ConfigureConversationInput = Type.Static<typeof ConfigureConversatio
 
 export const RetryInputSchema = Type.Object({ requestId: Type.String({ minLength: 1 }) });
 export type RetryInput = Type.Static<typeof RetryInputSchema>;
+
+export const SendReceiptSchema = Type.Object({
+  submissionId: Type.Number(),
+  entryId: Type.Optional(Type.Number()),
+});
+export type SendReceipt = Type.Static<typeof SendReceiptSchema>;
+
+export const UserItemSnapshotSchema = Type.Object({
+  text: Type.String(),
+  files: Type.Array(FileRefSchema),
+});
+export type UserItemSnapshot = Type.Static<typeof UserItemSnapshotSchema>;
+
+export const AbortResultSchema = Type.Object({ restored: Type.Array(UserItemSnapshotSchema) });
+export type AbortResult = Type.Static<typeof AbortResultSchema>;
+
+export const CancelQueuedResultSchema = Type.Object({
+  cancelled: Type.Boolean(),
+  restored: Type.Array(UserItemSnapshotSchema),
+});
+export type CancelQueuedResult = Type.Static<typeof CancelQueuedResultSchema>;
+
+export const SendNowInputSchema = Type.Object({ itemId: Type.String({ minLength: 1 }) });
+export type SendNowInput = Type.Static<typeof SendNowInputSchema>;
+
+export const SendNowResultSchema = Type.Object({
+  submissionId: Type.Number(),
+  entryId: Type.Optional(Type.Number()),
+  restored: Type.Array(UserItemSnapshotSchema),
+});
+export type SendNowResult = Type.Static<typeof SendNowResultSchema>;
+
+export const SetQueuedModeResultSchema = Type.Object({
+  switched: Type.Boolean(),
+});
+export type SetQueuedModeResult = Type.Static<typeof SetQueuedModeResultSchema>;
 
 export const GithubStatusSchema = Type.Union([
   Type.Object({

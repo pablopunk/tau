@@ -60,6 +60,12 @@ export function resourceCases(make: MakeContractTarget, test: CaseRunner): void 
         prioritySupported: expect.any(Boolean),
         sameCgroupOnly: expect.any(Boolean),
         note: expect.toBeOneOf([null, expect.any(String)]),
+        sandbox: {
+          enforced: expect.any(Boolean),
+          mechanism: expect.stringMatching(/^(seatbelt|systemd|bwrap|none)$/),
+          tested: expect.any(Boolean),
+          note: expect.toBeOneOf([null, expect.any(String)]),
+        },
       });
     });
 

@@ -11,7 +11,7 @@ import {
   startResourceServer,
 } from "../resources-support";
 
-const FIXTURES = join(dirname(fileURLToPath(import.meta.url)), "..", "fixtures");
+const _FIXTURES = join(dirname(fileURLToPath(import.meta.url)), "..", "fixtures");
 const OUT = join(process.env.TMPDIR ?? "/tmp", `tau-cls-${process.pid}`);
 const pri = (file: string) => `ps -o pri= -p $$ > ${OUT}/${file}`;
 const heavy = (marker: string, seconds: number) =>

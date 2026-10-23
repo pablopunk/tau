@@ -29,8 +29,11 @@ describe("<Composer> slots", () => {
     );
   });
 
-  it("words the busy placeholder as Steer in steer mode", () => {
-    expect(setup({ busy: true, whenBusy: "steer" }).input).toHaveAttribute("placeholder", "Steer the agent…");
+  it("words the busy placeholder as steer-at-the-next-boundary in steer mode", () => {
+    expect(setup({ busy: true, whenBusy: "steer" }).input).toHaveAttribute(
+      "placeholder",
+      "Steer at the next tool boundary…",
+    );
   });
 
   it("sends with the default mode on Enter and the other one on Cmd+Enter while busy", async () => {

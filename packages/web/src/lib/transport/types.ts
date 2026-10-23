@@ -33,9 +33,17 @@ export interface StreamSocket {
   close(): void;
 }
 
+export interface RequestOptions {
+  readonly signal?: AbortSignal;
+}
+
 export interface Transport {
-  /** Rejects with `AppError`: the server's error code, or `internal` / `unauthorized` for anything else. */
-  request<N extends JsonRouteName>(name: N, input: RouteRequest<N>): Promise<RouteResponse<N>>;
+  /** Rejects with `AppError` for server/network failures; cancellation retains the abort reason. */
+  request<N extends JsonRouteName>(
+    name: N,
+    input: RouteRequest<N>,
+    options?: RequestOptions,
+  ): Promise<RouteResponse<N>>;
   readonly live: LiveTransport;
   /** One duplex WebSocket to `path` (for example `terminalStreamPath(id)`), text and binary frames. */
   openStream(path: string, handlers: StreamHandlers): StreamSocket;

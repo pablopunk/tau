@@ -37,6 +37,13 @@ async function listGroup(argv: readonly string[], env: CommandEnv): Promise<void
   const { server, scoped } = await serverOf(env, flags.get("home"));
   const nodes = (await callRoute(server, "getNodeDirectory", {}, scoped)) as DirectoryNode[];
   const sorted = [...nodes].sort((a, b) => a.hops - b.hops || a.name.localeCompare(b.name));
+  if (env.machine) {
+    env.machine.emit("terminal", {
+      result: sorted.map((node) => rowOf(node, env.now())),
+      observation: "response",
+    });
+    return;
+  }
   env.stdout(
     JSON.stringify(
       sorted.map((node) => rowOf(node, env.now())),
@@ -74,6 +81,10 @@ async function removeNode(argv: readonly string[], env: CommandEnv): Promise<voi
     throw usageError(`--confirm must be "${target.name}" or ${target.id}.`);
   }
   await callRoute(server, "removeNode", { params: { id }, body: { confirm } }, scoped);
+  if (env.machine) {
+    env.machine.emit("terminal", { result: { removedNodeId: id }, observation: "response" });
+    return;
+  }
   env.stdout(
     [
       `Removed ${target?.name ?? typed} from the group: every node cuts it off, and it must reset its identity to rejoin.`,
@@ -96,7 +107,8 @@ function keepIds(raw: string | boolean | undefined): string[] {
 
 async function approved(env: CommandEnv, yes: boolean, question: string): Promise<boolean> {
   if (yes) return true;
-  if (!env.confirm) throw usageError("tau access rotate is destructive. Add --yes to confirm.");
+  if (env.machine || !env.confirm)
+    throw usageError("tau access rotate is destructive. Add --yes to confirm.");
   return env.confirm(question);
 }
 
@@ -110,7 +122,7 @@ async function rotateAccess(argv: readonly string[], env: CommandEnv): Promise<v
   const unknown = keep.filter((id) => !devices.some((device) => device.id === id));
   if (unknown.length > 0) throw usageError(`Unknown device id: ${unknown.join(", ")}`);
   const doomed = devices.filter((device) => !device.current && !keep.includes(device.id));
-  env.stdout(
+  (env.machine ? env.stderr : env.stdout)(
     [
       "Rotating access swaps this node's master token and signs out every browser here.",
       doomed.length === 0
@@ -129,6 +141,10 @@ async function rotateAccess(argv: readonly string[], env: CommandEnv): Promise<v
     { body: keep.length > 0 ? { keep } : {} },
     scoped,
   )) as RotateAccessResult;
+  if (env.machine) {
+    env.machine.emit("terminal", { result, observation: "response" });
+    return;
+  }
   env.stdout(
     [
       `Revoked ${result.revoked.length} device(s).`,

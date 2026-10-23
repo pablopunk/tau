@@ -44,9 +44,10 @@ describe("job reporter", () => {
       seed(),
       5,
     );
-    await reporter?.release(
-      async (command, args) => (calls.push([command, args]), { code: 0, stdout: "", stderr: "" }),
-    );
+    await reporter?.release(async (command, args) => {
+      calls.push([command, args]);
+      return { code: 0, stdout: "", stderr: "" };
+    });
     expect(calls).toEqual([["launchctl", ["remove", "tau-update-9"]]]);
   });
 });

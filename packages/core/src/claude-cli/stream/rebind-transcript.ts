@@ -68,5 +68,14 @@ export function renderRebindTranscript(history: readonly Entry[]): string {
     .map((entry) => renderEntry(entry, labels))
     .filter((part) => part.length > 0)
     .join("\n\n");
-  return `<conversation-so-far>\n${body}\n</conversation-so-far>`;
+  return `<conversation-so-far>\n${HISTORY_NOTICE}\n${body}\n${HISTORY_CLOSE}\n</conversation-so-far>`;
 }
+
+/** Plain-text history replays teach the model to mimic `[tool call ...]` as text instead of real `tool_use` blocks. */
+const HISTORY_NOTICE =
+  "READ-ONLY HISTORY of an earlier session. Every tool call below ALREADY RAN and its result is shown. " +
+  "Do NOT repeat these calls and do NOT output them as text. " +
+  'To do more work, use real tool calls (tool_use blocks) with new ids, never plain text like "[tool call ...]".';
+
+const HISTORY_CLOSE =
+  "END OF HISTORY. Continue from the latest user message below it with real tool calls, not quoted history.";

@@ -10,11 +10,13 @@ export function AttachmentRow({
   onRemove,
   files = [],
   onRemoveFile,
+  disabled = false,
 }: {
   attachments: readonly Attachment[];
   onRemove(id: number): void;
   files?: readonly FileAttachment[];
   onRemoveFile?(id: number): void;
+  disabled?: boolean;
 }) {
   if (attachments.length === 0 && files.length === 0) return null;
   return (
@@ -26,7 +28,7 @@ export function AttachmentRow({
               <ImageThumbnail
                 src={imageSrc(item.image)}
                 alt={`Attachment ${index + 1}`}
-                onRemove={() => onRemove(item.id)}
+                onRemove={disabled ? undefined : () => onRemove(item.id)}
               />
             </li>
           ))}
@@ -47,6 +49,7 @@ export function AttachmentRow({
                   variant="ghost"
                   size="icon-xs"
                   aria-label={`Remove ${item.ref.name}`}
+                  disabled={disabled}
                   onClick={() => onRemoveFile?.(item.id)}
                 >
                   <XIcon />

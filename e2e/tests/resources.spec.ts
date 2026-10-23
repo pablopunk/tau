@@ -38,7 +38,10 @@ test.describe("resource control in the browser", () => {
   let projectId: string;
   const threads: string[] = [];
 
-  const settings = async () => (await (await api.get("/api/settings")).json()) as any;
+  const settings = async () =>
+    (await (await api.get("/api/settings")).json()) as unknown as {
+      resources?: { levels?: Record<string, string> };
+    };
 
   test.beforeAll(async ({ browser }) => {
     root = realpathSync(mkdtempSync(join(tmpdir(), "tau-res-")));
@@ -130,7 +133,7 @@ test.describe("resource control in the browser", () => {
   test("the Agent settings set each scope's power", async () => {
     await page.getByRole("button", { name: "Settings" }).click();
     const dialog = page.getByRole("dialog", { name: "Settings" });
-    await dialog.getByRole("navigation", { name: "Settings sections" }).getByText("Agent").click();
+    await dialog.getByRole("navigation", { name: "Settings sections" }).getByText("Sandbox & limits").click();
     await dialog.getByRole("switch", { name: "Resource control" }).click();
     for (const name of ["Main threads power", "Worktree threads power", "Subagents power"]) {
       await expect(dialog.getByRole("group", { name })).toBeVisible();

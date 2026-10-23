@@ -133,6 +133,8 @@ export interface HarnessOptions extends FakeClaudeSdkOptions {
   readonly connectorSettings?: ClaudeConnectorSettings;
   readonly approvals?: Approvals;
   readonly connectorStatus?: () => Promise<readonly ClaudeMcpServerStatus[] | null>;
+  readonly bindingsFile?: string;
+  readonly onPersistError?: (error: unknown) => void;
 }
 
 /** A harness without fake connectors has none to probe: with the manual clock the probe would never settle. */
@@ -167,6 +169,8 @@ export function createHarness(options: HarnessOptions = {}): Harness {
     connectorStatus: options.connectorStatus ?? noConnectorsUnless(options),
     onConnectorsLate: (notes) => void late.push(notes),
     connectorSettings: async () => connectorSettings,
+    ...(options.bindingsFile && { bindingsFile: options.bindingsFile }),
+    ...(options.onPersistError && { onPersistError: options.onPersistError }),
   });
   return {
     fake,

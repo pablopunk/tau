@@ -61,10 +61,11 @@ describe("<Composer> slash menu", () => {
     expect(screen.queryByText("/model")).not.toBeInTheDocument();
   });
 
-  it("stops the run with Escape when no menu is open", async () => {
+  it("does nothing on Escape when no menu is open, even when busy", async () => {
     const { input, onStop } = setup({ busy: true });
     await userEvent.type(input, "hello{Escape}");
-    expect(onStop).toHaveBeenCalled();
+    expect(onStop).not.toHaveBeenCalled();
+    expect(input).toHaveValue("hello");
   });
 
   it("calls compact with the text after the command", async () => {

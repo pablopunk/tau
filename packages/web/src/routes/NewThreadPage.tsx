@@ -3,9 +3,14 @@ import type { FileRef, ImageInput, ModelRef, ThinkingLevel, WorkspaceMode } from
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 import { ModelThinkingPickers, type PickersHandle } from "@/components/ModelThinkingPickers";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Spinner } from "@/components/ui/spinner";
 import { Composer } from "@/conversation";
 import type { CommandHandlers } from "@/conversation/composer/slash-commands";
+import { NATIVE_ATTACHMENTS_REASON } from "@/conversation/model/executor";
+import { errorMessage } from "@/lib/error-message";
 import { findModel, pickModel, pickProjectId, pickThinkingLevel } from "@/lib/new-thread-defaults";
 import { clearNewThreadDraft, loadNewThreadDraft, saveNewThreadDraft } from "@/lib/new-thread-draft";
 import { conversationPath, newThreadPath } from "@/lib/paths";
@@ -55,8 +60,25 @@ export function NewThreadPage() {
     }),
     [],
   );
-
-  if (!projects.data || !models.data || !settings.data) return <NewThreadSkeleton />;
+  if (!projects.data || !models.data || !settings.data) {
+    const failed = [projects, models, settings].filter((query) => query.isError);
+    if (failed.length === 0) return <NewThreadSkeleton />;
+    return (
+      <Alert variant="destructive">
+        <AlertTitle>Could not load the new thread</AlertTitle>
+        <AlertDescription>{errorMessage(failed[0]?.error)}</AlertDescription>
+        <Button
+          variant="outline"
+          disabled={failed.some((query) => query.isFetching)}
+          onClick={() => {
+            for (const query of failed) void query.refetch();
+          }}
+        >
+          Retry loading
+        </Button>
+      </Alert>
+    );
+  }
 
   const wantedProject = paramProject ?? chosenProject ?? preferences.getLastProjectId(nodeId);
   const projectId = pickProjectId(projects.data, wantedProject);
@@ -66,7 +88,10 @@ export function NewThreadPage() {
     model,
     chosenLevel ?? settings.data.defaultThinkingLevel ?? preferences.getLastThinkingLevel(nodeId),
   );
-  const levels = findModel(models.data, model ?? null)?.thinkingLevels ?? ["off"];
+  const native = model?.provider === "claude-cli";
+  const levels = native
+    ? ["off" as const]
+    : (findModel(models.data, model ?? null)?.thinkingLevels ?? ["off"]);
 
   const notSetUp = models.data.length === 0;
   const cloning = projects.data.find((project) => project.id === projectId)?.status === "cloning";
@@ -79,17 +104,18 @@ export function NewThreadPage() {
         text,
         requestId: draftRequestId(),
         ...(model && { model: toRef(model) }),
-        thinkingLevel: level,
+        ...(!native && { thinkingLevel: level }),
         ...(workspace && { workspace }),
         ...(images.length > 0 && { images }),
         ...(files.length > 0 && { files }),
+        ...(native && { executor: "claude-code" as const }),
       });
       clearDraftRequestId();
       clearNewThreadDraft(nodeId);
       void queryClient.invalidateQueries({ queryKey: queryKeys.projects });
       preferences.setLastProjectId(created.projectId, nodeId);
       if (model) preferences.setLastModel(toRef(model), nodeId);
-      preferences.setLastThinkingLevel(level, nodeId);
+      if (!native) preferences.setLastThinkingLevel(level, nodeId);
       navigate(conversationPath(created.projectId, created.id, nodeId));
     } finally {
       setBusy(false);
@@ -127,12 +153,15 @@ export function NewThreadPage() {
       <div className="w-full max-w-2xl">
         <Composer
           target="new"
-          imagesAllowed={model?.images ?? true}
+          imagesAllowed={!native && (model?.images ?? true)}
+          attachmentsBlockedReason={native ? NATIVE_ATTACHMENTS_REASON : undefined}
           busy={busy}
-          disabled={cloning || notSetUp}
+          disabled={busy || cloning || notSetUp}
+          disabledReason={busy ? "Starting thread…" : undefined}
+          hint={busy ? <Spinner aria-label="Starting thread" /> : undefined}
           toolbar={toolbar}
           projectId={projectId}
-          commands={commands}
+          commands={native ? { model: commands.model } : commands}
           onSend={start}
         />
       </div>

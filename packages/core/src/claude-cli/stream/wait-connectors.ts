@@ -12,6 +12,11 @@ export function connectorsSettled(statuses: readonly ClaudeMcpServerStatus[]): b
   return connectors.length > 0 && connectors.every((server) => server.status !== "pending");
 }
 
+/** A probe settles as soon as nothing is `pending`: zero connectors is an answer, not a wait. */
+export function probeSettled(statuses: readonly ClaudeMcpServerStatus[]): boolean {
+  return statuses.every((server) => server.status !== "pending");
+}
+
 const sleep = (clock: ClaudeCliClock, ms: number): Promise<void> =>
   new Promise((resolve) => clock.setTimer(resolve, ms));
 
@@ -26,6 +31,20 @@ export async function waitForConnectors(
   const startedAt = clock.now();
   let statuses = await statusesOf(control);
   while (!connectorsSettled(statuses) && clock.now() - startedAt < CONNECTOR_WAIT_CAP_MS) {
+    await sleep(clock, CONNECTOR_POLL_MS);
+    statuses = await statusesOf(control);
+  }
+  return statuses;
+}
+
+/** The probe variant: a user with no connectors settles on the first settled poll instead of the cap. */
+export async function waitForProbeStatus(
+  clock: ClaudeCliClock,
+  control: ClaudeMcpControl,
+): Promise<readonly ClaudeMcpServerStatus[]> {
+  const startedAt = clock.now();
+  let statuses = await statusesOf(control);
+  while (!probeSettled(statuses) && clock.now() - startedAt < CONNECTOR_WAIT_CAP_MS) {
     await sleep(clock, CONNECTOR_POLL_MS);
     statuses = await statusesOf(control);
   }
