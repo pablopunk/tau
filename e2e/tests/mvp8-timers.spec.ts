@@ -61,10 +61,17 @@ test.describe("MVP8 timers in the browser", () => {
     await page.getByRole("button", { name: "Delete timer: ping the build" }).click();
     await expect(page.getByRole("button", { name: /timers$/ })).toHaveCount(0);
     await expect(page.getByText("Timers", { exact: true })).toHaveCount(0);
-    await expect(page.getByRole("img", { name: /Next wake-up in/ })).toHaveCount(0);
+    // Scope to this thread's link: a serial group retry leaves other threads' badges behind.
+    const conversationId = new URL(page.url()).pathname.split("/").pop() ?? "";
+    const threadLink = page.getByRole("link", { href: new RegExp(`/c/${conversationId}$`) });
+    await expect(threadLink.getByRole("img", { name: /Next wake-up in/ })).toHaveCount(0);
   });
 
   test("/loop with an interval runs the prompt now and adds a loop timer", async () => {
+    // The previous test reveals the sidebar via its timer chip; the header chip needs it closed.
+    await expect(page.getByRole("button", { name: /conversation sidebar/i }).first()).toBeVisible();
+    const closeSidebar = page.getByRole("button", { name: "Close conversation sidebar" });
+    if ((await closeSidebar.count()) > 0) await closeSidebar.click();
     await send(page, "/loop 1h say hello");
     await expect(conversation(page).getByText("say hello")).toBeVisible({ timeout: 20_000 });
     await expect(page.getByRole("button", { name: "1 timers" })).toBeVisible({ timeout: 20_000 });
