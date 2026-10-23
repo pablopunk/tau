@@ -118,7 +118,7 @@ describe("handoff dialog", () => {
     expect(handoff).toHaveBeenCalledWith(id, { requestId: expect.any(String), instruction: "run the tests" });
     const created = await handoff.mock.results[0]?.value;
     expect(created.executor).toBe("claude-code");
-    expect(screen.getByTestId("where")).toHaveTextContent(`/p/home/c/${created.id}`);
+    await waitFor(() => expect(screen.getByTestId("where")).toHaveTextContent(`/p/home/c/${created.id}`));
   });
 
   it("sends no instruction when the box is empty", async () => {
