@@ -18,6 +18,11 @@ vi.mock("@/lib/api", () => ({
   api: {
     projects: { list: vi.fn() },
     conversations: { listAll: vi.fn(), configure: vi.fn(), handoffPreview: vi.fn() },
+    approvals: { list: vi.fn() },
+    goals: { get: vi.fn() },
+    workspaces: { status: vi.fn() },
+    timers: { list: vi.fn() },
+    processes: { list: vi.fn() },
     models: { list: vi.fn() },
     runtimes: { list: vi.fn() },
   },
@@ -48,6 +53,18 @@ beforeEach(() => {
     losses: { ...emptyHandoffLosses(), imagesOmitted: 3 },
     preview: "[user]\nfix login",
   });
+  vi.mocked(api.approvals.list).mockResolvedValue([]);
+  vi.mocked(api.goals.get).mockResolvedValue(null);
+  vi.mocked(api.workspaces.status).mockResolvedValue({
+    ahead: 0,
+    behind: 0,
+    dirtyFiles: [],
+    unmergedCommits: 0,
+    canMerge: true,
+    reason: null,
+  });
+  vi.mocked(api.timers.list).mockResolvedValue([]);
+  vi.mocked(api.processes.list).mockResolvedValue([]);
   vi.mocked(api.conversations.listAll).mockResolvedValue([
     conversation({ title: "Fix login bug" }),
     conversation({ id: "c2", projectId: "p2", title: "Add dark mode" }),
@@ -179,7 +196,9 @@ describe("warming for the thread keys", () => {
       </LiveClientProvider>,
     );
     await waitFor(() => expect(warm).toHaveBeenCalledWith("c1"));
+    await waitFor(() => expect(api.approvals.list).toHaveBeenCalledWith("c1"));
     expect(warm).not.toHaveBeenCalledWith("c2");
+    expect(api.workspaces.status).toHaveBeenCalledWith("c1", expect.any(Object));
   });
 });
 

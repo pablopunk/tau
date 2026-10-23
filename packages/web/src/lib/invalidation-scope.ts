@@ -21,9 +21,9 @@ export function invalidationsFor(change: Change): readonly InvalidationStep[] {
       return [
         { queryKey: queryKeys.conversations(change.projectId) },
         { queryKey: queryKeys.allConversations },
-        { queryKey: ["workspace"] },
-        { queryKey: ["checkpoints"] },
-        { queryKey: ["goal"] },
+        { queryKey: ["workspace"], refetchType: "active" },
+        { queryKey: ["checkpoints"], refetchType: "active" },
+        { queryKey: ["goal"], refetchType: "active" },
       ];
     case "processes":
       return [{ queryKey: queryKeys.processes(change.conversationId) }, { queryKey: ["process-logs"] }];

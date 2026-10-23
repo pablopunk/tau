@@ -20,9 +20,9 @@ const cases: Array<[string, Change, readonly InvalidationStep[]]> = [
     [
       { queryKey: queryKeys.conversations("p1") },
       { queryKey: queryKeys.allConversations },
-      { queryKey: ["workspace"] },
-      { queryKey: ["checkpoints"] },
-      { queryKey: ["goal"] },
+      { queryKey: ["workspace"], refetchType: "active" },
+      { queryKey: ["checkpoints"], refetchType: "active" },
+      { queryKey: ["goal"], refetchType: "active" },
     ],
   ],
   [

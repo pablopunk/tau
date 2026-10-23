@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { Change } from "@tau/protocol";
 import { renderHook } from "@testing-library/react";
 import type { ReactNode } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { LiveClientProvider } from "@/conversation";
 import type { LiveClient, LiveStatus } from "@/conversation/live-client";
 import { NodeApiProvider } from "@/nodes/node-context";
@@ -47,6 +47,7 @@ function setup() {
 
 describe("useChangedInvalidation", () => {
   it.each([32, 8192])("characterizes advisory invalidations for %s conversation changes", (count) => {
+    vi.useFakeTimers();
     const { change, invalidate } = setup();
     const start = performance.now();
     for (let i = 0; i < count; i++) change({ resource: "conversations", projectId: "p1" });
@@ -58,7 +59,9 @@ describe("useChangedInvalidation", () => {
         scope: "inactive query client; not network/backend cost",
       }),
     );
-    expect(invalidate).toHaveBeenCalledTimes(count * 5);
+    expect(invalidate).toHaveBeenCalledTimes(5);
+    vi.advanceTimersByTime(250);
+    expect(invalidate).toHaveBeenCalledTimes(10);
   });
 
   it("invalidates the resource activity on a node-wide resources change", () => {
@@ -98,3 +101,5 @@ describe("useChangedInvalidation", () => {
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ["github", "repos"] });
   });
 });
+
+afterEach(() => vi.useRealTimers());
