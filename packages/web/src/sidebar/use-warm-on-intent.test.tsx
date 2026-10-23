@@ -10,9 +10,10 @@ import { useWarmOnIntent } from "./use-warm-on-intent";
 
 function Row() {
   return (
-    <button type="button" {...useWarmOnIntent("c1").handlers}>
-      row
-    </button>
+    <div {...useWarmOnIntent("c1").handlers}>
+      <button type="button">row</button>
+      <button type="button">actions</button>
+    </div>
   );
 }
 
@@ -66,6 +67,20 @@ describe("useWarmOnIntent", () => {
     act(() => vi.advanceTimersByTime(150));
     await waitFor(() => expect(api.approvals.list).toHaveBeenCalledTimes(1));
     await user.click(row);
+    act(() => vi.advanceTimersByTime(150));
+
+    expect(client.warm).toHaveBeenCalledTimes(1);
+    expect(api.approvals.list).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps one warm across focus moving between controls in the same row", async () => {
+    const { client, api } = setup();
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+
+    await user.tab();
+    act(() => vi.advanceTimersByTime(150));
+    await waitFor(() => expect(api.approvals.list).toHaveBeenCalledTimes(1));
+    await user.tab();
     act(() => vi.advanceTimersByTime(150));
 
     expect(client.warm).toHaveBeenCalledTimes(1);

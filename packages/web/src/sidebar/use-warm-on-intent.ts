@@ -1,5 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { useCallback, useEffect, useRef } from "react";
+import { type FocusEvent, useCallback, useEffect, useRef } from "react";
 import { useOptionalLiveClient } from "@/conversation";
 import { prefetchThreadData } from "@/lib/thread-prefetch";
 import { useApi } from "@/nodes/node-context";
@@ -37,13 +37,19 @@ export function useWarmOnIntent(conversationId: string, enabled = true) {
     if (!client || !enabled || warmed.current || timer.current !== undefined) return;
     timer.current = setTimeout(warmNow, HOVER_INTENT_MS);
   }, [client, enabled, warmNow]);
+  const onBlur = useCallback(
+    (event: FocusEvent<HTMLElement>) => {
+      if (!event.currentTarget.contains(event.relatedTarget as Node | null)) reset();
+    },
+    [reset],
+  );
   return {
     warmNow,
     handlers: {
       onPointerEnter: warmSoon,
       onFocus: warmSoon,
       onPointerLeave: reset,
-      onBlur: reset,
+      onBlur,
       onPointerDown: warmNow,
     },
   };
