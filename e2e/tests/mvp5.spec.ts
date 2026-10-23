@@ -88,6 +88,9 @@ test.describe("MVP5", () => {
 
   test("a worktree thread edits a file, commits it and merges into main", async () => {
     await startThreadInDemoRepository(page, "write note.txt hello");
+    // The header chip hides while the conversation sidebar is open (open by default).
+    const closeSidebar = page.getByRole("button", { name: "Close conversation sidebar" });
+    if ((await closeSidebar.count()) > 0) await closeSidebar.click();
     const chip = page.getByRole("button", { name: "Workspace" });
     await expect(chip).toContainText("pi/");
     await sendAndWaitForDone(page, COMMIT, 2);

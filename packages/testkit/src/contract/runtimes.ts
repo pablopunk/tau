@@ -87,7 +87,11 @@ export function runtimeCases(make: MakeContractTarget, test: CaseRunner): void {
         core.conversations.handoff(conversation.id, { requestId: nextRequestId(), instruction: "carry on" }),
       ).rejects.toMatchObject({ code: "invalid_request", message: NATIVE_OFF_MESSAGE });
 
-      expect(await core.conversations.list(project.id)).toEqual(before);
+      // No thread is created; compare ids only, since the refused thread's own
+      // background run may still settle (status/activity) between the snapshots.
+      expect((await core.conversations.list(project.id)).map((thread) => thread.id)).toEqual(
+        before.map((thread) => thread.id),
+      );
     });
 
     test("[runtimes] rejects a handoff and its preview for an unknown thread with not_found", async () => {

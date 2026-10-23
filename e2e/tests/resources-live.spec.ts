@@ -37,7 +37,7 @@ test("the timeout counts run time, not anything else", async () => {
 
 test("a slow command times out and the message names the scope", async () => {
   await remote.setResources(ALL("background"));
-  const id = await remote.start("live slow");
+  const id = await remote.start("live slow", { mode: "checkout" });
   await remote.waitIdle(id, 60);
   const output = (await remote.toolOutputs(id)).join("\n");
   console.log(`LIVE timeout under Background: ${output}`);
