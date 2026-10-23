@@ -125,7 +125,7 @@ test.describe("MVP2 flow", () => {
     await page.getByRole("menuitem", { name: "Archive" }).click();
     await expect(thread).toBeHidden();
 
-    await page.getByRole("button", { name: /Archived/ }).click();
+    await page.getByRole("button", { name: /archived threads/i }).click();
     await expect(thread).toBeVisible();
     await thread.hover();
     await page.getByRole("button", { name: "Actions for fail" }).click();
