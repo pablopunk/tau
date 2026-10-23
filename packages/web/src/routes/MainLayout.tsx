@@ -12,7 +12,7 @@ import { NotificationWatcher } from "@/notifications";
 import { CommandPalette, GlobalShortcuts } from "@/palette";
 import { AppSidebar } from "@/sidebar/AppSidebar";
 import { ConversationRoute } from "./ConversationRoute";
-import { HeaderSlotOutlet, HeaderSlotProvider } from "./header-slot";
+import { HeaderSlotOutlet, HeaderSlotProvider, useStartingThreadHeader } from "./header-slot";
 import { LegacyNodeRedirect } from "./LegacyNodeRedirect";
 import { NewThreadPage, NewThreadSkeleton } from "./NewThreadPage";
 
@@ -33,9 +33,10 @@ function NewThreadRoute() {
 function MainHeader() {
   const { isMobile, open } = useSidebar();
   const { conversationId } = useOpenConversation();
+  const { startingThread } = useStartingThreadHeader();
   // On mobile thread pages the thread renders its own bar (toggle + title +
   // actions), so the app bar would be a second, redundant header.
-  if (isMobile && conversationId) return null;
+  if (isMobile && (conversationId || startingThread)) return null;
   if (!isMobile && open) return null;
   return (
     // pt-[env()]: in a fullscreen PWA the status bar overlays the web view;

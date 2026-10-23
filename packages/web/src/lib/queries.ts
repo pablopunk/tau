@@ -274,6 +274,7 @@ export const useCheckpoints = (conversationId: string, enabled = true) => {
 export const processesOptions = (api: Api, conversationId: string) => ({
   queryKey: queryKeys.processes(conversationId),
   queryFn: () => api.processes.list(conversationId),
+  staleTime: 5_000,
 });
 
 export const useProcesses = (conversationId: string, enabled = true) => {
@@ -284,6 +285,7 @@ export const useProcesses = (conversationId: string, enabled = true) => {
 export const timersOptions = (api: Api, conversationId: string) => ({
   queryKey: queryKeys.timers(conversationId),
   queryFn: () => api.timers.list(conversationId),
+  staleTime: 5_000,
 });
 
 export const useTimers = (conversationId: string, enabled = true) => {
@@ -294,6 +296,7 @@ export const useTimers = (conversationId: string, enabled = true) => {
 export const approvalsOptions = (api: Api, conversationId: string) => ({
   queryKey: queryKeys.approvals(conversationId),
   queryFn: () => api.approvals.list(conversationId),
+  staleTime: 5_000,
 });
 
 export const useApprovals = (conversationId: string, enabled = true) => {
@@ -468,6 +471,7 @@ export function useStopResourceCommand() {
 export const goalOptions = (api: Api, conversationId: string) => ({
   queryKey: queryKeys.goal(conversationId),
   queryFn: () => api.goals.get(conversationId),
+  staleTime: 5_000,
 });
 
 export const useGoal = (conversationId: string, enabled = true) => {

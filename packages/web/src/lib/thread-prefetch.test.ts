@@ -2,7 +2,14 @@ import { QueryClient } from "@tanstack/react-query";
 import { waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Api } from "./api";
-import { queryKeys } from "./queries";
+import {
+  approvalsOptions,
+  goalOptions,
+  processesOptions,
+  queryKeys,
+  timersOptions,
+  workspaceStatusOptions,
+} from "./queries";
 import { prefetchThreadData } from "./thread-prefetch";
 
 function setup() {
@@ -44,6 +51,37 @@ describe("prefetchThreadData", () => {
 
     prefetchThreadData(queryClient, api, "c1");
     await Promise.resolve();
+
+    expect(api.approvals.list).toHaveBeenCalledTimes(1);
+    expect(api.goals.get).toHaveBeenCalledTimes(1);
+    expect(api.workspaces.status).toHaveBeenCalledTimes(1);
+    expect(api.timers.list).toHaveBeenCalledTimes(1);
+    expect(api.processes.list).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps prefetched data fresh for the options used by thread observers", async () => {
+    const { api, queryClient } = setup();
+    const options = {
+      approvals: approvalsOptions(api, "c1"),
+      goal: goalOptions(api, "c1"),
+      workspace: workspaceStatusOptions(api, "c1"),
+      timers: timersOptions(api, "c1"),
+      processes: processesOptions(api, "c1"),
+    };
+
+    prefetchThreadData(queryClient, api, "c1");
+    await waitFor(() => {
+      expect(
+        Object.values(options).map(({ queryKey }) => queryClient.getQueryState(queryKey)?.status),
+      ).toEqual(Array.from({ length: Object.keys(options).length }, () => "success"));
+    });
+    await Promise.all([
+      queryClient.fetchQuery(options.approvals),
+      queryClient.fetchQuery(options.goal),
+      queryClient.fetchQuery(options.workspace),
+      queryClient.fetchQuery(options.timers),
+      queryClient.fetchQuery(options.processes),
+    ]);
 
     expect(api.approvals.list).toHaveBeenCalledTimes(1);
     expect(api.goals.get).toHaveBeenCalledTimes(1);

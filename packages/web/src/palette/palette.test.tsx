@@ -76,10 +76,10 @@ const threadView = {
   docs: { "pi.agent": { model: { provider: "openai", modelId: "gpt-9" }, thinkingLevel: "off" } },
 } as never;
 
-const renderPalette = (path = "/") =>
+const renderPalette = (path = "/", live = createStubLiveClient(threadView)) =>
   renderAt(
     path,
-    <LiveClientProvider client={createStubLiveClient(threadView)}>
+    <LiveClientProvider client={live}>
       <SidebarProvider>
         <CommandPalette />
       </SidebarProvider>
@@ -109,6 +109,27 @@ describe("command palette", () => {
 
     expect(screen.getByTestId("location")).toHaveTextContent("/p/p2/c/c2");
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("warms a directly selected local thread before navigating", async () => {
+    const target = conversation({ id: "c3", projectId: "p2", title: "Cold target" });
+    vi.mocked(api.conversations.listAll).mockResolvedValue([
+      conversation({ title: "Fix login bug" }),
+      conversation({ id: "c2", projectId: "p2", title: "Add dark mode" }),
+      target,
+    ]);
+    const live = createStubLiveClient(threadView);
+    live.warm = vi.fn();
+    const user = userEvent.setup();
+    renderPalette("/", live);
+
+    await user.keyboard("{Control>}k{/Control}");
+    await user.type(screen.getByRole("combobox"), "Cold target");
+    await user.keyboard("{ArrowDown}{Enter}");
+
+    expect(live.warm).toHaveBeenCalledWith("c3");
+    await waitFor(() => expect(api.approvals.list).toHaveBeenCalledWith("c3"));
+    expect(screen.getByTestId("location")).toHaveTextContent("/p/p2/c/c3");
   });
 
   it("starts a new thread in a project from the project entry", async () => {

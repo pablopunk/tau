@@ -100,7 +100,7 @@ export function NewThreadPage() {
   const cloning = projects.data.find((project) => project.id === projectId)?.status === "cloning";
 
   const start = async ({ text, images, files }: { text: string; images: ImageInput[]; files: FileRef[] }) => {
-    setStartingMessage({ text, images });
+    setStartingMessage({ text, images, files });
     setBusy(true);
     try {
       const created = await api.conversations.start({
@@ -121,7 +121,7 @@ export function NewThreadPage() {
       if (model) preferences.setLastModel(toRef(model), nodeId);
       if (!native) preferences.setLastThinkingLevel(level, nodeId);
       navigate(conversationPath(created.projectId, created.id, nodeId), {
-        state: firstMessageState({ text, images }),
+        state: firstMessageState({ text, images, files }),
       });
     } catch (error) {
       setStartingMessage(undefined);

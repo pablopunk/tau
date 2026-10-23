@@ -1,7 +1,8 @@
-import type { ReactNode } from "react";
+import { type ReactNode, useLayoutEffect } from "react";
 import { PendingFirstMessage } from "@/conversation/PendingFirstMessage";
 import { ThreadHeader } from "@/conversation/ThreadHeader";
 import type { FirstMessage } from "./first-message";
+import { useStartingThreadHeader } from "./header-slot";
 
 export function StartingThread({
   message,
@@ -13,6 +14,13 @@ export function StartingThread({
   composer: ReactNode;
 }) {
   const starting = message !== undefined;
+  const { setStartingThread } = useStartingThreadHeader();
+  useLayoutEffect(() => {
+    if (!starting) return;
+    setStartingThread(true);
+    return () => setStartingThread(false);
+  }, [setStartingThread, starting]);
+
   return (
     <div
       className={

@@ -1,4 +1,4 @@
-import type { ImageInput } from "@tau/protocol";
+import type { FileRef, ImageInput } from "@tau/protocol";
 import { describe, expect, it } from "vitest";
 import {
   FIRST_MESSAGE_STATE_KEY,
@@ -10,6 +10,7 @@ import {
 const message: FirstMessage = {
   text: "Inspect this image",
   images: [{ mimeType: "image/png", data: "encoded" } satisfies ImageInput],
+  files: [{ name: "notes.txt", path: "uploads/notes.txt", size: 5 } satisfies FileRef],
 };
 
 describe("first message route state", () => {
@@ -23,7 +24,11 @@ describe("first message route state", () => {
   });
 
   it("accepts an empty message without images", () => {
-    expect(firstMessageOf(firstMessageState({ text: "", images: [] }))).toEqual({ text: "", images: [] });
+    expect(firstMessageOf(firstMessageState({ text: "", images: [] }))).toEqual({
+      text: "",
+      images: [],
+      files: [],
+    });
   });
 
   it.each([
@@ -39,6 +44,9 @@ describe("first message route state", () => {
     { tauFirstMessage: { text: "hello", images: [{ mimeType: "image/tiff", data: "x" }] } },
     { tauFirstMessage: { text: "hello", images: [{ mimeType: "image/png", data: 1 }] } },
     { tauFirstMessage: { text: "hello", images: Array.from({ length: 17 }, () => message.images[0]) } },
+    { tauFirstMessage: { text: "hello", images: [], files: [{ name: "", path: "uploads/a", size: 1 }] } },
+    { tauFirstMessage: { text: "hello", images: [], files: [{ name: "a", path: "uploads/a", size: -1 }] } },
+    { tauFirstMessage: { text: "hello", images: [], files: {} } },
   ])("returns undefined for malformed route state %#", (locationState) => {
     expect(firstMessageOf(locationState)).toBeUndefined();
   });

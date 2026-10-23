@@ -10,7 +10,7 @@ import { useWarmOnIntent } from "./use-warm-on-intent";
 
 function Row() {
   return (
-    <button type="button" {...useWarmOnIntent("c1")}>
+    <button type="button" {...useWarmOnIntent("c1").handlers}>
       row
     </button>
   );
@@ -55,6 +55,21 @@ describe("useWarmOnIntent", () => {
     });
     expect(client.warm).toHaveBeenCalledWith("c1");
     await waitFor(() => expect(api.approvals.list).toHaveBeenCalledWith("c1"));
+  });
+
+  it("warms once when a hover dwell is followed by a press", async () => {
+    const { api, client } = setup();
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    const row = screen.getByText("row");
+
+    await user.hover(row);
+    act(() => vi.advanceTimersByTime(150));
+    await waitFor(() => expect(api.approvals.list).toHaveBeenCalledTimes(1));
+    await user.click(row);
+    act(() => vi.advanceTimersByTime(150));
+
+    expect(client.warm).toHaveBeenCalledTimes(1);
+    expect(api.approvals.list).toHaveBeenCalledTimes(1);
   });
 
   it("warms after a short hover, not on a pass-through", async () => {

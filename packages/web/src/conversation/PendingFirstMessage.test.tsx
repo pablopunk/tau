@@ -6,11 +6,18 @@ describe("<PendingFirstMessage>", () => {
   it("renders a pending user message with its image and sending status", () => {
     render(
       <PendingFirstMessage
-        message={{ text: "Look at this", images: [{ mimeType: "image/png", data: "AQID" }] }}
+        message={{
+          text: "Look at this",
+          images: [{ mimeType: "image/png", data: "AQID" }],
+          files: [{ name: "notes.txt", path: "uploads/notes.txt", size: 5 }],
+        }}
       />,
     );
 
-    expect(screen.getByText("Look at this")).toBeInTheDocument();
+    expect(screen.getByText((content) => content.includes("Look at this"))).toBeInTheDocument();
+    expect(
+      screen.getByText((content) => content.includes('Attached file: "uploads/notes.txt"')),
+    ).toBeInTheDocument();
     expect(screen.getByRole("img", { name: "Attachment 1" })).toHaveAttribute(
       "src",
       "data:image/png;base64,AQID",

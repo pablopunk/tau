@@ -19,6 +19,7 @@ import { conversationPath, newThreadPath } from "@/lib/paths";
 import { type NodeData, useNodesData } from "@/nodes";
 import { NodeScope } from "@/nodes/NodeScope";
 import { SETTINGS_SECTIONS } from "@/settings/sections";
+import { useWarmOnIntent } from "@/sidebar/use-warm-on-intent";
 import { AddProjectFlow, type AddProjectStep } from "./AddProjectFlow";
 import { useAdjacentThread } from "./adjacent-thread";
 import { ModelPage } from "./ModelPage";
@@ -46,6 +47,47 @@ interface SectionsProps {
   openModelPage: () => void;
   openThinkingPage: () => void;
   startHandoff: (target: HandoffTarget) => void;
+}
+
+function ThreadPaletteItem({
+  conversation,
+  nodeId,
+  nodeName,
+  local,
+  projectName,
+  several,
+  onSelect,
+}: {
+  conversation: NodeData["conversations"][number];
+  nodeId: string | undefined;
+  nodeName: string;
+  local: boolean;
+  projectName: string;
+  several: boolean;
+  onSelect: () => void;
+}) {
+  const { warmNow, handlers: warmHandlers } = useWarmOnIntent(conversation.id, nodeId === undefined);
+  return (
+    <CommandItem
+      {...warmHandlers}
+      value={`thread ${conversation.title} ${projectName} ${conversation.id} ${nodeName}`}
+      onSelect={() => {
+        warmNow();
+        onSelect();
+      }}
+    >
+      {conversation.title.trim() || "New thread"}
+      <span className="ml-auto text-xs text-muted-foreground">
+        {several ? (
+          <>
+            <NodeName name={nodeName} local={local} /> · {projectName}
+          </>
+        ) : (
+          projectName
+        )}
+      </span>
+    </CommandItem>
+  );
 }
 
 function MainSections({
@@ -141,18 +183,18 @@ function MainSections({
             const projectName =
               node.projects.find((project) => project.id === conversation.projectId)?.name ?? "";
             return (
-              <CommandItem
+              <ThreadPaletteItem
                 key={`${nodeKeyOf(node.nodeId)}:${conversation.id}`}
-                value={`thread ${conversation.title} ${projectName} ${conversation.id} ${node.name}`}
+                conversation={conversation}
+                nodeId={node.nodeId}
+                nodeName={node.name}
+                local={node.local}
+                projectName={projectName}
+                several={several}
                 onSelect={run(() =>
                   navigate(conversationPath(conversation.projectId, conversation.id, node.nodeId)),
                 )}
-              >
-                {conversation.title.trim() || "New thread"}
-                <span className="ml-auto text-xs text-muted-foreground">
-                  {several ? `${node.name} · ${projectName}` : projectName}
-                </span>
-              </CommandItem>
+              />
             );
           }),
         )}
