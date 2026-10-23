@@ -138,14 +138,13 @@ describe("<NewThreadPage> model selection", () => {
     await screen.findByRole("heading", { name: /^Opened \/p\/home\/c\// });
   });
 
-  it("starts a selected Claude model on Pi without an executor when native is unavailable", async () => {
+  it("starts a selected Claude model on Pi with an explicit pi executor when native is unavailable", async () => {
     const model = { provider: "claude-cli", modelId: "opus" };
     const { start, user } = await renderPage({ claude: true, model });
     expect(screen.getByRole("combobox", { name: "Thinking level" })).toBeInTheDocument();
     await submit(user);
     await waitFor(() => expect(start).toHaveBeenCalledOnce());
-    expect(start.mock.calls[0]?.[0]).toMatchObject({ model, text: "hello" });
-    expect(start.mock.calls[0]?.[0]).not.toHaveProperty("executor");
+    expect(start.mock.calls[0]?.[0]).toMatchObject({ model, executor: "pi", text: "hello" });
     await screen.findByRole("heading", { name: /^Opened \/p\/home\/c\// });
   });
 

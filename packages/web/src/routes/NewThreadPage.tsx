@@ -95,9 +95,12 @@ export function NewThreadPage() {
     model,
     chosenLevel ?? settings.data.defaultThinkingLevel ?? preferences.getLastThinkingLevel(nodeId),
   );
-  // A Claude model only takes the native executor when the node offers it;
-  // without Claude Code (or before runtimes answers) it starts on Pi like before.
-  const native = model?.provider === "claude-cli" && enabledClaudeCode(runtimes.data) !== undefined;
+  // A Claude model takes the native executor when the node offers it; when it
+  // does not, the start says Pi explicitly so the server keeps the legacy
+  // provider path instead of routing an omitted executor to native.
+  const claudeModel = model?.provider === "claude-cli";
+  const native = claudeModel && enabledClaudeCode(runtimes.data) !== undefined;
+  const executor = !claudeModel ? undefined : native ? ("claude-code" as const) : ("pi" as const);
   const levels = native
     ? ["off" as const]
     : (findModel(models.data, model ?? null)?.thinkingLevels ?? ["off"]);
@@ -118,7 +121,7 @@ export function NewThreadPage() {
         ...(workspace && { workspace }),
         ...(images.length > 0 && { images }),
         ...(files.length > 0 && { files }),
-        ...(native && { executor: "claude-code" as const }),
+        ...(executor && { executor }),
       });
       clearDraftRequestId();
       clearNewThreadDraft(nodeId);
