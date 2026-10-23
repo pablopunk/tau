@@ -54,6 +54,11 @@ async function turnOnLinear(page: Page) {
   await expect(linear).toBeVisible();
   if ((await linear.getAttribute("aria-checked")) !== "true") await linear.click();
   await expect(linear).toBeChecked({ timeout: SAVE_RESYNCS_EVERY_THREAD_MS });
+  // Writes run without asking unless this is on (default off since c2bfbfe).
+  const askBeforeWrites = page.getByRole("switch", { name: "Ask before writes" });
+  await expect(askBeforeWrites).toBeVisible();
+  if ((await askBeforeWrites.getAttribute("aria-checked")) !== "true") await askBeforeWrites.click();
+  await expect(askBeforeWrites).toBeChecked({ timeout: SAVE_RESYNCS_EVERY_THREAD_MS });
   await page.keyboard.press("Escape");
 }
 

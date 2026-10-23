@@ -1,6 +1,7 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { expect, type Page, test } from "@playwright/test";
-import { tokenFile } from "../support";
+import { homeDir, tokenFile } from "../support";
 
 const CALLBACK = "http://127.0.0.1:1455/auth/callback?code=ok&state=faux";
 const SECTIONS = ["General", "Providers", "Models", "Projects", "GitHub"];
@@ -141,6 +142,9 @@ test.describe("MVP4", () => {
   });
 
   test("@ inserts a file path", async () => {
+    // The mention picker suggests files from the Home folder; seed one since a
+    // fresh shard server starts with an empty Home.
+    writeFileSync(join(homeDir(), "hello.txt"), "hi");
     await page.getByRole("button", { name: "New thread", exact: true }).click();
     await expect(page.getByRole("heading", { name: "New thread" })).toBeVisible();
     const input = page.getByRole("textbox", { name: "Message" });
