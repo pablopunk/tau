@@ -52,6 +52,12 @@ export interface WorkspaceOperations {
   /** Removes the worktree and branch of a deleted thread (the guard already ran). */
   onConversationRemoved(conversation: ConversationSummary): Promise<void>;
   onProjectRemoved(projectId: string): Promise<void>;
+  /**
+   * Drops cached advisory git reads. Tool runs mutate worktrees outside this
+   * service (a `git commit` in a thread), so the core refreshes on run end;
+   * the next read recomputes.
+   */
+  refreshStatuses(): void;
 }
 
 export type WorkspaceService = Core["workspaces"] & WorkspaceOperations;
@@ -332,5 +338,6 @@ export function createWorkspaceService({
     remove: (id, force) => mutating(() => operations.remove(id, force)),
     onConversationRemoved: (thread) => mutating(() => operations.onConversationRemoved(thread)),
     onProjectRemoved: (id) => mutating(() => operations.onProjectRemoved(id)),
+    refreshStatuses: () => statusCache.invalidate(),
   };
 }

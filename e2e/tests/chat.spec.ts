@@ -91,7 +91,7 @@ test.describe("MVP2 flow", () => {
       "base64",
     );
     await page
-      .getByLabel("Choose images")
+      .getByLabel("Choose files")
       .setInputFiles({ name: "dot.png", mimeType: "image/png", buffer: png });
     await send(page, "image");
     await expect(conversation(page).getByText("Images received: 1")).toBeVisible();

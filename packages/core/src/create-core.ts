@@ -366,6 +366,9 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
     const forker = createConversationForker(harness, conversations);
     const checkpoints = createCheckpointService({ home: home.root, conversations, forker });
     status.onRunEnded(({ conversationId }) => checkpoints.snapshotAfter(conversationId, ""));
+    // Tool runs mutate worktrees outside the workspace service; drop cached
+    // advisory git reads so the next status call sees the run's effects.
+    status.onRunEnded(() => workspaces.refreshStatuses());
     forker.onForked(async (fork) => changes.emit({ resource: "conversations", projectId: fork.projectId }));
     const notifications = harnessNotificationSubmitter(harness);
     const clock = clockFromEnvironment(deps.env, options.faux ?? false);

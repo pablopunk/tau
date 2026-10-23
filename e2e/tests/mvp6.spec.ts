@@ -5,6 +5,7 @@ import { demoRepository, PORT, tokenFile } from "../support";
 const ORIGIN = { Origin: `http://127.0.0.1:${PORT}` };
 const readToken = () => readFileSync(tokenFile(), "utf8").trim();
 const messageBox = (page: Page) => page.getByRole("textbox", { name: "Message" });
+const conversation = (page: Page) => page.getByTestId("conversation");
 const doneMarks = (page: Page) => page.getByText("Done.", { exact: true });
 const notificationRows = (page: Page) => page.getByTestId("subagent-notification");
 const HELD = "bash sleep 30";
@@ -49,7 +50,9 @@ test.describe("MVP6", () => {
     await sendAndWaitForDone(page, "agent second job", 2);
     await expect(notificationRows(page)).toHaveCount(1, { timeout: 20_000 });
     await expect(notificationRows(page).first()).toContainText("second job finished");
-    await notificationRows(page).first().getByRole("button", { name: "Stop", exact: true }).click();
+    // The running agent card carries the Stop for the held job (the finished
+    // notification row has none; the composer/process Stops are outside).
+    await conversation(page).getByRole("button", { name: "Stop", exact: true }).click();
     await expect(notificationRows(page)).toHaveCount(2, { timeout: 20_000 });
     await expect(notificationRows(page).last()).toContainText(`${HELD} stopped`);
   });
