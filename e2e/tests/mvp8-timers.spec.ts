@@ -53,7 +53,8 @@ test.describe("MVP8 timers in the browser", () => {
     const closeSidebar = page.getByRole("button", { name: "Close conversation sidebar" });
     if ((await closeSidebar.count()) > 0) await closeSidebar.click();
     await expect(page.getByRole("button", { name: "1 timers" })).toBeVisible({ timeout: 20_000 });
-    await expect(page.getByRole("img", { name: /Next wake-up in/ })).toBeVisible();
+    // A serial group retry leaves the previous attempt's timer behind: assert on the first badge.
+    await expect(page.getByRole("img", { name: /Next wake-up in/ }).first()).toBeVisible();
     await page.getByRole("button", { name: "1 timers" }).click();
     await expect(page.getByText("every 5m")).toBeVisible();
     await page.getByRole("button", { name: "Delete timer: ping the build" }).click();
