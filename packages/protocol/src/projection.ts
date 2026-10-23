@@ -257,7 +257,26 @@ function notificationItemOf(entry: EntryRecord): TranscriptItem | undefined {
   return data ? { kind: "subagent-notification", key: entryKey(entry), data } : undefined;
 }
 
+/**
+ * Entries are immutable and applied ops share every untouched one, so what an entry projects to is cached on
+ * the entry itself: an unchanged entry yields the same item and result object on every call, which is what lets
+ * a renderer skip the rows a streaming update did not touch.
+ */
+function cachedOn<K extends object, V>(cache: WeakMap<K, V>, key: K, compute: (key: K) => V): V {
+  if (cache.has(key)) return cache.get(key) as V;
+  const value = compute(key);
+  cache.set(key, value);
+  return value;
+}
+
+const itemCache = new WeakMap<EntryRecord, TranscriptItem | undefined>();
+const resultCache = new WeakMap<EntryRecord, [string, ToolResultInfo] | undefined>();
+
 function transcriptItemOf(entry: EntryRecord): TranscriptItem | undefined {
+  return cachedOn(itemCache, entry, projectItem);
+}
+
+function projectItem(entry: EntryRecord): TranscriptItem | undefined {
   const message = entry.model?.[0];
   const notification = notificationItemOf(entry);
   if (notification) return notification;
@@ -280,6 +299,10 @@ function transcriptItemOf(entry: EntryRecord): TranscriptItem | undefined {
 }
 
 function toolResultOf(entry: EntryRecord): [string, ToolResultInfo] | undefined {
+  return cachedOn(resultCache, entry, projectResult);
+}
+
+function projectResult(entry: EntryRecord): [string, ToolResultInfo] | undefined {
   const message = entry.model?.[0];
   if (entry.kind !== "pi.tool-result" || message?.role !== "toolResult") return undefined;
   return [message.toolCallId, { message, diagnostics: diagnosticsOf(entry) }];

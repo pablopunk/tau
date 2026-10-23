@@ -35,6 +35,7 @@ import { GoalBadge, hasActiveGoal } from "./GoalBadge";
 import { NameDialog } from "./NameDialog";
 import { ThreadMenuItems } from "./ThreadMenuItems";
 import { hasTimer, TimerBadge } from "./TimerBadge";
+import { useWarmOnIntent } from "./use-warm-on-intent";
 import { WorktreeIndicator } from "./WorktreeIndicator";
 
 interface ThreadRowProps {
@@ -77,6 +78,7 @@ export function ThreadRow({
   const navigate = useNavigate();
   const { isMobile, setOpenMobile } = useSidebar();
   const closeDialog = () => setDialog(null);
+  const warm = useWarmOnIntent(conversation.id);
 
   const listKeys = [queryKeys.conversations(conversation.projectId), queryKeys.allConversations] as const;
   const renameMutation = useThreadListMutation({
@@ -98,10 +100,11 @@ export function ThreadRow({
     mutationFn: (force: boolean) => api.conversations.remove(conversation.id, { force }),
     transform: (list) => list.filter((item) => item.id !== conversation.id),
   });
-  // The dialogs await these and show their own pending state (disabled Save
-  // while confirming, inline error + no close on failure); the row itself
-  // updates instantly via the optimistic cache write.
-  const rename = (name: string): Promise<void> => renameMutation.mutateAsync(name).then(() => undefined);
+  // Rename closes its dialog at once: the row already shows the new name, and a refusal puts the old one back
+  // with a toast. Delete still waits, because it can be refused for reasons the dialog has to explain.
+  const rename = async (name: string): Promise<void> => {
+    renameMutation.mutate(name);
+  };
   const toggleArchive = () => {
     archiveMutation.mutate(!archived);
   };
@@ -139,6 +142,7 @@ export function ThreadRow({
           <SidebarThreadRow
             actionsOpen={menuOpen}
             data-depth={depth}
+            {...warm}
             compact={depth > 0}
             decoration={decoration}
             flipId={conversation.id}

@@ -22,6 +22,8 @@ export function createStubLiveClient(initial?: ConversationView | null): StubLiv
   const listeners = new Set<ViewListener>();
   const subscribedIds: string[] = [];
   return {
+    peek: () => undefined,
+    warm: () => {},
     subscribe(conversationId, onView) {
       subscribedIds.push(conversationId);
       listeners.add(onView);

@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createFakeCore } from "@tau/testkit";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { createApi } from "@/lib/api";
@@ -8,7 +8,9 @@ import { createFakeTransport } from "@/lib/transport/fake";
 import { NodeApiProvider } from "@/nodes/node-context";
 import { ToolApproval } from "./ToolApproval";
 
-const mocks = vi.hoisted(() => ({ api: null as unknown }));
+const mocks = vi.hoisted(() => ({ api: null as unknown, toastError: vi.fn() }));
+
+vi.mock("sonner", () => ({ toast: { info: vi.fn(), error: mocks.toastError } }));
 
 vi.mock("@/lib/api", async (importOriginal) => {
   const original = await importOriginal<typeof import("@/lib/api")>();
@@ -76,5 +78,28 @@ describe("ToolApproval", () => {
     const { core, conversation } = await renderApproval();
     await user.click(await screen.findByRole("button", { name: "Deny" }));
     await waitFor(async () => expect(await core.approvals.list(conversation.id)).toEqual([]));
+  });
+
+  it("removes the card at the tap, before the server answers", async () => {
+    const user = userEvent.setup();
+    await renderApproval();
+    const api = mocks.api as ReturnType<typeof createApi>;
+    const decide = vi.spyOn(api.approvals, "decide").mockReturnValue(new Promise(() => {}));
+    await user.click(await screen.findByRole("button", { name: "Deny" }));
+    await waitFor(() => expect(screen.queryByLabelText("Tool approval")).toBeNull());
+    expect(decide).toHaveBeenCalledTimes(1);
+  });
+
+  it("puts the card back and says why when the decision fails", async () => {
+    const user = userEvent.setup();
+    await renderApproval();
+    const api = mocks.api as ReturnType<typeof createApi>;
+    let fail: (error: Error) => void = () => {};
+    vi.spyOn(api.approvals, "decide").mockReturnValue(new Promise((_, reject) => (fail = reject)));
+    await user.click(await screen.findByRole("button", { name: "Allow once" }));
+    await waitFor(() => expect(screen.queryByLabelText("Tool approval")).toBeNull());
+    await act(async () => fail(new Error("Server unreachable")));
+    expect(await screen.findByLabelText("Tool approval")).toBeTruthy();
+    expect(mocks.toastError).toHaveBeenCalledWith("Server unreachable");
   });
 });

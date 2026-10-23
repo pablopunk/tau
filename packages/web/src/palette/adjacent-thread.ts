@@ -43,5 +43,6 @@ export function useAdjacentThread() {
     const target = adjacentThread(order, current, delta);
     if (target) navigate(conversationPath(target.projectId, target.id, target.nodeId));
   };
-  return { go, available: order.length > 1 };
+  const neighbors = ([1, -1] as const).flatMap((delta) => adjacentThread(order, current, delta) ?? []);
+  return { go, available: order.length > 1, neighbors };
 }

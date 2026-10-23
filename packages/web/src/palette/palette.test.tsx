@@ -167,6 +167,22 @@ describe("add project and thread cycling", () => {
   });
 });
 
+describe("warming for the thread keys", () => {
+  it("has the neighbouring thread ready before Mod+Alt+Arrow is pressed", async () => {
+    const live = createStubLiveClient(threadView);
+    const warm = vi.fn();
+    live.warm = warm;
+    renderAt(
+      "/p/p2/c/c2",
+      <LiveClientProvider client={live}>
+        <GlobalShortcuts />
+      </LiveClientProvider>,
+    );
+    await waitFor(() => expect(warm).toHaveBeenCalledWith("c1"));
+    expect(warm).not.toHaveBeenCalledWith("c2");
+  });
+});
+
 describe("models", () => {
   it("changes the model of the open thread from a second page", async () => {
     const user = userEvent.setup();

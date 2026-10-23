@@ -6,6 +6,7 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import {
+  type Approval,
   type ApprovalDecision,
   type ClaudeConnectorSettings,
   type CompactionSettings,
@@ -16,8 +17,12 @@ import {
   type RemoteStatus,
   type ResourceSettings,
   type SandboxSettings,
+  type Settings,
   type UpdateStatus,
 } from "@tau/protocol";
+import { useCallback } from "react";
+import { toast } from "sonner";
+import { errorMessage } from "@/lib/error-message";
 import { isJobActive } from "@/lib/updates";
 import { useApi } from "@/nodes/node-context";
 
@@ -295,7 +300,25 @@ export function useDecideApproval(conversationId: string) {
   return useMutation({
     mutationFn: (input: { toolUseId: string; decision: ApprovalDecision }) =>
       api.approvals.decide(conversationId, input.toolUseId, input.decision),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.approvals(conversationId) }),
+    // The card leaves at the tap and the composer stops yielding to it; a
+    // failed decision puts it back with the reason.
+    onMutate: async ({ toolUseId }) => {
+      const queryKey = queryKeys.approvals(conversationId);
+      await queryClient.cancelQueries({ queryKey });
+      const previous = queryClient.getQueryData<Approval[]>(queryKey);
+      if (previous) {
+        queryClient.setQueryData(
+          queryKey,
+          previous.filter((approval) => approval.toolUseId !== toolUseId),
+        );
+      }
+      return { previous };
+    },
+    onError: (error, _input, context) => {
+      if (context?.previous) queryClient.setQueryData(queryKeys.approvals(conversationId), context.previous);
+      toast.error(errorMessage(error));
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: queryKeys.approvals(conversationId) }),
   });
 }
 
@@ -309,22 +332,78 @@ export function useSetSetupSkipped() {
   });
 }
 
-export function useSetClaudeConnectors() {
-  const api = useApi();
+/**
+ * A settings change shows in the cache the moment it is made, so the control moves at once. A refused change
+ * puts back only the fields it touched (a later change to other fields stays), and the server's own answer
+ * replaces the guess once it settles.
+ */
+async function applySettingsPatch(queryClient: QueryClient, patch: Partial<Settings>) {
+  await queryClient.cancelQueries({ queryKey: queryKeys.settings });
+  const current = queryClient.getQueryData<Settings>(queryKeys.settings);
+  if (!current) return { previous: undefined };
+  const previous: Partial<Settings> = {};
+  for (const key of Object.keys(patch) as (keyof Settings)[])
+    Object.assign(previous, { [key]: current[key] });
+  queryClient.setQueryData<Settings>(queryKeys.settings, { ...current, ...patch });
+  return { previous };
+}
+
+function revertSettingsPatch(queryClient: QueryClient, previous: Partial<Settings> | undefined) {
+  if (!previous) return;
+  queryClient.setQueryData<Settings>(queryKeys.settings, (current) =>
+    current ? { ...current, ...previous } : current,
+  );
+}
+
+/** `save(patch, action)`: shows `patch` now, runs `action`, reverts the patch and rethrows if it fails. */
+export function useSettingsSave() {
+  const queryClient = useQueryClient();
+  return useCallback(
+    async (patch: Partial<Settings>, action: () => Promise<unknown>) => {
+      const { previous } = await applySettingsPatch(queryClient, patch);
+      try {
+        await action();
+      } catch (error) {
+        revertSettingsPatch(queryClient, previous);
+        throw error;
+      } finally {
+        void queryClient.invalidateQueries({ queryKey: queryKeys.settings });
+      }
+    },
+    [queryClient],
+  );
+}
+
+function useSettingsMutation<V>(
+  mutationFn: (value: V) => Promise<unknown>,
+  patchOf: (value: V) => Partial<Settings>,
+) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (value: ClaudeConnectorSettings) => api.settings.setClaudeConnectors(value),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.settings }),
+    mutationFn,
+    onMutate: (value: V) => applySettingsPatch(queryClient, patchOf(value)),
+    onError: (error, _value, context) => {
+      revertSettingsPatch(queryClient, context?.previous);
+      toast.error(errorMessage(error));
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: queryKeys.settings }),
   });
+}
+
+export function useSetClaudeConnectors() {
+  const api = useApi();
+  return useSettingsMutation(
+    (value: ClaudeConnectorSettings) => api.settings.setClaudeConnectors(value),
+    (value) => ({ claudeConnectors: value }),
+  );
 }
 
 export function useSetCompaction() {
   const api = useApi();
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (value: CompactionSettings) => api.settings.setCompaction(value),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.settings }),
-  });
+  return useSettingsMutation(
+    (value: CompactionSettings) => api.settings.setCompaction(value),
+    (value) => ({ compaction: value }),
+  );
 }
 
 /**
@@ -340,11 +419,10 @@ export const useSandboxSettings = () => {
 /** Saves the sandbox switch (`PUT /api/settings/sandbox`); the UI is `SandboxGroup`. */
 export function useSetSandbox() {
   const api = useApi();
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (value: SandboxSettings) => api.settings.setSandbox(value),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.settings }),
-  });
+  return useSettingsMutation(
+    (value: SandboxSettings) => api.settings.setSandbox(value),
+    (value) => ({ sandbox: value }),
+  );
 }
 
 /** `null` data: the node is older than resource control. */
@@ -365,11 +443,10 @@ export const useResourceActivity = (enabled = true) => {
 
 export function useSetResources() {
   const api = useApi();
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (value: ResourceSettings) => api.settings.setResources(value),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.settings }),
-  });
+  return useSettingsMutation(
+    (value: ResourceSettings) => api.settings.setResources(value),
+    (value) => ({ resources: value }),
+  );
 }
 
 export function useStopResourceCommand() {

@@ -1,5 +1,5 @@
 import type { ConversationView } from "@tau/protocol";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import ReactMarkdown from "react-markdown";
 import { describe, expect, it, vi } from "vitest";
 import { ComposerTestWrapper } from "./composer/test-wrapper";
@@ -41,35 +41,67 @@ describe("transcript streaming work (seed 15158)", () => {
   it.each([
     { history: 4, chunks: 32, batch: 1 },
     { history: 128, chunks: 8192, batch: 256 },
-  ])("does not reparse $history stable history rows over $chunks chunks", ({ history, chunks, batch }) => {
+  ])(
+    "does not reparse $history stable history rows over $chunks chunks",
+    async ({ history, chunks, batch }) => {
+      vi.mocked(ReactMarkdown).mockClear();
+      const derive = vi.spyOn(projection, "buildTranscript");
+      const entries = historyOf(history);
+      const { rerender } = render(<Transcript view={viewOf(entries, "")} />, {
+        wrapper: ComposerTestWrapper,
+      });
+      // A long history draws its newest rows first and the rest in the next frames.
+      await waitFor(() => expect(vi.mocked(ReactMarkdown).mock.calls.length).toBe(history));
+      const initialParses = vi.mocked(ReactMarkdown).mock.calls.length;
+      const start = performance.now();
+      let text = "";
+      for (let i = 0; i < chunks; i += batch) {
+        text += Array.from({ length: batch }, (_, j) => `chunk-${i + j}\n`).join("");
+        rerender(<Transcript view={viewOf(entries, text)} />);
+      }
+      const parses = vi.mocked(ReactMarkdown).mock.calls.length;
+      console.log(
+        JSON.stringify({
+          history,
+          chunks,
+          batch,
+          updates: chunks / batch,
+          initialParses,
+          parses,
+          derivations: derive.mock.calls.length,
+          updateMs: performance.now() - start,
+        }),
+      );
+      derive.mockRestore();
+      expect(screen.getByText(/chunk-0/)).toHaveTextContent(`chunk-${chunks - 1}`);
+      expect(initialParses).toBe(history);
+      expect(parses).toBe(history + chunks / batch);
+    },
+  );
+
+  it("draws the newest rows of a long history first, then fills in the older ones exactly once", async () => {
     vi.mocked(ReactMarkdown).mockClear();
-    const derive = vi.spyOn(projection, "buildTranscript");
-    const entries = historyOf(history);
+    render(<Transcript view={viewOf(historyOf(100), "")} />, { wrapper: ComposerTestWrapper });
+    expect(screen.getAllByTestId("assistant-message")).toHaveLength(40);
+    expect(screen.getByText("99", { selector: "strong" })).toBeInTheDocument();
+    expect(screen.queryByText("0", { selector: "strong" })).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.getAllByTestId("assistant-message")).toHaveLength(100));
+    expect(screen.getByText("0", { selector: "strong" })).toBeInTheDocument();
+    expect(vi.mocked(ReactMarkdown).mock.calls).toHaveLength(100);
+  });
+
+  it("never hides an older row once the history is drawn and a new one arrives", async () => {
+    const entries = historyOf(60);
     const { rerender } = render(<Transcript view={viewOf(entries, "")} />, { wrapper: ComposerTestWrapper });
-    const initialParses = vi.mocked(ReactMarkdown).mock.calls.length;
-    const start = performance.now();
-    let text = "";
-    for (let i = 0; i < chunks; i += batch) {
-      text += Array.from({ length: batch }, (_, j) => `chunk-${i + j}\n`).join("");
-      rerender(<Transcript view={viewOf(entries, text)} />);
-    }
-    const parses = vi.mocked(ReactMarkdown).mock.calls.length;
-    console.log(
-      JSON.stringify({
-        history,
-        chunks,
-        batch,
-        updates: chunks / batch,
-        initialParses,
-        parses,
-        derivations: derive.mock.calls.length,
-        updateMs: performance.now() - start,
-      }),
-    );
-    derive.mockRestore();
-    expect(screen.getByText(/chunk-0/)).toHaveTextContent(`chunk-${chunks - 1}`);
-    expect(initialParses).toBe(history);
-    expect(parses).toBe(history + chunks / batch);
+    await waitFor(() => expect(screen.getAllByTestId("assistant-message")).toHaveLength(60));
+    rerender(<Transcript view={viewOf([...entries, ...historyOf(61).slice(60)], "")} />);
+    expect(screen.getAllByTestId("assistant-message")).toHaveLength(61);
+    expect(screen.getByText("0", { selector: "strong" })).toBeInTheDocument();
+  });
+
+  it("draws a short history in one go", () => {
+    render(<Transcript view={viewOf(historyOf(10), "")} />, { wrapper: ComposerTestWrapper });
+    expect(screen.getAllByTestId("assistant-message")).toHaveLength(10);
   });
 
   it("updates changed Markdown text and presentation, without suppressing new content", () => {

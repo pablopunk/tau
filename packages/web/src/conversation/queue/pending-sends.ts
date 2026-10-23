@@ -80,6 +80,57 @@ export function noteFailed(
   return entry;
 }
 
+export const optimisticKey = (requestId: string) => `req-${requestId}`;
+
+function replaceEntry(
+  conversationId: string,
+  key: string,
+  update: (entry: PendingSend) => PendingSend,
+): void {
+  const list = forConversation(conversationId);
+  if (!list.some((item) => item.key === key)) return;
+  pendings.set(
+    conversationId,
+    list.map((item) => (item.key === key ? update(item) : item)),
+  );
+  notify();
+}
+
+/**
+ * Registers a send at the moment the user taps, before the server has said
+ * anything: the bubble shows instantly. It carries the client `requestId`
+ * only; `attachReceipt` adds the ids reconciliation matches on, in place, so
+ * the row never remounts.
+ */
+export function noteOptimistic(
+  conversationId: string,
+  requestId: string,
+  message: { text: string; images: readonly ImageInput[]; files: readonly FileRef[]; whenBusy?: WhenBusy },
+): PendingSend {
+  const key = optimisticKey(requestId);
+  const entry: PendingSend = { key, conversationId, requestId, ...message, status: "sending" };
+  pendings.set(conversationId, [
+    ...forConversation(conversationId).filter((item) => item.key !== key),
+    entry,
+  ]);
+  notify();
+  return entry;
+}
+
+/** The server confirmed an optimistic send: attach the ids live state is reconciled on. No-op once the bubble is gone (live state beat the receipt). */
+export function attachReceipt(conversationId: string, requestId: string, receipt: SendReceipt): void {
+  replaceEntry(conversationId, optimisticKey(requestId), (entry) => ({
+    ...entry,
+    submissionId: receipt.submissionId,
+    ...(receipt.entryId !== undefined && { entryId: receipt.entryId }),
+  }));
+}
+
+/** An optimistic send failed: the same bubble becomes a failed one with retry, in place. */
+export function failOptimistic(conversationId: string, requestId: string, error: string): void {
+  replaceEntry(conversationId, optimisticKey(requestId), (entry) => ({ ...entry, status: "failed", error }));
+}
+
 /** Drops one pending entry (placed, morphed into a queued row, retried, or dismissed). */
 export function resolvePending(conversationId: string, key: string): void {
   const next = forConversation(conversationId).filter((item) => item.key !== key);

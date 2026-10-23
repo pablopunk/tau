@@ -38,7 +38,7 @@ import { loadFileAttachments } from "./files/attachments";
 import { useFileAttachments } from "./files/use-file-attachments";
 import { loadAttachments } from "./images/attachments";
 import { useAttachments } from "./images/use-attachments";
-import { hasReceipt, noteFailed, noteSending } from "./queue/pending-sends";
+import { hasReceipt } from "./queue/pending-sends";
 
 export interface ComposerProps {
   /** Draft key: `"new"` for the new thread page, the conversation id in a thread. */
@@ -300,8 +300,9 @@ function ComposerForm({
       replaceFiles([]);
     }
     setError(undefined);
+    const sending = onSend(outgoing);
     onSent?.();
-    void onSend(outgoing)
+    void sending
       .then(
         (receipt) => {
           if (!trackInTranscript) {
@@ -309,25 +310,15 @@ function ComposerForm({
             replace([]);
             replaceFiles([]);
           }
-          // The pending bubble (R3.6) is keyed by the returned submissionId and
-          // swaps on the exact entry/submission id — never by text. Pre-contract
-          // nodes resolve `void`: nothing to key on, live sync covers it.
-          if (trackInTranscript && hasReceipt(receipt)) {
-            noteSending(threadTarget, receipt, { ...outgoing, ...(sendMode && { whenBusy: sendMode }) });
-            markConfirm(token, receipt, busy ? "queued" : "sent");
-          }
+          // The pending bubble is registered at tap by the send action and settles
+          // itself on the receipt: this only records the confirm timing.
+          if (trackInTranscript && hasReceipt(receipt)) markConfirm(token, receipt, busy ? "queued" : "sent");
         },
         (failure: unknown) => {
-          if (trackInTranscript) {
-            // Failed bubble with retry in the transcript — never a silent vanish.
-            // (A stale ref rejects `file_expired`: the bubble keeps everything for the retry.)
-            noteFailed(
-              threadTarget,
-              { ...outgoing, ...(sendMode && { whenBusy: sendMode }) },
-              errorText(failure),
-            );
-          } else {
-            // A stale ref rejects `file_expired`: put everything back so nothing is silently lost.
+          // In a thread the send action already turned its bubble into a failed
+          // one with retry. A new thread has no transcript yet: put everything
+          // back so nothing is silently lost (a stale ref rejects `file_expired`).
+          if (!trackInTranscript) {
             setText(message);
             replace(sent);
             replaceFiles(sentFiles);

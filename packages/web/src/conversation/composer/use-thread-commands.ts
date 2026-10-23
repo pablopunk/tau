@@ -7,8 +7,10 @@ import type { PickersHandle } from "@/components/ModelThinkingPickers";
 import { runGoalCommand } from "@/goal/goal-command";
 import { errorMessage } from "@/lib/error-message";
 import { newThreadPath } from "@/lib/paths";
+import { queryKeys } from "@/lib/queries";
 import { useApi, useNodeId } from "@/nodes/node-context";
 import { LOOP_USAGE, parseLoopArgs } from "@/timers/loop-args";
+import { useThreadListMutation } from "../queue/thread-list-mutations";
 import type { CommandHandlers } from "./slash-commands";
 
 export interface ThreadCommandsInput {
@@ -29,6 +31,19 @@ export function useThreadCommands({ conversationId, projectId, pickers }: Thread
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [renaming, setRenaming] = useState(false);
+  // The thread leaves or renames in the lists at the tap; a refusal puts it back and says why.
+  const listKeys = [...(projectId ? [queryKeys.conversations(projectId)] : []), queryKeys.allConversations];
+  const archiveMutation = useThreadListMutation({
+    listKeys,
+    mutationFn: () => api.conversations.archive(conversationId, true),
+    transform: (list) =>
+      list.map((item) => (item.id === conversationId ? { ...item, archivedAt: Date.now() } : item)),
+  });
+  const renameMutation = useThreadListMutation({
+    listKeys,
+    mutationFn: (title: string) => api.conversations.rename(conversationId, title),
+    transform: (list, title) => list.map((item) => (item.id === conversationId ? { ...item, title } : item)),
+  });
 
   const commands = useMemo<CommandHandlers>(() => {
     const refreshLists = () => queryClient.invalidateQueries({ queryKey: ["conversations"] });
@@ -50,16 +65,14 @@ export function useThreadCommands({ conversationId, projectId, pickers }: Thread
         await refreshLists();
       },
       archive: async () => {
-        await api.conversations.archive(conversationId, true);
-        await refreshLists();
+        archiveMutation.mutate();
         navigate("/");
       },
     };
-  }, [api, nodeId, conversationId, projectId, pickers, navigate, queryClient]);
+  }, [api, nodeId, conversationId, projectId, pickers, navigate, queryClient, archiveMutation.mutate]);
 
   const rename = async (title: string) => {
-    await api.conversations.rename(conversationId, title);
-    await queryClient.invalidateQueries({ queryKey: ["conversations"] });
+    renameMutation.mutate(title);
   };
 
   return { commands, renaming, closeRename: () => setRenaming(false), rename };

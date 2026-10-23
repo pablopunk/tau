@@ -1,11 +1,12 @@
 import type { AssistantMessage as AssistantMessageData, ToolCall as ToolCallBlock } from "@tau/protocol";
+import { memo } from "react";
 import { CopyButton } from "@/components/ui/copy-button";
 import type { ToolCallState } from "../model/tool-state";
 import { ToolCall } from "../tools/ToolCall";
 import { Markdown } from "./Markdown";
 import { MessageMenu } from "./MessageMenu";
 import { ModelLabel } from "./ModelLabel";
-import type { MessageEntry } from "./message-actions";
+import { type MessageEntry, sameEntry } from "./message-actions";
 import { ErrorNotice } from "./notices";
 import { ThinkingBlock } from "./ThinkingBlock";
 
@@ -38,7 +39,7 @@ export function markdownOf(message: AssistantMessageData): string {
     .join("\n\n");
 }
 
-export function AssistantMessage(props: AssistantMessageProps) {
+function AssistantMessageView(props: AssistantMessageProps) {
   const { message } = props;
   const markdown = markdownOf(message);
   return (
@@ -58,3 +59,18 @@ export function AssistantMessage(props: AssistantMessageProps) {
     </div>
   );
 }
+
+const toolCallsOf = (message: AssistantMessageData) =>
+  message.content.filter((block): block is ToolCallBlock => block.type === "toolCall");
+
+/**
+ * Skips the render when the message, its actions and the state of each of its tool calls are all unchanged.
+ * `resolveTool` is a new closure every render, so it is judged by what it returns for this message's calls.
+ */
+function sameAssistantMessage(before: AssistantMessageProps, after: AssistantMessageProps): boolean {
+  if (before.message !== after.message || before.streaming !== after.streaming) return false;
+  if (!sameEntry(before.entry, after.entry)) return false;
+  return toolCallsOf(after.message).every((call) => before.resolveTool(call) === after.resolveTool(call));
+}
+
+export const AssistantMessage = memo(AssistantMessageView, sameAssistantMessage);

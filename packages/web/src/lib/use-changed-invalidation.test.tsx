@@ -22,6 +22,8 @@ function setup() {
       return () => listeners.delete(listener);
     },
     status: "connecting",
+    peek: () => undefined,
+    warm: () => {},
     close: () => {},
   } satisfies LiveClient;
   const queryClient = new QueryClient();
