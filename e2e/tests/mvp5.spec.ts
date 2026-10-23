@@ -87,7 +87,10 @@ test.describe("MVP5", () => {
   });
 
   test("a worktree thread edits a file, commits it and merges into main", async () => {
-    await startThreadInDemoRepository(page, "write note.txt hello");
+    // Unique per run: a serial retry re-runs against the same repo, and a
+    // fixed filename would already be committed (empty second commit fails).
+    const note = `note-${Date.now().toString(36)}.txt`;
+    await startThreadInDemoRepository(page, `write ${note} hello`);
     // The header chip hides while the conversation sidebar is open (open by default).
     const closeSidebar = page.getByRole("button", { name: "Close conversation sidebar" });
     if ((await closeSidebar.count()) > 0) await closeSidebar.click();
@@ -99,7 +102,7 @@ test.describe("MVP5", () => {
     await page.getByRole("menuitem", { name: /Merge into main/ }).click();
     await expect(chip).toContainText("merged");
     await expect
-      .poll(() => readFileSync(join(demoRepository(), "note.txt"), "utf8"), { timeout: 10_000 })
+      .poll(() => readFileSync(join(demoRepository(), note), "utf8"), { timeout: 10_000 })
       .toBe("hello");
   });
 
@@ -161,7 +164,8 @@ test.describe("MVP5", () => {
     // processes section there instead of a dialog.
     await chip.click();
     const sidebar = page.getByRole("complementary", { name: "Conversation details" });
-    await expect(sidebar.getByText("sleep 300")).toBeVisible();
+    // The row shows the command twice (name <span> and command <code>).
+    await expect(sidebar.getByText("sleep 300").first()).toBeVisible();
     await sidebar.getByRole("button", { name: "Stop", exact: true }).click();
     await expect(sidebar.getByRole("button", { name: "Stop", exact: true })).toBeHidden({ timeout: 20_000 });
   });
