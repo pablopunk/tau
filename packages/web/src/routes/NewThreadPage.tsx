@@ -3,11 +3,14 @@ import type { FileRef, ImageInput, ModelRef, ThinkingLevel, WorkspaceMode } from
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 import { ModelThinkingPickers, type PickersHandle } from "@/components/ModelThinkingPickers";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import { Composer } from "@/conversation";
 import type { CommandHandlers } from "@/conversation/composer/slash-commands";
 import { NATIVE_ATTACHMENTS_REASON } from "@/conversation/model/executor";
+import { errorMessage } from "@/lib/error-message";
 import { findModel, pickModel, pickProjectId, pickThinkingLevel } from "@/lib/new-thread-defaults";
 import { clearNewThreadDraft, loadNewThreadDraft, saveNewThreadDraft } from "@/lib/new-thread-draft";
 import { conversationPath, newThreadPath } from "@/lib/paths";
@@ -57,7 +60,25 @@ export function NewThreadPage() {
     }),
     [],
   );
-  if (!projects.data || !models.data || !settings.data) return <NewThreadSkeleton />;
+  if (!projects.data || !models.data || !settings.data) {
+    const failed = [projects, models, settings].filter((query) => query.isError);
+    if (failed.length === 0) return <NewThreadSkeleton />;
+    return (
+      <Alert variant="destructive">
+        <AlertTitle>Could not load the new thread</AlertTitle>
+        <AlertDescription>{errorMessage(failed[0]?.error)}</AlertDescription>
+        <Button
+          variant="outline"
+          disabled={failed.some((query) => query.isFetching)}
+          onClick={() => {
+            for (const query of failed) void query.refetch();
+          }}
+        >
+          Retry loading
+        </Button>
+      </Alert>
+    );
+  }
 
   const wantedProject = paramProject ?? chosenProject ?? preferences.getLastProjectId(nodeId);
   const projectId = pickProjectId(projects.data, wantedProject);

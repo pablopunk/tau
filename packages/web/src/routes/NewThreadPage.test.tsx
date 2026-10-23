@@ -6,6 +6,7 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { saveDraft } from "@/conversation/composer/drafts";
 import { createApi } from "@/lib/api";
 import { preferences } from "@/lib/preferences";
 import { createFakeTransport } from "@/lib/transport/fake";
@@ -18,7 +19,15 @@ function ThreadRoute() {
   return <h1>Opened {useLocation().pathname}</h1>;
 }
 
-async function renderPage({ claude = false, model }: { claude?: boolean; model?: ModelRef } = {}) {
+async function renderPage({
+  claude = false,
+  model,
+  loadFailure,
+}: {
+  claude?: boolean;
+  model?: ModelRef;
+  loadFailure?: "projects" | "models" | "settings";
+} = {}) {
   const core = createFakeCore({ configured: true });
   await core.providers.setApiKey("openrouter", "fake");
   if (claude) {
@@ -31,6 +40,12 @@ async function renderPage({ claude = false, model }: { claude?: boolean; model?:
   const api = createApi(createFakeTransport(core));
   const start = vi.spyOn(api.conversations, "start");
   const runtimes = vi.spyOn(api.runtimes, "list");
+  const load = loadFailure
+    ? loadFailure === "settings"
+      ? vi.spyOn(api.settings, "get")
+      : vi.spyOn(api[loadFailure], "list")
+    : undefined;
+  load?.mockRejectedValueOnce(new AppError("internal", "This node is offline."));
   render(
     <MemoryRouter initialEntries={["/new"]}>
       <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
@@ -45,8 +60,8 @@ async function renderPage({ claude = false, model }: { claude?: boolean; model?:
       </QueryClientProvider>
     </MemoryRouter>,
   );
-  await screen.findByLabelText("Message");
-  return { api, core, start, runtimes, claudeModel, user: userEvent.setup() };
+  if (!loadFailure) await screen.findByLabelText("Message");
+  return { api, core, start, runtimes, claudeModel, load, user: userEvent.setup() };
 }
 
 async function submit(user: ReturnType<typeof userEvent.setup>, text = "hello") {
@@ -100,6 +115,7 @@ describe("<NewThreadPage> model selection", () => {
     expect(start.mock.calls[0]?.[0]).not.toHaveProperty("thinkingLevel");
     expect(start.mock.calls[0]?.[0]).not.toHaveProperty("images");
     expect(start.mock.calls[0]?.[0]).not.toHaveProperty("files");
+    await screen.findByRole("heading", { name: /^Opened \/p\/home\/c\// });
   });
 
   it("does not invent a Claude model when the CLI is not connected", async () => {
@@ -107,6 +123,23 @@ describe("<NewThreadPage> model selection", () => {
     await user.click(screen.getByRole("combobox", { name: "Model" }));
     expect(screen.queryByRole("option", { name: /Claude/ })).not.toBeInTheDocument();
   });
+});
+
+describe("<NewThreadPage> loading failures", () => {
+  it.each(["projects", "models", "settings"] as const)(
+    "shows a %s load failure and retries only reads, without submitting",
+    async (loadFailure) => {
+      saveDraft("new", "Retained draft");
+      const { load, start, user } = await renderPage({ loadFailure });
+      expect(await screen.findByRole("alert")).toHaveTextContent("This node is offline.");
+      expect(screen.queryByRole("status", { name: "Loading" })).not.toBeInTheDocument();
+      expect(load).toHaveBeenCalledTimes(1);
+      await user.click(screen.getByRole("button", { name: "Retry loading" }));
+      expect(await screen.findByLabelText("Message")).toHaveValue("Retained draft");
+      expect(load?.mock.calls.length).toBeGreaterThanOrEqual(2);
+      expect(start).not.toHaveBeenCalled();
+    },
+  );
 });
 
 describe("<NewThreadPage> start lifecycle", () => {

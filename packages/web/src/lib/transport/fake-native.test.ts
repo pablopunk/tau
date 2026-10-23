@@ -58,6 +58,33 @@ describe("fake native scenario", () => {
     expect(settled).toMatchObject({ busy: false, lifecycle: "completed" });
   });
 
+  it("starts with a listed native model and keeps that choice on summaries and retries", async () => {
+    const core = await readyCore(true);
+    await core.providers.acknowledgeClaudeCli();
+    const input = {
+      projectId: "home",
+      text: "selected native model",
+      requestId: "selected-native",
+      executor: "claude-code" as const,
+      model: { provider: "claude-cli", modelId: "opus" },
+    };
+    const summary = await core.conversations.start(input);
+    expect(summary.model).toEqual(input.model);
+    expect((await core.conversations.start(input)).id).toBe(summary.id);
+    expect((await core.conversations.listAll()).find((item) => item.id === summary.id)?.model).toEqual(
+      input.model,
+    );
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(readRuntimeLive(await latestView(core, summary.id), "claude-code").lifecycle).toBe("completed");
+    await expect(
+      core.conversations.start({
+        ...input,
+        requestId: "unknown-model",
+        model: { provider: "claude-cli", modelId: "missing" },
+      }),
+    ).rejects.toMatchObject({ code: "invalid_request" });
+  });
+
   it("appends events for a send and queues it behind a running turn", async () => {
     const core = await readyCore(true);
     const { id } = await core.conversations.start({

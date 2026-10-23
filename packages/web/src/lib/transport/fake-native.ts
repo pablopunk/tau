@@ -1,4 +1,10 @@
-import type { ConversationSummary, Core, RuntimeCapabilities, StartConversationInput } from "@tau/protocol";
+import type {
+  ConversationSummary,
+  Core,
+  ModelRef,
+  RuntimeCapabilities,
+  StartConversationInput,
+} from "@tau/protocol";
 import {
   AppError,
   describeExecutors,
@@ -68,6 +74,7 @@ const hasAttachments = (input: StartConversationInput): boolean =>
  */
 export function installFakeNative(core: Core): void {
   const threads = new Map<string, FakeNativeThread>();
+  const models = new Map<string, ModelRef>();
   const listeners = new Set<Parameters<Core["onChange"]>[0]>();
   const original = {
     start: core.conversations.start,
@@ -89,7 +96,7 @@ export function installFakeNative(core: Core): void {
     return {
       ...summary,
       executor: "claude-code",
-      model: summary.model?.provider === "claude-cli" ? summary.model : null,
+      model: models.get(summary.id) ?? null,
       status: thread.isRunning ? "running" : "idle",
       updatedAt: thread.updatedAt,
       lastActivityAt: thread.updatedAt,
@@ -135,9 +142,18 @@ export function installFakeNative(core: Core): void {
       if (hasAttachments(input)) throw nativeAttachmentsError();
       const shared = { ...input };
       delete shared.executor;
+      const model = input.model?.provider === "claude-cli" ? input.model : undefined;
+      if (model) {
+        const listed = await core.models.list();
+        if (!listed.some((item) => item.provider === model.provider && item.modelId === model.modelId))
+          throw new AppError("invalid_request", `Unknown model: ${model.provider}/${model.modelId}`);
+        // The Pi-only shadow stores identity; the scripted native thread retains the selected model.
+        delete shared.model;
+      }
       const shadow = await original.start(shared);
       await original.abort(shadow.id);
       if (!threads.has(shadow.id)) {
+        if (model) models.set(shadow.id, model);
         const thread = new FakeNativeThread(shadow.id, shadow.projectId, () => announce(shadow.projectId));
         threads.set(shadow.id, thread);
         thread.send(input.requestId, input.text);
@@ -166,6 +182,7 @@ export function installFakeNative(core: Core): void {
     async remove(id: string, options?: Parameters<Core["conversations"]["remove"]>[1]) {
       threads.get(id)?.dispose();
       threads.delete(id);
+      models.delete(id);
       return original.remove(id, options);
     },
   });

@@ -1,4 +1,4 @@
-import type { ComponentProps } from "react";
+import { type ComponentProps, memo } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { cn } from "@/lib/utils";
@@ -41,7 +41,7 @@ function stripNode<T extends { node?: unknown }>({ node: _node, ...rest }: T): O
   return rest;
 }
 
-export function Markdown({
+export const Markdown = memo(function Markdown({
   children,
   className,
 }: { children: string } & Pick<ComponentProps<"div">, "className">) {
@@ -52,4 +52,4 @@ export function Markdown({
       </ReactMarkdown>
     </div>
   );
-}
+});
