@@ -63,7 +63,7 @@ test.describe("MVP8 timers in the browser", () => {
     await expect(page.getByText("Timers", { exact: true })).toHaveCount(0);
     // Scope to this thread's link: a serial group retry leaves other threads' badges behind.
     const conversationId = new URL(page.url()).pathname.split("/").pop() ?? "";
-    const threadLink = page.getByRole("link", { href: new RegExp(`/c/${conversationId}$`) });
+    const threadLink = page.locator(`a[href$="/c/${conversationId}"]`);
     await expect(threadLink.getByRole("img", { name: /Next wake-up in/ })).toHaveCount(0);
   });
 
