@@ -5,6 +5,7 @@ import { demoRepository, PORT, tokenFile } from "../support";
 
 const ORIGIN = { Origin: `http://127.0.0.1:${PORT}` };
 const messageBox = (page: Page) => page.getByRole("textbox", { name: "Message" });
+const conversation = (page: Page) => page.getByTestId("conversation");
 
 type TimerRow = { id: string; kind: string; source: string; firedCount: number };
 
@@ -65,7 +66,7 @@ test.describe("MVP8 timers in the browser", () => {
 
   test("/loop with an interval runs the prompt now and adds a loop timer", async () => {
     await send(page, "/loop 1h say hello");
-    await expect(page.getByText("say hello").first()).toBeVisible({ timeout: 20_000 });
+    await expect(conversation(page).getByText("say hello")).toBeVisible({ timeout: 20_000 });
     await expect(page.getByRole("button", { name: "1 timers" })).toBeVisible({ timeout: 20_000 });
     await send(page, "/loop stop");
     await expect(page.getByRole("button", { name: /timers$/ })).toHaveCount(0, { timeout: 20_000 });
