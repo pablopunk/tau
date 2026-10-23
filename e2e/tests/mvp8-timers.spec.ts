@@ -48,6 +48,9 @@ test.describe("MVP8 timers in the browser", () => {
     await page.getByRole("radio", { name: "Checkout" }).click();
     await send(page, "repeat 5m ping the build");
     await expect(page).toHaveURL(/\/c\//);
+    // The header chips hide while the conversation sidebar is open (open by default).
+    const closeSidebar = page.getByRole("button", { name: "Close conversation sidebar" });
+    if ((await closeSidebar.count()) > 0) await closeSidebar.click();
     await expect(page.getByRole("button", { name: "1 timers" })).toBeVisible({ timeout: 20_000 });
     await expect(page.getByRole("img", { name: /Next wake-up in/ })).toBeVisible();
     await page.getByRole("button", { name: "1 timers" }).click();
