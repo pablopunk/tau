@@ -1,5 +1,8 @@
+import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef } from "react";
 import { useOptionalLiveClient } from "@/conversation";
+import { prefetchThreadData } from "@/lib/thread-prefetch";
+import { useApi } from "@/nodes/node-context";
 
 /** Hovering this long reads as intent; a pointer sweeping across the list does not. */
 const HOVER_INTENT_MS = 120;
@@ -10,6 +13,8 @@ const HOVER_INTENT_MS = 120;
  */
 export function useWarmOnIntent(conversationId: string) {
   const client = useOptionalLiveClient();
+  const queryClient = useQueryClient();
+  const api = useApi();
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const cancel = useCallback(() => {
     clearTimeout(timer.current);
@@ -18,8 +23,10 @@ export function useWarmOnIntent(conversationId: string) {
   useEffect(() => cancel, [cancel]);
   const warmNow = useCallback(() => {
     cancel();
-    client?.warm(conversationId);
-  }, [client, conversationId, cancel]);
+    if (!client) return;
+    client.warm(conversationId);
+    prefetchThreadData(queryClient, api, conversationId);
+  }, [client, queryClient, api, conversationId, cancel]);
   const warmSoon = useCallback(() => {
     if (!client || timer.current !== undefined) return;
     timer.current = setTimeout(warmNow, HOVER_INTENT_MS);

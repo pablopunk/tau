@@ -3,6 +3,7 @@ import type { Change } from "@tau/protocol";
 import { useEffect } from "react";
 import { useLiveClient } from "@/conversation";
 import type { LiveStatus } from "@/conversation/live-client";
+import { createInvalidationBatcher } from "./invalidation-batcher";
 import { invalidationsFor } from "./invalidation-scope";
 import { queryKeys } from "./queries";
 
@@ -11,9 +12,9 @@ function invalidateEverythingListed(queryClient: QueryClient) {
   void queryClient.invalidateQueries({ queryKey: ["conversations"] });
 }
 
-function invalidateChange(queryClient: QueryClient, change: Change) {
+function invalidateChange(batcher: ReturnType<typeof createInvalidationBatcher>, change: Change) {
   for (const { queryKey, refetchType } of invalidationsFor(change)) {
-    void queryClient.invalidateQueries({ queryKey, ...(refetchType && { refetchType }) });
+    batcher.enqueue({ queryKey, ...(refetchType && { refetchType }) });
   }
 }
 
@@ -34,6 +35,15 @@ function refetchAfterReconnect(queryClient: QueryClient) {
 export function useChangedInvalidation() {
   const live = useLiveClient();
   const queryClient = useQueryClient();
-  useEffect(() => live.onChanged((change) => invalidateChange(queryClient, change)), [live, queryClient]);
+  useEffect(() => {
+    const batcher = createInvalidationBatcher(({ queryKey, refetchType }) => {
+      void queryClient.invalidateQueries({ queryKey, ...(refetchType && { refetchType }) });
+    });
+    const unsubscribe = live.onChanged((change) => invalidateChange(batcher, change));
+    return () => {
+      unsubscribe();
+      batcher.dispose();
+    };
+  }, [live, queryClient]);
   useEffect(() => live.onStatus(refetchAfterReconnect(queryClient)), [live, queryClient]);
 }

@@ -1,8 +1,11 @@
-import { act, render, screen } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { LiveClientProvider } from "@/conversation";
 import { createStubLiveClient } from "@/conversation/test-utils";
+import type { Api } from "@/lib/api";
+import { NodeApiProvider } from "@/nodes/node-context";
 import { useWarmOnIntent } from "./use-warm-on-intent";
 
 function Row() {
@@ -13,15 +16,31 @@ function Row() {
   );
 }
 
-function setup() {
+function setup(withLiveClient = true) {
   const client = createStubLiveClient();
   client.warm = vi.fn();
+  const api = {
+    approvals: { list: vi.fn().mockResolvedValue([]) },
+    goals: { get: vi.fn().mockResolvedValue(null) },
+    workspaces: { status: vi.fn().mockResolvedValue(null) },
+    timers: { list: vi.fn().mockResolvedValue([]) },
+    processes: { list: vi.fn().mockResolvedValue([]) },
+  } as unknown as Api;
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
-    <LiveClientProvider client={client}>
-      <Row />
-    </LiveClientProvider>,
+    <QueryClientProvider client={queryClient}>
+      <NodeApiProvider api={api}>
+        {withLiveClient ? (
+          <LiveClientProvider client={client}>
+            <Row />
+          </LiveClientProvider>
+        ) : (
+          <Row />
+        )}
+      </NodeApiProvider>
+    </QueryClientProvider>,
   );
-  return client;
+  return { api, client };
 }
 
 describe("useWarmOnIntent", () => {
@@ -29,21 +48,23 @@ describe("useWarmOnIntent", () => {
   afterEach(() => vi.useRealTimers());
 
   it("warms on press at once", async () => {
-    const client = setup();
+    const { api, client } = setup();
     await userEvent.setup({ advanceTimers: vi.advanceTimersByTime }).pointer({
       keys: "[MouseLeft>]",
       target: screen.getByText("row"),
     });
     expect(client.warm).toHaveBeenCalledWith("c1");
+    await waitFor(() => expect(api.approvals.list).toHaveBeenCalledWith("c1"));
   });
 
   it("warms after a short hover, not on a pass-through", async () => {
-    const client = setup();
+    const { api, client } = setup();
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
     await user.hover(screen.getByText("row"));
     expect(client.warm).not.toHaveBeenCalled();
     act(() => vi.advanceTimersByTime(150));
     expect(client.warm).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(api.processes.list).toHaveBeenCalledWith("c1"));
     await user.unhover(screen.getByText("row"));
     await user.hover(screen.getByText("row"));
     await user.unhover(screen.getByText("row"));
@@ -52,9 +73,10 @@ describe("useWarmOnIntent", () => {
   });
 
   it("does nothing without a live client", () => {
-    render(<Row />);
+    setup(false);
     expect(() =>
       screen.getByText("row").dispatchEvent(new Event("pointerdown", { bubbles: true })),
     ).not.toThrow();
+    expect(screen.getByText("row")).toBeInTheDocument();
   });
 });
