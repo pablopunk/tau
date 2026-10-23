@@ -59,6 +59,19 @@ describe("prefetchThreadData", () => {
     expect(api.processes.list).toHaveBeenCalledTimes(1);
   });
 
+  it("skips workspace status for threads without a worktree", async () => {
+    const { api, queryClient } = setup();
+
+    prefetchThreadData(queryClient, api, "checkout", false);
+    await waitFor(() => {
+      expect(queryClient.getQueryData(queryKeys.approvals("checkout"))).toEqual([]);
+      expect(queryClient.getQueryData(queryKeys.processes("checkout"))).toEqual([]);
+    });
+
+    expect(api.workspaces.status).not.toHaveBeenCalled();
+    expect(queryClient.getQueryState(queryKeys.workspace("checkout"))).toBeUndefined();
+  });
+
   it("keeps prefetched data fresh for the options used by thread observers", async () => {
     const { api, queryClient } = setup();
     const options = {

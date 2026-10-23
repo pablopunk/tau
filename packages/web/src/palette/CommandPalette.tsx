@@ -29,6 +29,7 @@ import { SettingsItem } from "./SettingsItem";
 import { SettingsSearchGroup, useSettingResults } from "./SettingsSearchGroup";
 import { ThinkingPage } from "./ThinkingPage";
 import { ThreadActions } from "./ThreadActions";
+import { threadPaletteLabel } from "./thread-palette-label";
 
 interface HandoffTarget {
   conversationId: string;
@@ -53,7 +54,6 @@ function ThreadPaletteItem({
   conversation,
   nodeId,
   nodeName,
-  local,
   projectName,
   several,
   onSelect,
@@ -61,12 +61,17 @@ function ThreadPaletteItem({
   conversation: NodeData["conversations"][number];
   nodeId: string | undefined;
   nodeName: string;
-  local: boolean;
   projectName: string;
   several: boolean;
   onSelect: () => void;
 }) {
-  const { warmNow, handlers: warmHandlers } = useWarmOnIntent(conversation.id, nodeId === undefined);
+  const hasWorktree =
+    conversation.workspace.mode === "worktree" && conversation.workspace.state !== "removed";
+  const { warmNow, handlers: warmHandlers } = useWarmOnIntent(
+    conversation.id,
+    nodeId === undefined,
+    hasWorktree,
+  );
   return (
     <CommandItem
       {...warmHandlers}
@@ -78,13 +83,7 @@ function ThreadPaletteItem({
     >
       {conversation.title.trim() || "New thread"}
       <span className="ml-auto text-xs text-muted-foreground">
-        {several ? (
-          <>
-            <NodeName name={nodeName} local={local} /> · {projectName}
-          </>
-        ) : (
-          projectName
-        )}
+        {threadPaletteLabel(nodeName, projectName, several)}
       </span>
     </CommandItem>
   );
@@ -188,7 +187,6 @@ function MainSections({
                 conversation={conversation}
                 nodeId={node.nodeId}
                 nodeName={node.name}
-                local={node.local}
                 projectName={projectName}
                 several={several}
                 onSelect={run(() =>

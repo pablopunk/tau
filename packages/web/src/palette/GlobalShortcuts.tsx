@@ -18,14 +18,18 @@ export function GlobalShortcuts() {
   const live = useOptionalLiveClient();
   const queryClient = useQueryClient();
   const api = useApi();
-  const warmIds = [...new Set(neighbors.flatMap((thread) => (thread.nodeId === undefined ? thread.id : [])))];
-  const warmKey = warmIds.join(",");
-  // biome-ignore lint/correctness/useExhaustiveDependencies: `warmKey` is the content of `warmIds`
+  const warmThreads = [
+    ...new Map(
+      neighbors.filter((thread) => thread.nodeId === undefined).map((thread) => [thread.id, thread]),
+    ).values(),
+  ];
+  const warmKey = warmThreads.map((thread) => `${thread.id}:${thread.hasWorktree}`).join(",");
+  // biome-ignore lint/correctness/useExhaustiveDependencies: warmKey includes thread ids and worktree state.
   useEffect(() => {
     if (!live) return;
-    for (const id of warmIds) {
-      live.warm(id);
-      prefetchThreadData(queryClient, api, id);
+    for (const thread of warmThreads) {
+      live.warm(thread.id);
+      prefetchThreadData(queryClient, api, thread.id, thread.hasWorktree);
     }
   }, [live, queryClient, api, warmKey]);
   useHotkey("mod+alt+arrowdown", () => go(1));

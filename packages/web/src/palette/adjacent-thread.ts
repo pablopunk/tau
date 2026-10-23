@@ -7,6 +7,7 @@ export interface ThreadRef {
   nodeId: string | undefined;
   projectId: string;
   id: string;
+  hasWorktree: boolean;
 }
 
 /** Active threads of every node, most recently active first: the order of the sidebar's thread list. */
@@ -16,7 +17,13 @@ export function threadOrder(nodes: readonly NodeData[]): ThreadRef[] {
       node.conversations
         .filter((conversation) => conversation.archivedAt === null)
         .map((conversation) => ({
-          ref: { nodeId: node.nodeId, projectId: conversation.projectId, id: conversation.id },
+          ref: {
+            nodeId: node.nodeId,
+            projectId: conversation.projectId,
+            id: conversation.id,
+            hasWorktree:
+              conversation.workspace.mode === "worktree" && conversation.workspace.state !== "removed",
+          },
           at: conversation.lastActivityAt,
         })),
     )
@@ -25,7 +32,11 @@ export function threadOrder(nodes: readonly NodeData[]): ThreadRef[] {
 }
 
 /** The thread `delta` steps from the open one, wrapping around. Without an open thread: the first (or last). */
-export function adjacentThread(order: readonly ThreadRef[], current: ThreadRef | undefined, delta: 1 | -1) {
+export function adjacentThread(
+  order: readonly ThreadRef[],
+  current: Pick<ThreadRef, "id" | "nodeId"> | undefined,
+  delta: 1 | -1,
+) {
   if (order.length === 0) return undefined;
   const index = order.findIndex((thread) => thread.id === current?.id && thread.nodeId === current?.nodeId);
   if (index === -1) return delta === 1 ? order[0] : order.at(-1);

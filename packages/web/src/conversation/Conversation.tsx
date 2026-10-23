@@ -12,7 +12,7 @@ import { useAllConversations, useModels, useRuntimes, useSettings } from "@/lib/
 import { claudeCodeDisabledReason } from "@/lib/runtimes";
 import { useApi, useNodeId } from "@/nodes/node-context";
 import { ThreadTerminalButton } from "@/panes";
-import { firstMessageOf } from "@/routes/first-message";
+import { firstMessageOf, forgetFirstMessage } from "@/routes/first-message";
 import { NameDialog } from "@/sidebar/NameDialog";
 import { SubagentBanner } from "@/sidebar/subagents/SubagentBanner";
 import { WorkspaceChip } from "@/workspaces/WorkspaceChip";
@@ -84,6 +84,7 @@ function Body({
 
 function ConversationPanel({ id }: ConversationProps) {
   const state = useConversationView(id);
+  const location = useLocation();
   const actions = useConversationActions(id);
   const api = useApi();
   const nodeId = useNodeId();
@@ -102,6 +103,9 @@ function ConversationPanel({ id }: ConversationProps) {
   const handleStop = useCallback(() => stopAndRestore(api, id, nodeId, queued), [api, id, nodeId, queued]);
   const messageMode = useSettings().data?.messageMode;
   const whenBusy = messageMode ? whenBusyOf(messageMode) : undefined;
+  useEffect(() => {
+    if (state.status !== "loading") forgetFirstMessage(location.state);
+  }, [location.state, state.status]);
   const parentId = summary?.parentId ?? null;
   const { open: sidebarPref, setOpen: setSidebarOpen, toggle: toggleSidebar } = useConversationSidebarOpen();
   // Terminal masks the sidebar without touching the stored preference.

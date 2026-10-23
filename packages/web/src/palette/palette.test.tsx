@@ -11,6 +11,7 @@ import { conversation, project, renderAt } from "@/sidebar/test-support";
 import { CommandPalette } from "./CommandPalette";
 import { GlobalShortcuts } from "./GlobalShortcuts";
 import { resetPaletteOpen } from "./palette-open";
+import { threadPaletteLabel } from "./thread-palette-label";
 
 const api = apiOfNode();
 
@@ -88,6 +89,11 @@ const renderPalette = (path = "/", live = createStubLiveClient(threadView)) =>
   );
 
 describe("command palette", () => {
+  it("keeps the multi-node thread label as one plain line", () => {
+    expect(threadPaletteLabel("Homelab", "Home", true)).toBe("Homelab · Home");
+    expect(threadPaletteLabel("tau", "Home", false)).toBe("Home");
+  });
+
   it("opens with Mod+K and filters threads on the client", async () => {
     const user = userEvent.setup();
     renderPalette();
@@ -207,6 +213,21 @@ describe("add project and thread cycling", () => {
 
 describe("warming for the thread keys", () => {
   it("has the neighbouring thread ready before Mod+Alt+Arrow is pressed", async () => {
+    vi.mocked(api.conversations.listAll).mockResolvedValue([
+      conversation({
+        id: "c1",
+        workspace: {
+          mode: "worktree",
+          path: "/tmp/worktree",
+          branch: "feature",
+          base: null,
+          state: "ready",
+          mergedSha: null,
+          pullRequestUrl: null,
+        },
+      }),
+      conversation({ id: "c2", projectId: "p2" }),
+    ]);
     const live = createStubLiveClient(threadView);
     const warm = vi.fn();
     live.warm = warm;
@@ -219,6 +240,7 @@ describe("warming for the thread keys", () => {
     await waitFor(() => expect(warm).toHaveBeenCalledWith("c1"));
     await waitFor(() => expect(api.approvals.list).toHaveBeenCalledWith("c1"));
     expect(warm).not.toHaveBeenCalledWith("c2");
+    expect(warm).toHaveBeenCalledTimes(1);
     expect(api.workspaces.status).toHaveBeenCalledWith("c1", expect.any(Object));
   });
 });

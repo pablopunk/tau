@@ -16,6 +16,7 @@ import { createFakeTransport } from "@/lib/transport/fake";
 import { installFakeNative } from "@/lib/transport/fake-native";
 import { createHttpTransport } from "@/lib/transport/http";
 import { NodeApiProvider } from "@/nodes/node-context";
+import { firstMessageOf } from "./first-message";
 import { NewThreadPage } from "./NewThreadPage";
 
 const pngData =
@@ -26,7 +27,7 @@ function ThreadRoute() {
   return (
     <>
       <h1>Opened {location.pathname}</h1>
-      <output aria-label="Navigation state">{JSON.stringify(location.state)}</output>
+      <output aria-label="Navigation state">{JSON.stringify(firstMessageOf(location.state))}</output>
     </>
   );
 }
@@ -111,7 +112,7 @@ describe("<NewThreadPage> model selection", () => {
     await submit(user);
     await screen.findByRole("heading", { name: /^Opened \/p\/home\/c\// });
     expect(screen.getByLabelText("Navigation state")).toHaveTextContent(
-      JSON.stringify({ tauFirstMessage: { text: "hello", images: [], files: [] } }),
+      JSON.stringify({ text: "hello", images: [], files: [] }),
     );
     expect(start.mock.calls[0]?.[0]).toMatchObject({
       projectId: "home",
@@ -201,7 +202,7 @@ describe("<NewThreadPage> start lifecycle", () => {
     resolve(created);
     await screen.findByRole("heading", { name: `Opened /p/home/c/${created.id}` });
     expect(screen.getByLabelText("Navigation state")).toHaveTextContent(
-      JSON.stringify({ tauFirstMessage: { text: "hello", images: [], files: [file] } }),
+      JSON.stringify({ text: "hello", images: [], files: [file] }),
     );
   });
 

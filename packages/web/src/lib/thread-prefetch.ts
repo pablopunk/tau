@@ -22,10 +22,15 @@ function prefetch<TData>(
   } catch {}
 }
 
-export function prefetchThreadData(queryClient: QueryClient, api: Api, conversationId: string): void {
+export function prefetchThreadData(
+  queryClient: QueryClient,
+  api: Api,
+  conversationId: string,
+  hasWorktree = true,
+): void {
   prefetch(queryClient, approvalsOptions(api, conversationId));
   prefetch(queryClient, goalOptions(api, conversationId));
-  prefetch(queryClient, workspaceStatusOptions(api, conversationId));
+  if (hasWorktree) prefetch(queryClient, workspaceStatusOptions(api, conversationId));
   prefetch(queryClient, timersOptions(api, conversationId));
   prefetch(queryClient, processesOptions(api, conversationId));
 }

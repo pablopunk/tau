@@ -5,6 +5,7 @@ import {
   type FirstMessage,
   firstMessageOf,
   firstMessageState,
+  forgetFirstMessage,
 } from "./first-message";
 
 const message: FirstMessage = {
@@ -14,9 +15,12 @@ const message: FirstMessage = {
 };
 
 describe("first message route state", () => {
-  it("stores the message under the route state key", () => {
+  it("keeps the message payload out of browser history state", () => {
+    const state = firstMessageState(message);
     expect(FIRST_MESSAGE_STATE_KEY).toBe("tauFirstMessage");
-    expect(firstMessageState(message)).toEqual({ tauFirstMessage: message });
+    expect(state).toMatchObject({ tauFirstMessage: { id: expect.any(String) } });
+    expect(JSON.stringify(state).length).toBeLessThan(100);
+    expect(firstMessageOf(state)).toEqual(message);
   });
 
   it("reads a valid message from location state", () => {
@@ -29,6 +33,20 @@ describe("first message route state", () => {
       images: [],
       files: [],
     });
+  });
+
+  it("stores large images outside the history state payload", () => {
+    const largeMessage: FirstMessage = {
+      text: "Inspect this image",
+      images: [{ mimeType: "image/png", data: "x".repeat(1_000_000) }],
+      files: [],
+    };
+    const state = firstMessageState(largeMessage);
+
+    expect(JSON.stringify(state).length).toBeLessThan(100);
+    expect(firstMessageOf(state)).toEqual(largeMessage);
+    forgetFirstMessage(state);
+    expect(firstMessageOf(state)).toBeUndefined();
   });
 
   it.each([

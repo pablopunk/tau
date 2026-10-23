@@ -78,7 +78,9 @@ export function ThreadRow({
   const navigate = useNavigate();
   const { isMobile, setOpenMobile } = useSidebar();
   const closeDialog = () => setDialog(null);
-  const { handlers: warm } = useWarmOnIntent(conversation.id);
+  const hasWorktree =
+    conversation.workspace.mode === "worktree" && conversation.workspace.state !== "removed";
+  const { handlers: warm } = useWarmOnIntent(conversation.id, true, hasWorktree);
 
   const listKeys = [queryKeys.conversations(conversation.projectId), queryKeys.allConversations] as const;
   const renameMutation = useThreadListMutation({

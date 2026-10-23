@@ -1,7 +1,7 @@
 import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import { firstMessageState } from "@/routes/first-message";
+import { firstMessageOf, firstMessageState } from "@/routes/first-message";
 import {
   createStubLiveClient,
   endOf,
@@ -27,13 +27,14 @@ describe("<Conversation> states", () => {
 
   it("shows the starting message while loading, then only the live transcript", () => {
     const client = createStubLiveClient();
+    const routeState = firstMessageState({
+      text: "Starting message",
+      images: [{ mimeType: "image/png", data: "AQID" }],
+    });
     renderConversation(client, "42", [
       {
         pathname: "/",
-        state: firstMessageState({
-          text: "Starting message",
-          images: [{ mimeType: "image/png", data: "AQID" }],
-        }),
+        state: routeState,
       },
     ]);
 
@@ -51,6 +52,7 @@ describe("<Conversation> states", () => {
     expect(within(conversation).getByText("What is a monad?")).toBeInTheDocument();
     expect(within(conversation).queryByText("Starting message")).not.toBeInTheDocument();
     expect(within(conversation).queryByText("Sending…")).not.toBeInTheDocument();
+    expect(firstMessageOf(routeState)).toBeUndefined();
   });
 
   it("shows an unavailable message and no composer for a retired view", () => {

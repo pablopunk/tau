@@ -58,7 +58,7 @@ describe("useWarmOnIntent", () => {
     await waitFor(() => expect(api.approvals.list).toHaveBeenCalledWith("c1"));
   });
 
-  it("warms once when a hover dwell is followed by a press", async () => {
+  it("reuses fresh prefetches when a hover dwell is followed by a press", async () => {
     const { api, client } = setup();
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
     const row = screen.getByText("row");
@@ -69,8 +69,23 @@ describe("useWarmOnIntent", () => {
     await user.click(row);
     act(() => vi.advanceTimersByTime(150));
 
-    expect(client.warm).toHaveBeenCalledTimes(1);
+    expect(client.warm).toHaveBeenCalledTimes(2);
     expect(api.approvals.list).toHaveBeenCalledTimes(1);
+  });
+
+  it("warms again on press after the idle view can expire", async () => {
+    const { api, client } = setup();
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    const row = screen.getByText("row");
+
+    await user.hover(row);
+    act(() => vi.advanceTimersByTime(150));
+    await waitFor(() => expect(api.approvals.list).toHaveBeenCalledTimes(1));
+    act(() => vi.advanceTimersByTime(130_000));
+    await user.click(row);
+
+    expect(client.warm).toHaveBeenCalledTimes(2);
+    await waitFor(() => expect(api.approvals.list).toHaveBeenCalledTimes(2));
   });
 
   it("keeps one warm across focus moving between controls in the same row", async () => {
