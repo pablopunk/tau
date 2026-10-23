@@ -73,7 +73,7 @@ test.describe("MVP8 timers in the browser", () => {
     const closeSidebar = page.getByRole("button", { name: "Close conversation sidebar" });
     if ((await closeSidebar.count()) > 0) await closeSidebar.click();
     await send(page, "/loop 1h say hello");
-    await expect(conversation(page).getByText("say hello")).toBeVisible({ timeout: 20_000 });
+    await expect(conversation(page).getByText("say hello").first()).toBeVisible({ timeout: 20_000 });
     await expect(page.getByRole("button", { name: "1 timers" })).toBeVisible({ timeout: 20_000 });
     await send(page, "/loop stop");
     await expect(page.getByRole("button", { name: /timers$/ })).toHaveCount(0, { timeout: 20_000 });
