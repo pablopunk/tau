@@ -133,13 +133,6 @@ export function NewThreadPage() {
 
   const toolbar = (
     <>
-      <ProjectPicker
-        projects={projects.data}
-        projectId={projectId}
-        onProject={setProject}
-        onNodeProject={(node, project) => navigate(newThreadPath(project, node), { replace: true })}
-        disabled={busy}
-      />
       <WorktreeToggle projectId={projectId} value={workspace} onChange={setWorkspace} disabled={busy} />
       {cloning ? <span className="text-xs text-muted-foreground">Cloning…</span> : null}
       <ModelThinkingPickers
@@ -160,7 +153,20 @@ export function NewThreadPage() {
       message={startingMessage}
       normalContent={
         <>
-          <h2 className="text-lg font-semibold">New thread</h2>
+          <div className="flex flex-wrap items-center justify-center gap-x-1">
+            <h2 className="text-lg font-semibold">New thread</h2>
+            <span aria-hidden className="text-lg font-semibold">
+              on
+            </span>
+            <ProjectPicker
+              projects={projects.data}
+              projectId={projectId}
+              onProject={setProject}
+              onNodeProject={(node, project) => navigate(newThreadPath(project, node), { replace: true })}
+              disabled={busy}
+              className="h-auto text-lg font-semibold pointer-coarse:text-lg"
+            />
+          </div>
           {notSetUp ? <NotSetUpNotice nodeId={nodeId} /> : null}
         </>
       }
