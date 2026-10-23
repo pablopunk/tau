@@ -1,6 +1,7 @@
 import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
+import { firstMessageState } from "@/routes/first-message";
 import {
   createStubLiveClient,
   endOf,
@@ -22,6 +23,34 @@ describe("<Conversation> states", () => {
     expect(screen.getByText("Loading conversation")).toBeInTheDocument();
     act(() => client.push(endOf("text")));
     expect(screen.queryByText("Loading conversation")).not.toBeInTheDocument();
+  });
+
+  it("shows the starting message while loading, then only the live transcript", () => {
+    const client = createStubLiveClient();
+    renderConversation(client, "42", [
+      {
+        pathname: "/",
+        state: firstMessageState({
+          text: "Starting message",
+          images: [{ mimeType: "image/png", data: "AQID" }],
+        }),
+      },
+    ]);
+
+    const conversation = screen.getByRole("region", { name: "Conversation" });
+    expect(within(conversation).getByText("Starting message")).toBeInTheDocument();
+    expect(within(conversation).getByRole("img", { name: "Attachment 1" })).toHaveAttribute(
+      "src",
+      "data:image/png;base64,AQID",
+    );
+    expect(within(conversation).getByRole("status")).toHaveTextContent("Sending…");
+    expect(screen.queryByText("Loading conversation")).not.toBeInTheDocument();
+
+    act(() => client.push(endOf("text")));
+
+    expect(within(conversation).getByText("What is a monad?")).toBeInTheDocument();
+    expect(within(conversation).queryByText("Starting message")).not.toBeInTheDocument();
+    expect(within(conversation).queryByText("Sending…")).not.toBeInTheDocument();
   });
 
   it("shows an unavailable message and no composer for a retired view", () => {

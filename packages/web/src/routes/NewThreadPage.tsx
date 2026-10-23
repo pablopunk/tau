@@ -19,8 +19,10 @@ import { queryKeys, useModels, useProjects, useSettings } from "@/lib/queries";
 import { clearDraftRequestId, draftRequestId } from "@/lib/start-request";
 import { useApi, useNodeId } from "@/nodes/node-context";
 import { WorktreeToggle } from "@/workspaces/WorktreeToggle";
+import { type FirstMessage, firstMessageState } from "./first-message";
 import { NotSetUpNotice } from "./NotSetUpNotice";
 import { ProjectPicker } from "./ProjectPicker";
+import { StartingThread } from "./StartingThread";
 
 const toRef = ({ provider, modelId }: ModelRef): ModelRef => ({ provider, modelId });
 
@@ -39,6 +41,7 @@ export function NewThreadPage() {
   const [chosenLevel, setLevel] = useState<ThinkingLevel | null>(initialDraft.thinkingLevel);
   const [workspace, setWorkspace] = useState<WorkspaceMode | null>(initialDraft.workspace);
   const [busy, setBusy] = useState(false);
+  const [startingMessage, setStartingMessage] = useState<FirstMessage>();
   const paramProject = params.get("project");
 
   useEffect(() => {
@@ -97,6 +100,7 @@ export function NewThreadPage() {
   const cloning = projects.data.find((project) => project.id === projectId)?.status === "cloning";
 
   const start = async ({ text, images, files }: { text: string; images: ImageInput[]; files: FileRef[] }) => {
+    setStartingMessage({ text, images });
     setBusy(true);
     try {
       const created = await api.conversations.start({
@@ -116,7 +120,12 @@ export function NewThreadPage() {
       preferences.setLastProjectId(created.projectId, nodeId);
       if (model) preferences.setLastModel(toRef(model), nodeId);
       if (!native) preferences.setLastThinkingLevel(level, nodeId);
-      navigate(conversationPath(created.projectId, created.id, nodeId));
+      navigate(conversationPath(created.projectId, created.id, nodeId), {
+        state: firstMessageState({ text, images }),
+      });
+    } catch (error) {
+      setStartingMessage(undefined);
+      throw error;
     } finally {
       setBusy(false);
     }
@@ -147,25 +156,38 @@ export function NewThreadPage() {
   );
 
   return (
-    <div className="flex flex-1 flex-col items-center justify-center gap-4 p-6">
-      <h2 className="text-lg font-semibold">New thread</h2>
-      {notSetUp ? <NotSetUpNotice nodeId={nodeId} /> : null}
-      <div className="w-full max-w-2xl">
-        <Composer
-          target="new"
-          imagesAllowed={!native && (model?.images ?? true)}
-          attachmentsBlockedReason={native ? NATIVE_ATTACHMENTS_REASON : undefined}
-          busy={busy}
-          disabled={busy || cloning || notSetUp}
-          disabledReason={busy ? "Starting thread…" : undefined}
-          hint={busy ? <Spinner aria-label="Starting thread" /> : undefined}
-          toolbar={toolbar}
-          projectId={projectId}
-          commands={native ? { model: commands.model } : commands}
-          onSend={start}
-        />
-      </div>
-    </div>
+    <StartingThread
+      message={startingMessage}
+      normalContent={
+        <>
+          <h2 className="text-lg font-semibold">New thread</h2>
+          {notSetUp ? <NotSetUpNotice nodeId={nodeId} /> : null}
+        </>
+      }
+      composer={
+        <div
+          className={
+            startingMessage
+              ? "mx-auto w-full max-w-3xl px-3 pt-1 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-4 sm:pb-[max(1rem,env(safe-area-inset-bottom))]"
+              : "w-full max-w-2xl"
+          }
+        >
+          <Composer
+            target="new"
+            imagesAllowed={!native && (model?.images ?? true)}
+            attachmentsBlockedReason={native ? NATIVE_ATTACHMENTS_REASON : undefined}
+            busy={busy}
+            disabled={busy || cloning || notSetUp}
+            disabledReason={busy ? "Starting thread…" : undefined}
+            hint={busy ? <Spinner aria-label="Starting thread" /> : undefined}
+            toolbar={toolbar}
+            projectId={projectId}
+            commands={native ? { model: commands.model } : commands}
+            onSend={start}
+          />
+        </div>
+      }
+    />
   );
 }
 
