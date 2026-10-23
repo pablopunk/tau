@@ -17,12 +17,15 @@ export function ConversationSidebar({
   view,
   reveal,
   onRevealed,
+  native = false,
 }: {
   conversationId: string;
   view: ConversationView;
   /** A section a collapsed-view indicator asked to jump to. */
   reveal?: SidebarSectionId | null;
   onRevealed?: () => void;
+  /** A native thread keeps only the workspace sections: the rest read or change Pi state. */
+  native?: boolean;
 }) {
   useEffect(() => {
     if (!reveal) return;
@@ -38,12 +41,16 @@ export function ConversationSidebar({
       <WorktreeSection conversationId={conversationId} />
       <PullRequestSection conversationId={conversationId} />
       <MachineSection />
-      <ContextSection view={view} />
-      <ImagesSection view={view} />
-      <GoalSection conversationId={conversationId} revealed={reveal === "goal"} />
-      <TodosSection conversationId={conversationId} view={view} revealed={reveal === "todos"} />
-      <TimersSection conversationId={conversationId} revealed={reveal === "timers"} />
-      <ProcessesSection conversationId={conversationId} revealed={reveal === "processes"} />
+      {native ? null : (
+        <>
+          <ContextSection view={view} />
+          <ImagesSection view={view} />
+          <GoalSection conversationId={conversationId} revealed={reveal === "goal"} />
+          <TodosSection conversationId={conversationId} view={view} revealed={reveal === "todos"} />
+          <TimersSection conversationId={conversationId} revealed={reveal === "timers"} />
+          <ProcessesSection conversationId={conversationId} revealed={reveal === "processes"} />
+        </>
+      )}
     </aside>
   );
 }

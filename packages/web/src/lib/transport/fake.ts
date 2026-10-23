@@ -13,6 +13,7 @@ import {
 } from "@tau/protocol";
 import { createFakeCore, type FakeCore } from "@tau/testkit";
 import { readSummaryCache, writeSummaryCache } from "@/nodes/summary-cache";
+import { installFakeNative } from "./fake-native";
 import { openFakeStream } from "./fake-terminal-stream";
 import type { LiveHandlers, LiveSocket, RouteRequest, RouteResponse, Transport } from "./types";
 
@@ -77,6 +78,9 @@ const handlers: Handlers = {
   submitLoginUrl: (core, { params, body }) => core.providers.submitLoginUrl(params.sid, body.url as string),
   cancelLogin: (core, { params }) => core.providers.cancelLogin(params.sid),
   listModels: (core) => core.models.list(),
+  listRuntimes: (core) => core.runtimes.list(),
+  getHandoffPreview: (core, { params }) => core.conversations.handoffPreview(params.id),
+  handoffConversation: (core, { params, body }) => core.conversations.handoff(params.id, body as never),
   listSkills: (core, { query }) => core.skills.list(query?.projectId ?? null),
   suggestProjectFiles: (core, { params, body }) =>
     core.projects.suggestFiles(params.id, body.query as string),
@@ -434,7 +438,8 @@ let hub: Promise<FakeCore> | undefined;
  * One fake hub per page, shared by the local transport and every node transport:
  * `?fake=ready` starts past setup with remote on (`&remote=off` starts with it off), and `&nodes=2`
  * (or `&nodes`) links the two fake nodes (`Homelab` online, `Work laptop` offline), with or without
- * `fake=ready`: `?fake=setup&nodes` is an unconfigured local node that knows peers.
+ * `fake=ready`: `?fake=setup&nodes` is an unconfigured local node that knows peers. `&native` makes every
+ * fake node offer Claude Code, with scripted native threads (a message saying "unknown" or "blocked" ends that way).
  */
 function fakeHub(): Promise<FakeCore> {
   hub ??= (async () => {
@@ -444,6 +449,10 @@ function fakeHub(): Promise<FakeCore> {
     const remote = ready && params.get("remote") !== "off";
     const nodes = params.has("nodes");
     const core = createFakeCore({ configured: ready, remote, nodes, ...scenario });
+    if (params.has("native")) {
+      installFakeNative(core);
+      for (const nodeCore of core.nodeCores.values()) installFakeNative(nodeCore);
+    }
     if (ready) await seedReadyState(core);
     if (ready && params.get("seed") === "rich") await seedRichState(core);
     for (const [nodeId, node] of core.nodeCores) {

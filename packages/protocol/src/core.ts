@@ -49,6 +49,7 @@ import type {
   WhenBusy,
   WorkspaceDefault,
 } from "./entities";
+import type { HandoffInput, HandoffPreview } from "./handoff";
 import type {
   Checkpoint,
   McpServerConfig,
@@ -63,6 +64,7 @@ import type { DirectoryNode, Expulsion, NodeGroup } from "./node-group";
 import type { Node, NodeLinkDirection, NodeLinkReport, NodePeerInfo, NodeSelf, NodeSummary } from "./nodes";
 import type { RemoteStatus } from "./remote";
 import type { ResourceActivity, ResourceSettings, ResourceSupport } from "./resources";
+import type { RuntimeDescriptorList } from "./runtime";
 import type { SandboxSettings } from "./sandbox";
 import type { OpenTerminalInput, TerminalInfo } from "./terminals";
 import type { UpdaterPort, UpdateStartBody, UpdateStatus } from "./updates";
@@ -236,6 +238,10 @@ export interface Core {
     /** Idempotent. Resolves once the login has stopped. */
     cancelLogin(sessionId: string): Promise<void>;
   };
+  runtimes: {
+    /** Always lists `pi` (enabled) then `claude-code`, enabled only when the node turned native on. Never rejects. */
+    list(): Promise<RuntimeDescriptorList>;
+  };
   models: {
     /** Models of every connected provider, in provider order; `[]` when none is connected. */
     list(): Promise<ModelInfo[]>;
@@ -290,6 +296,7 @@ export interface Core {
      * Creates the conversation and admits its first message in one call; resolves once admitted. A repeated
      * `requestId` returns the same conversation. Rejects `not_found`, `project_not_ready`, `no_provider`,
      * `no_default_model`, `invalid_request` or `images_not_supported` without creating anything.
+     * `executor: "claude-code"` rejects `invalid_request` when the node has native off, and for attachments.
      */
     start(input: StartConversationInput): Promise<ConversationSummary>;
     /** Rejects `not_found`. */
@@ -325,6 +332,19 @@ export interface Core {
     stopAgent(id: string): Promise<void>;
     /** New thread in the same checkout or worktree, with history up to and including the entry. Rejects `not_found`. */
     fork(id: string, entryId: string): Promise<ConversationSummary>;
+    /**
+     * What `handoff` would put in the new thread and what it would leave out, plus whether it can run now (`reason` says
+     * why not). Reads only. Rejects `not_found`.
+     */
+    handoffPreview(id: string): Promise<HandoffPreview>;
+    /**
+     * Starts a NEW native thread in the same folder whose first message is a deterministic text export of this Pi thread
+     * (no summarizing model call; images, thinking and attachments never travel). The source thread is not changed.
+     * Needs native on, a Pi source at an idle boundary (no run, approvals, queued items, children or processes).
+     * A repeated `requestId` returns the same new thread. Rejects `not_found`, `thread_busy` while the source works,
+     * and `invalid_request` for a native source, native off, a removed workspace or an empty thread, before any side effect.
+     */
+    handoff(id: string, input: HandoffInput): Promise<ConversationSummary>;
     /** The files a rewind would change. Rejects `not_found` for an unknown thread, entry or checkpoint. */
     rewindPreview(id: string, entryId: string): Promise<RestorePreview>;
     /** Restores files, forks before the entry; `draft` is the message text. Rejects `thread_busy`, `not_found`. */

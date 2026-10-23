@@ -28,6 +28,7 @@ import { queueCases } from "./queue";
 import { remoteCases } from "./remote";
 import { resourceCases } from "./resources";
 import { retryCases } from "./retry";
+import { runtimeCases } from "./runtimes";
 import { sandboxCases } from "./sandbox";
 import { settingsAndProviderCases } from "./settings-provider";
 import { sidebarDataCases } from "./sidebar-data";
@@ -91,6 +92,7 @@ export const CONTRACT_MODULES = {
   nodes: nodesCases,
   "nodes-group": nodesGroupCases,
   updates: updatesCases,
+  runtimes: runtimeCases,
 } satisfies Record<string, CaseModule>;
 
 export type ContractModule = keyof typeof CONTRACT_MODULES;

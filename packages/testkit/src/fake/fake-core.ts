@@ -5,9 +5,11 @@ import {
   CompactionSettingsSchema,
   type ConversationSummary,
   type Core,
+  describeExecutors,
   type MessageMode,
   type ModelRef,
   type NodeLinkDirection,
+  nativeDisabledError,
   type Project,
   type ProviderId,
   type Settings,
@@ -40,6 +42,7 @@ import {
 } from "./fake-fs";
 import { cloneWouldFail, folderNameFor, repositoryKeyOf } from "./fake-git";
 import { createFakeGithub, type FakeGithubOptions } from "./fake-github";
+import { createFakeHandoff } from "./fake-handoff";
 import { createFakeIcons } from "./fake-icons";
 import { assertImageMatchesMimeType } from "./fake-images";
 import { createFakeMvp5 } from "./fake-mvp5";
@@ -327,6 +330,7 @@ export function createFakeCore(options: FakeCoreOptions = {}): FakeCore {
   const connectors = createFakeConnectors({ emit, now, requireConversation });
   const resources = createFakeResources({ emit });
   const sandbox = createFakeSandbox({ emit });
+  const handoff = createFakeHandoff({ requireConversation });
 
   function workspaceModeFor(projectId: string, requested: WorkspaceMode | undefined): WorkspaceMode {
     if (requested) {
@@ -338,6 +342,7 @@ export function createFakeCore(options: FakeCoreOptions = {}): FakeCore {
   }
 
   async function startConversation(input: StartConversationInput) {
+    if (input.executor === "claude-code") throw nativeDisabledError();
     const project = requireProject(input.projectId);
     if (project.status !== "ready") throw new AppError("project_not_ready", "This project is not ready.");
     requireProvider();
@@ -610,6 +615,7 @@ export function createFakeCore(options: FakeCoreOptions = {}): FakeCore {
     },
     providers: connections.providers,
     models: connections.models,
+    runtimes: { list: async () => describeExecutors(undefined) },
     voice: {
       async options() {
         const openrouter = (await connections.providers.list()).find(
@@ -781,6 +787,7 @@ export function createFakeCore(options: FakeCoreOptions = {}): FakeCore {
         announce: (conversation) => emit({ resource: "conversations", projectId: conversation.projectId }),
       }),
       ...mvp5.threadOps,
+      ...handoff,
       async configure(id, input) {
         const conversation = requireConversation(id);
         if (input.model === undefined && input.thinkingLevel === undefined) {

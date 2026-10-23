@@ -1,7 +1,7 @@
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { ConversationSummary, ConversationView } from "@tau/protocol";
+import { type ConversationSummary, type ConversationView, NATIVE_EVENT_ENTRY_KIND } from "@tau/protocol";
 import type { CommandEnv, SocketLike } from "./command-env";
 
 export const TEST_URL = "http://127.0.0.1:9";
@@ -62,6 +62,46 @@ export function viewWith(answer: string, queued: readonly string[] = [], running
     },
   } as unknown as ConversationView;
 }
+
+/** A native view: one `native.event` entry per event, in order. */
+export function nativeViewWith(events: readonly Record<string, unknown>[]): ConversationView {
+  return {
+    entries: events.map((data, index) => ({ id: index + 1, kind: NATIVE_EVENT_ENTRY_KIND, data })),
+    docs: {},
+  } as unknown as ConversationView;
+}
+
+export const nativeSummary = (
+  id: string,
+  overrides: Partial<ConversationSummary> = {},
+): ConversationSummary => summary(id, { executor: "claude-code", ...overrides });
+
+export const lifecycleEvent = (key: string, lifecycle: string, reason?: string) => ({
+  type: "lifecycle",
+  key,
+  lifecycle,
+  ...(reason !== undefined && { reason }),
+});
+
+export const userEvent = (key: string, text: string) => ({
+  type: "user",
+  key,
+  requestId: `r-${key}`,
+  receiptId: `rc-${key}`,
+  text,
+  delivery: "queue",
+  attachmentCount: 0,
+});
+
+export const assistantTextEvent = (key: string, text: string, messageId = "m1") => ({
+  type: "assistant-text",
+  key,
+  messageId,
+  partIndex: 0,
+  text,
+});
+
+export const noticeEvent = (key: string, text: string) => ({ type: "notice", key, code: "permission", text });
 
 export interface RecordedCall {
   readonly method: string;

@@ -66,6 +66,38 @@ describe("approvals", () => {
     expect(approvals.hasPending("7")).toBe(false);
   });
 
+  it("never stores or honors an always-allow for native Claude tools", async () => {
+    const { approvals, stored } = setup();
+    const native = (toolUseId: string): ApprovalRequest => ({
+      ...requestOf(toolUseId),
+      server: "Claude Code",
+      tool: "Bash",
+    });
+    const first = approvals.request(native("n1"));
+    await flush();
+    await approvals.decide("7", "n1", "allow_always");
+    expect(await first).toEqual({ allowed: true });
+    expect(stored().alwaysAllow).toEqual([]);
+    const second = approvals.request(native("n2"));
+    await flush();
+    expect(approvals.hasPending("7")).toBe(true);
+    await approvals.decide("7", "n2", "deny");
+    expect(await second).toMatchObject({ allowed: false });
+  });
+
+  it("does not let a stored always-allow auto-allow a native tool of the same name", async () => {
+    const { approvals } = setup({
+      disabled: [],
+      alwaysAllow: ["mcp__Claude Code__Bash", "mcp__claude_ai_Claude Code__Bash"],
+      askBeforeWrites: false,
+    });
+    const verdict = approvals.request({ ...requestOf("n3"), server: "Claude Code", tool: "Bash" });
+    await flush();
+    expect(approvals.hasPending("7")).toBe(true);
+    await approvals.decide("7", "n3", "deny");
+    expect(await verdict).toMatchObject({ allowed: false });
+  });
+
   it("rejects not_found for a call that is not waiting", async () => {
     const { approvals } = setup();
     await expect(approvals.decide("7", "nope", "allow")).rejects.toMatchObject({ code: "not_found" });

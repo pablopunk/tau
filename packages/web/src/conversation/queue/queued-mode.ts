@@ -7,9 +7,11 @@ export function entryKindOf(item: { readonly entryKind?: string }): string {
   return item.entryKind ?? "pi.user";
 }
 
-/** Only `pi.user` items get user affordances. Goal directives ride the same policy. */
+const USER_ENTRY_KINDS: readonly string[] = ["pi.user", "native.user"];
+
+/** Only user items (`pi.user`, `native.user`) render as messages. Goal directives ride the same policy. */
 export function isUserItem(item: { readonly entryKind?: string }): boolean {
-  return entryKindOf(item) === "pi.user";
+  return USER_ENTRY_KINDS.includes(entryKindOf(item));
 }
 
 /** Steer copy: delivered at the next tool boundary. */

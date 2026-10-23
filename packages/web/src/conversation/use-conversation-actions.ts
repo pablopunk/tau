@@ -1,6 +1,7 @@
 import type { FileRef, ImageInput, SendReceipt, WhenBusy } from "@tau/protocol";
 import { useCallback } from "react";
 import { useApi } from "@/nodes/node-context";
+import type { SentReceipt } from "./queue/pending-sends";
 
 export function newRequestId(): string {
   return globalThis.crypto?.randomUUID?.() ?? `req-${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -12,7 +13,7 @@ export interface ConversationActions {
     images: ImageInput[];
     files: FileRef[];
     whenBusy?: WhenBusy;
-  }): Promise<SendReceipt>;
+  }): Promise<SentReceipt>;
   stop(): Promise<void>;
   retry(requestId: string): Promise<SendReceipt>;
 }
@@ -30,14 +31,18 @@ export function useConversationActions(conversationId: string): ConversationActi
       images: ImageInput[];
       files: FileRef[];
       whenBusy?: WhenBusy;
-    }) =>
-      api.conversations.send(conversationId, {
-        text,
-        ...(images.length > 0 && { images }),
-        ...(files.length > 0 && { files }),
-        ...(whenBusy && { whenBusy }),
-        requestId: newRequestId(),
-      }),
+    }) => {
+      const requestId = newRequestId();
+      return api.conversations
+        .send(conversationId, {
+          text,
+          ...(images.length > 0 && { images }),
+          ...(files.length > 0 && { files }),
+          ...(whenBusy && { whenBusy }),
+          requestId,
+        })
+        .then((receipt) => ({ ...receipt, requestId }));
+    },
     [api, conversationId],
   );
   const stop = useCallback(async () => {

@@ -1,4 +1,5 @@
 import type { ConversationView } from "@tau/protocol";
+import { contextUsageInputOf } from "@tau/protocol";
 import { ContextMeter } from "@/components/ui/context-meter";
 import { useModels } from "@/lib/queries";
 import { contextUsage } from "../composer/context-usage";
@@ -9,7 +10,7 @@ export function ContextSection({ view }: { view: ConversationView }) {
   const models = useModels().data;
   if (!models) return null;
   const current = findModel(readAgent(view), models);
-  const usage = current ? contextUsage(view.entries, current.contextWindow) : null;
+  const usage = current ? contextUsage(contextUsageInputOf(view), current.contextWindow) : null;
   if (!usage) return null;
   return (
     <SidebarSection sectionId="context" title="Context">

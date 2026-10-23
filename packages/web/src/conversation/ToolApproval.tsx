@@ -1,4 +1,4 @@
-import type { Approval, ApprovalDecision } from "@tau/protocol";
+import { type Approval, type ApprovalDecision, NATIVE_APPROVAL_SERVER } from "@tau/protocol";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { AnimatePresence, gentle, motion, rise } from "@/components/ui/motion";
@@ -28,14 +28,16 @@ function ApprovalCard({ approval }: { approval: Approval }) {
         <Button size="sm" disabled={decide.isPending} onClick={() => choose("allow")}>
           Allow once
         </Button>
-        <Button
-          size="sm"
-          variant="outline"
-          disabled={decide.isPending}
-          onClick={() => choose("allow_always")}
-        >
-          Always allow this tool
-        </Button>
+        {approval.server !== NATIVE_APPROVAL_SERVER && (
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={decide.isPending}
+            onClick={() => choose("allow_always")}
+          >
+            Always allow this tool
+          </Button>
+        )}
         <Button size="sm" variant="outline" disabled={decide.isPending} onClick={() => choose("deny")}>
           Deny
         </Button>

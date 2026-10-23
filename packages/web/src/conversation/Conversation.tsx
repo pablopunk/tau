@@ -1,4 +1,4 @@
-import { readLive } from "@tau/protocol";
+import { type ExecutorKind, readRuntimeLive } from "@tau/protocol";
 import { ArrowDown } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useMatch } from "react-router";
@@ -7,15 +7,18 @@ import { Button } from "@/components/ui/button";
 import { AnimatePresence, gentle, motion } from "@/components/ui/motion";
 import { Skeleton } from "@/components/ui/skeleton";
 import { GoalChip } from "@/goal/GoalChip";
-import { useAllConversations, useModels, useSettings } from "@/lib/queries";
+import { useAllConversations, useModels, useRuntimes, useSettings } from "@/lib/queries";
+import { claudeCodeDisabledReason } from "@/lib/runtimes";
 import { useApi, useNodeId } from "@/nodes/node-context";
 import { ThreadTerminalButton } from "@/panes";
 import { NameDialog } from "@/sidebar/NameDialog";
 import { SubagentBanner } from "@/sidebar/subagents/SubagentBanner";
 import { WorkspaceChip } from "@/workspaces/WorkspaceChip";
 import { Composer } from "./Composer";
+import { nativeCommandsOf } from "./composer/slash-commands";
 import { useThreadCommands } from "./composer/use-thread-commands";
 import { imagesAllowedFor } from "./model/agent";
+import { isNativeExecutor, NATIVE_ATTACHMENTS_REASON, threadExecutorOf } from "./model/executor";
 import { BusyModeHint } from "./queue/BusyModeHint";
 import { whenBusyOf } from "./queue/queued-mode";
 import { stopAndRestore } from "./queue/stop-restore";
@@ -61,14 +64,16 @@ function Body({
   id,
   state,
   onRetry,
+  executor,
 }: {
   id: string;
   state: ConversationViewState;
   onRetry?: (requestId: string) => Promise<unknown>;
+  executor?: ExecutorKind;
 }) {
   if (state.status === "loading") return <LoadingTranscript />;
   if (state.status === "gone") return <DeletedThread />;
-  return <Transcript view={state.view} onRetry={onRetry} conversationId={id} />;
+  return <Transcript view={state.view} onRetry={onRetry} conversationId={id} executor={executor} />;
 }
 
 function ConversationPanel({ id }: ConversationProps) {
@@ -82,8 +87,12 @@ function ConversationPanel({ id }: ConversationProps) {
   const pickers = useRef<PickersHandle>(null);
   const thread = useThreadCommands({ conversationId: id, projectId: summary?.projectId, pickers });
   const view = state.status === "ready" ? state.view : undefined;
-  const busy = state.status === "ready" && readLive(state.view).busy;
-  const queued = view ? readLive(view).queued : [];
+  const executor = threadExecutorOf(summary, view);
+  const native = isNativeExecutor(executor);
+  const runtimes = useRuntimes({ enabled: native });
+  const nativeDisabledReason = native ? claudeCodeDisabledReason(runtimes.data) : undefined;
+  const busy = state.status === "ready" && readRuntimeLive(state.view, executor).busy;
+  const queued = view ? readRuntimeLive(view, executor).queued : [];
   const handleStop = useCallback(() => stopAndRestore(api, id, nodeId, queued), [api, id, nodeId, queued]);
   const messageMode = useSettings().data?.messageMode;
   const whenBusy = messageMode ? whenBusyOf(messageMode) : undefined;
@@ -116,7 +125,7 @@ function ConversationPanel({ id }: ConversationProps) {
         extras={
           sidebarOpen ? null : (
             <>
-              <GoalChip conversationId={id} onReveal={() => revealSection("goal")} />
+              {native ? null : <GoalChip conversationId={id} onReveal={() => revealSection("goal")} />}
               <WorkspaceChip conversationId={id} />
             </>
           )
@@ -141,7 +150,12 @@ function ConversationPanel({ id }: ConversationProps) {
             {/* relative: contains absolute descendants (e.g. sr-only) so they can't inflate the outer scroll container */}
             <div ref={contentRef} className="relative mx-auto w-full min-w-0 max-w-3xl px-4 py-6">
               <section aria-label="Conversation" aria-live="polite" aria-relevant="additions">
-                <Body id={id} state={state} onRetry={parentId ? undefined : actions.retry} />
+                <Body
+                  id={id}
+                  state={state}
+                  onRetry={parentId || native ? undefined : actions.retry}
+                  executor={executor}
+                />
               </section>
             </div>
           </div>
@@ -170,11 +184,17 @@ function ConversationPanel({ id }: ConversationProps) {
             <div className="mx-auto w-full max-w-3xl px-3 pt-1 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-4 sm:pb-[max(1rem,env(safe-area-inset-bottom))]">
               <Composer
                 target={id}
-                imagesAllowed={imagesAllowedFor(view, models)}
+                imagesAllowed={!native && imagesAllowedFor(view, models)}
                 busy={busy}
-                whenBusy={whenBusy}
-                hint={<BusyModeHint busy={busy} />}
-                abovePanel={view && !sidebarOpen ? <TodoPanel conversationId={id} view={view} /> : undefined}
+                disabled={nativeDisabledReason !== undefined}
+                disabledReason={nativeDisabledReason}
+                whenBusy={native ? "followUp" : whenBusy}
+                followUpOnly={native}
+                attachmentsBlockedReason={native ? NATIVE_ATTACHMENTS_REASON : undefined}
+                hint={native ? undefined : <BusyModeHint busy={busy} />}
+                abovePanel={
+                  view && !sidebarOpen && !native ? <TodoPanel conversationId={id} view={view} /> : undefined
+                }
                 toolbar={
                   view ? (
                     <ThreadToolbar
@@ -183,10 +203,11 @@ function ConversationPanel({ id }: ConversationProps) {
                       pickers={pickers}
                       sidebarOpen={sidebarOpen}
                       onRevealSection={revealSection}
+                      executor={executor}
                     />
                   ) : undefined
                 }
-                commands={thread.commands}
+                commands={native ? nativeCommandsOf(thread.commands) : thread.commands}
                 projectId={summary?.projectId}
                 onSend={actions.send}
                 onStop={handleStop}
@@ -196,7 +217,13 @@ function ConversationPanel({ id }: ConversationProps) {
           )}
         </div>
         {sidebarOpen && view ? (
-          <ConversationSidebar conversationId={id} view={view} reveal={reveal} onRevealed={handleRevealed} />
+          <ConversationSidebar
+            conversationId={id}
+            view={view}
+            reveal={reveal}
+            onRevealed={handleRevealed}
+            native={native}
+          />
         ) : null}
       </div>
       {thread.renaming ? (

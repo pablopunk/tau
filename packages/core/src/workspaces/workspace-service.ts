@@ -2,9 +2,11 @@ import {
   AppError,
   type ConversationSummary,
   type Core,
+  isSafeToDestroy,
   type Project,
   type ThreadWorkspace,
   type WorkspaceMode,
+  type WriterState,
 } from "@tau/protocol";
 import type { RunGh } from "../github/run-gh";
 import { legacyWorkspace } from "../harness/conversation-index";
@@ -71,6 +73,8 @@ export interface WorkspaceDeps {
   readonly hasRunningOf?: (conversationId: string) => boolean;
   /** Shared with the conversations API so sends into a workspace being merged or removed are refused. */
   readonly writerBarrier?: WriterBarrier;
+  /** Writer state of a thread this port knows (native); `undefined` means "not mine", so the Pi summary-status logic applies. */
+  readonly writerStateOf?: (thread: ConversationSummary) => Promise<WriterState | undefined>;
 }
 
 const notFound = () => new AppError("not_found", "Conversation not found.");
@@ -99,6 +103,25 @@ const siblingHasBackgroundProcesses = () =>
     "Another thread sharing this worktree still has running background processes. Stop them first.",
   );
 
+const WRITER_SITUATION: Record<WriterState, string> = {
+  settled: "has settled",
+  running: "is still running",
+  cancelling: "is still cancelling its run",
+  reconciling: "is still reconciling its run after a restart",
+  unknown: "has a run whose state could not be verified",
+};
+
+const ownWriterBusy = (state: WriterState) =>
+  new AppError("thread_busy", `This thread ${WRITER_SITUATION[state]}. Try again once it has settled.`);
+
+const siblingWriterBusy = (state: WriterState) =>
+  state === "running"
+    ? siblingStillRunning()
+    : new AppError(
+        "thread_busy",
+        `Another thread sharing this worktree ${WRITER_SITUATION[state]}. Try again once it has settled.`,
+      );
+
 const isKnownStatus = (status: string) => status === "idle" || status === "running" || status === "error";
 
 export function createWorkspaceService({
@@ -109,6 +132,7 @@ export function createWorkspaceService({
   closeTerminalsOf = async () => undefined,
   hasRunningOf,
   writerBarrier = createWriterBarrier(),
+  writerStateOf,
 }: WorkspaceDeps): WorkspaceService {
   const lock = createKeyedLock();
   const statusCache = createStatusCache<WorkspaceGitStatus>();
@@ -164,8 +188,34 @@ export function createWorkspaceService({
     return current;
   }
 
+  async function nativeWriterOf(thread: ConversationSummary): Promise<WriterState | undefined> {
+    if (!writerStateOf) return undefined;
+    try {
+      return await writerStateOf(thread);
+    } catch {
+      return "unknown";
+    }
+  }
+
+  async function requireOwnWriterSettled(thread: ConversationSummary, tolerate?: WriterState) {
+    const state = await nativeWriterOf(thread);
+    if (state === undefined || isSafeToDestroy(state) || state === tolerate) return;
+    throw ownWriterBusy(state);
+  }
+
+  async function ownWriterIsSettled(thread: ConversationSummary): Promise<boolean> {
+    const state = await nativeWriterOf(thread);
+    return state === undefined || isSafeToDestroy(state);
+  }
+
+  async function requireSiblingWriterSettled(sibling: ConversationSummary) {
+    const state = await nativeWriterOf(sibling);
+    if (state !== undefined && !isSafeToDestroy(state)) throw siblingWriterBusy(state);
+  }
+
   async function requireNoRunningSiblings(thread: ConversationSummary, checkProcesses: boolean) {
     for (const sibling of await verifiedSiblingsOf(thread)) {
+      await requireSiblingWriterSettled(sibling);
       if (sibling.status === "running") throw siblingStillRunning();
       if (checkProcesses && hasRunningOf?.(sibling.id)) throw siblingHasBackgroundProcesses();
     }
@@ -177,6 +227,7 @@ export function createWorkspaceService({
     if (!facts) return;
     await withWriterBarrier(thread, facts, async () => {
       if ((await verifiedSiblingsOf(thread)).length > 0) return;
+      if (!(await ownWriterIsSettled(thread))) return;
       await removeWorktreeAndBranch(facts, true);
     });
   }
@@ -215,6 +266,7 @@ export function createWorkspaceService({
         const current = await threadOf(id);
         requireLiveWorktree(current);
         if (!force) requireIdle(current);
+        await requireOwnWriterSettled(current, force ? "running" : undefined);
         await requireNoRunningSiblings(current, false);
         const mergedSha = await mergeIntoBase(facts);
         return update(current, { state: "merged", mergedSha });
@@ -243,6 +295,7 @@ export function createWorkspaceService({
         if (current.workspace.state === "removed") return current;
         requireLiveWorktree(current);
         requireIdle(current);
+        await requireOwnWriterSettled(current);
         if (hasRunningOf?.(current.id)) throw ownBackgroundProcesses();
         await requireNoRunningSiblings(current, true);
         const shared = await isSharedWithOthers(current);
