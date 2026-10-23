@@ -19,6 +19,8 @@ import type {
   GithubRepo,
   GithubStatus,
   Goal,
+  HandoffInput,
+  HandoffPreview,
   LoginSession,
   LoopInput,
   McpServerConfig,
@@ -186,6 +188,10 @@ export interface Api {
     remove(id: string, options?: { force?: boolean }): Promise<void>;
     deleteArchived(input: DeleteArchivedInput): Promise<DeleteArchivedResult>;
     fork(id: string, entryId: string): Promise<ConversationSummary>;
+    /** What a contextual handoff to a new native thread carries and loses. */
+    handoffPreview(id: string): Promise<HandoffPreview>;
+    /** Starts a NEW native thread from this Pi thread; idempotent by `requestId`. */
+    handoff(id: string, input: HandoffInput): Promise<ConversationSummary>;
     rewindPreview(id: string, entryId: string): Promise<RestorePreview>;
     rewind(id: string, entryId: string): Promise<{ conversation: ConversationSummary; draft: string }>;
     stopAgent(id: string): Promise<void>;
@@ -413,6 +419,8 @@ export function createApi(transport: Transport): Api {
         request("removeConversation", { params: { id }, query: options?.force ? { force: "true" } : {} }),
       deleteArchived: (input) => request("deleteArchivedConversations", { body: input }),
       fork: (id, entryId) => request("forkConversation", { params: { id }, body: { entryId } }),
+      handoffPreview: (id) => request("getHandoffPreview", { params: { id } }),
+      handoff: (id, input) => request("handoffConversation", { params: { id }, body: input }),
       rewindPreview: (id, entryId) => request("rewindPreview", { params: { id }, body: { entryId } }),
       rewind: (id, entryId) => request("rewindConversation", { params: { id }, body: { entryId } }),
       stopAgent: (id) => request("stopAgent", { params: { id } }),

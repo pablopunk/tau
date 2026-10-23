@@ -39,6 +39,7 @@ export const queryKeys = {
   pathSuggestions: (prefix: string) => ["fs", "suggest", prefix] as const,
   iconCandidates: (projectId: string) => ["projects", projectId, "icon-candidates"] as const,
   workspace: (conversationId: string) => ["workspace", conversationId] as const,
+  handoffPreview: (conversationId: string) => ["handoff-preview", conversationId] as const,
   checkpoints: (conversationId: string) => ["checkpoints", conversationId] as const,
   processes: (conversationId: string) => ["processes", conversationId] as const,
   allProcesses: ["processes"] as const,
@@ -93,6 +94,18 @@ export const useRuntimes = ({ enabled = true }: { enabled?: boolean } = {}) => {
     retry: false,
     staleTime: RUNTIMES_STALE_MS,
     enabled,
+  });
+};
+
+/** What a handoff of this thread would carry and lose; always fresh, never kept after the dialog closes. */
+export const useHandoffPreview = (conversationId: string) => {
+  const api = useApi();
+  return useQuery({
+    queryKey: queryKeys.handoffPreview(conversationId),
+    queryFn: () => api.conversations.handoffPreview(conversationId),
+    retry: false,
+    gcTime: 0,
+    staleTime: 0,
   });
 };
 

@@ -39,6 +39,7 @@ async function renderActions(options: { terminals: boolean; view?: ConversationV
                   archived={false}
                   onChangeModel={() => {}}
                   onChangeThinking={() => {}}
+                  onHandoff={() => {}}
                   run={run}
                 />
               </CommandList>

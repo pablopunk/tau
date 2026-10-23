@@ -121,3 +121,50 @@ describe("fake native scenario", () => {
     expect(summary.executor).toBeUndefined();
   });
 });
+
+describe("fake native handoff", () => {
+  const startPi = (core: Awaited<ReturnType<typeof readyCore>>) =>
+    core.conversations.start({ projectId: "home", text: "hello", requestId: "pi-h" });
+
+  it("previews a Pi thread with real losses", async () => {
+    const core = await readyCore(true);
+    const { id } = await startPi(core);
+    const preview = await core.conversations.handoffPreview(id);
+    expect(preview.canHandoff).toBe(true);
+    expect(preview.losses.imagesOmitted).toBeGreaterThan(0);
+    expect(preview.preview.length).toBeGreaterThan(0);
+  });
+
+  it("refuses a handoff while Claude Code is off", async () => {
+    const core = await readyCore(false);
+    const { id } = await startPi(core);
+    expect((await core.conversations.handoffPreview(id)).canHandoff).toBe(false);
+  });
+
+  it("creates one new native thread per request id and leaves the source alone", async () => {
+    const core = await readyCore(true);
+    const source = await startPi(core);
+    const first = await core.conversations.handoff(source.id, { requestId: "h1", instruction: "run tests" });
+    const again = await core.conversations.handoff(source.id, { requestId: "h1" });
+    expect(first.executor).toBe("claude-code");
+    expect(again.id).toBe(first.id);
+    expect(first.id).not.toBe(source.id);
+    const all = await core.conversations.listAll();
+    expect(all.find((item) => item.id === source.id)?.executor).toBeUndefined();
+    expect(all.filter((item) => item.executor === "claude-code")).toHaveLength(1);
+  });
+
+  it("refuses to hand off a native thread", async () => {
+    const core = await readyCore(true);
+    const native = await core.conversations.start({
+      projectId: "home",
+      text: "x",
+      requestId: "n1",
+      executor: "claude-code",
+    });
+    expect((await core.conversations.handoffPreview(native.id)).canHandoff).toBe(false);
+    await expect(core.conversations.handoff(native.id, { requestId: "h2" })).rejects.toMatchObject({
+      code: "invalid_request",
+    });
+  });
+});
