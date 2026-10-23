@@ -353,7 +353,8 @@ export function createConversationsApi(deps: {
     const existing = (await indexOf(deps.harness, input.projectId)).find(
       (entry) => entry.startRequestId === input.requestId && isLive(entry),
     );
-    const executor = existing ? (existing.executor ?? "pi") : input.executor;
+    // No executor means the Pi default, here and everywhere else.
+    const executor = existing ? (existing.executor ?? "pi") : (input.executor ?? "pi");
     if (existing && input.executor && input.executor !== executor) {
       throw new AppError("invalid_request", "This start request already belongs to a different executor.");
     }

@@ -8,6 +8,11 @@ const conversation = (page: Page) => page.getByTestId("conversation");
 const sidebar = (page: Page) => page.getByRole("complementary").or(page.getByLabel("Projects and threads"));
 
 async function completeSetup(page: Page) {
+  // A retry reuses the already-configured server: the setup screen shows only once.
+  await expect(
+    page.getByRole("heading", { name: "New thread" }).or(page.getByRole("heading", { name: /Welcome to/ })),
+  ).toBeVisible();
+  if ((await page.getByRole("heading", { name: "New thread" }).count()) > 0) return;
   await page
     .getByRole("listitem", { name: "OpenRouter", exact: true })
     .getByRole("button", { name: "Add key" })
