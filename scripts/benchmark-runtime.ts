@@ -1,9 +1,9 @@
 /**
- * Offline, deterministic latency evidence for the Pi and native Claude runtime paths (overhead only).
+ * Offline deterministic Pi overhead diagnostic; native execution is blocked without a disposable guest.
  *
  *   tsx scripts/benchmark-runtime.ts --offline --config e2e/runtime-benchmark.config.json --output test-artifacts/runtime-benchmark.json [--samples N] [--concurrency 1|4]
  *
- * Pi runs on the faux provider; native runs the real Claude Agent SDK under sandbox-exec against a loopback fake API (macOS only).
+ * Pi runs on the faux provider. This host runner does not launch the native SDK or claim native compatibility.
  */
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
@@ -43,17 +43,19 @@ async function measureAll(config: BenchmarkConfig, samples: number, concurrency:
   for (const executor of config.executors) {
     for (const level of concurrency) {
       console.error(`measuring ${executor} x${level} (${samples} samples, ${config.warmup} warmup)`);
-      measurements.push(
-        await runCell({
-          executor,
-          concurrency: level,
-          samples,
-          warmup: config.warmup,
-          sampleTimeoutMs: config.sampleTimeoutMs,
-          idleCpuWindowMs: config.idleCpuWindowMs,
-          fixtureRepo: config.fixtureRepo,
-        }),
-      );
+      for (const cell of config.cells ?? [undefined])
+        measurements.push(
+          await runCell({
+            cell,
+            executor,
+            concurrency: level,
+            samples,
+            warmup: config.warmup,
+            sampleTimeoutMs: config.sampleTimeoutMs,
+            idleCpuWindowMs: config.idleCpuWindowMs,
+            fixtureRepo: config.fixtureRepo,
+          }),
+        );
     }
   }
   return measurements;
@@ -75,10 +77,15 @@ async function main(): Promise<number> {
   });
   const outputPath = resolve(args.outputPath);
   await mkdir(dirname(outputPath), { recursive: true });
-  await writeFile(outputPath, `${JSON.stringify(report, null, 2)}\n`);
+  await writeFile(outputPath, `${JSON.stringify(report, null, 2)}\n`, { flag: "wx" });
   console.log(renderSummary(report));
   console.log(`Wrote ${args.outputPath}`);
-  return report.verdict === "PASS" ? 0 : 1;
+  if (
+    report.results.some((r) => r.status === "FAIL") ||
+    report.budgets.verdicts.some((v) => v.status === "FAIL")
+  )
+    return 1;
+  return report.results.some((r) => r.status === "UNSUPPORTED") ? 2 : report.verdict === "PASS" ? 0 : 1;
 }
 
 main().then(

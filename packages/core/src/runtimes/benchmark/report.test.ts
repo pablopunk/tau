@@ -70,7 +70,7 @@ describe("buildReport", () => {
     const built = report();
 
     expect(built).toMatchObject({ schema: REPORT_SCHEMA, deterministicOverheadOnly: true });
-    expect(built.statement).toContain("overhead only");
+    expect(built.statement).toContain("overhead diagnostic");
     expect(Object.keys(built.stageDefinitions)).toEqual(["pi", "claude-code"]);
     expect(built.stageDefinitions["claude-code"]?.map((stage) => stage.name)).toEqual([
       "submitToReceipt",
@@ -83,8 +83,11 @@ describe("buildReport", () => {
     expect(built.limits).toBe(LIMITS);
     for (const phrase of [
       "No real provider latency",
+      "native cells are blocked",
       "No browser metrics",
-      "sandbox-exec",
+      "Native stage definitions describe intended boundaries only",
+      "Resource snapshots cover the in-process Core",
+      "child-process CPU is lifetime ps output",
       "not comparable across machines",
       "overhead only",
     ]) {
@@ -92,10 +95,10 @@ describe("buildReport", () => {
     }
   });
 
-  it("passes with budgets NOT-EVALUATED for few samples and an UNSUPPORTED native cell", () => {
+  it("does not qualify an UNSUPPORTED required native cell", () => {
     const built = report();
 
-    expect(built.verdict).toBe("PASS");
+    expect(built.verdict).toBe("FAIL");
     expect(built.results.map((cell) => cell.status)).toEqual(["PASS", "UNSUPPORTED"]);
     expect(built.budgets.verdicts[0]?.status).toBe("NOT-EVALUATED");
   });
@@ -112,6 +115,47 @@ describe("buildReport", () => {
     expect(text).toContain("pi x1  PASS");
     expect(text).toContain("insufficient-samples");
     expect(text).toContain("claude-code x1  UNSUPPORTED");
-    expect(text).toContain("Verdict: PASS");
+    expect(text).toContain("Verdict: FAIL");
   });
+});
+
+it("does not select numeric CPU or latency budgets before controlled agreement", () => {
+  const built = buildReport({
+    config: {
+      ...CONFIG,
+      budgets: {
+        ...CONFIG.budgets,
+        selection: "UNSELECTED",
+        targets: [
+          ...CONFIG.budgets.targets,
+          {
+            id: "idle",
+            description: "proposed",
+            kind: "idle-cpu-delta",
+            executor: "pi",
+            maxPercentagePoints: 2,
+          },
+        ],
+      },
+    },
+    configPath: "unit",
+    effective: { samples: 3, concurrency: [1] },
+    environment: ENVIRONMENT,
+    measurements: [
+      {
+        executor: "pi",
+        concurrency: 1,
+        samplesRequested: 3,
+        warmup: 0,
+        samples: [sample(0), sample(1), sample(2)],
+        idleCpu: { baselinePercent: 0, afterPercent: 9, deltaPercentagePoints: 9 },
+      },
+    ],
+    now: new Date("2026-01-01"),
+  });
+  expect(
+    built.budgets.verdicts.every((v) => v.status === "NOT-EVALUATED" && v.reason.includes("UNSELECTED")),
+  ).toBe(true);
+  expect(built.budgets.verdicts[1]?.limit).toBe(2);
+  expect(built.results[0]?.idleCpu?.deltaPercentagePoints).toBe(9);
 });

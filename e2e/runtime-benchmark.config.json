@@ -1,6 +1,10 @@
 {
   "deterministicOverheadOnly": true,
-  "fixtureRepo": { "directories": 10, "files": 200, "bytesPerFile": 2048 },
+  "fixtureRepo": {
+    "directories": 64,
+    "files": 4096,
+    "bytesPerFile": 4096
+  },
   "executors": ["pi", "claude-code"],
   "samples": 20,
   "warmup": 2,
@@ -9,7 +13,7 @@
   "rawSampleLimit": 100,
   "idleCpuWindowMs": 1000,
   "budgets": {
-    "label": "TARGETS: proposed regression gates, not measured facts. A FAIL means a run missed the target, a PASS only means it met it on this machine.",
+    "label": "UNSELECTED: historical proposed numeric targets retained unchanged, pending controlled baseline/operator agreement. No performance qualification.",
     "targets": [
       {
         "id": "pi-receipt-p95-c1",
@@ -109,6 +113,41 @@
         "kind": "no-errors",
         "executor": "claude-code"
       }
-    ]
-  }
+    ],
+    "selection": "UNSELECTED"
+  },
+  "cells": [
+    {
+      "id": "nested-worktree-warm-foreground",
+      "workspace": "worktree",
+      "cwd": "nested",
+      "cache": "warm",
+      "scenario": "success",
+      "waiting": "foreground"
+    },
+    {
+      "id": "root-checkout-cold-background",
+      "workspace": "checkout",
+      "cwd": "root",
+      "cache": "cold",
+      "scenario": "success",
+      "waiting": "background"
+    },
+    {
+      "id": "nested-failing-local-filter",
+      "workspace": "worktree",
+      "cwd": "nested",
+      "cache": "cold",
+      "scenario": "failure",
+      "waiting": "foreground"
+    },
+    {
+      "id": "root-worktree-cancel",
+      "workspace": "worktree",
+      "cwd": "root",
+      "cache": "warm",
+      "scenario": "cancel",
+      "waiting": "foreground"
+    }
+  ]
 }

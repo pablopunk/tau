@@ -1,7 +1,15 @@
+import type { Settings } from "@tau/protocol";
+import type { BenchmarkConfig } from "./config";
+import type { ResourceSnapshot } from "./process-census";
 import { type ExecutorKind, isCompleteTimeline, type Marks, stageNamesOf, timelineOf } from "./stages";
 import { type Summary, summarize } from "./stats";
 
 export interface SampleRecord {
+  readonly boundary?: {
+    readonly observation: "failure-or-abort-returned";
+    readonly durationMs: number;
+    readonly verifiedCancellation: false;
+  };
   readonly index: number;
   readonly ok: boolean;
   readonly durationsMs: Readonly<Record<string, number>>;
@@ -30,6 +38,9 @@ export interface IdleCpu {
 }
 
 export interface CellMeasurement {
+  readonly governorSettings?: Settings["resources"];
+  readonly resources?: readonly ResourceSnapshot[];
+  readonly selection?: NonNullable<BenchmarkConfig["cells"]>[number];
   readonly executor: ExecutorKind;
   readonly concurrency: 1 | 4;
   readonly samplesRequested: number;
@@ -44,6 +55,9 @@ export interface CellMeasurement {
 export type CellStatus = "PASS" | "FAIL" | "UNSUPPORTED";
 
 export interface CellResult {
+  readonly governorSettings?: Settings["resources"];
+  readonly resources?: readonly ResourceSnapshot[];
+  readonly selection?: NonNullable<BenchmarkConfig["cells"]>[number];
   readonly executor: ExecutorKind;
   readonly concurrency: 1 | 4;
   readonly status: CellStatus;
@@ -75,6 +89,14 @@ export function recordSample(
   const timeline = timelineOf(executor, marks);
   return {
     index,
+    ...(marks.failureCancel !== undefined &&
+      marks.submit !== undefined && {
+        boundary: {
+          observation: "failure-or-abort-returned" as const,
+          durationMs: marks.failureCancel - marks.submit,
+          verifiedCancellation: false as const,
+        },
+      }),
     ok: extras.error === undefined && isCompleteTimeline(timeline),
     durationsMs: timeline.durationsMs,
     missing: timeline.missing,
@@ -121,6 +143,7 @@ function failureReasons(
 ): string[] {
   const reasons: string[] = [];
   if (measurement.fatal) reasons.push(`cell could not run: ${measurement.fatal}`);
+  if (measurement.samples.length !== measurement.samplesRequested) reasons.push("sample count mismatch");
   if (measurement.samples.length === 0 && !measurement.fatal) reasons.push("no samples were measured");
   if (Object.keys(facts.missing).length > 0) reasons.push(`missing stages: ${describeCounts(facts.missing)}`);
   if (Object.keys(facts.invalid).length > 0)
@@ -154,6 +177,9 @@ export function buildCellResult(measurement: CellMeasurement, rawSampleLimit: nu
     : failureReasons(measurement, { errors: failed.length, missing, invalid, messages });
   return {
     executor,
+    selection: measurement.selection,
+    resources: measurement.resources,
+    governorSettings: measurement.governorSettings,
     concurrency: measurement.concurrency,
     status: unsupported ? "UNSUPPORTED" : reasons.length > 0 ? "FAIL" : "PASS",
     reasons,
@@ -171,5 +197,37 @@ export function buildCellResult(measurement: CellMeasurement, rawSampleLimit: nu
     idleCpu: measurement.idleCpu ?? null,
     rawSamples: samples.slice(0, rawSampleLimit),
     rawSamplesTruncated: samples.length > rawSampleLimit,
+  };
+}
+
+export function mergeColdMeasurements(
+  base: Omit<CellMeasurement, "samples">,
+  rounds: readonly CellMeasurement[],
+): CellMeasurement {
+  const cleanups = rounds.flatMap((round) => (round.cleanup ? [round.cleanup] : []));
+  const sum = (
+    key: "childrenSpawned" | "childrenAliveAfterRun" | "descendantsLeftover" | "serverViolations",
+  ) => cleanups.reduce((total, cleanup) => total + cleanup[key], 0);
+  const idle = rounds.flatMap((round) => (round.idleCpu ? [round.idleCpu] : []));
+  const settings = rounds.map((round) => JSON.stringify(round.governorSettings));
+  return {
+    ...base,
+    samples: rounds.flatMap((round) => round.samples).map((sample, index) => ({ ...sample, index })),
+    resources: rounds.flatMap((round) => round.resources ?? []),
+    governorSettings: rounds[0]?.governorSettings,
+    ...((rounds.some((round) => round.fatal) ||
+      cleanups.length !== rounds.length ||
+      new Set(settings).size > 1) && { fatal: "cold_round_failed_or_configuration_unmatched" }),
+    cleanup: {
+      childrenSpawned: sum("childrenSpawned"),
+      childrenAliveAfterRun: sum("childrenAliveAfterRun"),
+      descendantsLeftover: sum("descendantsLeftover"),
+      serverViolations: sum("serverViolations"),
+      supervisorVerifiedRuns: null,
+      unverifiedRuns: null,
+      apiRequests: null,
+    },
+    // The complete worst window is retained, not maxima assembled from unrelated windows.
+    idleCpu: idle.sort((a, b) => b.deltaPercentagePoints - a.deltaPercentagePoints)[0],
   };
 }

@@ -6,21 +6,21 @@ import { STAGES, stageNamesOf, TOTAL_STAGE } from "./stages";
 export const REPORT_SCHEMA = "tau.runtime-benchmark/1";
 
 export const STATEMENT =
-  "Deterministic transport and overhead only: scripted fake providers, no model latency. Not a statement that either executor is faster for real work.";
+  "Offline deterministic overhead diagnostic: Pi uses the faux provider; native cells are blocked pending a disposable guest. No real provider latency or performance qualification.";
 
 export const LIMITS: readonly string[] = [
-  "No real provider latency: Pi runs on the faux provider and native on a scripted loopback fake Anthropic API.",
+  "No real provider latency: Pi uses the faux provider; native cells are blocked and not launched without an authorized disposable guest.",
   "No browser metrics: the core is driven in process through conversations.start, watch and list, not through HTTP, WebSocket or the web app.",
-  "Native timings include process spawn under sandbox-exec, the CLI boot and one scripted API round trip.",
+  "Native stage definitions describe intended boundaries only; this host run records no native timing, sandbox spawn, SDK message or supervisor-cleanup evidence.",
+  "Resource snapshots cover the in-process Core and benchmark harness plus observed descendant RSS and lifetime CPU; they are not total machine or browser readings.",
   "Numbers are not comparable across machines or across load levels; compare only runs of one machine.",
   "Native vs Pi comparison covers overhead only: the stage boundaries differ, so only submitToReceipt and total are comparable.",
   "Terminal and Pi first-text marks are observed through conversations.list (on change events or a 25 ms poll) and watch frames, so they include that observation latency.",
-  "Preparation for native is receipt to SDK query seam and aggregates pump scheduling, checkpoint-before, workspace fence and sandbox policy; it is not split further.",
-  "Native terminalOutcome includes the controller's child-death verification, settle, checkpoint-after and sidebar publish.",
-  "Native cleanup is verified by the controller supervisor (a completed run means the child was verified dead) plus a process-table census; Pi has no owned child.",
+  "The recorded idle CPU delta covers this process over bounded windows; child-process CPU is lifetime ps output, not interval accounting.",
 ];
 
 export interface EnvironmentFingerprint {
+  readonly sourceTreeSha256?: string;
   readonly platform: string;
   readonly arch: string;
   readonly osRelease: string;
@@ -47,6 +47,13 @@ export interface BenchmarkReport {
   readonly budgets: { readonly label: string; readonly verdicts: readonly BudgetVerdict[] };
   readonly limits: readonly string[];
   readonly verdict: "PASS" | "FAIL";
+  readonly qualification: "UNSELECTED";
+  readonly coverage: {
+    readonly selectedCells: number;
+    readonly measuredSamples: number;
+    readonly cartesianCoverageClaimed: false;
+  };
+  readonly missingProductStages: readonly string[];
 }
 
 export interface ReportInput {
@@ -74,7 +81,7 @@ export function overallVerdict(
   results: readonly CellResult[],
   verdicts: readonly BudgetVerdict[],
 ): "PASS" | "FAIL" {
-  const failedCell = results.some((cell) => cell.status === "FAIL");
+  const failedCell = results.length === 0 || results.some((cell) => cell.status !== "PASS");
   const failedBudget = verdicts.some((entry) => entry.status === "FAIL");
   return failedCell || failedBudget ? "FAIL" : "PASS";
 }
@@ -83,7 +90,16 @@ export function buildReport(input: ReportInput): BenchmarkReport {
   const results = input.measurements.map((measurement) =>
     buildCellResult(measurement, input.config.rawSampleLimit),
   );
-  const verdicts = evaluateBudgets(input.config.budgets.targets, results);
+  const verdicts = evaluateBudgets(input.config.budgets.targets, results).map((v, index) =>
+    input.config.budgets.selection === "UNSELECTED" &&
+    ["stage-percentile", "idle-cpu-delta"].includes(input.config.budgets.targets[index]?.kind ?? "")
+      ? {
+          ...v,
+          status: "NOT-EVALUATED" as const,
+          reason: "UNSELECTED pending controlled baseline/operator agreement",
+        }
+      : v,
+  );
   return {
     schema: REPORT_SCHEMA,
     generatedAt: input.now.toISOString(),
@@ -97,6 +113,19 @@ export function buildReport(input: ReportInput): BenchmarkReport {
     budgets: { label: input.config.budgets.label, verdicts },
     limits: LIMITS,
     verdict: overallVerdict(results, verdicts),
+    qualification: "UNSELECTED",
+    coverage: {
+      selectedCells: results.length,
+      measuredSamples: results.reduce((sum, cell) => sum + cell.samplesMeasured, 0),
+      cartesianCoverageClaimed: false,
+    },
+    missingProductStages: [
+      "request-arrival",
+      "workspace-ready",
+      "before-input-snapshot",
+      "browser-render",
+      "background-workload-and-stalled-peer",
+    ],
   };
 }
 

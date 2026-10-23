@@ -3,6 +3,7 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import * as execution from "./product-artifact-support";
 import {
   main,
   parseArgs,
@@ -155,7 +156,7 @@ describe("artifact proof parsing and blocked skeleton", () => {
     const report = JSON.parse(await readFile(w.output, "utf8"));
     expect(report).toMatchObject({
       verdict: "BLOCKED",
-      counts: { required: 8, asserted: 0, passed: 0, blocked: 8 },
+      counts: { required: 9, asserted: 0, passed: 0, blocked: 9 },
       cleanup: { verified: false },
     });
     expect(report.assertions.every((item: { status: string }) => item.status === "BLOCKED")).toBe(true);
@@ -236,7 +237,7 @@ describe("artifact proof parsing and blocked skeleton", () => {
       );
       expect(value.seed).toBe(15158);
       expect(value.namespace).toBe(namespace);
-      if (namespace === "E") expect(parseScenarioManifest(value).cases).toHaveLength(8);
+      if (namespace === "E") expect(parseScenarioManifest(value).cases).toHaveLength(7);
       if (expectedFixtures) expect(value.fixtures).toEqual(expectedFixtures);
       else expectedFixtures = value.fixtures;
     }
@@ -267,4 +268,84 @@ describe("artifact proof parsing and blocked skeleton", () => {
   it("imports without starting artifacts or writing output", () => {
     expect(typeof main).toBe("function");
   });
+});
+
+describe("driver exit/report aggregation (unit-only executor seam)", () => {
+  const result = (status: "PASS" | "FAIL" | "BLOCKED") => ({
+    assertions: [...REQUIRED_ASSERTIONS, "E.native-actual-sdk"].map((id) => ({
+      id,
+      status,
+      reason: "unit_executor_observation",
+    })),
+    provenanceVerified: true,
+    sdkTreeSha256: "b".repeat(64),
+    cases: [{ id: "unit-only" }],
+    cleanup: { verified: true },
+  });
+  it("returns 0 only for a complete candidate execution set, not baseline PASS", async () => {
+    const w = await world();
+    const complete = parseScenarioManifest(scenarios());
+    complete.cases.push({
+      id: "E.native-actual-sdk",
+      fixtureId: "small-v1",
+      requiredAssertions: ["E.native-actual-sdk"],
+    });
+    await writeFile(w.scenarioPath, JSON.stringify(complete));
+    vi.spyOn(execution, "executeArtifact")
+      .mockResolvedValueOnce(result("FAIL"))
+      .mockResolvedValueOnce(result("PASS"));
+    expect(await main(w.argv)).toBe(0);
+    const report = JSON.parse(await readFile(w.output, "utf8"));
+    expect(report.counts).toEqual({ required: 9, asserted: 9, passed: 9, failed: 0, blocked: 0 });
+    expect(report.qualification).toContain("NOT_QUALIFIED");
+  });
+  it("returns 1 on explicit failure even when other evidence is blocked", async () => {
+    const w = await world();
+    const failed = result("BLOCKED");
+    failed.assertions[0] = { id: "E.first-assistant-text", status: "FAIL", reason: "unit_failed_assertion" };
+    vi.spyOn(execution, "executeArtifact")
+      .mockResolvedValueOnce(result("PASS"))
+      .mockResolvedValueOnce(failed);
+    expect(await main(w.argv)).toBe(1);
+    const report = JSON.parse(await readFile(w.output, "utf8"));
+    expect(report.counts.failed).toBe(1);
+    expect(report.counts.blocked).toBe(8);
+  });
+  it("does no process work when the report already exists", async () => {
+    const w = await world();
+    await writeFile(w.output, "keep");
+    const executor = vi.spyOn(execution, "executeArtifact");
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    expect(await main(w.argv)).toBe(2);
+    expect(executor).not.toHaveBeenCalled();
+  });
+});
+
+it("cannot qualify a candidate while the required baseline input is unverified", async () => {
+  const w = await world();
+  const complete = parseScenarioManifest(scenarios());
+  complete.cases.push({
+    id: "E.native-actual-sdk",
+    fixtureId: "small-v1",
+    requiredAssertions: ["E.native-actual-sdk"],
+  });
+  await writeFile(w.scenarioPath, JSON.stringify(complete));
+  const candidate = {
+    assertions: [...REQUIRED_ASSERTIONS, "E.native-actual-sdk"].map((id) => ({
+      id,
+      status: "PASS" as const,
+      reason: "unit_only",
+    })),
+    provenanceVerified: true,
+    sdkTreeSha256: "b".repeat(64),
+    cases: [{ id: "unit_only" }],
+    cleanup: { verified: true },
+  };
+  vi.spyOn(execution, "executeArtifact")
+    .mockResolvedValueOnce({ ...candidate, provenanceVerified: false })
+    .mockResolvedValueOnce(candidate);
+  expect(await main(w.argv)).toBe(2);
+  const report = JSON.parse(await readFile(w.output, "utf8"));
+  expect(report.verdict).toBe("BLOCKED");
+  expect(report.reasons).toContain("baseline_provenance_unverified");
 });

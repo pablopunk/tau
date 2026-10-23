@@ -69,15 +69,23 @@ export function observeRunEnds(core: Core): RunEndObserver {
   };
 }
 
-const hasAssistantEntry = (view: ConversationView | null | undefined): boolean =>
-  view?.entries.some((entry) => entry.kind === "pi.assistant") ?? false;
+const hasAssistantText = (view: ConversationView | null | undefined): boolean =>
+  view?.entries.some(
+    (entry) =>
+      entry.kind === "pi.assistant" &&
+      entry.model?.some(
+        (message) =>
+          message.role === "assistant" &&
+          message.content.some((block) => block.type === "text" && block.text.trim().length > 0),
+      ),
+  ) ?? false;
 
 export interface FirstAssistantWatch {
   readonly seenAtAttach: () => boolean;
   stop(): Promise<void>;
 }
 
-/** Marks `firstText` when the thread view first holds an assistant entry. */
+/** Marks `firstText` when the watched view first holds nonempty assistant text. */
 export async function watchFirstAssistant(
   core: Core,
   threadId: string,
@@ -90,7 +98,7 @@ export async function watchFirstAssistant(
   const watcher = await core.conversations.watch(threadId, async (ops) => {
     view = applyImmutable<ConversationView | null>(view, ops);
     frames += 1;
-    if (!hasAssistantEntry(view) || marks.firstText !== undefined) return;
+    if (!hasAssistantText(view) || marks.firstText !== undefined) return;
     marks.firstText = now();
     seenAtAttach = frames === 1;
   });

@@ -127,3 +127,15 @@ describe("configHash", () => {
     expect(configHash({ ...config, samples: config.samples + 1 })).not.toBe(configHash(config));
   });
 });
+
+it("validates explicit worktree/nested/cache/wait/failure selections", () => {
+  const config = JSON.parse(
+    readFileSync(new URL("../../../../../e2e/runtime-benchmark.config.json", import.meta.url), "utf8"),
+  );
+  expect(
+    parseConfig(config).cells?.some((cell) => cell.workspace === "worktree" && cell.cwd === "nested"),
+  ).toBe(true);
+  expect(parseConfig(config).budgets.selection).toBe("UNSELECTED");
+  config.cells.push(config.cells[0]);
+  expect(() => parseConfig(config)).toThrow("duplicate cell ids");
+});

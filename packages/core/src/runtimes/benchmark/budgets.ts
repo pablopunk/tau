@@ -27,6 +27,17 @@ const unsupportedReason = (cells: readonly CellResult[]): string | undefined =>
   cells.find((cell) => cell.status === "UNSUPPORTED")?.reasons[0];
 
 function stageVerdict(budget: Extract<Budget, { kind: "stage-percentile" }>, results: readonly CellResult[]) {
+  if (
+    results.filter(
+      (candidate) => candidate.executor === budget.executor && candidate.concurrency === budget.concurrency,
+    ).length > 1
+  )
+    return verdict(
+      budget,
+      "NOT-EVALUATED",
+      "ambiguous selected cells: no aggregate or first-cell inference",
+      budget.maxMs,
+    );
   const cell = results.find(
     (candidate) => candidate.executor === budget.executor && candidate.concurrency === budget.concurrency,
   );

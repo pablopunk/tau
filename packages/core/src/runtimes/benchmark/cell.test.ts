@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { buildCellResult, type CellMeasurement, type CleanupReport, recordSample } from "./cell";
+import {
+  buildCellResult,
+  type CellMeasurement,
+  type CleanupReport,
+  mergeColdMeasurements,
+  recordSample,
+} from "./cell";
 import type { Marks } from "./stages";
 
 const piMarks = (receipt: number): Marks => ({
@@ -142,5 +148,26 @@ describe("buildCellResult", () => {
     const attached = recordSample("pi", 1, piMarks(10), { firstTextSeenAtAttach: true });
 
     expect(buildCellResult(piCell([attached, ...piSamples(1)]), 100).firstTextSeenAtAttach).toBe(1);
+  });
+});
+
+describe("cold process aggregation", () => {
+  it("retains an earlier round's failed cleanup rather than only the final clean round", () => {
+    const first = piCell(piSamples(1), { cleanup: { ...CLEAN, descendantsLeftover: 1 } });
+    const last = piCell(piSamples(1));
+    const merged = mergeColdMeasurements({ executor: "pi", concurrency: 1, samplesRequested: 2, warmup: 0 }, [
+      first,
+      last,
+    ]);
+    expect(merged.samples).toHaveLength(2);
+    expect(merged.cleanup?.descendantsLeftover).toBe(1);
+    expect(buildCellResult(merged, 100).status).toBe("FAIL");
+  });
+  it("does not hide missing rounds or cleanup evidence", () => {
+    const merged = mergeColdMeasurements({ executor: "pi", concurrency: 1, samplesRequested: 2, warmup: 0 }, [
+      piCell(piSamples(1), { cleanup: undefined }),
+    ]);
+    expect(merged.fatal).toContain("cold_round_failed");
+    expect(buildCellResult(merged, 100).status).toBe("FAIL");
   });
 });

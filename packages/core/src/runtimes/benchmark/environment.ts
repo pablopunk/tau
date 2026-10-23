@@ -1,4 +1,5 @@
 import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { cpus, release } from "node:os";
 import { dirname, join } from "node:path";
@@ -49,5 +50,19 @@ export function environmentFingerprint(configHash: string): EnvironmentFingerpri
     sdkVersion: installedSdkVersion(),
     gitVersion: gitVersion(),
     configHash,
+    sourceTreeSha256: sourceTreeHash(),
   };
+}
+
+function sourceTreeHash(): string {
+  const hash = createHash("sha256");
+  const files = execFileSync("git", ["ls-files", "-co", "--exclude-standard", "-z"], { encoding: "utf8" })
+    .split("\0")
+    .filter(Boolean)
+    .sort();
+  for (const file of files) {
+    if (!existsSync(file)) continue;
+    hash.update(file).update("\0").update(readFileSync(file)).update("\0");
+  }
+  return hash.digest("hex");
 }

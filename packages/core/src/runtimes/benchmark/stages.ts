@@ -1,6 +1,13 @@
 export type ExecutorKind = "pi" | "claude-code";
 
-export type MarkName = "submit" | "receipt" | "launch" | "firstEvent" | "firstText" | "terminal";
+export type MarkName =
+  | "submit"
+  | "receipt"
+  | "launch"
+  | "firstEvent"
+  | "firstText"
+  | "terminal"
+  | "failureCancel";
 
 /** Local monotonic clock readings in milliseconds; only differences of marks of one sample are ever used. */
 export type Marks = Partial<Record<MarkName, number>>;
@@ -36,7 +43,7 @@ export const STAGES: Readonly<Record<ExecutorKind, readonly StageDefinition[]>> 
       name: "firstAssistantText",
       from: "receipt",
       to: "firstText",
-      description: "receipt until the thread view first shows an assistant entry (observed through watch)",
+      description: "receipt until the watched thread view first contains nonempty assistant text",
     },
     TERMINAL_OUTCOME,
   ],
@@ -87,7 +94,11 @@ const spanOf = (marks: Marks, from: MarkName, to: MarkName): number | undefined 
 
 const isValidSpan = (span: number): boolean => Number.isFinite(span) && span >= 0;
 
-export function timelineOf(executor: ExecutorKind, marks: Marks): Timeline {
+export function timelineOf(
+  executor: ExecutorKind,
+  marks: Marks,
+  domains?: Partial<Record<MarkName, string>>,
+): Timeline {
   const durationsMs: Record<string, number> = {};
   const missing: string[] = [];
   const invalid: string[] = [];
@@ -98,7 +109,8 @@ export function timelineOf(executor: ExecutorKind, marks: Marks): Timeline {
   for (const { name, from, to } of stages) {
     const span = spanOf(marks, from, to);
     if (span === undefined) missing.push(name);
-    else if (!isValidSpan(span)) invalid.push(name);
+    else if (!isValidSpan(span) || (domains && (!domains[from] || domains[from] !== domains[to])))
+      invalid.push(name);
     else durationsMs[name] = span;
   }
   return { durationsMs, missing, invalid };

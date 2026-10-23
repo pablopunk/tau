@@ -64,3 +64,30 @@ describe("timelineOf", () => {
     expect(timelineOf("pi", {}).missing).toEqual(stageNamesOf("pi"));
   });
 });
+
+describe("clock-domain safety", () => {
+  it("never subtracts browser and server clock readings", () => {
+    const timeline = timelineOf("pi", PI_MARKS, {
+      submit: "browser",
+      receipt: "server",
+      firstText: "server",
+      terminal: "server",
+    });
+    expect(timeline.invalid).toContain("submitToReceipt");
+    expect(timeline.invalid).toContain("total");
+    expect(timeline.durationsMs).not.toHaveProperty("submitToReceipt");
+  });
+  it("consecutive non-overlapping stage durations sum exactly to total", () => {
+    for (const [executor, marks] of [
+      ["pi", PI_MARKS],
+      ["claude-code", NATIVE_MARKS],
+    ] as const) {
+      const durations = timelineOf(executor, marks).durationsMs;
+      expect(
+        Object.entries(durations)
+          .filter(([name]) => name !== "total")
+          .reduce((sum, [, value]) => sum + value, 0),
+      ).toBe(durations.total);
+    }
+  });
+});

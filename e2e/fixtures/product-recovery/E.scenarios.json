@@ -26,44 +26,48 @@
   },
   "cases": [
     {
-      "id": "E.first-assistant-text",
+      "id": "E.journey",
       "fixtureId": "small-v1",
-      "requiredAssertions": ["E.first-assistant-text"]
+      "requiredAssertions": [
+        "E.first-assistant-text",
+        "E.follow-up",
+        "E.restart",
+        "E.real-preparation",
+        "E.worktree",
+        "E.nested-cwd",
+        "E.cleanup",
+        "E.frontend-provenance"
+      ]
     },
     {
-      "id": "E.follow-up",
-      "fixtureId": "small-v1",
-      "requiredAssertions": ["E.follow-up"]
+      "id": "E.native-actual-sdk",
+      "fixtureId": "monorepo-v1",
+      "requiredAssertions": ["E.native-actual-sdk"]
     },
     {
-      "id": "E.restart",
+      "id": "E.checkout-root",
       "fixtureId": "small-v1",
-      "requiredAssertions": ["E.restart"]
+      "requiredAssertions": ["E.checkout-root"]
     },
     {
-      "id": "E.real-preparation",
-      "fixtureId": "small-v1",
-      "requiredAssertions": ["E.real-preparation"]
+      "id": "E.monorepo-four",
+      "fixtureId": "monorepo-v1",
+      "requiredAssertions": ["E.monorepo-four"]
     },
     {
-      "id": "E.worktree",
+      "id": "E.warm",
       "fixtureId": "small-v1",
-      "requiredAssertions": ["E.worktree"]
+      "requiredAssertions": ["E.warm"]
     },
     {
-      "id": "E.nested-cwd",
+      "id": "E.stalled-peer",
       "fixtureId": "small-v1",
-      "requiredAssertions": ["E.nested-cwd"]
+      "requiredAssertions": ["E.stalled-peer"]
     },
     {
-      "id": "E.cleanup",
+      "id": "E.long-stream",
       "fixtureId": "small-v1",
-      "requiredAssertions": ["E.cleanup"]
-    },
-    {
-      "id": "E.frontend-provenance",
-      "fixtureId": "small-v1",
-      "requiredAssertions": ["E.frontend-provenance"]
+      "requiredAssertions": ["E.long-stream"]
     }
   ]
 }

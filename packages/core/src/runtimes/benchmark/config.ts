@@ -65,6 +65,22 @@ export const BenchmarkConfigSchema = Type.Object(
       { directories: Positive, files: Positive, bytesPerFile: Positive },
       { additionalProperties: false },
     ),
+    cells: Type.Optional(
+      Type.Array(
+        Type.Object(
+          {
+            id: Type.String({ pattern: "^[a-z0-9-]+$" }),
+            workspace: Type.Union([Type.Literal("checkout"), Type.Literal("worktree")]),
+            cwd: Type.Union([Type.Literal("root"), Type.Literal("nested")]),
+            cache: Type.Union([Type.Literal("cold"), Type.Literal("warm")]),
+            scenario: Type.Union([Type.Literal("success"), Type.Literal("failure"), Type.Literal("cancel")]),
+            waiting: Type.Union([Type.Literal("foreground"), Type.Literal("background")]),
+          },
+          { additionalProperties: false },
+        ),
+        { minItems: 1 },
+      ),
+    ),
     executors: Type.Array(ExecutorSchema, { minItems: 1, uniqueItems: true }),
     samples: Positive,
     warmup: Type.Integer({ minimum: 0 }),
@@ -73,7 +89,11 @@ export const BenchmarkConfigSchema = Type.Object(
     rawSampleLimit: Positive,
     idleCpuWindowMs: Positive,
     budgets: Type.Object(
-      { label: Type.String({ minLength: 1 }), targets: Type.Array(BudgetSchema) },
+      {
+        label: Type.String({ minLength: 1 }),
+        selection: Type.Optional(Type.Literal("UNSELECTED")),
+        targets: Type.Array(BudgetSchema),
+      },
       { additionalProperties: false },
     ),
   },
@@ -105,6 +125,8 @@ export function parseConfig(value: unknown): BenchmarkConfig {
     const problems = Value.Errors(BenchmarkConfigSchema, value).map(describeIssue);
     throw new ConfigError(problems.length > 0 ? problems : ["does not match the schema"]);
   }
+  if (value.cells && new Set(value.cells.map((cell) => cell.id)).size !== value.cells.length)
+    throw new ConfigError(["duplicate cell ids"]);
   const duplicates = duplicateBudgetIds(value.budgets.targets);
   if (duplicates.length > 0) throw new ConfigError(duplicates);
   return value;

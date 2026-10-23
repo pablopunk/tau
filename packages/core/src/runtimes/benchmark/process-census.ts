@@ -45,3 +45,48 @@ export async function cpuPercentOver(windowMs: number): Promise<number> {
   const wallMicros = (performance.now() - startedAt) * 1000;
   return Math.round(((used.user + used.system) / wallMicros) * 100 * 100) / 100;
 }
+
+export interface ResourceSnapshot {
+  readonly clockDomain: string;
+  readonly atMs: number;
+  readonly server: {
+    readonly scope: "in-process Core plus benchmark harness";
+    readonly pid: number;
+    readonly rssBytes: number;
+    readonly cpuUserMicros: number;
+    readonly cpuSystemMicros: number;
+  };
+  readonly ownedChildren: readonly {
+    readonly pid: number;
+    readonly rssBytes: number;
+    readonly lifetimeCpuPercent: number;
+  }[];
+  readonly browserJs: null;
+  readonly wholeBrowser: null;
+}
+
+export async function resourceSnapshot(): Promise<ResourceSnapshot> {
+  const descendants = await descendantsOf();
+  const { stdout } = await execFileAsync("/bin/ps", ["-axo", "pid=,rss=,%cpu="]);
+  const ownedChildren = stdout.split("\n").flatMap((line) => {
+    const [pid, rss, cpu] = line.trim().split(/\s+/).map(Number);
+    return pid !== undefined && descendants.has(pid) && rss !== undefined && cpu !== undefined
+      ? [{ pid, rssBytes: rss * 1024, lifetimeCpuPercent: cpu }]
+      : [];
+  });
+  const cpu = process.cpuUsage();
+  return {
+    clockDomain: `benchmark-process-monotonic:${process.pid}`,
+    atMs: performance.now(),
+    server: {
+      scope: "in-process Core plus benchmark harness",
+      pid: process.pid,
+      rssBytes: process.memoryUsage().rss,
+      cpuUserMicros: cpu.user,
+      cpuSystemMicros: cpu.system,
+    },
+    ownedChildren,
+    browserJs: null,
+    wholeBrowser: null,
+  };
+}

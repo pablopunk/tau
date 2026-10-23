@@ -85,6 +85,9 @@ function settleWithin(work: Promise<void>, timeoutMs: number): Promise<void> {
   return Promise.race([work, timeout]).finally(() => clearTimeout(timer));
 }
 
+// Keep faux replies visibly incremental without slowing ordinary short responses.
+const FAUX_TOKENS_PER_SECOND = 256;
+
 export function createProviderService(options: ProviderServiceOptions): ProviderService {
   const credentials = new FileCredentialStore(options.credentialsFile);
   const claudeCli = createClaudeCliService({
@@ -107,6 +110,7 @@ export function createProviderService(options: ProviderServiceOptions): Provider
         credentials,
         claudeCli: claudeCli.provider,
         replies: loadFauxReplies(options.env.TAU_FAUX_REPLIES),
+        tokensPerSecond: FAUX_TOKENS_PER_SECOND,
       }).models
     : createRealModels(credentials, options.env, claudeCli.provider);
   const connections = createConnectionReader({
