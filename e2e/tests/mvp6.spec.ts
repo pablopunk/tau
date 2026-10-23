@@ -52,7 +52,10 @@ test.describe("MVP6", () => {
     await expect(notificationRows(page).first()).toContainText("second job finished");
     // The running agent card carries the Stop for the held job (the finished
     // notification row has none; the composer/process Stops are outside).
-    await conversation(page).getByRole("button", { name: "Stop", exact: true }).click();
+    // The running agent card carries this thread's Stop: the finished row has none,
+    // and the composer may show its own Stop while a follow-up run is in flight.
+    const heldCard = conversation(page).getByRole("button", { name: /bash sleep 30/ });
+    await heldCard.getByRole("button", { name: "Stop", exact: true }).click();
     await expect(notificationRows(page)).toHaveCount(2, { timeout: 20_000 });
     await expect(notificationRows(page).last()).toContainText(`${HELD} stopped`);
   });
