@@ -1,10 +1,10 @@
 import { applyImmutable } from "@earendil-works/chord/delta";
 import type { ConversationSummary, ConversationView, Core } from "@tau/protocol";
-import { createCoreWith, defaultCoreDependencies } from "../../create-core";
+import { type CoreDependencies, createCoreWith, defaultCoreDependencies } from "../../create-core";
 import type { NativeQueryFn } from "../native/controller";
 import type { ExecutorKind, Marks } from "./stages";
 
-const NATIVE_FLAG = { TAU_EXPERIMENTAL_NATIVE_CLAUDE: "1" };
+const CLAUDE_INSTALLED: Partial<CoreDependencies> = { claudeCodeInstalled: async () => true };
 const POLL_MS = 25;
 const FAKE_PROVIDER_KEY = "sk-benchmark-not-a-credential";
 const OFFLINE_UPDATES = {
@@ -19,10 +19,10 @@ export async function openBenchmarkCore(
   executor: ExecutorKind,
   nativeQuery?: NativeQueryFn,
 ): Promise<Core> {
-  const env = executor === "claude-code" ? NATIVE_FLAG : {};
+  const installed = executor === "claude-code" ? CLAUDE_INSTALLED : {};
   return createCoreWith(
     { home, faux: true, ...OFFLINE_UPDATES },
-    { ...defaultCoreDependencies(), env, ...(nativeQuery && { nativeQuery }) },
+    { ...defaultCoreDependencies(), env: {}, ...installed, ...(nativeQuery && { nativeQuery }) },
   );
 }
 

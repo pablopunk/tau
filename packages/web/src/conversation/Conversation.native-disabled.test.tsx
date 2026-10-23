@@ -16,7 +16,7 @@ vi.mock("@/lib/api", () => ({
 }));
 
 const NATIVE_CAPABILITIES = describeExecutors(undefined).executors[1]?.capabilities as RuntimeCapabilities;
-const READ_ONLY = "disabled on this node; existing native threads are read-only";
+const READ_ONLY = "Claude Code is not installed on this node; existing Claude Code threads are read-only";
 
 const retained = (): RuntimeDescriptorList => ({
   executors: describeExecutors(undefined).executors.map((item) =>
@@ -45,7 +45,9 @@ describe("<Conversation> on a native thread whose node disabled Claude Code", ()
     renderConversation(createStubLiveClient(idle));
 
     expect(
-      await screen.findByText("Disabled on this node; existing native threads are read-only."),
+      await screen.findByText(
+        "Claude Code is not installed on this node; existing Claude Code threads are read-only.",
+      ),
     ).toBeVisible();
     expect(screen.getByText("refactor the parser")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Send" })).toBeDisabled();
@@ -57,7 +59,9 @@ describe("<Conversation> on a native thread whose node disabled Claude Code", ()
     mocks.runtimes.mockResolvedValue(retained());
     renderConversation(createStubLiveClient(running));
 
-    await screen.findByText("Disabled on this node; existing native threads are read-only.");
+    await screen.findByText(
+      "Claude Code is not installed on this node; existing Claude Code threads are read-only.",
+    );
     await userEvent.click(screen.getByRole("button", { name: "Stop" }));
 
     expect(mocks.abort).toHaveBeenCalledWith("2");

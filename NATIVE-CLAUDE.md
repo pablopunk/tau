@@ -1,23 +1,26 @@
 # Native Claude Code threads (experimental)
 
-Status: **experimental, off by default.** Existing threads, the Pi runtime and the legacy `claude-cli` provider are unchanged. Nothing migrates automatically.
+Status: **always on when Claude Code is installed.** Existing threads, the Pi runtime and the legacy `claude-cli` provider are unchanged. Nothing migrates automatically.
 
 ## What it is
 
 A thread owns exactly one executor. A native thread runs the real Claude Agent SDK, which owns its tool loop, tools, skills, rules, hooks and compaction. Tau keeps the thread in its normal sidebar/mobile/node model. State (admission, queue, lifecycle, events) lives in a passive Pi conversation that never receives a model call.
 
-## Turning it on
+## Availability
+
+There is no switch. At startup the node runs `claude --version` (`TAU_CLAUDE_PATH`, else `claude` on the `PATH`; the SDK's bundled binary does not count). If that works, native threads can be created and run, and the new-thread screen offers the engine toggle with Claude Code preselected (the last engine you pick is remembered per node). If not, the toggle is absent. Install Claude Code, then restart the node.
+
+Runs use the Agent SDK's own pinned Claude Code build, not the binary on your `PATH`. The local install decides availability and holds your `~/.claude` settings, which native threads read.
 
 | Env var (read at core startup) | Effect |
 |---|---|
-| `TAU_EXPERIMENTAL_NATIVE_CLAUDE=1` | Native threads can be created and run. Engine toggle appears in the new-thread screen on that node. |
-| `TAU_EXPERIMENTAL_NATIVE_DELEGATION=1` | Also needs the flag above. A Pi parent may run an awaited native child via the `agent` tool. Off: the tool is byte-identical to before. |
+| `TAU_EXPERIMENTAL_NATIVE_DELEGATION=1` | A Pi parent may run an awaited native child via the `agent` tool. Off: the tool is byte-identical to before. |
 
 Check a node with `GET /api/runtimes` (per-node executors and capabilities).
 
-## Rolling back
+## When Claude Code goes missing
 
-Unset the flag. If native state already exists the node starts in **retained mode**: existing native threads stay readable and cancellable, startup reconcile still runs (never relaunches), and any new run or new native thread is refused. Re-set the flag to resume. Never route a native thread into Pi.
+If Claude Code is no longer installed but native state exists, the node starts in **retained mode**: existing native threads stay readable and cancellable, startup reconcile still runs (never relaunches), and any new run or new native thread is refused. Installing it again and restarting resumes. Never route a native thread into Pi.
 
 A runtime-format file (`<tauHome>/runtime-format.json`) is written before the first native record. A build that does not support its format refuses to start before opening the store. Pre-refactor binaries do not check it: do not run an old binary against a home that has native threads. Restoring one needs a backup taken before the first native thread.
 
@@ -47,6 +50,6 @@ mise exec -- pnpm exec tsx scripts/benchmark-runtime.ts --offline --config e2e/r
 
 The verifier exits 0 (all supported checks passed), 2 (a required capability is unsupported on this host) or 1 (failed assertion). It has been run on macOS only. The benchmark measures deterministic overhead, not provider latency: offline, native is slower per run than Pi (about 1.2 s vs 0.3 s p50 on the author's machine). There is no speed claim.
 
-## Before enabling it by default
+## Not yet verified
 
-Still required and **not done**: a run against a sanitized real company configuration (native tool hooks, delegation gates, rules/skills/plugins, denied actions, headless permissions); the verifier on Linux; real-auth session behavior including whether the CLI's atomic `~/.claude.json.tmp.*` writes survive the sandbox; a real-provider comparison; an explicit decision on cross-runtime delegation policy coverage. All linked nodes must run a build with the same protocol hash.
+Still **not done** (it ships on regardless, so treat these as known risks): a run against a sanitized real company configuration (native tool hooks, delegation gates, rules/skills/plugins, denied actions, headless permissions); the verifier on Linux; real-auth session behavior including whether the CLI's atomic `~/.claude.json.tmp.*` writes survive the sandbox; a real-provider comparison; an explicit decision on cross-runtime delegation policy coverage. All linked nodes must run a build with the same protocol hash.

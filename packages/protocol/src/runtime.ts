@@ -200,7 +200,7 @@ export type RuntimeDescriptor = Static<typeof RuntimeDescriptorSchema>;
 
 export const RUNTIME_UNSUPPORTED_REASON = "executor-disabled";
 
-export const NATIVE_DISABLED_REASON = "native Claude is not enabled on this node";
+export const NATIVE_DISABLED_REASON = "Claude Code is not installed on this node";
 
 export const nativeDisabledError = (): AppError => new AppError("invalid_request", NATIVE_DISABLED_REASON);
 

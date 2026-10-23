@@ -21,7 +21,7 @@ afterEach(async () => {
   await ctx.core.close();
 });
 
-const NATIVE_OFF = "native Claude is not enabled on this node";
+const NATIVE_OFF = "Claude Code is not installed on this node";
 
 async function startWithPiThread() {
   ctx = await startTestServer();

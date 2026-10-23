@@ -46,6 +46,6 @@ describe("claudeCodeDisabledReason", () => {
       executors: describeExecutors(undefined).executors.map(({ reason: _reason, ...item }) => item),
     };
 
-    expect(claudeCodeDisabledReason(list)).toBe("Claude Code is disabled on this node.");
+    expect(claudeCodeDisabledReason(list)).toBe("Claude Code is not installed on this node.");
   });
 });

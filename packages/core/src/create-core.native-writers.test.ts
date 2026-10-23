@@ -1,6 +1,6 @@
 import type { Core } from "@tau/protocol";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createCoreWith, defaultCoreDependencies } from "./create-core";
+import { type CoreDependencies, createCoreWith, defaultCoreDependencies } from "./create-core";
 import type { NativeQueryFn } from "./runtimes/native/controller";
 import { homeIn, useTempDir } from "./test-support/temp-dir";
 import { NO_UPDATE_OPTIONS } from "./test-support/update-options";
@@ -20,10 +20,12 @@ afterEach(async () => {
   vi.mocked(createWorkspaceService).mockClear();
 });
 
-async function workspaceDepsFor(env: Record<string, string>): Promise<WorkspaceDeps> {
+const CLAUDE_INSTALLED: Partial<CoreDependencies> = { claudeCodeInstalled: async () => true };
+
+async function workspaceDepsFor(installed: Partial<CoreDependencies>): Promise<WorkspaceDeps> {
   const core = await createCoreWith(
     { home: homeIn(await tempDir()), faux: true, ...NO_UPDATE_OPTIONS },
-    { ...defaultCoreDependencies(), env, nativeQuery: idleQuery },
+    { ...defaultCoreDependencies(), env: {}, ...installed, nativeQuery: idleQuery },
   );
   cores.push(core);
   const [deps] = vi.mocked(createWorkspaceService).mock.calls.at(-1) ?? [];
@@ -32,13 +34,13 @@ async function workspaceDepsFor(env: Record<string, string>): Promise<WorkspaceD
 }
 
 describe("createCore workspace writer port wiring", () => {
-  it("passes no writer port while the native flag is off", async () => {
+  it("passes no writer port while Claude Code is not installed", async () => {
     const deps = await workspaceDepsFor({});
     expect("writerStateOf" in deps).toBe(false);
   });
 
-  it("passes a writer port while the native flag is on, and it answers undefined for a Pi thread", async () => {
-    const deps = await workspaceDepsFor({ TAU_EXPERIMENTAL_NATIVE_CLAUDE: "1" });
+  it("passes a writer port while Claude Code is installed, and it answers undefined for a Pi thread", async () => {
+    const deps = await workspaceDepsFor(CLAUDE_INSTALLED);
     expect(deps.writerStateOf).toBeTypeOf("function");
     expect(await deps.writerStateOf?.({ id: "999999" } as never)).toBeUndefined();
   });

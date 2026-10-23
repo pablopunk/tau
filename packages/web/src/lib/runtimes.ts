@@ -8,7 +8,7 @@ export function enabledClaudeCode(list: RuntimeDescriptorList | undefined): Exec
 
 const sentenceOf = (text: string): string => `${text.charAt(0).toUpperCase()}${text.slice(1)}.`;
 
-const CLAUDE_CODE_DISABLED_FALLBACK = "Claude Code is disabled on this node";
+const CLAUDE_CODE_DISABLED_FALLBACK = "Claude Code is not installed on this node";
 
 /** Why a native thread cannot take new messages; `undefined` while the node has not said Claude Code is disabled. */
 export function claudeCodeDisabledReason(list: RuntimeDescriptorList | undefined): string | undefined {

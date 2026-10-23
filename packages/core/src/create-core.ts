@@ -25,6 +25,7 @@ import { createChangeEmitter } from "./change-emitter";
 import { createCheckpointService } from "./checkpoints/checkpoint-service";
 import { createCheckpointStore } from "./checkpoints/checkpoint-store";
 import { createConnectorToolServices } from "./claude-cli/connectors/connector-tool-services";
+import { bundledSdkHomeOf, sdkHomeOf } from "./claude-cli/sdk-install";
 import { writeTauShim } from "./cli-shim/write-shim";
 import { createConversationRecovery } from "./conversation-recovery";
 import { createConversationRemoval } from "./conversation-removal";
@@ -81,6 +82,7 @@ import { createOpenTunnelAdapter } from "./remote/opentunnel-adapter";
 import type { RemoteAdapter, RemoteAdapterDeps } from "./remote/ports";
 import { createRemoteService } from "./remote/remote-service";
 import { conversationRemovedInOrder, type RemovalHooks } from "./removal-hooks";
+import { isClaudeCodeInstalled } from "./runtimes/native/claude-code-installed";
 import type { NativeQueryFn } from "./runtimes/native/controller";
 import { createNativeDelegation, type NativeDelegation } from "./runtimes/native/delegation";
 import {
@@ -89,6 +91,7 @@ import {
   refuseLoopsOnNative,
 } from "./runtimes/native/finalize";
 import { nativeLaunchPolicy } from "./runtimes/native/launch-policy";
+import { loadNativeQuery } from "./runtimes/native/load-native-query";
 import {
   type NativeMode,
   nativeModeOf,
@@ -137,22 +140,14 @@ export interface CoreDependencies {
   /** Tests replace the tunnel with the fake adapter. Default: the OpenTunnel adapter. */
   readonly remoteAdapter?: (deps: RemoteAdapterDeps) => RemoteAdapter;
   readonly terminalService?: (deps: TerminalServiceDeps) => TerminalService;
-  /** Tests replace the Agent SDK behind native threads. Used only while the native flag is on; a retained node never launches. */
+  /** Whether Claude Code is installed on this machine. Tests replace the real `claude --version` probe. */
+  readonly claudeCodeInstalled?: (env: Environment) => Promise<boolean>;
+  /** Tests replace the Agent SDK behind native threads. A retained node never launches. */
   readonly nativeQuery?: NativeQueryFn;
 }
 
-const NATIVE_FLAG = "TAU_EXPERIMENTAL_NATIVE_CLAUDE";
-
-const nativeEnabledIn = (env: Environment): boolean => env[NATIVE_FLAG] === "1";
-
 const delegationOffered = (mode: NativeMode, env: Environment): boolean =>
   mode === "active" && nativeDelegationFlagOn(env);
-
-/** Loaded only when the flag is on, so a default start never imports the Agent SDK. */
-async function loadAgentSdkQuery(): Promise<NativeQueryFn> {
-  const { query } = await import("@anthropic-ai/claude-agent-sdk");
-  return ({ prompt, options }) => query({ prompt, options });
-}
 
 const exitAfterLogging = (error: unknown) => {
   console.error("tau: the agent store failed", error);
@@ -182,12 +177,20 @@ export const defaultCoreDependencies = (versionDir?: string): CoreDependencies =
 };
 
 export async function createCoreWith(options: CreateCoreOptions, deps: CoreDependencies): Promise<Core> {
+  const claudeCodeInstalled = (deps.claudeCodeInstalled ?? isClaudeCodeInstalled)(deps.env);
   const home = await openDataHome(options.home);
   const lock = await acquireHomeLock(home.lockFile);
   try {
     await guardRuntimeFormatAtStartup(home.root);
+    const sdkQuery =
+      deps.nativeQuery ??
+      ((await claudeCodeInstalled)
+        ? await loadNativeQuery(
+            options.assets?.versionDir ? bundledSdkHomeOf(options.assets.versionDir) : sdkHomeOf(home.root),
+          )
+        : undefined);
     const nativeMode: NativeMode = nativeModeOf({
-      creationEnabled: nativeEnabledIn(deps.env),
+      creationEnabled: (await claudeCodeInstalled) && sdkQuery !== undefined,
       stateExists: await nativeStateExistsIn(home.root),
     });
     useBundledSkills(options.assets?.versionDir);
@@ -484,8 +487,7 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
             harness,
             conversations,
             mode: nativeMode,
-            query:
-              nativeMode === "retained" ? refusingQuery : (deps.nativeQuery ?? (await loadAgentSdkQuery())),
+            query: nativeMode === "active" ? (sdkQuery ?? refusingQuery) : refusingQuery,
             approvals,
             checkpoints: createNativeCheckpointPort({
               checkpoints,

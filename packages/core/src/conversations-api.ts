@@ -142,7 +142,7 @@ export function createConversationsApi(deps: {
   };
   changes: ChangeEmitter;
   notifications: NotificationSubmitter;
-  /** Present while the native flag is on, or while native threads exist and only their reading and cancelling is kept. */
+  /** Present while Claude Code is installed, or while native threads exist and only their reading and cancelling is kept. */
   native?: NativeService;
   /** What makes a Pi thread not idle for a handoff besides its run and queue. Default: nothing. */
   handoffGuards?: Pick<HandoffDeps, "hasPendingApprovals" | "hasRunningProcesses">;

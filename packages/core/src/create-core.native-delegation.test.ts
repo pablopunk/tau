@@ -2,7 +2,7 @@ import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { ConversationSummary, ConversationView, Core } from "@tau/protocol";
 import { afterEach, describe, expect, it } from "vitest";
-import { createCoreWith, defaultCoreDependencies } from "./create-core";
+import { type CoreDependencies, createCoreWith, defaultCoreDependencies } from "./create-core";
 import { EXECUTOR_NOT_AVAILABLE, NATIVE_BACKGROUND_REFUSED } from "./harness/tools/agent-native";
 import type { NativeQueryFn } from "./runtimes/native/controller";
 import { fakeQuery } from "./runtimes/native/delegation-fixture";
@@ -13,8 +13,9 @@ import { NO_UPDATE_OPTIONS } from "./test-support/update-options";
 const tempDir = useTempDir();
 const cores: Core[] = [];
 
-const NATIVE_ON = { TAU_EXPERIMENTAL_NATIVE_CLAUDE: "1" };
-const DELEGATION_ON = { ...NATIVE_ON, TAU_EXPERIMENTAL_NATIVE_DELEGATION: "1" };
+const CLAUDE_INSTALLED: Partial<CoreDependencies> = { claudeCodeInstalled: async () => true };
+const CLAUDE_MISSING: Partial<CoreDependencies> = { claudeCodeInstalled: async () => false };
+const DELEGATION_ON = { TAU_EXPERIMENTAL_NATIVE_DELEGATION: "1" };
 const DELEGATE = "delegate it";
 const POKE = "poke it";
 
@@ -31,12 +32,23 @@ const delegateReplies = (args: Record<string, unknown>): Replies => ({
   ],
 });
 
-async function openCore(root: string, env: Record<string, string>, replies: Replies, query: NativeQueryFn) {
+async function openCore(
+  root: string,
+  env: Record<string, string>,
+  replies: Replies,
+  query: NativeQueryFn,
+  installed: Partial<CoreDependencies> = {},
+) {
   const repliesFile = join(root, "replies.json");
   await writeFile(repliesFile, JSON.stringify(replies));
   const core = await createCoreWith(
     { home: homeIn(root), faux: true, ...NO_UPDATE_OPTIONS },
-    { ...defaultCoreDependencies(), env: { ...env, TAU_FAUX_REPLIES: repliesFile }, nativeQuery: query },
+    {
+      ...defaultCoreDependencies(),
+      env: { ...env, TAU_FAUX_REPLIES: repliesFile },
+      ...installed,
+      nativeQuery: query,
+    },
   );
   cores.push(core);
   return core;
@@ -75,14 +87,20 @@ const childrenOf = async (core: Core, projectId: string, parentId: string) =>
   (await core.conversations.list(projectId)).filter((thread) => thread.parentId === parentId);
 
 describe("createCore native delegation gate", () => {
-  it.each([
-    ["native on, delegation flag absent", NATIVE_ON],
-    ["delegation flag on, native off", { TAU_EXPERIMENTAL_NATIVE_DELEGATION: "1" }],
-    ["delegation flag not exactly 1", { ...NATIVE_ON, TAU_EXPERIMENTAL_NATIVE_DELEGATION: "true" }],
-  ])("refuses an executor call before any side effect: %s", async (_name, env) => {
+  it.each<[string, Record<string, string>, Partial<CoreDependencies>]>([
+    ["Claude Code installed, delegation flag absent", {}, CLAUDE_INSTALLED],
+    ["delegation flag on, Claude Code not installed", DELEGATION_ON, CLAUDE_MISSING],
+    ["delegation flag not exactly 1", { TAU_EXPERIMENTAL_NATIVE_DELEGATION: "true" }, CLAUDE_INSTALLED],
+  ])("refuses an executor call before any side effect: %s", async (_name, env, installed) => {
     const root = await tempDir();
     const counted = fakeQuery({ text: "must not run" });
-    const core = await openCore(root, env, delegateReplies({ executor: "claude-code" }), counted.query);
+    const core = await openCore(
+      root,
+      env,
+      delegateReplies({ executor: "claude-code" }),
+      counted.query,
+      installed,
+    );
     const project = await projectOf(core, root);
 
     const { parent, results } = await say(core, project.id, DELEGATE);
@@ -100,6 +118,7 @@ describe("createCore native delegation gate", () => {
       DELEGATION_ON,
       delegateReplies({ executor: "claude-code", run_in_background: true }),
       counted.query,
+      CLAUDE_INSTALLED,
     );
     const project = await projectOf(core, root);
 
@@ -120,6 +139,7 @@ describe("createCore native delegation", () => {
       DELEGATION_ON,
       delegateReplies({ executor: "claude-code" }),
       counted.query,
+      CLAUDE_INSTALLED,
     );
     const project = await projectOf(core, root);
 
@@ -155,7 +175,13 @@ describe("createCore native delegation", () => {
         },
       });
     };
-    const core = await openCore(root, DELEGATION_ON, delegateReplies({ executor: "claude-code" }), query);
+    const core = await openCore(
+      root,
+      DELEGATION_ON,
+      delegateReplies({ executor: "claude-code" }),
+      query,
+      CLAUDE_INSTALLED,
+    );
     const project = await projectOf(core, root);
     const parent = await core.conversations.start({
       projectId: project.id,
@@ -180,6 +206,7 @@ describe("createCore native delegation", () => {
       DELEGATION_ON,
       delegateReplies({ executor: "claude-code" }),
       counted.query,
+      CLAUDE_INSTALLED,
     );
     const project = await projectOf(first, root);
     const { parent } = await say(first, project.id, DELEGATE);
@@ -194,7 +221,7 @@ describe("createCore native delegation", () => {
         { text: "poked" },
       ],
     };
-    const second = await openCore(root, DELEGATION_ON, replies, counted.query);
+    const second = await openCore(root, DELEGATION_ON, replies, counted.query, CLAUDE_INSTALLED);
     const { results } = await say(second, project.id, POKE, parent);
 
     expect(results).toContain("is a native Claude child");

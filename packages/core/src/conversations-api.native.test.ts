@@ -182,7 +182,7 @@ describe("conversations api start with an explicit executor", () => {
 
     await expect(world.api(false).start(nativeStart())).rejects.toMatchObject({
       code: "invalid_request",
-      message: "native Claude is not enabled on this node",
+      message: "Claude Code is not installed on this node",
     });
 
     await expectNoSideEffects(world);
@@ -243,7 +243,7 @@ describe("conversations api start with an explicit executor", () => {
   });
 });
 
-describe("conversations api with the native flag off", () => {
+describe("conversations api with Claude Code not installed", () => {
   it("exposes no native entry point and leaves a Pi thread untouched", async () => {
     const world = await openWorld();
     const api = world.api(false);
@@ -288,7 +288,7 @@ describe("conversations api with the native flag off", () => {
   });
 });
 
-describe("conversations api with the native flag on", () => {
+describe("conversations api with Claude Code installed", () => {
   it("starts a native thread at the core level, runs it, and never touches Pi or the title model", async () => {
     const world = await openWorld();
     const api = world.api(true);

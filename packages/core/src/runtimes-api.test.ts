@@ -10,7 +10,7 @@ describe("createRuntimesApi", () => {
   it("lists claude-code disabled with the generic reason when there is no native service", async () => {
     expect(await claudeCodeOf(undefined)).toMatchObject({
       enabled: false,
-      reason: "native Claude is not enabled on this node",
+      reason: "Claude Code is not installed on this node",
     });
   });
 

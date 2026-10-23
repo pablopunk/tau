@@ -4,7 +4,7 @@ import { mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { ConversationSummary, Core } from "@tau/protocol";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createCoreWith, defaultCoreDependencies } from "./create-core";
+import { type CoreDependencies, createCoreWith, defaultCoreDependencies } from "./create-core";
 import * as harnessOpen from "./harness/open";
 import { RUNTIME_FORMAT_FILE } from "./harness/runtime-format";
 import type { NativeQueryFn } from "./runtimes/native/controller";
@@ -13,7 +13,8 @@ import { NO_UPDATE_OPTIONS } from "./test-support/update-options";
 
 const tempDir = useTempDir();
 const cores: Core[] = [];
-const FLAG_ON = { TAU_EXPERIMENTAL_NATIVE_CLAUDE: "1" };
+const CLAUDE_INSTALLED: Partial<CoreDependencies> = { claudeCodeInstalled: async () => true };
+const CLAUDE_MISSING: Partial<CoreDependencies> = { claudeCodeInstalled: async () => false };
 
 afterEach(async () => {
   vi.restoreAllMocks();
@@ -57,10 +58,15 @@ const startNativeOf = (core: Core) =>
 
 const manifestPath = (root: string) => join(homeIn(root), RUNTIME_FORMAT_FILE);
 
-async function openCore(root: string, env: Record<string, string>, nativeQuery?: NativeQueryFn) {
+async function openCore(
+  root: string,
+  env: Record<string, string>,
+  nativeQuery?: NativeQueryFn,
+  installed: Partial<CoreDependencies> = {},
+) {
   const core = await createCoreWith(
     { home: homeIn(root), faux: true, ...NO_UPDATE_OPTIONS },
-    { ...defaultCoreDependencies(), env, ...(nativeQuery && { nativeQuery }) },
+    { ...defaultCoreDependencies(), env, ...installed, ...(nativeQuery && { nativeQuery }) },
   );
   cores.push(core);
   return core;
@@ -82,14 +88,14 @@ describe("createCore refuses a runtime store it cannot read", () => {
   ];
 
   it.each(unreadable)(
-    "refuses %s before the harness opens, with the flag on or off",
+    "refuses %s before the harness opens, with Claude Code installed or not",
     async (_what, text, reason) => {
-      for (const env of [{}, FLAG_ON]) {
+      for (const installed of [CLAUDE_MISSING, CLAUDE_INSTALLED]) {
         const root = await tempDir();
         await seedManifest(root, text);
         const opened = vi.spyOn(harnessOpen, "openAgentHarness");
 
-        await expect(openCore(root, env, countedAnswer().query)).rejects.toMatchObject({
+        await expect(openCore(root, {}, countedAnswer().query, installed)).rejects.toMatchObject({
           code: "forbidden",
           message: expect.stringContaining(reason),
         });
@@ -100,14 +106,14 @@ describe("createCore refuses a runtime store it cannot read", () => {
         opened.mockRestore();
 
         await rm(manifestPath(root));
-        await expect(openCore(root, env, countedAnswer().query)).resolves.toBeDefined();
+        await expect(openCore(root, {}, countedAnswer().query, installed)).resolves.toBeDefined();
       }
     },
   );
 });
 
 describe("createCore and the format manifest", () => {
-  it("starts with an absent manifest and, with the flag off, never creates the file or a native thread", async () => {
+  it("starts with an absent manifest and, without Claude Code, never creates the file or a native thread", async () => {
     const root = await tempDir();
     const core = await openCore(root, {}, countedAnswer().query);
     await core.providers.setApiKey("openrouter", "sk-test");
@@ -121,9 +127,9 @@ describe("createCore and the format manifest", () => {
     expect((await readdir(homeIn(root))).filter((name) => name.includes("runtime-format"))).toEqual([]);
   });
 
-  it("creates nothing with the flag on until a native thread is started, and not for a Pi thread", async () => {
+  it("creates nothing with Claude Code installed until a native thread is started, and not for a Pi thread", async () => {
     const root = await tempDir();
-    const core = await openCore(root, FLAG_ON, countedAnswer().query);
+    const core = await openCore(root, {}, countedAnswer().query, CLAUDE_INSTALLED);
     await core.providers.setApiKey("openrouter", "sk-test");
     await core.settings.setDefaultModel({ provider: "faux", modelId: "faux-1" });
     const project = await core.projects.add({ path: root });
@@ -136,7 +142,7 @@ describe("createCore and the format manifest", () => {
   it("writes the manifest before the first native conversation record, once", async () => {
     const root = await tempDir();
     const counted = countedAnswer();
-    const core = await openCore(root, FLAG_ON, counted.query);
+    const core = await openCore(root, {}, counted.query, CLAUDE_INSTALLED);
     const project = await core.projects.add({ path: root });
     expect(existsSync(manifestPath(root))).toBe(false);
 
@@ -155,15 +161,15 @@ describe("createCore and the format manifest", () => {
 
   it("starts again over the manifest a native thread wrote", async () => {
     const root = await tempDir();
-    const core = await openCore(root, FLAG_ON, countedAnswer().query);
+    const core = await openCore(root, {}, countedAnswer().query, CLAUDE_INSTALLED);
     const project = await core.projects.add({ path: root });
     await startNativeOf(core)?.({ projectId: project.id, text: "one", requestId: "n-1" });
     await core.close();
     cores.splice(cores.indexOf(core), 1);
 
-    const flagOn = await openCore(root, FLAG_ON, countedAnswer().query);
-    await flagOn.close();
-    cores.splice(cores.indexOf(flagOn), 1);
+    const installedCore = await openCore(root, {}, countedAnswer().query, CLAUDE_INSTALLED);
+    await installedCore.close();
+    cores.splice(cores.indexOf(installedCore), 1);
     await expect(openCore(root, {}, countedAnswer().query)).resolves.toBeDefined();
   });
 });
@@ -191,12 +197,12 @@ const refsOf = (path: string, id: string): string[] =>
     .split("\n")
     .filter(Boolean);
 
-async function openGitProject(env: Record<string, string>, query: NativeQueryFn) {
+async function openGitProject(installed: Partial<CoreDependencies>, query: NativeQueryFn) {
   const root = await tempDir();
   const repository = join(root, "repo");
   await mkdir(repository);
   initRepository(repository);
-  const core = await openCore(root, env, query);
+  const core = await openCore(root, {}, query, installed);
   const project = await core.projects.add({ path: repository });
   return { root, repository, core, project };
 }
@@ -210,7 +216,7 @@ const lastRunEnded = (core: Core, projectId: string, id: string) =>
 describe("createCore native checkpoints", () => {
   it("snapshots before and after a native run in a git folder", async () => {
     const counted = countedAnswer();
-    const { repository, core, project } = await openGitProject(FLAG_ON, counted.query);
+    const { repository, core, project } = await openGitProject(CLAUDE_INSTALLED, counted.query);
 
     const native = await startNativeOf(core)?.({
       projectId: project.id,
@@ -228,7 +234,7 @@ describe("createCore native checkpoints", () => {
 
   it("blocks the run when the snapshot fails, spawns nothing, keeps the message and recovers on the next send", async () => {
     const counted = countedAnswer();
-    const { root, repository, core, project } = await openGitProject(FLAG_ON, counted.query);
+    const { root, repository, core, project } = await openGitProject(CLAUDE_INSTALLED, counted.query);
     const checkpointsFolder = join(homeIn(root), "checkpoints");
     await writeFile(checkpointsFolder, "in the way");
 
@@ -264,7 +270,7 @@ describe("createCore keeps Pi-only run-end consumers away from native threads", 
   it("never starts a goal or a loop on a native thread and records no goal for it", async () => {
     const root = await tempDir();
     const counted = countedAnswer();
-    const core = await openCore(root, FLAG_ON, counted.query);
+    const core = await openCore(root, {}, counted.query, CLAUDE_INSTALLED);
     const project = await core.projects.add({ path: root });
     const native = await startNativeOf(core)?.({ projectId: project.id, text: "work", requestId: "n-1" });
     const id = native?.id ?? "";

@@ -5,10 +5,10 @@ import { runtimeFormatPath } from "../../home/runtime-format-file";
 /** `retained`: new native work is refused, yet existing native threads are still reconciled, cancelled and read. */
 export type NativeMode = "off" | "active" | "retained";
 
-export const RETAINED_REASON = "disabled on this node; existing native threads are read-only";
+export const RETAINED_REASON =
+  "Claude Code is not installed on this node; existing Claude Code threads are read-only";
 
-export const retainedError = (): AppError =>
-  new AppError("invalid_request", `native Claude is ${RETAINED_REASON}`);
+export const retainedError = (): AppError => new AppError("invalid_request", RETAINED_REASON);
 
 export async function nativeStateExistsIn(root: string): Promise<boolean> {
   return (await readFileIfPresent(runtimeFormatPath(root))) !== undefined;

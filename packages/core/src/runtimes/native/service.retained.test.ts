@@ -13,7 +13,6 @@ import { createNativeService, type NativeService } from "./service";
 const tempDir = useTempDir();
 const open: RuntimeWorld[] = [];
 const services: NativeService[] = [];
-const RETAINED_MESSAGE = `native Claude is ${RETAINED_REASON}`;
 
 afterEach(async () => {
   await Promise.all(services.splice(0).map((service) => service.close().catch(() => undefined)));
@@ -92,7 +91,7 @@ describe("NativeService in retained mode", () => {
         workspace: legacyWorkspace(world.project.path),
         now: 1,
       }),
-    ).rejects.toMatchObject({ code: "invalid_request", message: RETAINED_MESSAGE });
+    ).rejects.toMatchObject({ code: "invalid_request", message: RETAINED_REASON });
 
     expect(world.service.creationEnabled).toBe(false);
     expect(world.ensureFormat).not.toHaveBeenCalled();
@@ -108,7 +107,7 @@ describe("NativeService in retained mode", () => {
 
     await expect(world.service.send(threadId, request("later"))).rejects.toMatchObject({
       code: "invalid_request",
-      message: RETAINED_MESSAGE,
+      message: RETAINED_REASON,
     });
     await world.service.settled();
 

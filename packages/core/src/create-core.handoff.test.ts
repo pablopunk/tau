@@ -1,13 +1,13 @@
 import type { ConversationSummary, Core } from "@tau/protocol";
 import { afterEach, describe, expect, it } from "vitest";
-import { createCoreWith, defaultCoreDependencies } from "./create-core";
+import { type CoreDependencies, createCoreWith, defaultCoreDependencies } from "./create-core";
 import type { NativeQueryFn } from "./runtimes/native/controller";
 import { homeIn, useTempDir } from "./test-support/temp-dir";
 import { NO_UPDATE_OPTIONS } from "./test-support/update-options";
 
 const tempDir = useTempDir();
 const cores: Core[] = [];
-const FLAG_ON = { TAU_EXPERIMENTAL_NATIVE_CLAUDE: "1" };
+const CLAUDE_INSTALLED: Partial<CoreDependencies> = { claudeCodeInstalled: async () => true };
 
 afterEach(async () => {
   await Promise.all(cores.splice(0).map((core) => core.close()));
@@ -45,10 +45,15 @@ function recordingAnswer() {
   return { query, prompts };
 }
 
-async function openCore(root: string, env: Record<string, string>, nativeQuery: NativeQueryFn) {
+async function openCore(
+  root: string,
+  env: Record<string, string>,
+  nativeQuery: NativeQueryFn,
+  installed: Partial<CoreDependencies> = {},
+) {
   const core = await createCoreWith(
     { home: homeIn(root), faux: true, ...NO_UPDATE_OPTIONS },
-    { ...defaultCoreDependencies(), env, nativeQuery },
+    { ...defaultCoreDependencies(), env, ...installed, nativeQuery },
   );
   cores.push(core);
   return core;
@@ -75,10 +80,10 @@ const threadsOf = async (core: Core, projectId: string): Promise<ConversationSum
   core.conversations.list(projectId);
 
 describe("createCore handoff", () => {
-  it("hands an idle Pi thread off to a new native thread when the flag is on", async () => {
+  it("hands an idle Pi thread off to a new native thread when Claude Code is installed", async () => {
     const root = await tempDir();
     const answering = recordingAnswer();
-    const core = await openCore(root, FLAG_ON, answering.query);
+    const core = await openCore(root, {}, answering.query, CLAUDE_INSTALLED);
     const { project, source } = await idlePiThread(core, root);
 
     const preview = await core.conversations.handoffPreview(source.id);
@@ -100,7 +105,7 @@ describe("createCore handoff", () => {
     expect(answering.prompts).toHaveLength(1);
   });
 
-  it("refuses while the flag is off, with the node-level reason and no new thread", async () => {
+  it("refuses while Claude Code is not installed, with the node-level reason and no new thread", async () => {
     const root = await tempDir();
     const answering = recordingAnswer();
     const core = await openCore(root, {}, answering.query);
@@ -109,10 +114,10 @@ describe("createCore handoff", () => {
     const preview = await core.conversations.handoffPreview(source.id);
     await expect(core.conversations.handoff(source.id, { requestId: "h-1" })).rejects.toMatchObject({
       code: "invalid_request",
-      message: "native Claude is not enabled on this node",
+      message: "Claude Code is not installed on this node",
     });
 
-    expect(preview).toMatchObject({ canHandoff: false, reason: "native Claude is not enabled on this node" });
+    expect(preview).toMatchObject({ canHandoff: false, reason: "Claude Code is not installed on this node" });
     expect(await threadsOf(core, project.id)).toHaveLength(1);
     expect(answering.prompts).toEqual([]);
   });

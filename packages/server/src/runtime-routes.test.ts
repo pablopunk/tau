@@ -37,7 +37,7 @@ describe("GET /api/runtimes", () => {
       ["pi", true],
       ["claude-code", false],
     ]);
-    expect(body.executors[1].reason).toBe("native Claude is not enabled on this node");
+    expect(body.executors[1].reason).toBe("Claude Code is not installed on this node");
   });
 
   it("is reachable through a node hub like the other node-scoped routes", () => {
@@ -59,7 +59,7 @@ describe("POST /api/conversations with an executor", () => {
     expect(response.statusCode).toBe(ERROR_STATUS.invalid_request);
     expect(response.json().error).toMatchObject({
       code: "invalid_request",
-      message: "native Claude is not enabled on this node",
+      message: "Claude Code is not installed on this node",
     });
     expect(await ctx.core.conversations.list(projectId)).toEqual([]);
   });

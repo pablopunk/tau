@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AppError, describeExecutors, type RuntimeCapabilities } from "@tau/protocol";
 import { createFakeCore, type FakeCore } from "@tau/testkit";
-import { render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -67,16 +67,24 @@ describe("<NewThreadPage> engine choice", () => {
     expect(screen.queryByRole("radiogroup", { name: "Engine" })).not.toBeInTheDocument();
   });
 
-  it("shows the engine choice, Pi selected, when Claude Code is enabled", async () => {
+  it("shows the engine choice, Claude Code selected, when Claude Code is installed", async () => {
     await renderPage(enabled);
     const group = await screen.findByRole("radiogroup", { name: "Engine" });
-    expect(screen.getByRole("radio", { name: "Pi" })).toBeChecked();
-    expect(group).toHaveTextContent("Claude Code");
+    expect(screen.getByRole("radio", { name: "Claude Code" })).toBeChecked();
+    expect(group).toHaveTextContent("Pi");
+  });
+
+  it("remembers the engine picked last", async () => {
+    const first = await renderPage(enabled);
+    await first.user.click(await screen.findByRole("radio", { name: "Pi" }));
+    cleanup();
+    await renderPage(enabled);
+    expect(await screen.findByRole("radio", { name: "Pi" })).toBeChecked();
   });
 
   it("starts a Pi thread with a request that has no executor key", async () => {
     const { start, user } = await renderPage(enabled);
-    await screen.findByRole("radiogroup", { name: "Engine" });
+    await user.click(await screen.findByRole("radio", { name: "Pi" }));
     await user.type(screen.getByLabelText("Message"), "hello{Enter}");
     await waitFor(() => expect(start).toHaveBeenCalled());
     const body = start.mock.calls[0]?.[0] as Record<string, unknown>;
@@ -87,7 +95,7 @@ describe("<NewThreadPage> engine choice", () => {
 
   it("starts a Claude Code thread with the executor and without model or thinking", async () => {
     const { start, user } = await renderPage(enabled);
-    await user.click(await screen.findByRole("radio", { name: "Claude Code" }));
+    await screen.findByRole("radiogroup", { name: "Engine" });
     await user.type(screen.getByLabelText("Message"), "hello{Enter}");
     await waitFor(() => expect(start).toHaveBeenCalled());
     const body = start.mock.calls[0]?.[0] as Record<string, unknown>;
@@ -98,9 +106,7 @@ describe("<NewThreadPage> engine choice", () => {
 
   it("hides model, thinking and attachments for Claude Code and says why", async () => {
     const { user } = await renderPage(enabled);
-    await screen.findByRole("combobox", { name: "Model" });
-    expect(screen.getByRole("button", { name: "Attach files" })).toBeInTheDocument();
-    await user.click(await screen.findByRole("radio", { name: "Claude Code" }));
+    await screen.findByRole("radiogroup", { name: "Engine" });
     expect(screen.queryByRole("combobox", { name: "Model" })).not.toBeInTheDocument();
     expect(screen.queryByRole("combobox", { name: "Thinking level" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Attach files" })).not.toBeInTheDocument();

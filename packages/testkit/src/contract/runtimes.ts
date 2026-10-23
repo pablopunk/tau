@@ -5,7 +5,7 @@ import type { CaseRunner } from "./case-runner";
 import { addProject, configure, nextRequestId, rejectsWithCode, startConversation } from "./helpers";
 import type { ContractTarget, MakeContractTarget } from "./types";
 
-const NATIVE_OFF_MESSAGE = "native Claude is not enabled on this node";
+const NATIVE_OFF_MESSAGE = "Claude Code is not installed on this node";
 
 export function runtimeCases(make: MakeContractTarget, test: CaseRunner): void {
   describe("runtimes (native off)", () => {

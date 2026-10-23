@@ -44,7 +44,7 @@ export function NewThreadPage() {
   const [chosenModel, setModel] = useState<ModelRef | null>(initialDraft.model);
   const [chosenLevel, setLevel] = useState<ThinkingLevel | null>(initialDraft.thinkingLevel);
   const [workspace, setWorkspace] = useState<WorkspaceMode | null>(initialDraft.workspace);
-  const [chosenEngine, setEngine] = useState<ExecutorKind>("pi");
+  const [chosenEngine, setEngine] = useState<ExecutorKind | null>(() => preferences.getLastEngine(nodeId));
   const [busy, setBusy] = useState(false);
   const paramProject = params.get("project");
 
@@ -67,8 +67,12 @@ export function NewThreadPage() {
     }),
     [],
   );
-  const engineChoice = enabledClaudeCode(runtimes.data) ? chosenEngine : undefined;
+  const engineChoice = enabledClaudeCode(runtimes.data) ? (chosenEngine ?? "claude-code") : undefined;
   const native = engineChoice === "claude-code";
+  const chooseEngine = (engine: ExecutorKind) => {
+    setEngine(engine);
+    preferences.setLastEngine(engine, nodeId);
+  };
 
   if (!projects.data || !models.data || !settings.data) return <NewThreadSkeleton />;
 
@@ -122,7 +126,7 @@ export function NewThreadPage() {
       />
       <WorktreeToggle projectId={projectId} value={workspace} onChange={setWorkspace} disabled={busy} />
       {cloning ? <span className="text-xs text-muted-foreground">Cloning…</span> : null}
-      {engineChoice ? <EngineToggle value={engineChoice} onChange={setEngine} disabled={busy} /> : null}
+      {engineChoice ? <EngineToggle value={engineChoice} onChange={chooseEngine} disabled={busy} /> : null}
       {native ? null : (
         <ModelThinkingPickers
           ref={pickers}

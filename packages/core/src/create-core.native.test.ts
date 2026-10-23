@@ -1,13 +1,13 @@
 import type { ConversationSummary, Core } from "@tau/protocol";
 import { afterEach, describe, expect, it } from "vitest";
-import { createCoreWith, defaultCoreDependencies } from "./create-core";
+import { type CoreDependencies, createCoreWith, defaultCoreDependencies } from "./create-core";
 import type { NativeQueryFn } from "./runtimes/native/controller";
 import { homeIn, useTempDir } from "./test-support/temp-dir";
 import { NO_UPDATE_OPTIONS } from "./test-support/update-options";
 
 const tempDir = useTempDir();
 const cores: Core[] = [];
-const FLAG_ON = { TAU_EXPERIMENTAL_NATIVE_CLAUDE: "1" };
+const CLAUDE_INSTALLED: Partial<CoreDependencies> = { claudeCodeInstalled: async () => true };
 
 afterEach(async () => {
   await Promise.all(cores.splice(0).map((core) => core.close()));
@@ -55,10 +55,15 @@ function countedAnswer(): Counted {
 const startNativeOf = (core: Core) =>
   (core.conversations as { startNative?: (input: unknown) => Promise<ConversationSummary> }).startNative;
 
-async function openCore(root: string, env: Record<string, string>, nativeQuery?: NativeQueryFn) {
+async function openCore(
+  root: string,
+  env: Record<string, string>,
+  nativeQuery?: NativeQueryFn,
+  installed: Partial<CoreDependencies> = {},
+) {
   const core = await createCoreWith(
     { home: homeIn(root), faux: true, ...NO_UPDATE_OPTIONS },
-    { ...defaultCoreDependencies(), env, ...(nativeQuery && { nativeQuery }) },
+    { ...defaultCoreDependencies(), env, ...installed, ...(nativeQuery && { nativeQuery }) },
   );
   cores.push(core);
   return core;
@@ -74,7 +79,7 @@ const executorsOf = async (core: Core) =>
   Object.fromEntries((await core.runtimes.list()).executors.map((entry) => [entry.executor, entry]));
 
 describe("createCore wire start and runtimes.list", () => {
-  it("lists claude-code disabled with a reason when the flag is off", async () => {
+  it("lists claude-code disabled with a reason when Claude Code is not installed", async () => {
     const core = await openCore(await tempDir(), {}, countedAnswer().query);
 
     const executors = await executorsOf(core);
@@ -83,7 +88,7 @@ describe("createCore wire start and runtimes.list", () => {
     expect(executors.pi).toMatchObject({ enabled: true });
     expect(executors["claude-code"]).toMatchObject({
       enabled: false,
-      reason: "native Claude is not enabled on this node",
+      reason: "Claude Code is not installed on this node",
     });
     expect(executors["claude-code"]?.capabilities.followUp).toEqual({
       supported: false,
@@ -91,8 +96,8 @@ describe("createCore wire start and runtimes.list", () => {
     });
   });
 
-  it("lists claude-code enabled with the native capabilities when the flag is on", async () => {
-    const core = await openCore(await tempDir(), FLAG_ON, countedAnswer().query);
+  it("lists claude-code enabled with the native capabilities when Claude Code is installed", async () => {
+    const core = await openCore(await tempDir(), {}, countedAnswer().query, CLAUDE_INSTALLED);
 
     const executors = await executorsOf(core);
 
@@ -102,7 +107,7 @@ describe("createCore wire start and runtimes.list", () => {
     expect(executors["claude-code"]?.reason).toBeUndefined();
   });
 
-  it("refuses a claude-code start with the flag off and never starts a Pi thread instead", async () => {
+  it("refuses a claude-code start without Claude Code and never starts a Pi thread instead", async () => {
     const root = await tempDir();
     const counted = countedAnswer();
     const core = await openCore(root, {}, counted.query);
@@ -119,17 +124,17 @@ describe("createCore wire start and runtimes.list", () => {
       }),
     ).rejects.toMatchObject({
       code: "invalid_request",
-      message: "native Claude is not enabled on this node",
+      message: "Claude Code is not installed on this node",
     });
 
     expect(await core.conversations.list(project.id)).toEqual([]);
     expect(counted.runs()).toBe(0);
   });
 
-  it("starts a native thread from conversations.start with the flag on, and Pi when the executor is omitted or pi", async () => {
+  it("starts a native thread from conversations.start with Claude Code installed, and Pi when the executor is omitted or pi", async () => {
     const root = await tempDir();
     const counted = countedAnswer();
-    const core = await openCore(root, FLAG_ON, counted.query);
+    const core = await openCore(root, {}, counted.query, CLAUDE_INSTALLED);
     await core.providers.setApiKey("openrouter", "sk-test");
     await core.settings.setDefaultModel({ provider: "faux", modelId: "faux-1" });
     const project = await core.projects.add({ path: root });
@@ -203,7 +208,7 @@ describe("createCore and native permissions", () => {
   it("runs native threads with Claude Code's tools and asks through the core approvals", async () => {
     const root = await tempDir();
     const asking = askingForBash();
-    const core = await openCore(root, FLAG_ON, asking.query);
+    const core = await openCore(root, {}, asking.query, CLAUDE_INSTALLED);
     const project = await core.projects.add({ path: root });
 
     const native = await startNativeOf(core)?.({ projectId: project.id, text: "touch it", requestId: "a-1" });
@@ -228,7 +233,7 @@ describe("createCore and native permissions", () => {
   it("denies the waiting approval when the native thread is removed", async () => {
     const root = await tempDir();
     const asking = askingForBash();
-    const core = await openCore(root, FLAG_ON, asking.query);
+    const core = await openCore(root, {}, asking.query, CLAUDE_INSTALLED);
     const project = await core.projects.add({ path: root });
     const native = await startNativeOf(core)?.({ projectId: project.id, text: "touch it", requestId: "a-1" });
     const id = native?.id ?? "";
@@ -244,21 +249,19 @@ describe("createCore and native permissions", () => {
   });
 });
 
-describe("createCore and the native flag", () => {
-  it.each<Record<string, string>>([
-    {},
-    { TAU_EXPERIMENTAL_NATIVE_CLAUDE: "0" },
-    { TAU_EXPERIMENTAL_NATIVE_CLAUDE: "true" },
-  ])("keeps native unreachable unless the flag is exactly 1 (%j)", async (env) => {
-    const core = await openCore(await tempDir(), env, countedAnswer().query);
+describe("createCore and Claude Code installation", () => {
+  it("keeps native unreachable when claudeCodeInstalled resolves false", async () => {
+    const core = await openCore(await tempDir(), {}, countedAnswer().query, {
+      claudeCodeInstalled: async () => false,
+    });
 
     expect(startNativeOf(core)).toBeUndefined();
   });
 
-  it("starts, runs and sends to a native thread when the flag is on, beside an untouched Pi thread", async () => {
+  it("starts, runs and sends to a native thread when Claude Code is installed, beside an untouched Pi thread", async () => {
     const root = await tempDir();
     const counted = countedAnswer();
-    const core = await openCore(root, FLAG_ON, counted.query);
+    const core = await openCore(root, {}, counted.query, CLAUDE_INSTALLED);
     await core.providers.setApiKey("openrouter", "sk-test");
     await core.settings.setDefaultModel({ provider: "faux", modelId: "faux-1" });
     const project = await core.projects.add({ path: root });
@@ -285,7 +288,7 @@ describe("createCore and the native flag", () => {
   it("keeps a native thread across a restart and never relaunches it", async () => {
     const root = await tempDir();
     const first = countedAnswer();
-    const core = await openCore(root, FLAG_ON, first.query);
+    const core = await openCore(root, {}, first.query, CLAUDE_INSTALLED);
     const project = await core.projects.add({ path: root });
     const native = await startNativeOf(core)?.({
       projectId: project.id,
@@ -297,7 +300,7 @@ describe("createCore and the native flag", () => {
     cores.splice(cores.indexOf(core), 1);
 
     const second = countedAnswer();
-    const restarted = await openCore(root, FLAG_ON, second.query);
+    const restarted = await openCore(root, {}, second.query, CLAUDE_INSTALLED);
     await sleep(300);
 
     const listed = (await restarted.conversations.list(project.id)).find(
