@@ -1,0 +1,69 @@
+{
+  "version": 1,
+  "namespace": "E",
+  "seed": 15158,
+  "fixtures": {
+    "small-v1": {
+      "files": 16,
+      "bytesPerFile": 1024,
+      "payloadBytes": 16384,
+      "directories": 4,
+      "naming": "dir-floor(index/ceil(files/directories))/file-index.txt",
+      "content": "repeat ASCII \"product-recovery/v1 seed=15158 file={index}\\n\" then truncate to bytesPerFile",
+      "inventorySha256": "9d6142eb1f252c4e04c9e0e584ee54fe6adbb0585627f0a27fdd22e9bf7a968c",
+      "inventoryOrder": "numeric file index; each UTF-8 line is sha256 + two spaces + relative path + LF; excludes Git metadata"
+    },
+    "monorepo-v1": {
+      "files": 4096,
+      "bytesPerFile": 4096,
+      "payloadBytes": 16777216,
+      "directories": 64,
+      "naming": "dir-floor(index/ceil(files/directories))/file-index.txt",
+      "content": "repeat ASCII \"product-recovery/v1 seed=15158 file={index}\\n\" then truncate to bytesPerFile",
+      "inventorySha256": "b1f31fac0964930d4fdaf1e68edf0399da9cbfdfb5468fc3335c73e0efd4e259",
+      "inventoryOrder": "numeric file index; each UTF-8 line is sha256 + two spaces + relative path + LF; excludes Git metadata"
+    }
+  },
+  "cases": [
+    {
+      "id": "E.first-assistant-text",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["E.first-assistant-text"]
+    },
+    {
+      "id": "E.follow-up",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["E.follow-up"]
+    },
+    {
+      "id": "E.restart",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["E.restart"]
+    },
+    {
+      "id": "E.real-preparation",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["E.real-preparation"]
+    },
+    {
+      "id": "E.worktree",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["E.worktree"]
+    },
+    {
+      "id": "E.nested-cwd",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["E.nested-cwd"]
+    },
+    {
+      "id": "E.cleanup",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["E.cleanup"]
+    },
+    {
+      "id": "E.frontend-provenance",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["E.frontend-provenance"]
+    }
+  ]
+}
