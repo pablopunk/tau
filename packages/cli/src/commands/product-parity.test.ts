@@ -1,9 +1,14 @@
 import { mkdir, rmdir } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { latestTodos, viewToText } from "@tau/protocol";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createParityHarness, parityUserEntries, parityView } from "./product-parity-support";
 
-const lease = "/private/tmp/tau-product-recovery-heavy-15158add-7047a353.lock";
+const lease = join(
+  process.platform === "darwin" ? "/private/tmp" : tmpdir(),
+  "tau-product-recovery-heavy-15158add-7047a353.lock",
+);
 let ownsLease = false;
 let h: Awaited<ReturnType<typeof createParityHarness>>;
 

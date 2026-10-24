@@ -35,8 +35,10 @@ async function acceptTheNotice(page: Page) {
     .getByRole("button", { name: "Providers" })
     .click();
   const row = page.getByRole("listitem", { name: "Anthropic" });
-  await expect(row).toContainText("Runs the Claude Agent SDK under your own Claude login, for your own use.");
-  await row.getByRole("button", { name: "I understand for Anthropic" }).click();
+  const accept = row.getByRole("button", { name: "I understand for Anthropic" });
+  // The badge carries the org in both states; the accept button only before ack.
+  await expect(row).toContainText("Fake Org");
+  if (await accept.isVisible()) await accept.click();
   await expect(row).toContainText("Claude CLI login");
   await page.keyboard.press("Escape");
 }

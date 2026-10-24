@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { expect, type Page, test } from "@playwright/test";
-import { demoRepository, PORT, tokenFile } from "../support";
+import { demoRepository, PORT, tokenFile, waitForConversationRunEnd } from "../support";
 
 const COMMIT = "bash git add -A && git -c user.name=e2e -c user.email=e2e@example.com commit -q -m note";
 
@@ -87,7 +87,13 @@ test.describe("MVP5", () => {
   });
 
   test("a worktree thread edits a file, commits it and merges into main", async () => {
-    await startThreadInDemoRepository(page, "write note.txt hello");
+    // Unique per run: a serial retry re-runs against the same repo, and a
+    // fixed filename would already be committed (empty second commit fails).
+    const note = `note-${Date.now().toString(36)}.txt`;
+    await startThreadInDemoRepository(page, `write ${note} hello`);
+    // The header chip hides while the conversation sidebar is open (open by default).
+    const closeSidebar = page.getByRole("button", { name: "Close conversation sidebar" });
+    if ((await closeSidebar.count()) > 0) await closeSidebar.click();
     const chip = page.getByRole("button", { name: "Workspace" });
     await expect(chip).toContainText("pi/");
     await sendAndWaitForDone(page, COMMIT, 2);
@@ -96,7 +102,7 @@ test.describe("MVP5", () => {
     await page.getByRole("menuitem", { name: /Merge into main/ }).click();
     await expect(chip).toContainText("merged");
     await expect
-      .poll(() => readFileSync(join(demoRepository(), "note.txt"), "utf8"), { timeout: 10_000 })
+      .poll(() => readFileSync(join(demoRepository(), note), "utf8"), { timeout: 10_000 })
       .toBe("hello");
   });
 
@@ -138,6 +144,19 @@ test.describe("MVP5", () => {
     await queued.getByRole("button", { name: "Cancel" }).click();
     await expect(queued).toBeHidden();
     await expect(page.getByRole("button", { name: "Stop", exact: true })).toBeHidden({ timeout: 20_000 });
+    await openSettingsSection(page, "Agent");
+    const steer = page.getByRole("radio", { name: "Steer" });
+    await steer.click();
+    await expect(steer).toBeChecked();
+    await expect
+      .poll(async () => {
+        const response = await page.request.get("/api/settings");
+        if (!response.ok()) return null;
+        const settings = (await response.json()) as { messageMode: string };
+        return settings.messageMode;
+      })
+      .toBe("steer");
+    await page.keyboard.press("Escape");
   });
 
   test("the todo panel shows the agent's list", async () => {
@@ -150,25 +169,30 @@ test.describe("MVP5", () => {
   });
 
   test("the processes sheet lists a background process and stops it", async () => {
+    test.setTimeout(60_000);
     await openNewThread(page);
     await send(page, "bg sleep 300");
+    await waitForConversationRunEnd(page);
+    // Load the persisted process list after the tool run has finished.
+    await page.reload();
     const chip = page.getByRole("button", { name: "1 running processes" });
     await expect(chip).toBeVisible({ timeout: 20_000 });
+    // Since collapsed indicators reveal the sidebar, the chip opens the
+    // processes section there instead of a dialog.
     await chip.click();
-    const sheet = page.getByRole("dialog", { name: "Background processes" });
-    await expect(sheet).toContainText("sleep 300");
-    await sheet.getByRole("button", { name: "Stop", exact: true }).click();
-    await expect(sheet.getByRole("button", { name: "Stop", exact: true })).toBeHidden();
-    await page.keyboard.press("Escape");
+    const sidebar = page.getByRole("complementary", { name: "Conversation details" });
+    // The row shows the command twice (name <span> and command <code>).
+    await expect(sidebar.getByText("sleep 300").first()).toBeVisible();
+    await sidebar.getByRole("button", { name: "Stop", exact: true }).click();
+    await expect(sidebar.getByRole("button", { name: "Stop", exact: true })).toBeHidden({ timeout: 20_000 });
   });
 
   test("a subagent child shows in the sidebar and opens read-only", async () => {
     await openNewThread(page);
     await send(page, "agent investigate");
-    await expect(page.getByRole("button", { name: /Collapse subagents of/ })).toBeVisible({
-      timeout: 20_000,
-    });
-    await page.getByRole("link", { name: /^(New activity )?investigate$/ }).click();
+    const child = page.getByRole("link", { name: /^(New activity )?investigate$/ });
+    await expect(child).toBeVisible({ timeout: 20_000 });
+    await child.click();
     await expect(page.getByText("Subagent of")).toBeVisible();
     await expect(messageBox(page)).toHaveCount(0);
   });

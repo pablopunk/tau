@@ -348,9 +348,13 @@ export function createConversationsApi(deps: {
   }
 
   async function startWithModel(input: StartConversationInput): Promise<ConversationSummary> {
+    // Unknown projects are not_found even before any provider check, mirroring the fake core.
+    await projects.require(input.projectId);
     const existing = (await indexOf(deps.harness, input.projectId)).find(
       (entry) => entry.startRequestId === input.requestId && isLive(entry),
     );
+    // No executor keeps the previous one on retry, and means Pi routing for
+    // non-Claude models; a Claude model without one routes to native (see below).
     const executor = existing ? (existing.executor ?? "pi") : input.executor;
     if (existing && input.executor && input.executor !== executor) {
       throw new AppError("invalid_request", "This start request already belongs to a different executor.");

@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { expect, type Page, test } from "@playwright/test";
@@ -5,7 +6,42 @@ import { homeDir, tokenFile } from "../support";
 
 const readToken = () => readFileSync(tokenFile(), "utf8").trim();
 const conversation = (page: Page) => page.getByTestId("conversation");
-const sidebar = (page: Page) => page.getByRole("complementary").or(page.getByLabel("Projects and threads"));
+
+async function waitForConversationRunEndAfter(page: Page, previousEndAt: number | null): Promise<number> {
+  await expect(page).toHaveURL(/\/c\/[^/]+$/, { timeout: 30_000 });
+  await expect(conversation(page)).toBeVisible();
+  const id = new URL(page.url()).pathname.split("/").pop();
+  let endAt: number | null = null;
+
+  await expect
+    .poll(
+      async () => {
+        if (!id) return false;
+        const response = await page.request.get("/api/conversations");
+        if (!response.ok()) return false;
+        const conversations = (await response.json()) as {
+          id: string;
+          status: string;
+          lastRunEndedAt: number | null;
+        }[];
+        const current = conversations.find((item) => item.id === id);
+        if (
+          current?.status !== "idle" ||
+          current.lastRunEndedAt === null ||
+          current.lastRunEndedAt === previousEndAt
+        ) {
+          return false;
+        }
+        endAt = current.lastRunEndedAt;
+        return true;
+      },
+      { timeout: 60_000 },
+    )
+    .toBe(true);
+
+  if (endAt === null) throw new Error("conversation run ended without an end timestamp");
+  return endAt;
+}
 
 async function completeSetup(page: Page) {
   const addKey = page
@@ -40,6 +76,7 @@ test.describe("thread scroll containment", () => {
   test.afterAll(() => page.close());
 
   test("a long tool-call thread scrolls the transcript, not the page", async () => {
+    test.setTimeout(120_000);
     await completeSetup(page);
     await expect(page.getByRole("heading", { name: "New thread" })).toBeVisible();
 
@@ -47,13 +84,13 @@ test.describe("thread scroll containment", () => {
     // Those spans are absolutely positioned: without a positioned ancestor
     // inside the transcript scroller they inflate the page-level scroll
     // container and produce a second, mostly empty scrollbar.
-    // Wait for each run to finish before sending the next: while busy the
-    // Send button becomes "Send as steer".
-    const runningDot = sidebar(page).locator('[data-slot="bot-avatar"][data-working="true"]');
+    const retrySafeId = randomUUID();
+    let previousEndAt: number | null = null;
     for (let i = 0; i < 8; i += 1) {
-      await send(page, `write scroll${i}.txt line${i}`);
-      await expect.poll(() => existsSync(join(homeDir(), `scroll${i}.txt`)), { timeout: 30_000 }).toBe(true);
-      await expect(runningDot).toHaveCount(0, { timeout: 60_000 });
+      const filename = `scroll-${retrySafeId}-${i}.txt`;
+      await send(page, `write ${filename} line${i}`);
+      await expect.poll(() => existsSync(join(homeDir(), filename)), { timeout: 30_000 }).toBe(true);
+      previousEndAt = await waitForConversationRunEndAfter(page, previousEndAt);
     }
 
     const overflow = await page.evaluate(() => {
