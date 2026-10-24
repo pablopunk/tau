@@ -156,8 +156,12 @@ test.describe("MVP5", () => {
   });
 
   test("the processes sheet lists a background process and stops it", async () => {
+    test.setTimeout(60_000);
     await openNewThread(page);
     await send(page, "bg sleep 300");
+    await expect(page.getByRole("button", { name: "Send", exact: true })).toBeEnabled({ timeout: 30_000 });
+    // Load the persisted process list after the tool run has finished.
+    await page.reload();
     const chip = page.getByRole("button", { name: "1 running processes" });
     await expect(chip).toBeVisible({ timeout: 20_000 });
     // Since collapsed indicators reveal the sidebar, the chip opens the
@@ -173,10 +177,9 @@ test.describe("MVP5", () => {
   test("a subagent child shows in the sidebar and opens read-only", async () => {
     await openNewThread(page);
     await send(page, "agent investigate");
-    await expect(page.getByRole("button", { name: /Collapse subagents of/ })).toBeVisible({
-      timeout: 20_000,
-    });
-    await page.getByRole("link", { name: /^(New activity )?investigate$/ }).click();
+    const child = page.getByRole("link", { name: /^(New activity )?investigate$/ });
+    await expect(child).toBeVisible({ timeout: 20_000 });
+    await child.click();
     await expect(page.getByText("Subagent of")).toBeVisible();
     await expect(messageBox(page)).toHaveCount(0);
   });

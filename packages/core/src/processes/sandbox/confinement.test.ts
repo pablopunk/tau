@@ -23,8 +23,8 @@ afterEach(async () => {
   await Promise.all(dirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })));
 });
 
-const temp = async (prefix: string) => {
-  const dir = await mkdtemp(join(tmpdir(), prefix));
+const temp = async (prefix: string, parent = tmpdir()) => {
+  const dir = await mkdtemp(join(parent, prefix));
   dirs.push(dir);
   return dir;
 };
@@ -83,7 +83,7 @@ describe("macOS Seatbelt confinement, really enforced", () => {
   });
 });
 
-const haveSystemdUser = async (): Promise<boolean> => {
+const haveSystemdSandbox = async (): Promise<boolean> => {
   if (process.platform !== "linux") return false;
   if (!canExec("/usr/bin/systemd-run")) return false;
   try {
@@ -92,10 +92,12 @@ const haveSystemdUser = async (): Promise<boolean> => {
       "--pipe",
       "--wait",
       "--collect",
-      `--unit=tau-sandbox-probe-${process.pid}`,
+      `--unit=tau-sandbox-probe-${process.pid}.service`,
+      "--property=ProtectSystem=strict",
+      "--property=PrivateTmp=yes",
       "--",
       "true",
-    ]);
+    ], { timeout: 30_000 });
     return true;
   } catch {
     return false;
@@ -103,10 +105,10 @@ const haveSystemdUser = async (): Promise<boolean> => {
 };
 
 describe("Linux systemd confinement, really enforced", () => {
-  it("allows writes inside, denies writes outside", async () => {
-    if (!(await haveSystemdUser())) return;
-    const wt = await temp("pi-sb-lin-");
-    const outside = await temp("pi-sb-lout-");
+  it("allows writes inside, denies writes outside", async ({ skip }) => {
+    if (!(await haveSystemdSandbox())) skip("systemd user sandbox properties are unavailable");
+    const wt = await temp("pi-sb-lin-", process.cwd());
+    const outside = await temp("pi-sb-lout-", process.cwd());
     const prefix = buildSystemdSandboxPrefix({
       systemdRun: "/usr/bin/systemd-run",
       root: wt,
@@ -115,29 +117,9 @@ describe("Linux systemd confinement, really enforced", () => {
     });
     const runInside = (command: string) =>
       run(prefix.file, [...prefix.args, "/bin/sh", "-c", command], { timeout: 30_000 });
-    // If the sandboxed write itself cannot run (e.g. no namespace support in
-    // this container), there is nothing to prove here; the prefix args are
-    // covered by pure unit tests.
-    try {
-      await runInside(`echo hi > ${wt}/in.txt`);
-    } catch {
-      console.warn("tau: systemd-run cannot run sandboxed commands here; skipping the enforcement proof");
-      return;
-    }
+    await runInside(`echo hi > ${wt}/in.txt`);
     expect((await stat(join(wt, "in.txt"))).isFile()).toBe(true);
-    // With PrivateTmp the outside write can succeed vacuously into a private
-    // /tmp; what must never happen is the file materializing on the host.
-    // Some CI runners ignore the sandbox properties entirely: a canary that
-    // escapes proves this environment cannot enforce, so skip the proof here
-    // (the prefix args themselves are covered by pure unit tests).
-    await runInside(`echo hi > ${outside}/out.txt`).catch(() => undefined);
-    const leaked = await stat(join(outside, "out.txt")).then(
-      () => true,
-      () => false,
-    );
-    if (leaked) {
-      console.warn("tau: systemd-run does not confine writes here; skipping the enforcement proof");
-      return;
-    }
+    await expect(runInside(`echo hi > ${outside}/out.txt`)).rejects.toThrow();
+    await expect(stat(join(outside, "out.txt"))).rejects.toThrow();
   }, 60_000);
 });
