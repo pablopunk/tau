@@ -83,9 +83,13 @@ describe("macOS Seatbelt confinement, really enforced", () => {
   });
 });
 
-const haveSystemdSandbox = async (): Promise<boolean> => {
+const canEnforceSystemdSandbox = async (): Promise<boolean> => {
   if (process.platform !== "linux") return false;
   if (!canExec("/usr/bin/systemd-run")) return false;
+  const root = await temp("tau-sandbox-probe-in-", process.cwd());
+  const outside = await temp("tau-sandbox-probe-out-", process.cwd());
+  const insideFile = join(root, "inside.txt");
+  const outsideFile = join(outside, "outside.txt");
   try {
     await run(
       "/usr/bin/systemd-run",
@@ -95,22 +99,38 @@ const haveSystemdSandbox = async (): Promise<boolean> => {
         "--wait",
         "--collect",
         `--unit=tau-sandbox-probe-${process.pid}.service`,
+        `--working-directory=${root}`,
         "--property=ProtectSystem=strict",
+        "--property=ProtectHome=read-only",
+        `--property=ReadWritePaths=${root}`,
         "--property=PrivateTmp=yes",
         "--",
-        "true",
+        process.execPath,
+        "-e",
+        "require('node:fs').writeFileSync(process.argv[1], 'inside'); require('node:fs').writeFileSync(process.argv[2], 'outside')",
+        insideFile,
+        outsideFile,
       ],
       { timeout: 30_000 },
     );
-    return true;
-  } catch {
     return false;
+  } catch {
+    const insideAllowed = await stat(insideFile).then(
+      (file) => file.isFile(),
+      () => false,
+    );
+    const outsideDenied = await stat(outsideFile).then(
+      () => false,
+      () => true,
+    );
+    return insideAllowed && outsideDenied;
   }
 };
 
 describe("Linux systemd confinement, really enforced", () => {
   it("allows writes inside, denies writes outside", async ({ skip }) => {
-    if (!(await haveSystemdSandbox())) skip("systemd user sandbox properties are unavailable");
+    if (!(await canEnforceSystemdSandbox()))
+      skip("systemd user sandbox cannot enforce filesystem confinement");
     const wt = await temp("pi-sb-lin-", process.cwd());
     const outside = await temp("pi-sb-lout-", process.cwd());
     const prefix = buildSystemdSandboxPrefix({
