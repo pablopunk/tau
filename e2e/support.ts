@@ -96,6 +96,7 @@ export const tokenFile = () => join(stateDir(), "token");
 
 export async function waitForConversationRunEnd(page: Page): Promise<void> {
   await expect(page).toHaveURL(/\/c\/[^/]+$/, { timeout: 30_000 });
+  await expect(page.getByTestId("conversation")).toBeVisible();
   const id = new URL(page.url()).pathname.split("/").pop();
   await expect
     .poll(
