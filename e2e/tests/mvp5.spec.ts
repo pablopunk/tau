@@ -144,6 +144,11 @@ test.describe("MVP5", () => {
     await queued.getByRole("button", { name: "Cancel" }).click();
     await expect(queued).toBeHidden();
     await expect(page.getByRole("button", { name: "Stop", exact: true })).toBeHidden({ timeout: 20_000 });
+    await openSettingsSection(page, "Agent");
+    const steer = page.getByRole("radio", { name: "Steer" });
+    await steer.click();
+    await expect(steer).toBeChecked();
+    await page.keyboard.press("Escape");
   });
 
   test("the todo panel shows the agent's list", async () => {
