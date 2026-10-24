@@ -11,6 +11,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { flushSync } from "react-dom";
 import { Button } from "@/components/ui/button";
 import { DropZone } from "@/components/ui/drop-zone";
 import { Input } from "@/components/ui/input";
@@ -196,10 +197,6 @@ function ComposerForm({
     textarea.current?.focus({ preventScroll: true });
   }, []);
 
-  useEffect(() => {
-    if (showInput) textarea.current?.focus({ preventScroll: true });
-  }, [showInput]);
-
   useEffect(
     () =>
       onComposerRestore(target, () => {
@@ -212,6 +209,18 @@ function ComposerForm({
       }),
     [target, replace, replaceFiles],
   );
+
+  // iOS only raises the keyboard for a focus() inside the tap itself, so the
+  // field is shown and focused in the same handler, not from an effect.
+  const toggleInput = () => {
+    if (showInput) {
+      textarea.current?.blur();
+      setShowInput(false);
+      return;
+    }
+    flushSync(() => setShowInput(true));
+    textarea.current?.focus({ preventScroll: true });
+  };
 
   const setText = useCallback(
     (value: string) => {
@@ -528,7 +537,7 @@ function ComposerForm({
               size="icon"
               aria-label={showInput ? "Hide keyboard" : "Show keyboard"}
               aria-pressed={showInput}
-              onClick={() => setShowInput((visible) => !visible)}
+              onClick={toggleInput}
               className="size-14 rounded-full"
             >
               <Keyboard className="size-6" />
