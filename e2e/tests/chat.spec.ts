@@ -8,6 +8,11 @@ const conversation = (page: Page) => page.getByTestId("conversation");
 const sidebar = (page: Page) => page.getByRole("complementary").or(page.getByLabel("Projects and threads"));
 
 async function completeSetup(page: Page) {
+  // A retry reuses the already-configured server: the setup screen shows only once.
+  await expect(
+    page.getByRole("heading", { name: "New thread" }).or(page.getByRole("heading", { name: /Welcome to/ })),
+  ).toBeVisible();
+  if ((await page.getByRole("heading", { name: "New thread" }).count()) > 0) return;
   await page
     .getByRole("listitem", { name: "OpenRouter", exact: true })
     .getByRole("button", { name: "Add key" })
@@ -53,13 +58,14 @@ test.describe("MVP2 flow", () => {
     await send(page, "write hello.txt hi");
 
     const runningDot = sidebar(page).locator('[data-slot="bot-avatar"][data-working="true"]');
-    await expect(sidebar(page).getByRole("link", { name: "write hello.txt hi" })).toBeVisible();
+    // A serial group retry re-sends into a second same-titled thread: assert on the first.
+    await expect(sidebar(page).getByRole("link", { name: "write hello.txt hi" }).first()).toBeVisible();
     await expect(runningDot).toHaveCount(0);
 
     const hello = join(homeDir(), "hello.txt");
     await expect.poll(() => existsSync(hello)).toBe(true);
     expect(readFileSync(hello, "utf8")).toBe("hi");
-    await expect(sidebar(page).getByRole("link", { name: "write hello.txt hi" })).toBeVisible();
+    await expect(sidebar(page).getByRole("link", { name: "write hello.txt hi" }).first()).toBeVisible();
     await expect(conversation(page).getByText("write hello.txt hi", { exact: true }).last()).toBeVisible();
   });
 
@@ -71,11 +77,20 @@ test.describe("MVP2 flow", () => {
     await page.getByLabel("Repository URL").fill(bareRepository());
     await page.getByRole("button", { name: "Clone project" }).click();
 
+    // A serial retry re-clones into the same server: the project already
+    // exists, so the dialog reports that instead of offering a new thread.
+    const alreadyExists = page.getByText("This repository is already a project.");
+    await expect(page.getByRole("button", { name: "New thread in remote" }).or(alreadyExists)).toBeVisible({
+      timeout: 20_000,
+    });
+    if ((await alreadyExists.count()) > 0) await page.keyboard.press("Escape");
+
     const newThread = page.getByRole("button", { name: "New thread in remote" });
     await expect(newThread).toBeVisible({ timeout: 20_000 });
     await openNewThreadIn(page, "remote");
     await send(page, "hello from the clone");
-    await expect(conversation(page).getByText("hello from the clone", { exact: true })).toBeVisible();
+    // The assistant echoes the text, so match the user bubble (first).
+    await expect(conversation(page).getByText("hello from the clone", { exact: true }).first()).toBeVisible();
   });
 
   test("an image reply counts one image", async () => {
@@ -85,7 +100,7 @@ test.describe("MVP2 flow", () => {
       "base64",
     );
     await page
-      .getByLabel("Choose images")
+      .getByLabel("Choose files")
       .setInputFiles({ name: "dot.png", mimeType: "image/png", buffer: png });
     await send(page, "image");
     await expect(conversation(page).getByText("Images received: 1")).toBeVisible();
@@ -112,13 +127,14 @@ test.describe("MVP2 flow", () => {
   });
 
   test("archives and deletes a thread", async () => {
+    await page.getByRole("radio", { name: "Threads" }).click();
     const thread = sidebar(page).getByRole("link", { name: "fail" });
     await thread.hover();
     await page.getByRole("button", { name: "Actions for fail" }).click();
     await page.getByRole("menuitem", { name: "Archive" }).click();
     await expect(thread).toBeHidden();
 
-    await page.getByRole("button", { name: /Archived/ }).click();
+    await page.getByRole("button", { name: /archived threads/i }).click();
     await expect(thread).toBeVisible();
     await thread.hover();
     await page.getByRole("button", { name: "Actions for fail" }).click();

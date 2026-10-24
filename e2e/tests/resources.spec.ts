@@ -134,19 +134,18 @@ test.describe("resource control in the browser", () => {
     await page.getByRole("button", { name: "Settings" }).click();
     const dialog = page.getByRole("dialog", { name: "Settings" });
     await dialog.getByRole("navigation", { name: "Settings sections" }).getByText("Sandbox & limits").click();
-    await dialog.getByRole("switch", { name: "Resource control" }).click();
     for (const name of ["Main threads power", "Worktree threads power", "Subagents power"]) {
-      await expect(dialog.getByRole("group", { name })).toBeVisible();
+      await expect(dialog.getByRole("radiogroup", { name })).toBeVisible();
     }
     await dialog
-      .getByRole("group", { name: "Subagents power" })
+      .getByRole("radiogroup", { name: "Subagents power" })
       .getByRole("radio", { name: "Background" })
       .click();
     await expect
       .poll(async () => (await settings()).resources?.levels)
       .toEqual({ main: "off", worktree: "off", subagent: "background" });
     await dialog
-      .getByRole("group", { name: "Main threads power" })
+      .getByRole("radiogroup", { name: "Main threads power" })
       .getByRole("radio", { name: "Balanced" })
       .click();
     await expect

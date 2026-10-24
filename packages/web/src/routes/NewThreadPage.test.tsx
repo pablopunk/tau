@@ -34,19 +34,19 @@ function ThreadRoute() {
 
 async function renderPage({
   claude = false,
+  native = false,
   model,
   loadFailure,
 }: {
   claude?: boolean;
+  native?: boolean;
   model?: ModelRef;
   loadFailure?: "projects" | "models" | "settings";
 } = {}) {
   const core = createFakeCore({ configured: true });
   await core.providers.setApiKey("openrouter", "fake");
-  if (claude) {
-    await core.providers.acknowledgeClaudeCli();
-    installFakeNative(core);
-  }
+  if (claude) await core.providers.acknowledgeClaudeCli();
+  if (native) installFakeNative(core);
   const models = await core.models.list();
   const claudeModel = models.find((entry) => entry.provider === "claude-cli");
   if (model) preferences.setLastModel(model);
@@ -93,11 +93,11 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("<NewThreadPage> model selection", () => {
-  it("has one model picker, no engine choice or runtime discovery dependency", async () => {
-    const { runtimes } = await renderPage({ claude: true });
+  it("has one model picker and no engine choice; routing consults runtimes once", async () => {
+    const { runtimes } = await renderPage({ claude: true, native: true });
     expect(screen.getByRole("combobox", { name: "Model" })).toHaveTextContent("Faux One");
     expect(screen.queryByRole("radiogroup", { name: "Engine" })).not.toBeInTheDocument();
-    expect(runtimes).not.toHaveBeenCalled();
+    await waitFor(() => expect(runtimes).toHaveBeenCalled());
   });
 
   it("ignores the old last-engine preference", async () => {
@@ -125,7 +125,7 @@ describe("<NewThreadPage> model selection", () => {
 
   it("always shows the model picker and routes a selected Claude model to native", async () => {
     const model = { provider: "claude-cli", modelId: "opus" };
-    const { start, user } = await renderPage({ claude: true, model });
+    const { start, user } = await renderPage({ claude: true, native: true, model });
     expect(screen.getByRole("combobox", { name: "Model" })).toBeInTheDocument();
     expect(screen.queryByRole("combobox", { name: "Thinking level" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Attach files" })).not.toBeInTheDocument();
@@ -135,6 +135,16 @@ describe("<NewThreadPage> model selection", () => {
     expect(start.mock.calls[0]?.[0]).not.toHaveProperty("thinkingLevel");
     expect(start.mock.calls[0]?.[0]).not.toHaveProperty("images");
     expect(start.mock.calls[0]?.[0]).not.toHaveProperty("files");
+    await screen.findByRole("heading", { name: /^Opened \/p\/home\/c\// });
+  });
+
+  it("starts a selected Claude model on Pi with an explicit pi executor when native is unavailable", async () => {
+    const model = { provider: "claude-cli", modelId: "opus" };
+    const { start, user } = await renderPage({ claude: true, model });
+    expect(screen.getByRole("combobox", { name: "Thinking level" })).toBeInTheDocument();
+    await submit(user);
+    await waitFor(() => expect(start).toHaveBeenCalledOnce());
+    expect(start.mock.calls[0]?.[0]).toMatchObject({ model, executor: "pi", text: "hello" });
     await screen.findByRole("heading", { name: /^Opened \/p\/home\/c\// });
   });
 

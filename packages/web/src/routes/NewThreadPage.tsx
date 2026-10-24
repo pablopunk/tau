@@ -15,7 +15,8 @@ import { findModel, pickModel, pickProjectId, pickThinkingLevel } from "@/lib/ne
 import { clearNewThreadDraft, loadNewThreadDraft, saveNewThreadDraft } from "@/lib/new-thread-draft";
 import { conversationPath, newThreadPath } from "@/lib/paths";
 import { preferences } from "@/lib/preferences";
-import { queryKeys, useModels, useProjects, useSettings } from "@/lib/queries";
+import { queryKeys, useModels, useProjects, useRuntimes, useSettings } from "@/lib/queries";
+import { enabledClaudeCode } from "@/lib/runtimes";
 import { clearDraftRequestId, draftRequestId } from "@/lib/start-request";
 import { useApi, useNodeId } from "@/nodes/node-context";
 import { WorktreeToggle } from "@/workspaces/WorktreeToggle";
@@ -35,6 +36,7 @@ export function NewThreadPage() {
   const projects = useProjects();
   const models = useModels();
   const settings = useSettings();
+  const runtimes = useRuntimes();
   const [initialDraft] = useState(() => loadNewThreadDraft(nodeId));
   const [chosenProject, setProject] = useState<string | null>(initialDraft.projectId);
   const [chosenModel, setModel] = useState<ModelRef | null>(initialDraft.model);
@@ -63,7 +65,9 @@ export function NewThreadPage() {
     }),
     [],
   );
-  if (!projects.data || !models.data || !settings.data) {
+  // A failing or old node has no runtimes answer: fall back to Pi (see useRuntimes).
+  const runtimesReady = runtimes.data !== undefined || runtimes.isError;
+  if (!projects.data || !models.data || !settings.data || !runtimesReady) {
     const failed = [projects, models, settings].filter((query) => query.isError);
     if (failed.length === 0) return <NewThreadSkeleton />;
     return (
@@ -91,7 +95,12 @@ export function NewThreadPage() {
     model,
     chosenLevel ?? settings.data.defaultThinkingLevel ?? preferences.getLastThinkingLevel(nodeId),
   );
-  const native = model?.provider === "claude-cli";
+  // A Claude model takes the native executor when the node offers it; when it
+  // does not, the start says Pi explicitly so the server keeps the legacy
+  // provider path instead of routing an omitted executor to native.
+  const claudeModel = model?.provider === "claude-cli";
+  const native = claudeModel && enabledClaudeCode(runtimes.data) !== undefined;
+  const executor = !claudeModel ? undefined : native ? ("claude-code" as const) : ("pi" as const);
   const levels = native
     ? ["off" as const]
     : (findModel(models.data, model ?? null)?.thinkingLevels ?? ["off"]);
@@ -112,7 +121,7 @@ export function NewThreadPage() {
         ...(workspace && { workspace }),
         ...(images.length > 0 && { images }),
         ...(files.length > 0 && { files }),
-        ...(native && { executor: "claude-code" as const }),
+        ...(executor && { executor }),
       });
       clearDraftRequestId();
       clearNewThreadDraft(nodeId);

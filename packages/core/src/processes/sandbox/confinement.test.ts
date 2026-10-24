@@ -23,8 +23,8 @@ afterEach(async () => {
   await Promise.all(dirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })));
 });
 
-const temp = async (prefix: string) => {
-  const dir = await mkdtemp(join(tmpdir(), prefix));
+const temp = async (prefix: string, parent = tmpdir()) => {
+  const dir = await mkdtemp(join(parent, prefix));
   dirs.push(dir);
   return dir;
 };
@@ -83,30 +83,56 @@ describe("macOS Seatbelt confinement, really enforced", () => {
   });
 });
 
-const haveSystemdUser = async (): Promise<boolean> => {
+const canEnforceSystemdSandbox = async (): Promise<boolean> => {
   if (process.platform !== "linux") return false;
   if (!canExec("/usr/bin/systemd-run")) return false;
+  const root = await temp("tau-sandbox-probe-in-", process.cwd());
+  const outside = await temp("tau-sandbox-probe-out-", process.cwd());
+  const insideFile = join(root, "inside.txt");
+  const outsideFile = join(outside, "outside.txt");
   try {
-    await run("/usr/bin/systemd-run", [
-      "--user",
-      "--pipe",
-      "--wait",
-      "--collect",
-      `--unit=tau-sandbox-probe-${process.pid}`,
-      "--",
-      "true",
-    ]);
-    return true;
-  } catch {
+    await run(
+      "/usr/bin/systemd-run",
+      [
+        "--user",
+        "--pipe",
+        "--wait",
+        "--collect",
+        `--unit=tau-sandbox-probe-${process.pid}.service`,
+        `--working-directory=${root}`,
+        "--property=ProtectSystem=strict",
+        "--property=ProtectHome=read-only",
+        `--property=ReadWritePaths=${root}`,
+        "--property=PrivateTmp=yes",
+        "--",
+        process.execPath,
+        "-e",
+        "require('node:fs').writeFileSync(process.argv[1], 'inside'); require('node:fs').writeFileSync(process.argv[2], 'outside')",
+        insideFile,
+        outsideFile,
+      ],
+      { timeout: 30_000 },
+    );
     return false;
+  } catch {
+    const insideAllowed = await stat(insideFile).then(
+      (file) => file.isFile(),
+      () => false,
+    );
+    const outsideDenied = await stat(outsideFile).then(
+      () => false,
+      () => true,
+    );
+    return insideAllowed && outsideDenied;
   }
 };
 
 describe("Linux systemd confinement, really enforced", () => {
-  it("allows writes inside, denies writes outside", async () => {
-    if (!(await haveSystemdUser())) return;
-    const wt = await temp("pi-sb-lin-");
-    const outside = await temp("pi-sb-lout-");
+  it("allows writes inside, denies writes outside", async ({ skip }) => {
+    if (!(await canEnforceSystemdSandbox()))
+      skip("systemd user sandbox cannot enforce filesystem confinement");
+    const wt = await temp("pi-sb-lin-", process.cwd());
+    const outside = await temp("pi-sb-lout-", process.cwd());
     const prefix = buildSystemdSandboxPrefix({
       systemdRun: "/usr/bin/systemd-run",
       root: wt,

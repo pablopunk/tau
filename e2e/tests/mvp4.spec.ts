@@ -1,6 +1,7 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { expect, type Page, test } from "@playwright/test";
-import { tokenFile } from "../support";
+import { homeDir, tokenFile } from "../support";
 
 const CALLBACK = "http://127.0.0.1:1455/auth/callback?code=ok&state=faux";
 const SECTIONS = ["General", "Providers", "Models", "Projects", "GitHub"];
@@ -9,6 +10,26 @@ const DESKTOP = { width: 1280, height: 800 };
 
 const readToken = () => readFileSync(tokenFile(), "utf8").trim();
 const providerRow = (page: Page, name: string) => page.getByRole("listitem", { name, exact: true });
+
+async function completeSetup(page: Page) {
+  // A retry reuses the already-configured server: the setup screen shows only once.
+  await expect(
+    page.getByRole("heading", { name: "New thread" }).or(page.getByRole("heading", { name: /Welcome to/ })),
+  ).toBeVisible();
+  if ((await page.getByRole("heading", { name: "New thread" }).count()) > 0) return;
+  await page
+    .getByRole("listitem", { name: "OpenRouter", exact: true })
+    .getByRole("button", { name: "Add key" })
+    .click();
+  await page.getByLabel("OpenRouter API key").fill("sk-or-v1-faux");
+  await page.getByRole("button", { name: "Save" }).click();
+  await page.getByRole("button", { name: "Continue" }).click();
+  await page.getByRole("combobox", { name: "Default model" }).click();
+  await page.getByRole("option", { name: /Faux One/ }).click();
+  await page.getByRole("combobox", { name: "Fast model (optional)" }).click();
+  await page.getByRole("option", { name: /Faux Fast/ }).click();
+  await page.getByRole("button", { name: "Continue" }).click();
+}
 
 async function disconnect(page: Page, row: ReturnType<typeof providerRow>, name: string) {
   await row.getByRole("button", { name: `More actions for ${name}` }).click();
@@ -47,6 +68,7 @@ test.describe("MVP4", () => {
   test.beforeAll(async ({ browser }) => {
     page = await browser.newPage({ viewport: DESKTOP });
     await page.goto(`/?token=${encodeURIComponent(readToken())}`);
+    await completeSetup(page);
     await expect(page.getByRole("heading", { name: "New thread" })).toBeVisible();
   });
 
@@ -120,6 +142,9 @@ test.describe("MVP4", () => {
   });
 
   test("@ inserts a file path", async () => {
+    // The mention picker suggests files from the Home folder; seed one since a
+    // fresh shard server starts with an empty Home.
+    writeFileSync(join(homeDir(), "hello.txt"), "hi");
     await page.getByRole("button", { name: "New thread", exact: true }).click();
     await expect(page.getByRole("heading", { name: "New thread" })).toBeVisible();
     const input = page.getByRole("textbox", { name: "Message" });
