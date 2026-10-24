@@ -148,6 +148,14 @@ test.describe("MVP5", () => {
     const steer = page.getByRole("radio", { name: "Steer" });
     await steer.click();
     await expect(steer).toBeChecked();
+    await expect
+      .poll(async () => {
+        const response = await page.request.get("/api/settings");
+        if (!response.ok()) return null;
+        const settings = (await response.json()) as { messageMode: string };
+        return settings.messageMode;
+      })
+      .toBe("steer");
     await page.keyboard.press("Escape");
   });
 
