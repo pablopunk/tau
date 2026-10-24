@@ -159,7 +159,7 @@ test.describe("MVP5", () => {
     test.setTimeout(60_000);
     await openNewThread(page);
     await send(page, "bg sleep 300");
-    await expect(page.getByRole("button", { name: "Send", exact: true })).toBeEnabled({ timeout: 30_000 });
+    await expect(doneMarks(page)).toHaveCount(1, { timeout: 30_000 });
     // Load the persisted process list after the tool run has finished.
     await page.reload();
     const chip = page.getByRole("button", { name: "1 running processes" });
