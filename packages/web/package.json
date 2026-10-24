@@ -11,7 +11,7 @@
     "@tau/protocol": "workspace:*",
     "@xterm/addon-fit": "0.11.0",
     "@xterm/xterm": "6.0.0",
-    "bot-avatars": "0.1.2",
+    "bot-avatars": "0.2.2",
     "class-variance-authority": "0.7.1",
     "clsx": "2.1.1",
     "cmdk": "1.1.1",
