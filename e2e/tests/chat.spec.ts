@@ -77,11 +77,20 @@ test.describe("MVP2 flow", () => {
     await page.getByLabel("Repository URL").fill(bareRepository());
     await page.getByRole("button", { name: "Clone project" }).click();
 
+    // A serial retry re-clones into the same server: the project already
+    // exists, so the dialog reports that instead of offering a new thread.
+    const alreadyExists = page.getByText("This repository is already a project.");
+    await expect(page.getByRole("button", { name: "New thread in remote" }).or(alreadyExists)).toBeVisible({
+      timeout: 20_000,
+    });
+    if ((await alreadyExists.count()) > 0) await page.keyboard.press("Escape");
+
     const newThread = page.getByRole("button", { name: "New thread in remote" });
     await expect(newThread).toBeVisible({ timeout: 20_000 });
     await openNewThreadIn(page, "remote");
     await send(page, "hello from the clone");
-    await expect(conversation(page).getByText("hello from the clone", { exact: true })).toBeVisible();
+    // The assistant echoes the text, so match the user bubble (first).
+    await expect(conversation(page).getByText("hello from the clone", { exact: true }).first()).toBeVisible();
   });
 
   test("an image reply counts one image", async () => {

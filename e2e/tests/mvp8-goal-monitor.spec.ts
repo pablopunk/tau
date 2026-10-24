@@ -37,6 +37,7 @@ async function startThreadWith(page: Page, text: string) {
   await page.getByRole("radio", { name: "Checkout" }).click();
   await send(page, text);
   await expect(page).toHaveURL(/\/c\//);
+  await expect(page.getByRole("button", { name: "Send", exact: true })).toBeEnabled({ timeout: 30_000 });
 }
 
 test.describe.configure({ mode: "serial" });
