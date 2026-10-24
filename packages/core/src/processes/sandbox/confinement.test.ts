@@ -87,17 +87,21 @@ const haveSystemdSandbox = async (): Promise<boolean> => {
   if (process.platform !== "linux") return false;
   if (!canExec("/usr/bin/systemd-run")) return false;
   try {
-    await run("/usr/bin/systemd-run", [
-      "--user",
-      "--pipe",
-      "--wait",
-      "--collect",
-      `--unit=tau-sandbox-probe-${process.pid}.service`,
-      "--property=ProtectSystem=strict",
-      "--property=PrivateTmp=yes",
-      "--",
-      "true",
-    ], { timeout: 30_000 });
+    await run(
+      "/usr/bin/systemd-run",
+      [
+        "--user",
+        "--pipe",
+        "--wait",
+        "--collect",
+        `--unit=tau-sandbox-probe-${process.pid}.service`,
+        "--property=ProtectSystem=strict",
+        "--property=PrivateTmp=yes",
+        "--",
+        "true",
+      ],
+      { timeout: 30_000 },
+    );
     return true;
   } catch {
     return false;
