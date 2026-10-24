@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { expect, type Page, test } from "@playwright/test";
-import { demoRepository, PORT, tokenFile } from "../support";
+import { demoRepository, PORT, tokenFile, waitForConversationRunEnd } from "../support";
 
 const COMMIT = "bash git add -A && git -c user.name=e2e -c user.email=e2e@example.com commit -q -m note";
 
@@ -159,7 +159,7 @@ test.describe("MVP5", () => {
     test.setTimeout(60_000);
     await openNewThread(page);
     await send(page, "bg sleep 300");
-    await expect(doneMarks(page)).toHaveCount(1, { timeout: 30_000 });
+    await waitForConversationRunEnd(page);
     // Load the persisted process list after the tool run has finished.
     await page.reload();
     const chip = page.getByRole("button", { name: "1 running processes" });
