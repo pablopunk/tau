@@ -247,8 +247,8 @@ importers:
         specifier: 6.0.0
         version: 6.0.0
       bot-avatars:
-        specifier: 0.1.2
-        version: 0.1.2(react@19.3.1)
+        specifier: 0.2.2
+        version: 0.2.2(react@19.3.1)
       class-variance-authority:
         specifier: 0.7.1
         version: 0.7.1
@@ -2600,8 +2600,8 @@ packages:
     resolution: {integrity: sha512-DkVaaQHymRhpYEYo9x1oo7Q7B0Y6KJUsjm3c9eTyFDby4MHLBTwZ6ZDWBel5zrYxj1WsZgC5oLpiz+93MluXeA==}
     engines: {node: '>=20.19.0'}
 
-  bot-avatars@0.1.2:
-    resolution: {integrity: sha512-XwOf7UF1TI3rPKWQ2G7Y68yRHE0EsIqmENdbxfxwZObs1nPh5ZEFzHyUVBuopU6awUSuQA/mozjPc+68lWyg/Q==}
+  bot-avatars@0.2.2:
+    resolution: {integrity: sha512-EszpDsXfbO7SD3Jv/g8/7mt3I4EpN4WuDy6Uk3reuzIgU+dl4iKtk+fuIzGgfXjOraF1jQqUjaDOdcql1khXHQ==}
     peerDependencies:
       react: '>=18.0.0'
 
@@ -7740,7 +7740,7 @@ snapshots:
   boolbase@2.0.0:
     optional: true
 
-  bot-avatars@0.1.2(react@19.3.1):
+  bot-avatars@0.2.2(react@19.3.1):
     dependencies:
       react: 19.3.1
 
