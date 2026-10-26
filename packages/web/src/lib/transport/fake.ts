@@ -13,6 +13,7 @@ import {
 } from "@tau/protocol";
 import { createFakeCore, type FakeCore } from "@tau/testkit";
 import { readSummaryCache, writeSummaryCache } from "@/nodes/summary-cache";
+import { installFakeNative } from "./fake-native";
 import { openFakeStream } from "./fake-terminal-stream";
 import type { LiveHandlers, LiveSocket, RouteRequest, RouteResponse, Transport } from "./types";
 
@@ -77,6 +78,9 @@ const handlers: Handlers = {
   submitLoginUrl: (core, { params, body }) => core.providers.submitLoginUrl(params.sid, body.url as string),
   cancelLogin: (core, { params }) => core.providers.cancelLogin(params.sid),
   listModels: (core) => core.models.list(),
+  listRuntimes: (core) => core.runtimes.list(),
+  getHandoffPreview: (core, { params }) => core.conversations.handoffPreview(params.id),
+  handoffConversation: (core, { params, body }) => core.conversations.handoff(params.id, body as never),
   listSkills: (core, { query }) => core.skills.list(query?.projectId ?? null),
   suggestProjectFiles: (core, { params, body }) =>
     core.projects.suggestFiles(params.id, body.query as string),
@@ -84,6 +88,11 @@ const handlers: Handlers = {
   setDefaultThinking: (core, { body }) => core.settings.setDefaultThinkingLevel(body.thinkingLevel as never),
   setFastThinking: (core, { body }) => core.settings.setFastThinkingLevel(body.thinkingLevel as never),
   setFastModel: (core, { body }) => core.settings.setFastModel(body.model as never),
+  setVoiceModel: (core, { body }) => core.settings.setVoiceModel(body.setting as never),
+  getVoiceOptions: (core) => core.voice.options(),
+  transcribeVoice: (core, { body }) => core.voice.transcribe(body as never),
+  removeVoiceModel: (core) => core.voice.removeModel(),
+  warmVoice: (core) => core.voice.warm(),
   setProjectsFolder: (core, { body }) => core.settings.setProjectsFolder(body.path as string),
   cloneProject: (core, { body }) => core.projects.clone(body as never),
   retryClone: (core, { params }) => core.projects.retryClone(params.id),
@@ -97,6 +106,8 @@ const handlers: Handlers = {
   startConversation: (core, { body }) => core.conversations.start(body as never),
   renameConversation: (core, { params, body }) => core.conversations.rename(params.id, body.title as string),
   sendMessage: (core, { params, body }) => core.conversations.send(params.id, body as never),
+  sendNow: (core, { params, body }) => core.conversations.sendNow(params.id, body.itemId as string),
+  updateTodos: (core, { params, body }) => core.conversations.updateTodos(params.id, body as never),
   abortConversation: (core, { params }) => core.conversations.abort(params.id),
   archiveConversation: (core, { params, body }) =>
     core.conversations.archive(params.id, body.archived as boolean),
@@ -113,6 +124,8 @@ const handlers: Handlers = {
   rewindConversation: (core, { params, body }) =>
     core.conversations.rewind(params.id, body.entryId as string),
   cancelQueued: (core, { params }) => core.conversations.cancelQueued(params.id, params.itemId),
+  setQueuedMode: (core, { params, body }) =>
+    core.conversations.setQueuedMode(params.id, params.itemId, body.mode as never),
   listCheckpoints: (core, { params }) => core.conversations.checkpoints(params.id),
   getCheckpointDiff: async (core, { params, query }) => ({
     diff: await core.conversations.checkpointDiff(params.id, params.cid, query.path),
@@ -146,11 +159,20 @@ const handlers: Handlers = {
   setWorkspaceDefault: (core, { body }) => core.settings.setWorkspaceDefault(body.mode as never),
   setClaudeConnectors: (core, { body }) => core.settings.setClaudeConnectors(body as never),
   setResources: (core, { body }) => core.settings.setResources(body as never),
+  setSandbox: (core, { body }) => core.settings.setSandbox(body as never),
+  setCompaction: (core, { body }) => core.settings.setCompaction(body as never),
   getResourceSupport: (core) => core.settings.resourceSupport(),
   getResourceActivity: (core) => core.settings.resourceActivity(),
   stopResourceCommand: (core, { params }) => core.settings.stopResourceCommand(params.id),
   listApprovals: (core, { params }) => core.approvals.list(params.id),
   getHealth: async () => ({ ok: true }),
+  getMetrics: async () => ({
+    scope: "local",
+    since: Date.now(),
+    intervalMs: 10_000,
+    samples: [],
+    requests: [],
+  }),
   getRemoteStatus: (core) => core.remote.status(),
   enableRemote: (core) => core.remote.enable(),
   disableRemote: (core) => core.remote.disable(),
@@ -203,17 +225,36 @@ const handlers: Handlers = {
   },
   decideApproval: (core, { params, body }) =>
     core.approvals.decide(params.id, params.toolUseId, body.decision as never),
+  stageUpload: (core, { body }) => core.uploads.stage(body as never),
 };
 
 function detach<T>(value: T): T {
   return value === undefined ? value : (JSON.parse(JSON.stringify(value)) as T);
 }
 
-function fakeLiveSocket(core: Core, live: LiveHandlers): LiveSocket {
+export interface FakeLiveSocket extends LiveSocket {
+  failWatch(conversationId: string, error?: string): void;
+}
+
+function fakeLiveSocket(core: Core, live: LiveHandlers): FakeLiveSocket {
   const watchers = new Map<string, ConversationWatcher>();
   let closed = false;
   const stopChanges = core.onChange((change: Change) => live.onFrame(changedFrame(change)));
   queueMicrotask(() => live.onOpen());
+
+  const failWatch = (conversationId: string, error?: string) => {
+    const watcher = watchers.get(conversationId);
+    if (watcher) {
+      watchers.delete(conversationId);
+      void watcher.stop();
+    }
+    if (!closed)
+      live.onFrame(
+        error === undefined
+          ? { type: "watch-failed", conversationId }
+          : { type: "watch-failed", conversationId, error },
+      );
+  };
 
   const subscribe = async (conversationId: string) => {
     if (watchers.has(conversationId)) return;
@@ -233,8 +274,10 @@ function fakeLiveSocket(core: Core, live: LiveHandlers): LiveSocket {
   };
 
   return {
+    failWatch,
     send(frame: ClientFrame) {
-      void (frame.type === "subscribe" ? subscribe(frame.conversationId) : unsubscribe(frame.conversationId));
+      if (frame.type === "subscribe") void subscribe(frame.conversationId);
+      else if (frame.type === "unsubscribe") void unsubscribe(frame.conversationId);
     },
     close() {
       closed = true;
@@ -395,7 +438,8 @@ let hub: Promise<FakeCore> | undefined;
  * One fake hub per page, shared by the local transport and every node transport:
  * `?fake=ready` starts past setup with remote on (`&remote=off` starts with it off), and `&nodes=2`
  * (or `&nodes`) links the two fake nodes (`Homelab` online, `Work laptop` offline), with or without
- * `fake=ready`: `?fake=setup&nodes` is an unconfigured local node that knows peers.
+ * `fake=ready`: `?fake=setup&nodes` is an unconfigured local node that knows peers. `&native` makes every
+ * fake node offer Claude Code, with scripted native threads (a message saying "unknown" or "blocked" ends that way).
  */
 function fakeHub(): Promise<FakeCore> {
   hub ??= (async () => {
@@ -405,6 +449,10 @@ function fakeHub(): Promise<FakeCore> {
     const remote = ready && params.get("remote") !== "off";
     const nodes = params.has("nodes");
     const core = createFakeCore({ configured: ready, remote, nodes, ...scenario });
+    if (params.has("native")) {
+      installFakeNative(core);
+      for (const nodeCore of core.nodeCores.values()) installFakeNative(nodeCore);
+    }
     if (ready) await seedReadyState(core);
     if (ready && params.get("seed") === "rich") await seedRichState(core);
     for (const [nodeId, node] of core.nodeCores) {

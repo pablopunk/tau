@@ -1,3 +1,5 @@
+import { writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { makeStaticDir, startTestServer, type TestServer } from "./testing/harness";
 
@@ -24,6 +26,15 @@ describe("static assets", () => {
     expect(api.statusCode).toBe(404);
     expect(api.json().error.code).toBe("not_found");
     expect((await ctx.request({ url: "/missing.js" })).statusCode).toBe(404);
+  });
+
+  it("serves the PWA manifest with its content type", async () => {
+    const staticDir = makeStaticDir();
+    writeFileSync(join(staticDir, "manifest.webmanifest"), '{"name":"tau"}');
+    ctx = await startTestServer({ staticDir });
+    const manifest = await ctx.request({ url: "/manifest.webmanifest" });
+    expect(manifest.statusCode).toBe(200);
+    expect(manifest.headers["content-type"]).toContain("application/manifest+json");
   });
 
   it("serves the API only without a static dir", async () => {

@@ -1,6 +1,7 @@
 node_modules/
 dist/
 .turbo/
+.tau-caches/
 coverage/
 test-results/
 test-artifacts/
@@ -11,3 +12,4 @@ playwright-report/
 *.tsbuildinfo
 .claude/
 logs/
+/plans/

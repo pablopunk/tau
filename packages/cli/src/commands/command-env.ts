@@ -1,6 +1,7 @@
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { createInterface } from "node:readline/promises";
+import WebSocket from "ws";
 
 export interface SocketLike {
   onopen: (() => void) | null;
@@ -15,6 +16,11 @@ export type OpenSocket = (url: string, headers: Record<string, string>) => Socke
 
 /** Everything a command touches outside its own arguments, so tests can replace it. */
 export interface CommandEnv {
+  readonly nodeId?: string;
+  readonly machine?: import("./machine-output").MachineOutput;
+  readonly server?: import("./client").Server;
+  readonly onInterrupt?: (listener: () => void) => () => void;
+  readonly terminalInput?: (line: (text: string) => void, end: () => void) => () => void;
   readonly home: string;
   readonly env: Readonly<Record<string, string | undefined>>;
   readonly stdout: (text: string) => void;
@@ -57,6 +63,22 @@ export const homeOf = (env: Readonly<Record<string, string | undefined>>): strin
 export function processEnv(): CommandEnv {
   return {
     home: homeOf(process.env),
+    onInterrupt: (listener) => {
+      process.on("SIGINT", listener);
+      return () => {
+        process.off("SIGINT", listener);
+      };
+    },
+    terminalInput: (line, end) => {
+      const lines = createInterface({ input: process.stdin });
+      lines.on("line", line);
+      lines.on("close", end);
+      return () => {
+        lines.removeAllListeners();
+        lines.close();
+        process.stdin.pause();
+      };
+    },
     env: process.env,
     stdout: (text) => void process.stdout.write(`${text}\n`),
     stderr: (text) => void process.stderr.write(`${text}\n`),

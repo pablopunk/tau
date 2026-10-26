@@ -1,11 +1,13 @@
-import { useQueryClient } from "@tanstack/react-query";
-import { readLive } from "@tau/protocol";
+import { readRuntimeLive } from "@tau/protocol";
 import { useNavigate } from "react-router";
 import { CommandGroup, CommandItem } from "@/components/ui/command";
+import { isNativeExecutor, threadExecutorOf } from "@/conversation/model/executor";
 import { stopAndRestore } from "@/conversation/queue/stop-restore";
+import { useThreadListMutation } from "@/conversation/queue/thread-list-mutations";
 import { useConversationView } from "@/conversation/use-conversation-view";
 import { conversationPath, terminalPath } from "@/lib/paths";
-import { queryKeys } from "@/lib/queries";
+import { queryKeys, useAllConversations, useRuntimes } from "@/lib/queries";
+import { enabledClaudeCode } from "@/lib/runtimes";
 import { useApi, useNodeId } from "@/nodes/node-context";
 import { useOpenAndFocusTerminal, useTerminals, useTerminalsAvailable } from "@/panes/use-terminals";
 import { attempt } from "./attempt";
@@ -17,6 +19,7 @@ interface ThreadActionsProps {
   archived: boolean;
   onChangeModel: () => void;
   onChangeThinking: () => void;
+  onHandoff: () => void;
   run: (action: () => void) => () => void;
 }
 
@@ -27,26 +30,37 @@ export function ThreadActions({
   archived,
   onChangeModel,
   onChangeThinking,
+  onHandoff,
   run,
 }: ThreadActionsProps) {
   const api = useApi();
   const nodeId = useNodeId();
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
   const available = useTerminalsAvailable().data === true;
   const terminals = useTerminals(conversationId, available).data ?? [];
   const canThink = useThreadAgent(conversationId).model?.thinkingLevels.some((level) => level !== "off");
   const openTerminal = useOpenAndFocusTerminal(projectId, conversationId);
   const state = useConversationView(conversationId);
-  const queued = state.status === "ready" ? readLive(state.view).queued : [];
+  const summary = useAllConversations().data?.find((item) => item.id === conversationId);
+  const view = state.status === "ready" ? state.view : undefined;
+  const executor = threadExecutorOf(summary, view);
+  const native = isNativeExecutor(executor);
+  const handoffPossible =
+    summary !== undefined && !native && !archived && summary.workspace.state !== "removed";
+  const handoffOffered = enabledClaudeCode(useRuntimes({ enabled: handoffPossible }).data) !== undefined;
+  const queued = view ? readRuntimeLive(view, executor).queued : [];
   const stop = () => stopAndRestore(api, conversationId, nodeId, queued);
 
-  const toggleArchive = async () => {
-    await api.conversations.archive(conversationId, !archived);
-    await Promise.all([
-      queryClient.invalidateQueries({ queryKey: queryKeys.conversations(projectId) }),
-      queryClient.invalidateQueries({ queryKey: queryKeys.allConversations }),
-    ]);
+  const archiveMutation = useThreadListMutation({
+    listKeys: [queryKeys.conversations(projectId), queryKeys.allConversations],
+    mutationFn: (next: boolean) => api.conversations.archive(conversationId, next),
+    transform: (list, next) =>
+      list.map((item) =>
+        item.id === conversationId ? { ...item, archivedAt: next ? Date.now() : null } : item,
+      ),
+  });
+  const toggleArchive = async (): Promise<void> => {
+    archiveMutation.mutate(!archived);
   };
 
   return (
@@ -66,8 +80,13 @@ export function ThreadActions({
           Go to chat
         </CommandItem>
       ) : null}
-      <CommandItem onSelect={onChangeModel}>Change model…</CommandItem>
-      {canThink ? <CommandItem onSelect={onChangeThinking}>Change thinking level…</CommandItem> : null}
+      {native ? null : <CommandItem onSelect={onChangeModel}>Change model…</CommandItem>}
+      {canThink && !native ? (
+        <CommandItem onSelect={onChangeThinking}>Change thinking level…</CommandItem>
+      ) : null}
+      {handoffPossible && handoffOffered ? (
+        <CommandItem onSelect={run(onHandoff)}>Continue in Claude Code…</CommandItem>
+      ) : null}
       <CommandItem onSelect={run(attempt(stop))}>Stop agent</CommandItem>
       <CommandItem onSelect={run(attempt(toggleArchive))}>
         {archived ? "Unarchive thread" : "Archive thread"}

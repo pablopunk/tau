@@ -8,11 +8,15 @@ import type {
 } from "./access";
 import type { DeleteArchivedInput, DeleteArchivedResult } from "./archived";
 import type {
+  AbortResult,
+  CancelQueuedResult,
   Change,
   ClaudeConnectorSettings,
   CompactInput,
+  CompactionSettings,
   ConfigureConversationInput,
   ConversationSummary,
+  FileRef,
   FileSuggestion,
   GithubRepo,
   GithubStatus,
@@ -28,15 +32,24 @@ import type {
   ProviderInfo,
   RetryInput,
   SendMessageInput,
+  SendNowResult,
+  SendReceipt,
+  SetQueuedModeResult,
   Settings,
   Skill,
   StartConversationInput,
   SuggestDirectoriesInput,
   SuggestedCodeFolder,
   ThinkingLevel,
+  TranscribeInput,
+  UploadInput,
   UseGithubRepoInput,
+  VoiceModelSetting,
+  VoiceOptions,
+  WhenBusy,
   WorkspaceDefault,
 } from "./entities";
+import type { HandoffInput, HandoffPreview } from "./handoff";
 import type {
   Checkpoint,
   McpServerConfig,
@@ -51,15 +64,21 @@ import type { DirectoryNode, Expulsion, NodeGroup } from "./node-group";
 import type { Node, NodeLinkDirection, NodeLinkReport, NodePeerInfo, NodeSelf, NodeSummary } from "./nodes";
 import type { RemoteStatus } from "./remote";
 import type { ResourceActivity, ResourceSettings, ResourceSupport } from "./resources";
+import type { RuntimeDescriptorList } from "./runtime";
+import type { SandboxSettings } from "./sandbox";
 import type { OpenTerminalInput, TerminalInfo } from "./terminals";
 import type { UpdaterPort, UpdateStartBody, UpdateStatus } from "./updates";
 import type { Op } from "./view";
 
 export type {
+  AbortResult,
+  CancelQueuedResult,
   Change,
   CompactInput,
+  CompactionSettings,
   ConfigureConversationInput,
   ConversationSummary,
+  FileRef,
   FileSuggestion,
   GithubRepo,
   GithubStatus,
@@ -74,15 +93,27 @@ export type {
   ProviderInfo,
   RetryInput,
   SendMessageInput,
+  SendNowInput,
+  SendNowResult,
+  SendReceipt,
+  SetQueuedModeResult,
   Settings,
   Skill,
   StartConversationInput,
   SuggestDirectoriesInput,
   SuggestedCodeFolder,
+  TranscribeInput,
+  UploadInput,
   UseGithubRepoInput,
+  UserItemSnapshot,
+  VoiceModelSetting,
+  VoiceOptions,
+  WhenBusy,
   WorkspaceDefault,
   WorkspaceMode,
 } from "./entities";
+
+import type { UpdateTodosInput } from "./todos";
 
 export interface TerminalHandlers {
   /** Raw output bytes: replay first, then live. */
@@ -125,6 +156,12 @@ export interface Core {
     setDefaultThinkingLevel(level: ThinkingLevel | null): Promise<void>;
     /** `null` means the model's own default. Clamped to the fast model; rejects `invalid_request` without one. */
     setFastThinkingLevel(level: ThinkingLevel | null): Promise<void>;
+    /**
+     * Which speech-to-text the composer uses (`null` is the browser fallback). The `local` flavor is
+     * always accepted; the `provider` flavor needs the provider connected and the model in its voice
+     * catalog, else `invalid_request`.
+     */
+    setVoiceModel(setting: VoiceModelSetting): Promise<void>;
     /** Absolute path; created when missing and stored as its real path. Rejects `not_a_directory`. */
     setProjectsFolder(path: string): Promise<void>;
     /** The first existing `~/src`, `~/code`, `~/projects` or `~/dev` while the projects folder is still the default; else `null`. */
@@ -139,12 +176,32 @@ export interface Core {
     setSetupSkipped(skipped: boolean): Promise<void>;
     /** Replaces the node's resource settings. Priority and memory apply to the next spawned command; slots apply at once. */
     setResources(value: ResourceSettings): Promise<void>;
+    /**
+     * Replaces the node's sandbox switch. Phase 1: persisted only, never enforced
+     * (staging gate: everything stays off until phase 2).
+     */
+    setSandbox(value: SandboxSettings): Promise<void>;
+    /** Replaces the node's compaction preference. Enabling `fast` with no available backend rejects `invalid_request`. */
+    setCompaction(value: CompactionSettings): Promise<void>;
     /** What this node can enforce. Lazy: may probe the host. */
     resourceSupport(): Promise<ResourceSupport>;
     /** Heavy commands running or waiting, node-wide. */
     resourceActivity(): Promise<ResourceActivity>;
     /** Stops a command listed by `resourceActivity`. Rejects `not_found` otherwise. Not owner-only, like `setClaudeConnectors`. */
     stopResourceCommand(entryId: string): Promise<void>;
+  };
+  voice: {
+    /** Local download state plus every connected provider's speech-to-text catalog. Never rejects for a failing catalog: that is a per-provider `error`. */
+    options(): Promise<VoiceOptions>;
+    /**
+     * Transcribes audio with the *stored* voice setting. Rejects `invalid_request` with no setting, while
+     * the local model is still downloading, or for a provider failure the caller should surface.
+     */
+    transcribe(input: TranscribeInput): Promise<{ text: string }>;
+    /** Deletes the downloaded local model bytes. `setVoiceModel(null)` only unsets the default. */
+    removeModel(): Promise<void>;
+    /** Starts loading the local model now (mic-press prefetch). No-op unless the stored setting is local. */
+    warm(): Promise<void>;
   };
   github: {
     /** Cached for a minute. Never rejects for a missing or logged-out `gh`: that is a state. */
@@ -180,6 +237,10 @@ export interface Core {
     submitLoginUrl(sessionId: string, url: string): Promise<LoginSession>;
     /** Idempotent. Resolves once the login has stopped. */
     cancelLogin(sessionId: string): Promise<void>;
+  };
+  runtimes: {
+    /** Always lists `pi` (enabled) then `claude-code`, enabled only when the node turned native on. Never rejects. */
+    list(): Promise<RuntimeDescriptorList>;
   };
   models: {
     /** Models of every connected provider, in provider order; `[]` when none is connected. */
@@ -235,17 +296,26 @@ export interface Core {
      * Creates the conversation and admits its first message in one call; resolves once admitted. A repeated
      * `requestId` returns the same conversation. Rejects `not_found`, `project_not_ready`, `no_provider`,
      * `no_default_model`, `invalid_request` or `images_not_supported` without creating anything.
+     * `executor: "claude-code"` rejects `invalid_request` when the node has native off, and for attachments.
      */
     start(input: StartConversationInput): Promise<ConversationSummary>;
     /** Rejects `not_found`. */
     rename(id: string, title: string): Promise<void>;
     /**
      * Resolves once the message is durably admitted, not when the run ends. Steers when the conversation is busy.
-     * A repeated `requestId` is a no-op. Unarchives. Rejects `not_found`, `invalid_request` or `images_not_supported`.
+     * A repeated `requestId` returns the existing receipt. Unarchives. Rejects `not_found`, `invalid_request` or `images_not_supported`.
      */
-    send(id: string, input: SendMessageInput): Promise<void>;
+    send(id: string, input: SendMessageInput): Promise<SendReceipt>;
+    /**
+     * Replaces the thread's todo list with the user's edit and pings the agent with the diff
+     * (a queued `app.todos_updated` notification, so it never interrupts a run and wakes an idle
+     * thread). Newest event wins against the agent's `todo_write`. Rejects `not_found` for an
+     * unknown or deleted thread; archived threads are allowed without unarchiving. A repeated
+     * `requestId` is a no-op.
+     */
+    updateTodos(id: string, input: UpdateTodosInput): Promise<void>;
     /** Stops the current run; resolves once the conversation is idle. Rejects `not_found`. */
-    abort(id: string): Promise<void>;
+    abort(id: string): Promise<AbortResult>;
     /** Never aborts a run. Rejects `not_found`. */
     archive(id: string, archived: boolean): Promise<void>;
     /**
@@ -262,12 +332,39 @@ export interface Core {
     stopAgent(id: string): Promise<void>;
     /** New thread in the same checkout or worktree, with history up to and including the entry. Rejects `not_found`. */
     fork(id: string, entryId: string): Promise<ConversationSummary>;
+    /**
+     * What `handoff` would put in the new thread and what it would leave out, plus whether it can run now (`reason` says
+     * why not). Reads only. Rejects `not_found`.
+     */
+    handoffPreview(id: string): Promise<HandoffPreview>;
+    /**
+     * Starts a NEW native thread in the same folder whose first message is a deterministic text export of this Pi thread
+     * (no summarizing model call; images, thinking and attachments never travel). The source thread is not changed.
+     * Needs native on, a Pi source at an idle boundary (no run, approvals, queued items, children or processes).
+     * A repeated `requestId` returns the same new thread. Rejects `not_found`, `thread_busy` while the source works,
+     * and `invalid_request` for a native source, native off, a removed workspace or an empty thread, before any side effect.
+     */
+    handoff(id: string, input: HandoffInput): Promise<ConversationSummary>;
     /** The files a rewind would change. Rejects `not_found` for an unknown thread, entry or checkpoint. */
     rewindPreview(id: string, entryId: string): Promise<RestorePreview>;
     /** Restores files, forks before the entry; `draft` is the message text. Rejects `thread_busy`, `not_found`. */
     rewind(id: string, entryId: string): Promise<{ conversation: ConversationSummary; draft: string }>;
-    /** `{ cancelled: false }` when the queued item was already delivered. Rejects `not_found`. */
-    cancelQueued(id: string, itemId: string): Promise<{ cancelled: boolean }>;
+    /** `{ cancelled: false, restored: [] }` when the queued item was already delivered. Rejects `not_found`, and `invalid_request` for a notification item or another thread's item. */
+    cancelQueued(id: string, itemId: string): Promise<CancelQueuedResult>;
+    /**
+     * Switches one queued user item between steer and followUp in place: the item keeps its id
+     * (and its inbox position), so the row updates without unmounting. `{ switched: false }` when
+     * the item was already delivered. Rejects `not_found`, and `invalid_request` for a
+     * notification item or another thread's item.
+     */
+    setQueuedMode(id: string, itemId: string, mode: WhenBusy): Promise<SetQueuedModeResult>;
+    /**
+     * Atomically delivers one queued user item now: snapshots the queued user items, aborts the run, then
+     * re-admits the chosen item ahead of every other surviving item. The other user items return to the
+     * caller in `restored` for composer restoration. Rejects `not_found`, and `invalid_request` for a
+     * notification item, an unknown item, or another thread's item.
+     */
+    sendNow(conversationId: string, itemId: string): Promise<SendNowResult>;
     /** In order of time. Rejects `not_found`. */
     checkpoints(id: string): Promise<Checkpoint[]>;
     /** Unified diff of one file; `path` is repo-relative without `..`. Rejects `not_found`, `invalid_request`. */
@@ -280,9 +377,10 @@ export interface Core {
     configure(id: string, input: ConfigureConversationInput): Promise<void>;
     /**
      * Continues after a failed or stopped answer (see `isRetryable`), once per `requestId`. Unarchives.
+     * A repeated `requestId` returns the existing receipt.
      * Rejects `not_found`, and `invalid_request` unless retryable.
      */
-    retry(id: string, input: RetryInput): Promise<void>;
+    retry(id: string, input: RetryInput): Promise<SendReceipt>;
     /** Resolves when the compaction ends. Rejects `not_found`, and `nothing_to_compact` when there is nothing to summarize. */
     compact(id: string, input: CompactInput): Promise<void>;
     /**
@@ -295,8 +393,8 @@ export interface Core {
   workspaces: {
     /** Rejects `not_found`, and `invalid_request` for a thread without a worktree. */
     status(conversationId: string): Promise<WorkspaceStatus>;
-    /** Rebases and fast-forwards the base. Rejects `thread_busy`, `worktree_dirty`, `merge_conflict`, `not_on_base`, `base_dirty`. */
-    merge(conversationId: string): Promise<ConversationSummary>;
+    /** Rebases and fast-forwards the base. Rejects `thread_busy` unless `force` (a thread landing its own work from inside its run), plus `worktree_dirty`, `merge_conflict`, `not_on_base`, `base_dirty`. */
+    merge(conversationId: string, force?: boolean): Promise<ConversationSummary>;
     /** Needs a connected `gh`; rejects `github_unavailable`. */
     createPullRequest(conversationId: string): Promise<ConversationSummary>;
     /** Rejects `has_unmerged_work` unless `force`. The thread moves to the main checkout. */
@@ -353,6 +451,14 @@ export interface Core {
     get(conversationId: string): Promise<Goal | null>;
     /** Idempotent. Rejects `not_found`. */
     clear(conversationId: string): Promise<void>;
+  };
+  uploads: {
+    /**
+     * Stages a file for a later message and returns its virtual path. The agent sees the path only and reads
+     * the bytes itself; refs expire (use then rejects `file_expired`: stage again and retry). Rejects `too_large`
+     * past 5 MiB of decoded bytes and `invalid_request` for a bad name or data.
+     */
+    stage(input: UploadInput): Promise<FileRef>;
   };
   mcp: {
     /** Settings servers plus the project's `.mcp.json` servers (`null` for settings only). Never returns env or header values. */

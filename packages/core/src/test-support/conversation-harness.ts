@@ -10,6 +10,7 @@ import { BACKGROUND, openAgentHarness, openSqliteStorage } from "../harness/open
 import { createAgentRegistry } from "../harness/registry";
 import { createStatusTracker, type StatusTracker } from "../status/status-tracker";
 import { createFauxSetup } from "../testing/faux-provider";
+import { createUploadStore, type UploadStore } from "../upload-store";
 import { processToolServices } from "./process-tool-services";
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -21,6 +22,7 @@ export type LateModels = { readonly before: boolean; readonly afterMs: number };
 
 export interface ConversationHarness {
   readonly harness: Harness;
+  readonly uploads: UploadStore;
   readonly store: ConversationStore;
   readonly changes: ChangeEmitter;
   readonly seen: Change[];
@@ -54,7 +56,8 @@ export async function openConversationHarness(
     },
   });
   if (late && !late.before) void sleep(late.afterMs).then(() => models.setProvider(setup.faux.provider));
-  const store = createConversationStore(harness, async () => directory);
+  const uploads = createUploadStore({ now, root: join(directory, "uploads") });
+  const store = createConversationStore(harness, async () => directory, { uploads });
   const recovery = createConversationRecovery({ harness, conversations: store, changes });
   const project: Project = {
     id: "p1",
@@ -67,6 +70,7 @@ export async function openConversationHarness(
   };
   return {
     harness,
+    uploads,
     store,
     changes,
     seen,

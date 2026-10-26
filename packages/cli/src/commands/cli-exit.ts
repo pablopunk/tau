@@ -6,10 +6,18 @@ export const EXIT_TIMEOUT = 3;
 export class CliExit extends Error {
   readonly exitCode: number;
 
-  constructor(exitCode: number, message: string) {
+  reported = false;
+  readonly code: string;
+  readonly source: "protocol" | "cli";
+  lifecycle: import("@tau/protocol").RuntimeLifecycle | null = null;
+  observation: "response" | "thread-idle" | null = null;
+
+  constructor(exitCode: number, message: string, code?: string, source: "protocol" | "cli" = "cli") {
     super(message);
     this.name = "CliExit";
     this.exitCode = exitCode;
+    this.code = code ?? (exitCode === 2 ? "usage" : exitCode === 3 ? "wait_timeout" : "transport_error");
+    this.source = source;
   }
 }
 

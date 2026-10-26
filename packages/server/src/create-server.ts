@@ -1,9 +1,10 @@
 import fastifyCookie from "@fastify/cookie";
 import fastifyWebsocket from "@fastify/websocket";
-import { type Core, WS_MAX_PAYLOAD_BYTES } from "@tau/protocol";
+import { type Core, routes, WS_MAX_PAYLOAD_BYTES } from "@tau/protocol";
 import Fastify, { type FastifyInstance } from "fastify";
 import { handleError } from "./error-handler";
 import { registerLive } from "./live/register-live";
+import { createMetricsCollector, registerMetricsHooks } from "./metrics/collector";
 import { createAttachPeer } from "./nodes/attach-peer";
 import { createDeviceLabels } from "./nodes/device-labels";
 import type { NodeGateway } from "./nodes/gateway";
@@ -14,6 +15,7 @@ import { registerNodeRoutes } from "./nodes/register-node-routes";
 import { registerNodeProxy } from "./nodes/register-proxy";
 import { createRelay } from "./nodes/relay";
 import { startSummaryWriter } from "./nodes/summary-writer";
+import { defineRoute } from "./rest/define-route";
 import { allowEmptyJsonBodies } from "./rest/json-body";
 import { registerRoutes } from "./rest/register-routes";
 import { type AllowList, allowListForPort, hostnameOfUrl } from "./security/allow-list";
@@ -111,8 +113,11 @@ export const createServer: CreateServer = async (options) => {
   allowEmptyJsonBodies(app);
   app.setErrorHandler(handleError);
   app.decorateRequest("deviceId", "");
+  const metrics = createMetricsCollector();
+  registerMetricsHooks(app, metrics);
   app.addHook("onRequest", guard);
   registerRoutes(app, options.core, sockets);
+  defineRoute(app, routes.getMetrics, async () => metrics.snapshot());
   registerAccessRoutes(app, {
     core: options.core,
     tunnel: tags,
@@ -145,6 +150,7 @@ export const createServer: CreateServer = async (options) => {
   try {
     await app.listen({ port: options.port, host: options.host ?? DEFAULT_HOST });
     boundPort = portOf(app.server.address(), options.port);
+    metrics.start();
     allowList = allowListForPort(boundPort);
     stopSummaries = startSummaryWriter(options.core, gateway);
     stopRelay = relay.start();
@@ -153,6 +159,7 @@ export const createServer: CreateServer = async (options) => {
       if (change.resource === "devices") void closeSocketsOfGoneDevices(options.core, sockets);
     });
   } catch (error) {
+    metrics.stop();
     await app.close();
     throw error;
   }
@@ -174,6 +181,7 @@ export const createServer: CreateServer = async (options) => {
     origin,
     url: `${origin}/?token=${encodeURIComponent(options.token)}`,
     close: async () => {
+      metrics.stop();
       labels.stop();
       stopFollowing();
       stopReaping();

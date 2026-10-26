@@ -2,6 +2,7 @@ import type { Timer } from "@tau/protocol";
 import { Trash2Icon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { firedLabel, scheduleLabel, untilLabel } from "./format";
 
 export function TimerRow({
@@ -30,14 +31,19 @@ export function TimerRow({
           ) : null}
         </p>
       </div>
-      <Button
-        variant="ghost"
-        size="icon-xs"
-        aria-label={`Delete timer: ${timer.prompt}`}
-        onClick={() => onDelete(timer)}
-      >
-        <Trash2Icon />
-      </Button>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon-xs"
+            aria-label={`Delete timer: ${timer.prompt}`}
+            onClick={() => onDelete(timer)}
+          >
+            <Trash2Icon />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent side="top">Delete timer</TooltipContent>
+      </Tooltip>
     </li>
   );
 }

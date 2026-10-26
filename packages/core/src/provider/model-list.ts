@@ -5,7 +5,7 @@ import { CLAUDE_CLI_PROVIDER_ID, CLAUDE_CLI_PROVIDER_NAME } from "../claude-cli/
 import { FAUX_PROVIDER_ID } from "../testing/faux-provider";
 import type { ConnectionReader } from "./connections";
 import { type CatalogCost, priceOf } from "./model-price";
-import type { PiProviderRef, ProviderEntry } from "./providers-table";
+import { countsForChat, type PiProviderRef, type ProviderEntry } from "./providers-table";
 
 const FAUX_REF = { label: "Faux", billing: "usage" } as const;
 const CLAUDE_CLI_REF = { label: CLAUDE_CLI_PROVIDER_NAME, billing: "subscription" } as const;
@@ -88,7 +88,7 @@ export function createModelLister(deps: {
 
   async function listFaux(): Promise<ModelInfo[]> {
     const connected = await connectedEntries();
-    const keyed = connected.some((entry) => entry.kind !== "cli");
+    const keyed = connected.some((entry) => entry.kind !== "cli" && countsForChat(entry));
     const fauxModels = keyed
       ? models.getModels(FAUX_PROVIDER_ID).map((model) => toModelInfo(model as ListedModel, FAUX_REF))
       : [];

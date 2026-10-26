@@ -11,11 +11,28 @@
   * {
     @apply border-border outline-ring/50;
   }
-  body {
-    @apply bg-background text-foreground;
-  }
   html {
     @apply font-sans;
+    /* The app shell owns all scrolling (transcript only); the page itself
+       must never scroll, bounce, or pull-to-refresh — iOS Safari included. */
+    overscroll-behavior: none;
+  }
+  body {
+    @apply bg-background text-foreground;
+    overscroll-behavior: none;
+    /* Lock the page in place on touch devices: no rubber band, no body
+       scroll, no double-tap zoom delay. Pinch zoom still works. */
+    position: fixed;
+    inset: 0;
+    overflow: hidden;
+    touch-action: manipulation;
+    -webkit-text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
+  }
+  #root {
+    height: 100dvh;
+    /* biome-ignore lint/suspicious/noDuplicateProperties: intentional fallback first, live value second */
+    height: var(--tau-app-height, 100dvh);
   }
 }
 

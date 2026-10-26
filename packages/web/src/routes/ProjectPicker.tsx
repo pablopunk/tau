@@ -14,6 +14,7 @@ import { UseRepoDialog } from "@/github/UseRepoDialog";
 import { projectsHomeFirst } from "@/lib/new-thread-defaults";
 import { nodeAssetUrl } from "@/lib/paths";
 import { queryKeys, useGithubRepos, useGithubStatus } from "@/lib/queries";
+import { cn } from "@/lib/utils";
 import { type NodeData, NodeProvider, useHubQueryClient, useNodesData } from "@/nodes";
 import { useApi, useNodeId } from "@/nodes/node-context";
 import { AddProjectDialog } from "@/sidebar/AddProjectDialog";
@@ -50,6 +51,7 @@ interface ProjectPickerProps {
   projectId: string;
   onProject(id: string): void;
   disabled: boolean;
+  className?: string;
   /** Another node's project was picked (or added): the page re-scopes to that node. */
   onNodeProject?: (nodeId: string | undefined, projectId: string) => void;
 }
@@ -66,6 +68,7 @@ export function ProjectPicker({
   projectId,
   onProject,
   disabled,
+  className,
   onNodeProject,
 }: ProjectPickerProps) {
   const api = useApi();
@@ -120,6 +123,17 @@ export function ProjectPicker({
         )
       : {};
 
+  const selected = projects.find((project) => project.id === projectId);
+  const selectedIcon = selected ? (
+    <ProjectIcon
+      id={selected.id}
+      name={selected.name}
+      iconUrl={selected.iconUrl ? nodeAssetUrl(selected.iconUrl, nodeId) : null}
+      home={selected.kind === "home"}
+      tile={24}
+    />
+  ) : undefined;
+
   const options = [
     ...projectsHomeFirst(projects).map((project) =>
       projectOption(project, current ? groupOf(current) : PROJECTS_GROUP, project.id, nodeId),
@@ -136,9 +150,10 @@ export function ProjectPicker({
     <>
       <Combobox
         aria-label="Project"
+        triggerIcon={selectedIcon}
         variant="ghost"
         size="sm"
-        className="w-auto min-w-0 max-w-full"
+        className={cn("w-auto min-w-0 max-w-full", className)}
         contentClassName="w-[min(32rem,calc(100vw-2rem))]"
         disabled={disabled}
         options={options}

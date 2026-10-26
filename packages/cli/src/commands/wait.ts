@@ -1,8 +1,17 @@
-import { type ConversationSummary, type ConversationView, lastAssistantText, readLive } from "@tau/protocol";
+import {
+  type ConversationSummary,
+  type ConversationView,
+  executorOf,
+  lastAssistantText,
+  readLive,
+  readRuntimeLive,
+} from "@tau/protocol";
 import { CliExit, EXIT_TIMEOUT, failure } from "./cli-exit";
 import { callRoute, type Server } from "./client";
 import type { CommandEnv } from "./command-env";
 import { connectLive } from "./live";
+import { hasNativeEntries, nativeEntriesWithoutExecutorMessage } from "./native-text";
+import { assessNativeThread } from "./wait-native";
 
 export interface WaitRequest {
   readonly conversationId: string;
@@ -35,6 +44,31 @@ function errorMessageOf(view: ConversationView): string {
   return "the thread ended in error";
 }
 
+const childRunningUnder = (all: readonly ConversationSummary[], id: string): boolean =>
+  descendantsOf(all, id).some((child) => child.agentStatus === "running");
+
+function assessPiThread(
+  all: readonly ConversationSummary[],
+  summary: ConversationSummary,
+  view: ConversationView,
+  endedAfter: number | null | undefined,
+): Assessment {
+  const conversationId = summary.id;
+  if (hasNativeEntries(view)) {
+    throw failure(nativeEntriesWithoutExecutorMessage(conversationId));
+  }
+  if (summary.status === "error" && runEndedAfter(summary, endedAfter)) {
+    return { state: "error", message: errorMessageOf(view) };
+  }
+  const idle = summary.status === "idle";
+  const live = readLive(view);
+  const queueEmpty = live.queued.length === 0;
+  const viewCaughtUp = !live.busy;
+  const childRunning = childRunningUnder(all, conversationId);
+  const settled = idle && runEndedAfter(summary, endedAfter) && queueEmpty && viewCaughtUp && !childRunning;
+  return settled ? { state: "done", answer: lastAssistantText(view) } : { state: "waiting" };
+}
+
 /** The 4-condition rule: idle, a run ended after R0, an empty queue, and no running child. */
 export function assessThread(
   all: readonly ConversationSummary[],
@@ -44,19 +78,14 @@ export function assessThread(
 ): Assessment {
   const summary = all.find((item) => item.id === conversationId);
   if (!summary) throw failure(`not_found: Unknown conversation: ${conversationId}`);
-  if (summary.status === "error" && runEndedAfter(summary, endedAfter)) {
-    return { state: "error", message: errorMessageOf(view) };
-  }
-  const idle = summary.status === "idle";
-  const live = readLive(view);
-  const queueEmpty = live.queued.length === 0;
-  const viewCaughtUp = !live.busy;
-  const childRunning = descendantsOf(all, conversationId).some((child) => child.agentStatus === "running");
-  const settled = idle && runEndedAfter(summary, endedAfter) && queueEmpty && viewCaughtUp && !childRunning;
-  return settled ? { state: "done", answer: lastAssistantText(view) } : { state: "waiting" };
+  if (executorOf(summary) === "pi") return assessPiThread(all, summary, view, endedAfter);
+  return assessNativeThread(summary, view, {
+    endedAfterR0: runEndedAfter(summary, endedAfter),
+    childRunning: childRunningUnder(all, conversationId),
+  });
 }
 
-const listAll = async (server: Server, env: CommandEnv) =>
+export const listAll = async (server: Server, env: CommandEnv) =>
   (await callRoute(server, "listAllConversations", {}, env)) as ConversationSummary[];
 
 /** Resolves with the last assistant answer. Exits 1 on an error thread, 3 on timeout. */
@@ -81,8 +110,26 @@ export function waitForThread(server: Server, env: CommandEnv, request: WaitRequ
       if (view === null) throw failure(`not_found: Unknown conversation: ${request.conversationId}`);
       const all = await listAll(server, env);
       const result = assessThread(all, request.conversationId, view, request.endedAfter);
-      if (result.state === "done") finish(() => resolve(result.answer));
-      if (result.state === "error") finish(() => reject(failure(result.message)));
+      const summary = all.find((item) => item.id === request.conversationId);
+      const lifecycle = readRuntimeLive(view, summary?.executor).lifecycle ?? null;
+      if (result.state === "done")
+        finish(() => {
+          env.machine?.emit("terminal", { result: result.answer, lifecycle, observation: "thread-idle" });
+          resolve(result.answer);
+        });
+      if (result.state === "error")
+        finish(() => {
+          const error = failure(result.message);
+          if (env.machine) {
+            env.machine.emit("terminal", {
+              result: { message: result.message },
+              lifecycle,
+              observation: "thread-idle",
+            });
+            error.reported = true;
+          }
+          reject(error);
+        });
     };
     const evaluate = async () => {
       if (finished) return;
@@ -110,12 +157,22 @@ export function waitForThread(server: Server, env: CommandEnv, request: WaitRequ
       );
     };
     live.onFrame(() => void evaluate());
-    live.onClose(() => finish(() => reject(failure("Lost the connection to tau."))));
+    live.onClose(() =>
+      finish(() => reject(new CliExit(1, "Lost the connection to tau.", "connection_lost"))),
+    );
     cancels.push(
       env.after(request.timeoutSeconds * 1000, () =>
         finish(() => reject(new CliExit(EXIT_TIMEOUT, `Timed out after ${request.timeoutSeconds}s`))),
       ),
     );
+    if (env.machine && env.onInterrupt)
+      cancels.push(
+        env.onInterrupt(() =>
+          finish(() =>
+            reject(new CliExit(130, "Observation interrupted; the run was not stopped.", "wait_interrupted")),
+          ),
+        ),
+      );
     poll();
   });
 }

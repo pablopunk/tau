@@ -5,6 +5,7 @@ import { apiOfNode } from "@/nodes/node-apis";
 import { Composer } from "./Composer";
 import { restoreToComposer } from "./composer/restore";
 import { ComposerTestWrapper } from "./composer/test-wrapper";
+import { clearPending } from "./queue/pending-sends";
 import { endOf, renderView, viewWhere } from "./test-utils";
 
 const api = apiOfNode();
@@ -15,9 +16,10 @@ const send = vi.mocked(api.conversations.send);
 const abort = vi.mocked(api.conversations.abort);
 
 beforeEach(() => {
+  clearPending();
   window.localStorage.clear();
-  send.mockReset().mockResolvedValue(undefined);
-  abort.mockReset().mockResolvedValue(undefined);
+  send.mockReset().mockResolvedValue({ submissionId: 1 });
+  abort.mockReset().mockResolvedValue({ restored: [] });
 });
 
 function setup(props: Partial<Parameters<typeof Composer>[0]> = {}) {
@@ -47,7 +49,7 @@ describe("<Composer>", () => {
   it("sends on Enter, trims the text and clears the input", async () => {
     const { onSend, input } = setup();
     await userEvent.type(input, "  hello  {Enter}");
-    expect(onSend).toHaveBeenCalledWith({ text: "hello", images: [] });
+    expect(onSend).toHaveBeenCalledWith({ text: "hello", images: [], files: [] });
     expect(input).toHaveValue("");
   });
 
@@ -76,7 +78,7 @@ describe("<Composer>", () => {
     const { onSend, input } = setup();
     await userEvent.type(input, "hi");
     await userEvent.click(screen.getByRole("button", { name: "Send" }));
-    expect(onSend).toHaveBeenCalledWith({ text: "hi", images: [] });
+    expect(onSend).toHaveBeenCalledWith({ text: "hi", images: [], files: [] });
   });
 
   it("restores the text and shows the error when sending fails", async () => {
@@ -89,9 +91,9 @@ describe("<Composer>", () => {
 
   it("offers steering and a stop button while busy, and stops", async () => {
     const { onStop, onSend, input } = setup({ busy: true });
-    expect(input).toHaveAttribute("placeholder", "Steer the agent…");
+    expect(input).toHaveAttribute("placeholder", "Steer at the next tool boundary…");
     await userEvent.type(input, "change course{Enter}");
-    expect(onSend).toHaveBeenCalledWith({ text: "change course", images: [] });
+    expect(onSend).toHaveBeenCalledWith({ text: "change course", images: [], files: [] });
     await userEvent.click(screen.getByRole("button", { name: "Stop" }));
     expect(onStop).toHaveBeenCalledTimes(1);
   });
@@ -99,6 +101,24 @@ describe("<Composer>", () => {
   it("has no stop button when idle", () => {
     setup();
     expect(screen.queryByRole("button", { name: "Stop" })).not.toBeInTheDocument();
+  });
+
+  it("labels the send button for the effective mode", async () => {
+    const followUp = setup({ busy: true, whenBusy: "followUp" });
+    expect(followUp.input).toHaveAttribute("placeholder", "Queue a message…");
+    expect(screen.getByRole("button", { name: "Queue message" })).toBeInTheDocument();
+    followUp.onSend.mockResolvedValue({ submissionId: 1 });
+    await userEvent.type(followUp.input, "nudge{Enter}");
+    expect(followUp.onSend).toHaveBeenCalledWith(
+      expect.objectContaining({ text: "nudge", whenBusy: "followUp" }),
+    );
+  });
+
+  it("never aborts the run on Escape", async () => {
+    const { onStop, input } = setup({ busy: true });
+    await userEvent.type(input, "oops{Escape}");
+    expect(onStop).not.toHaveBeenCalled();
+    expect(input).toHaveValue("oops");
   });
 });
 
@@ -114,6 +134,31 @@ describe("<Conversation> composer wiring", () => {
     expect(send.mock.calls[1]?.[1].text).toBe("second");
     expect(firstId).toBeTruthy();
     expect(firstId).not.toBe(secondId);
+  });
+
+  it("shows the message as sending before the server answers, then keeps it on the receipt", async () => {
+    let answer: (receipt: { submissionId: number }) => void = () => {};
+    send.mockReset().mockReturnValue(new Promise((resolve) => (answer = resolve)));
+    renderView(endOf("text"));
+    await userEvent.type(screen.getByLabelText("Message"), "instant{Enter}");
+    expect(screen.getByText("instant")).toBeInTheDocument();
+    expect(screen.getByText("Sending…")).toBeInTheDocument();
+    expect(screen.getByLabelText("Message")).toHaveValue("");
+    await act(async () => answer({ submissionId: 5 }));
+    expect(screen.getByText("instant")).toBeInTheDocument();
+  });
+
+  it("turns the sending bubble into a failed one with retry when the send is rejected", async () => {
+    send.mockReset().mockRejectedValueOnce(new Error("Server unreachable"));
+    renderView(endOf("text"));
+    await userEvent.type(screen.getByLabelText("Message"), "lost?{Enter}");
+    expect((await screen.findAllByRole("alert"))[0]).toHaveTextContent("Server unreachable");
+    expect(screen.getByText("lost?")).toBeInTheDocument();
+    expect(screen.queryByText("Sending…")).not.toBeInTheDocument();
+    send.mockResolvedValueOnce({ submissionId: 6 });
+    await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(await screen.findByText("lost?")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Retry" })).not.toBeInTheDocument();
   });
 
   it("steers while the conversation is busy and aborts with the stop button", async () => {

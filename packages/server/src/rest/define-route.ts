@@ -2,11 +2,11 @@ import { AppError, type RouteDef, type RouteInput, type RouteOutput } from "@tau
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import { OWNER_DEVICE_ID } from "../security/guard";
 
-// biome-ignore lint/suspicious/noConfusingVoidType: Core methods without a result resolve to void
+type HandlerResult<R extends RouteDef> = RouteOutput<R> | undefined;
 type Handler<R extends RouteDef> = (
   input: RouteInput<R>,
   request: FastifyRequest,
-) => Promise<RouteOutput<R> | undefined | void>;
+) => Promise<HandlerResult<R>> | Promise<void>;
 
 export interface RouteOptions {
   /** Rejects every caller but the owner (`OWNER_DEVICE_ID`), including the pre-auth `""`, with `forbidden`. */
@@ -33,7 +33,7 @@ export function defineRoute<R extends RouteDef>(
       ...(route.query && { querystring: route.query }),
       ...(route.body && { body: route.body }),
     },
-    ...(options.ownerOnly && { preHandler: requireOwner }),
+    ...(options.ownerOnly || route.ownerOnly ? { preHandler: requireOwner } : {}),
     handler: async (request, reply) => {
       const input = { params: request.params, query: request.query, body: request.body } as RouteInput<R>;
       const output = await handler(input, request);

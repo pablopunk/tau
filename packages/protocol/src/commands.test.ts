@@ -66,11 +66,15 @@ describe("command table", () => {
     }
   });
 
-  it("flags only the eleven destructive commands", () => {
+  it("requires explicit confirmation for destructive commands", () => {
     const destructive = commands.filter((entry) => entry.destructive).map((entry) => entry.command);
     expect(destructive.sort()).toEqual(
       [
         "access rotate",
+        "devices sign-out-all",
+        "remote recreate",
+        "settings update-start",
+        "settings voice-remove",
         "devices revoke",
         "nodes disconnect",
         "nodes forget",

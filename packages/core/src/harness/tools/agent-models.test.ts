@@ -115,4 +115,12 @@ describe("modelsGuidance", () => {
     expect(text).toContain("Go heavier than your own model when the task needs a smarter one");
     expect(text).not.toContain("Never pick a band heavier");
   });
+
+  it("makes effort the main lever and keeps the own model when unsure", () => {
+    const text = modelsGuidance([model("faux", "faux-text")], ref("faux", "faux-text"));
+    expect(text).toContain("Effort is your main lever");
+    expect(text).toContain("If you are unsure which model to use, use your own and change only `thinking`");
+    expect(text).toContain("Do not just inherit your own level");
+    expect(text).not.toContain("leave it out and the subagent inherits yours");
+  });
 });

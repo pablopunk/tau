@@ -1,4 +1,4 @@
-import { AppError, type Approval, type ApprovalDecision } from "@tau/protocol";
+import { AppError, type Approval, type ApprovalDecision, NATIVE_APPROVAL_SERVER } from "@tau/protocol";
 import type { ChangeEmitter } from "../change-emitter";
 import { cliToolNameOf } from "../claude-cli/connectors/names";
 import type { SettingsStore } from "../home/settings-store";
@@ -32,6 +32,8 @@ async function rememberAlwaysAllowed(deps: ApprovalsDeps, cliToolName: string): 
     alwaysAllow: [...current.alwaysAllow, cliToolName],
   });
 }
+
+const isNative = (server: string): boolean => server === NATIVE_APPROVAL_SERVER;
 
 const verdictOf = (decision: ApprovalDecision): ApprovalVerdict =>
   decision === "deny" ? DENIED_BY_USER : ALLOWED;
@@ -85,7 +87,7 @@ export function createApprovals(deps: ApprovalsDeps): Approvals {
   async function request(input: ApprovalRequest): Promise<ApprovalVerdict> {
     try {
       if (input.signal.aborted) return DENIED_ABORTED;
-      if (await isAlwaysAllowed(deps, cliToolNameOf(input))) return ALLOWED;
+      if (!isNative(input.server) && (await isAlwaysAllowed(deps, cliToolNameOf(input)))) return ALLOWED;
       const conversationId = await deps.conversationOfSession(input.piSessionId);
       if (conversationId === undefined) return DENIED_UNKNOWN_THREAD;
       if (input.signal.aborted) return DENIED_ABORTED;
@@ -102,7 +104,7 @@ export function createApprovals(deps: ApprovalsDeps): Approvals {
     async decide(conversationId, toolUseId, decision) {
       const pending = remove(conversationId, toolUseId);
       if (!pending) throw new AppError("not_found", "No such tool call is waiting.");
-      if (decision === "allow_always") {
+      if (decision === "allow_always" && !isNative(pending.approval.server)) {
         await rememberAlwaysAllowed(deps, cliToolNameOf(pending.approval)).catch((error) => {
           console.error("Could not store the always-allowed tool", error);
         });

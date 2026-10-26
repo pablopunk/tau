@@ -6,7 +6,8 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "playwright test --pass-with-no-tests",
-    "screenshots": "tsx screenshots/capture.ts"
+    "screenshots": "tsx screenshots/capture.ts",
+    "serve-demo": "tsx screenshots/serve-demo.ts"
   },
   "devDependencies": {
     "@playwright/test": "1.64.1"

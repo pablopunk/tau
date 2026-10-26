@@ -2,9 +2,12 @@ import { defineDoc, defineDocFamily } from "@earendil-works/pi-durable";
 import type {
   AgentStatus,
   ConversationStatus,
+  ExecutorKind,
+  FileRef,
   GoalSummary,
   ImageInput,
   ModelRef,
+  SendMessageInput,
   ThinkingLevel,
   ThreadWorkspace,
 } from "@tau/protocol";
@@ -33,11 +36,31 @@ export type IndexedConversation = {
   goal?: GoalSummary;
   background?: boolean;
   unmergedWarning?: string;
+  executor?: ExecutorKind;
 };
 
 export type TitleSource = "first-message" | "generated" | "user";
 
-export type PendingFirstInput = { text: string; images: ImageInput[]; requestId: string };
+export type PendingFirstInput = {
+  text: string;
+  images: ImageInput[];
+  files?: FileRef[];
+  requestId: string;
+};
+
+/** Reads a pending first message tolerantly: legacy docs predate `files`. */
+export function pendingFirstInputOf(doc: {
+  pendingFirstInput?: PendingFirstInput;
+}): SendMessageInput | undefined {
+  const pending = doc.pendingFirstInput;
+  if (!pending) return undefined;
+  return {
+    text: typeof pending.text === "string" ? pending.text : "",
+    images: Array.isArray(pending.images) ? pending.images : [],
+    ...(Array.isArray(pending.files) ? { files: pending.files } : {}),
+    requestId: pending.requestId,
+  };
+}
 
 export type ConversationMeta = {
   projectId: string;
@@ -45,6 +68,7 @@ export type ConversationMeta = {
   titleSource: TitleSource;
   pendingFirstInput?: PendingFirstInput;
   deletedAt?: number;
+  executor?: ExecutorKind;
 };
 
 /** Keyed by project id: `scanConversations` cannot filter by project and also returns subagent children. */

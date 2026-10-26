@@ -11,10 +11,14 @@ import {
 } from "./access";
 import { DeleteArchivedInputSchema, DeleteArchivedResultSchema } from "./archived";
 import {
+  AbortResultSchema,
+  CancelQueuedResultSchema,
   ClaudeConnectorSettingsSchema,
   CompactInputSchema,
+  CompactionSettingsSchema,
   ConfigureConversationInputSchema,
   ConversationSummarySchema,
+  FileRefSchema,
   FileSuggestionSchema,
   GithubRepoSchema,
   GithubStatusSchema,
@@ -29,16 +33,27 @@ import {
   ProviderInfoSchema,
   RetryInputSchema,
   SendMessageInputSchema,
+  SendNowInputSchema,
+  SendNowResultSchema,
+  SendReceiptSchema,
+  SetQueuedModeResultSchema,
   SettingsSchema,
   SkillSchema,
   StartConversationInputSchema,
   SuggestDirectoriesInputSchema,
   SuggestedCodeFolderSchema,
   ThinkingLevelSchema,
+  TranscribeInputSchema,
+  UploadInputSchema,
   UseGithubRepoInputSchema,
+  VoiceModelSettingSchema,
+  VoiceOptionsSchema,
+  WhenBusySchema,
   WorkspaceDefaultSchema,
 } from "./entities";
+import { HandoffInputSchema, HandoffPreviewSchema } from "./handoff";
 import { ICON_BODY_LIMIT } from "./icons";
+import { MetricsResponseSchema } from "./metrics";
 import {
   CheckpointSchema,
   McpServerConfigSchema,
@@ -53,7 +68,10 @@ import { DirectoryNodeSchema, ExpulsionSchema, RemoveNodeBodySchema } from "./no
 import { NodeSchema, NodeSelfSchema, NodeSummarySchema, RenameNodeBodySchema } from "./nodes";
 import { HealthSchema, RemoteStatusSchema } from "./remote";
 import { ResourceActivitySchema, ResourceSettingsSchema, ResourceSupportSchema } from "./resources";
+import { RuntimeDescriptorListSchema } from "./runtime";
+import { SandboxSettingsSchema } from "./sandbox";
 import { OpenTerminalInputSchema, TerminalAvailabilitySchema, TerminalInfoSchema } from "./terminals";
+import { UpdateTodosInputSchema } from "./todos";
 import { UpdateStartBodySchema, UpdateStatusSchema } from "./updates";
 
 export const API_PREFIX = "/api";
@@ -61,6 +79,10 @@ export const LIVE_PATH = `${API_PREFIX}/live`;
 export const PAIR_PAGE_PATH = "/pair";
 
 export const MESSAGE_BODY_LIMIT = 42 * 1024 * 1024;
+/** Audio uploads copy the image pattern: base64-in-JSON, parsed in memory only, transcribed and discarded. */
+export const AUDIO_BODY_LIMIT = 10 * 1024 * 1024;
+/** Caps `POST /api/uploads`: base64 inflates 5 MiB of file bytes to about 6.7 MiB on the wire. */
+export const UPLOAD_BODY_LIMIT = 8 * 1024 * 1024;
 export const PROCESS_LOG_TAIL_DEFAULT = 200;
 
 export type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
@@ -76,6 +98,8 @@ export interface RouteDef {
   readonly body?: TSchema;
   readonly response?: TSchema;
   readonly bodyLimit?: number;
+  /** Only the owner may call this (server enforces `route.ownerOnly || options.ownerOnly` with `forbidden`). */
+  readonly ownerOnly?: boolean;
 }
 
 const IdParams = Type.Object({ id: Type.String({ minLength: 1 }) });
@@ -105,6 +129,13 @@ const EntryBody = Type.Object({ entryId: Type.String({ minLength: 1 }) });
 
 export const routes = {
   getHealth: { method: "GET", path: `${API_PREFIX}/health`, status: 200, response: HealthSchema },
+  getMetrics: {
+    method: "GET",
+    path: `${API_PREFIX}/metrics`,
+    status: 200,
+    ownerOnly: true,
+    response: MetricsResponseSchema,
+  },
   getRemoteStatus: { method: "GET", path: `${API_PREFIX}/remote`, status: 200, response: RemoteStatusSchema },
   enableRemote: {
     method: "POST",
@@ -252,6 +283,36 @@ export const routes = {
     status: 204,
     body: Type.Object({ model: Type.Union([ModelRefSchema, Type.Null()]) }),
   },
+  setVoiceModel: {
+    method: "PUT",
+    path: `${API_PREFIX}/settings/voice-model`,
+    status: 204,
+    body: Type.Object({ setting: VoiceModelSettingSchema }),
+  },
+  getVoiceOptions: {
+    method: "GET",
+    path: `${API_PREFIX}/voice/options`,
+    status: 200,
+    response: VoiceOptionsSchema,
+  },
+  transcribeVoice: {
+    method: "POST",
+    path: `${API_PREFIX}/voice/transcribe`,
+    status: 200,
+    body: TranscribeInputSchema,
+    response: Type.Object({ text: Type.String() }),
+    bodyLimit: AUDIO_BODY_LIMIT,
+  },
+  removeVoiceModel: {
+    method: "DELETE",
+    path: `${API_PREFIX}/voice/model`,
+    status: 204,
+  },
+  warmVoice: {
+    method: "POST",
+    path: `${API_PREFIX}/voice/warm`,
+    status: 204,
+  },
   setSetupSkipped: {
     method: "PUT",
     path: `${API_PREFIX}/settings/setup-skipped`,
@@ -281,6 +342,18 @@ export const routes = {
     path: `${API_PREFIX}/settings/resources`,
     status: 204,
     body: ResourceSettingsSchema,
+  },
+  setSandbox: {
+    method: "PUT",
+    path: `${API_PREFIX}/settings/sandbox`,
+    status: 204,
+    body: SandboxSettingsSchema,
+  },
+  setCompaction: {
+    method: "PUT",
+    path: `${API_PREFIX}/settings/compaction`,
+    status: 204,
+    body: CompactionSettingsSchema,
   },
   getResourceSupport: {
     method: "GET",
@@ -412,6 +485,13 @@ export const routes = {
     status: 200,
     response: Type.Array(ModelInfoSchema),
   },
+  /** Which executors this node offers a new thread, and what each supports. `claude-code` is listed even when off. */
+  listRuntimes: {
+    method: "GET",
+    path: `${API_PREFIX}/runtimes`,
+    status: 200,
+    response: RuntimeDescriptorListSchema,
+  },
   listProjects: {
     method: "GET",
     path: `${API_PREFIX}/projects`,
@@ -511,6 +591,15 @@ export const routes = {
     query: Type.Object({ projectId: Type.Optional(Type.String({ minLength: 1 })) }),
     response: Type.Array(SkillSchema),
   },
+  stageUpload: {
+    method: "POST",
+    path: `${API_PREFIX}/uploads`,
+    status: 201,
+    body: UploadInputSchema,
+    response: FileRefSchema,
+    bodyLimit: UPLOAD_BODY_LIMIT,
+    ownerOnly: true,
+  },
   listConversations: {
     method: "GET",
     path: `${API_PREFIX}/projects/:id/conversations`,
@@ -542,10 +631,18 @@ export const routes = {
   sendMessage: {
     method: "POST",
     path: `${API_PREFIX}/conversations/:id/messages`,
-    status: 204,
+    status: 200,
     params: IdParams,
     body: SendMessageInputSchema,
+    response: SendReceiptSchema,
     bodyLimit: MESSAGE_BODY_LIMIT,
+  },
+  updateTodos: {
+    method: "PUT",
+    path: `${API_PREFIX}/conversations/:id/todos`,
+    status: 204,
+    params: IdParams,
+    body: UpdateTodosInputSchema,
   },
   archiveConversation: {
     method: "PUT",
@@ -578,9 +675,10 @@ export const routes = {
   retryConversation: {
     method: "POST",
     path: `${API_PREFIX}/conversations/:id/retry`,
-    status: 204,
+    status: 200,
     params: IdParams,
     body: RetryInputSchema,
+    response: SendReceiptSchema,
   },
   compactConversation: {
     method: "POST",
@@ -592,8 +690,9 @@ export const routes = {
   abortConversation: {
     method: "POST",
     path: `${API_PREFIX}/conversations/:id/abort`,
-    status: 204,
+    status: 200,
     params: IdParams,
+    response: AbortResultSchema,
   },
   stopAgent: {
     method: "POST",
@@ -607,6 +706,23 @@ export const routes = {
     status: 201,
     params: IdParams,
     body: EntryBody,
+    response: ConversationSummarySchema,
+  },
+  /** What a contextual handoff to a new native thread would carry and lose; `canHandoff` is false with a `reason` when it cannot run now. */
+  getHandoffPreview: {
+    method: "GET",
+    path: `${API_PREFIX}/conversations/:id/handoff-preview`,
+    status: 200,
+    params: IdParams,
+    response: HandoffPreviewSchema,
+  },
+  /** Starts a NEW native thread from a text export of this Pi thread; the source is never changed. Idempotent by `requestId`. */
+  handoffConversation: {
+    method: "POST",
+    path: `${API_PREFIX}/conversations/:id/handoff`,
+    status: 201,
+    params: IdParams,
+    body: HandoffInputSchema,
     response: ConversationSummarySchema,
   },
   rewindPreview: {
@@ -625,12 +741,28 @@ export const routes = {
     body: EntryBody,
     response: Type.Object({ conversation: ConversationSummarySchema, draft: Type.String() }),
   },
+  sendNow: {
+    method: "POST",
+    path: `${API_PREFIX}/conversations/:id/send-now`,
+    status: 200,
+    params: IdParams,
+    body: SendNowInputSchema,
+    response: SendNowResultSchema,
+  },
   cancelQueued: {
     method: "DELETE",
     path: `${API_PREFIX}/conversations/:id/queue/:itemId`,
     status: 200,
     params: QueueItemParams,
-    response: Type.Object({ cancelled: Type.Boolean() }),
+    response: CancelQueuedResultSchema,
+  },
+  setQueuedMode: {
+    method: "PATCH",
+    path: `${API_PREFIX}/conversations/:id/queue/:itemId`,
+    status: 200,
+    params: QueueItemParams,
+    body: Type.Object({ mode: WhenBusySchema }),
+    response: SetQueuedModeResultSchema,
   },
   listCheckpoints: {
     method: "GET",
@@ -659,6 +791,7 @@ export const routes = {
     path: `${API_PREFIX}/conversations/:id/workspace/merge`,
     status: 200,
     params: IdParams,
+    query: ForceQuery,
     response: ConversationSummarySchema,
   },
   createPullRequest: {

@@ -2,15 +2,15 @@ import type { ConversationSummary, Project } from "@tau/protocol";
 import { useRef } from "react";
 import { SidebarGroup, SidebarGroupContent, SidebarMenu } from "@/components/ui/sidebar";
 import { useFlipList } from "@/hooks/use-flip-list";
-import { ArchivedConversations } from "./ArchivedConversations";
 import { ProjectStatusRow } from "./ProjectStatusRow";
-import { activeThreads, archivedThreads, nestThreads } from "./sidebar-model";
+import { activeThreads, nestThreads } from "./sidebar-model";
 import { ThreadTree } from "./ThreadTree";
 
 interface ThreadsViewProps {
   projects: readonly Project[];
   conversations: readonly ConversationSummary[];
   activeConversationId: string | undefined;
+  showArchived: boolean;
   onProjectRemoved: (projectId: string) => void;
 }
 
@@ -18,6 +18,7 @@ export function ThreadsView({
   projects,
   conversations,
   activeConversationId,
+  showArchived,
   onProjectRemoved,
 }: ThreadsViewProps) {
   const listRef = useRef<HTMLDivElement>(null);
@@ -28,6 +29,7 @@ export function ThreadsView({
     projects.filter((project) => project.status === "ready").map((project) => project.id),
   );
   const visible = conversations.filter((conversation) => readyIds.has(conversation.projectId));
+  const listed = showArchived ? visible : activeThreads(visible);
   return (
     <SidebarGroup className="p-1">
       <SidebarGroupContent>
@@ -40,7 +42,7 @@ export function ThreadsView({
                 onRemoved={() => onProjectRemoved(project.id)}
               />
             ))}
-            {nestThreads(activeThreads(visible)).map((node) => (
+            {nestThreads(listed).map((node) => (
               <ThreadTree
                 key={node.conversation.id}
                 node={node}
@@ -52,12 +54,6 @@ export function ThreadsView({
             ))}
           </SidebarMenu>
         </div>
-        <ArchivedConversations
-          conversations={archivedThreads(visible)}
-          activeConversationId={activeConversationId}
-          projects={byId}
-          showProject
-        />
       </SidebarGroupContent>
     </SidebarGroup>
   );

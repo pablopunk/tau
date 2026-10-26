@@ -63,6 +63,11 @@ describe("parseCommand", () => {
     expect(parse("workspaces remove", "t1", "--no-force").input.query).toEqual({ force: "false" });
   });
 
+  it("passes --force through on workspaces merge for merging while running", () => {
+    expect(parse("workspaces merge", "t1", "--force").input.query).toEqual({ force: "true" });
+    expect(parse("workspaces merge", "t1").input.query).toEqual({});
+  });
+
   it("uses --project for projectId in a query", () => {
     expect(parse("skills list", "--project", "p9").input.query).toEqual({ projectId: "p9" });
   });

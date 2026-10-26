@@ -39,7 +39,7 @@ try {
   log("Balanced (expect NI 5)", show("balanced"));
   await run(t, "bg", "background");
   log("Background (expect cls IDL / SCHED_IDLE)", show("background"));
-  const id = await run(t, "exit7", "background");
+  await run(t, "exit7", "background");
   log("Background exit 7: stored tool result", t.stored("exit code|Exit code|exited with"));
   // tree + Stop
   await t.setResources({ priority: "background", heavySlots: null, memoryLimitMb: null, appliesTo: ALL_ON });

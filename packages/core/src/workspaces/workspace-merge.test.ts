@@ -64,6 +64,25 @@ describe("workspaces.merge", () => {
     expect(await codeOf(service.merge(thread.id))).toBe("thread_busy");
   });
 
+  test("merges while the thread runs with force", async () => {
+    const { startThread, service, repo, setStatus } = await setUp();
+    const thread = await startThread();
+    await commitFile(thread.workspace.path, "a.txt", "a");
+    setStatus(thread.id, "running");
+    const merged = await service.merge(thread.id, true);
+    expect(merged.workspace.state).toBe("merged");
+    expect(merged.workspace.mergedSha).toBe(await git(repo, "rev-parse", "main"));
+    expect(await readFile(join(repo, "a.txt"), "utf8")).toBe("a");
+  });
+
+  test("still refuses a dirty worktree with force", async () => {
+    const { startThread, service, setStatus } = await setUp();
+    const thread = await startThread();
+    await writeFile(join(thread.workspace.path, "new.txt"), "x");
+    setStatus(thread.id, "running");
+    expect(await codeOf(service.merge(thread.id, true))).toBe("worktree_dirty");
+  });
+
   test("refuses a dirty worktree", async () => {
     const { startThread, service } = await setUp();
     const thread = await startThread();

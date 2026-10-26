@@ -85,4 +85,25 @@ describe("NotificationSubmitter", () => {
       harnessNotificationSubmitter(world.harness).notify("98765", monitorEvent("gone")),
     ).rejects.toBeInstanceOf(ThreadGoneError);
   });
+
+  it("appends a passive write without starting a turn when idle", async () => {
+    const id = await startIdleThread("r1");
+    await harnessNotificationSubmitter(world.harness).submitWrite(id, {
+      kind: "app.process_exit",
+      data: { processId: "p1", name: "echo hi", command: "echo hi", exitCode: 0, logTail: "hi" },
+      model: [{ role: "user", content: "You ran: echo hi" } as never],
+      text: "You ran: echo hi",
+      requestId: "process-exit:p1",
+    });
+    await waitUntilTrue(
+      async () => (await entriesOfKind(id, "app.process_exit")).length === 1,
+      "the exit entry",
+    );
+    const [entry] = await entriesOfKind(id, "app.process_exit");
+    expect(JSON.stringify(entry?.model)).toContain("You ran: echo hi");
+    // Still exactly one assistant answer: the write never started a run.
+    const conversation = await world.harness.conversation(Number(id) as never, BACKGROUND);
+    const { entries } = (await conversation?.context(BACKGROUND)) ?? { entries: [] };
+    expect(entries.filter((entry) => entry.kind === "pi.assistant")).toHaveLength(1);
+  });
 });

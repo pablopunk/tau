@@ -1,20 +1,30 @@
 import {
   AppError,
   type Change,
+  type CompactionSettings,
+  CompactionSettingsSchema,
   type ConversationSummary,
   type Core,
+  describeExecutors,
   type MessageMode,
   type ModelRef,
   type NodeLinkDirection,
+  nativeDisabledError,
   type Project,
+  type ProviderId,
   type Settings,
   type Skill,
   type StartConversationInput,
   type ThinkingLevel,
   type ThreadWorkspace,
+  type TodoItem,
+  UpdateTodosInputSchema,
+  type VoiceModelSetting,
+  VoiceModelSettingSchema,
   type WorkspaceDefault,
   type WorkspaceMode,
 } from "@tau/protocol";
+import { Value } from "typebox/value";
 import { clampFakeThinkingLevel, FAKE_MODELS, findFakeModel } from "./catalog";
 import { createFakeAccess } from "./fake-access";
 import { createFakeConnectors, type FakeConnectors } from "./fake-connectors";
@@ -32,6 +42,7 @@ import {
 } from "./fake-fs";
 import { cloneWouldFail, folderNameFor, repositoryKeyOf } from "./fake-git";
 import { createFakeGithub, type FakeGithubOptions } from "./fake-github";
+import { createFakeHandoff } from "./fake-handoff";
 import { createFakeIcons } from "./fake-icons";
 import { assertImageMatchesMimeType } from "./fake-images";
 import { createFakeMvp5 } from "./fake-mvp5";
@@ -40,10 +51,12 @@ import { createFakeNodes, FAKE_NODE_SEEDS, type FakeNodes } from "./fake-nodes";
 import { createFakeProviders } from "./fake-providers";
 import { createFakeRemote, type FakeRemote } from "./fake-remote";
 import { createFakeResources, type FakeResources } from "./fake-resources";
+import { createFakeSandbox } from "./fake-sandbox";
 import { suggestFakeDirectories } from "./fake-suggest";
 import { createFakeTerminals } from "./fake-terminals";
 import type { SpawnParams } from "./fake-thread-ops";
 import { createFakeUpdates, type FakeUpdates, type FakeUpdatesOptions } from "./fake-updates";
+import { createFakeUploads } from "./fake-uploads";
 import { linkFakeCores } from "./link-fake-cores";
 
 export interface FakeCoreOptions {
@@ -69,6 +82,8 @@ export interface FakeCoreOptions {
   /** How this fake names itself in `nodes.self()` (and to its peers). Default `Mac`, `darwin arm64`. */
   readonly nodeName?: string;
   readonly nodeOs?: string;
+  /** Speech models the fake OpenRouter key lists in `voice.options()`. Default two stub models. */
+  readonly voiceModels?: readonly { modelId: string; name: string }[];
   /** This tau's version for `updates.status()`. Default `0.0.0`. */
   readonly currentVersion?: string;
   /** The latest version the registry answers, known from the start. Default none (unreachable). */
@@ -135,12 +150,18 @@ export function createFakeCore(options: FakeCoreOptions = {}): FakeCore {
   let defaultThinkingLevel: ThinkingLevel | null = null;
   let fastModel: ModelRef | null = null;
   let fastThinkingLevel: ThinkingLevel | null = null;
+  let voiceModel: VoiceModelSetting | null = null;
+  const voiceModels = options.voiceModels ?? [
+    { modelId: "voxtral-small-latest", name: "Voxtral Small" },
+    { modelId: "parakeet-tdt-0.6b-v3", name: "Parakeet TDT 0.6B v3" },
+  ];
   const clampFor = (ref: ModelRef, level: ThinkingLevel | null) => {
     const info = findFakeModel(ref);
     return level && info ? clampFakeThinkingLevel(info, level) : level;
   };
   let messageMode: MessageMode = "steer";
   let workspaceDefault: WorkspaceDefault = "per-project";
+  let compaction: CompactionSettings = { mode: "summary", backend: "auto" };
   let setupSkipped = false;
   const lastWorkspaceModes = new Map<string, WorkspaceMode>();
   let projectsFolder = FAKE_PROJECTS_FOLDER;
@@ -190,15 +211,19 @@ export function createFakeCore(options: FakeCoreOptions = {}): FakeCore {
   const liveConversations = () => [...conversations.values()].filter((item) => !item.isDeleted);
   const byRecent = (a: { updatedAt: number }, b: { updatedAt: number }) => b.updatedAt - a.updatedAt;
 
+  const staged = createFakeUploads({ now });
   const validateInput = (input: FakeInput, model: ModelRef) => {
     const images = input.images ?? [];
-    if (input.text.trim() === "" && images.length === 0) {
+    const files = input.files ?? [];
+    if (input.text.trim() === "" && images.length === 0 && files.length === 0) {
       throw new AppError("invalid_request", "The message is empty.");
     }
     if (images.length > 0 && !requireListedModel(model).images) {
       throw new AppError("images_not_supported", "This model does not accept images.");
     }
     for (const image of images) assertImageMatchesMimeType(image);
+    // Files ride path-only context, so even a text-only model accepts them.
+    staged.requireRefs(files);
   };
 
   const generateTitle = (text: string): string | undefined => {
@@ -304,6 +329,8 @@ export function createFakeCore(options: FakeCoreOptions = {}): FakeCore {
   const mvp8 = createFakeMvp8({ emit, now, requireConversation });
   const connectors = createFakeConnectors({ emit, now, requireConversation });
   const resources = createFakeResources({ emit });
+  const sandbox = createFakeSandbox({ emit });
+  const handoff = createFakeHandoff({ requireConversation });
 
   function workspaceModeFor(projectId: string, requested: WorkspaceMode | undefined): WorkspaceMode {
     if (requested) {
@@ -315,6 +342,7 @@ export function createFakeCore(options: FakeCoreOptions = {}): FakeCore {
   }
 
   async function startConversation(input: StartConversationInput) {
+    if (input.executor === "claude-code") throw nativeDisabledError();
     const project = requireProject(input.projectId);
     if (project.status !== "ready") throw new AppError("project_not_ready", "This project is not ready.");
     requireProvider();
@@ -334,7 +362,7 @@ export function createFakeCore(options: FakeCoreOptions = {}): FakeCore {
       ),
     });
     startsByRequest.set(input.requestId, conversation.id);
-    conversation.send(input.requestId, { text: input.text, images: input.images });
+    conversation.send(input.requestId, { text: input.text, images: input.images, files: input.files });
     mvp5.afterMessage(conversation, input.text);
     return conversation.summary();
   }
@@ -480,6 +508,7 @@ export function createFakeCore(options: FakeCoreOptions = {}): FakeCore {
           defaultThinkingLevel,
           fastModel,
           fastThinkingLevel,
+          voiceModel,
           projectsFolder,
           messageMode,
           workspaceDefault,
@@ -487,10 +516,13 @@ export function createFakeCore(options: FakeCoreOptions = {}): FakeCore {
           claudeConnectors: connectors.settings(),
           remote: { enabled: remote.status().state !== "off" },
           resources: resources.settings(),
+          sandbox: sandbox.settings(),
+          compaction: { ...compaction },
           setupSkipped,
         };
       },
       ...resources.api,
+      ...sandbox.api,
       async setSetupSkipped(skipped) {
         setupSkipped = skipped;
       },
@@ -519,6 +551,30 @@ export function createFakeCore(options: FakeCoreOptions = {}): FakeCore {
         fastModel = { provider: ref.provider, modelId: ref.modelId };
         fastThinkingLevel = clampFor(ref, fastThinkingLevel);
       },
+      async setVoiceModel(setting) {
+        if (!Value.Check(VoiceModelSettingSchema, setting)) {
+          throw new AppError("invalid_request", "The voice setting is invalid.");
+        }
+        if (setting !== null && setting.kind === "provider") {
+          // Mirror the real core: needs a connected key, then a catalog hit.
+          const connected = (await connections.providers.list()).some(
+            (provider) => provider.id === setting.provider && provider.connection !== null,
+          );
+          if (!connected) throw new AppError("no_provider", "Connect a provider first.");
+          if (!voiceModels.some((model) => model.modelId === setting.modelId)) {
+            throw new AppError(
+              "invalid_request",
+              "This model is not available from your connected providers.",
+            );
+          }
+        }
+        voiceModel =
+          setting === null
+            ? null
+            : setting.kind === "local"
+              ? { kind: "local" }
+              : { kind: "provider", provider: setting.provider, modelId: setting.modelId };
+      },
       async setMessageMode(mode) {
         messageMode = mode;
       },
@@ -527,6 +583,27 @@ export function createFakeCore(options: FakeCoreOptions = {}): FakeCore {
       },
       async setClaudeConnectors(value) {
         connectors.setSettings(value);
+      },
+      async setCompaction(value: CompactionSettings) {
+        if (!Value.Check(CompactionSettingsSchema, value)) {
+          throw new AppError("invalid_request", "Compaction mode must be summary or fast.");
+        }
+        if (value.mode === "fast") {
+          const wanted: readonly ProviderId[] =
+            value.backend === "auto" ? ["typesafe", "openai"] : [value.backend];
+          const connected = new Set(
+            (await connections.providers.list())
+              .filter((info) => info.connection !== null)
+              .map((info) => info.id),
+          );
+          if (!wanted.some((id) => connected.has(id))) {
+            throw new AppError(
+              "invalid_request",
+              "Connect TypeSafe, or OpenAI with decisions access, to enable fast compaction.",
+            );
+          }
+        }
+        compaction = { ...value };
       },
       async setProjectsFolder(typedPath) {
         const path = expandFakeHome(typedPath);
@@ -538,6 +615,32 @@ export function createFakeCore(options: FakeCoreOptions = {}): FakeCore {
     },
     providers: connections.providers,
     models: connections.models,
+    runtimes: { list: async () => describeExecutors(undefined) },
+    voice: {
+      async options() {
+        const openrouter = (await connections.providers.list()).find(
+          (provider) => provider.id === "openrouter" && provider.connection !== null,
+        );
+        return {
+          local: { available: true, state: "needs-download" },
+          providers: openrouter
+            ? [
+                {
+                  provider: openrouter.id,
+                  providerName: openrouter.name,
+                  models: voiceModels.map((model) => ({ ...model })),
+                },
+              ]
+            : [],
+        };
+      },
+      /** Deterministic loopback: the text echoes the payload size, so web work never needs a mic. */
+      async transcribe(input) {
+        return { text: `[transcribed ${input.data.length} chars]` };
+      },
+      async removeModel() {},
+      async warm() {},
+    },
     skills: {
       async list(projectId) {
         if (projectId !== null) requireProject(projectId);
@@ -636,11 +739,30 @@ export function createFakeCore(options: FakeCoreOptions = {}): FakeCore {
         const conversation = requireConversation(id);
         validateInput(input, conversation.model);
         const whenBusy = input.whenBusy ?? (messageMode === "queue" ? "followUp" : "steer");
-        conversation.send(input.requestId, { text: input.text, images: input.images }, whenBusy);
+        const receipt = conversation.send(
+          input.requestId,
+          { text: input.text, images: input.images, files: input.files },
+          whenBusy,
+        );
         mvp5.afterMessage(conversation, input.text);
+        return receipt;
+      },
+      async updateTodos(id, input) {
+        if (!Value.Check(UpdateTodosInputSchema, input)) {
+          throw new AppError(
+            "invalid_request",
+            "The todo list needs 1 to 500 character items, at most 50 of them.",
+          );
+        }
+        const conversation = requireConversation(id);
+        const todos: TodoItem[] = input.todos.map((todo) => ({
+          content: todo.content,
+          status: todo.status,
+        }));
+        conversation.updateTodos(input.requestId, todos);
       },
       async abort(id) {
-        await requireConversation(id).abort();
+        return requireConversation(id).abort();
       },
       async archive(id, archived) {
         const conversation = requireConversation(id);
@@ -665,6 +787,7 @@ export function createFakeCore(options: FakeCoreOptions = {}): FakeCore {
         announce: (conversation) => emit({ resource: "conversations", projectId: conversation.projectId }),
       }),
       ...mvp5.threadOps,
+      ...handoff,
       async configure(id, input) {
         const conversation = requireConversation(id);
         if (input.model === undefined && input.thinkingLevel === undefined) {
@@ -677,8 +800,11 @@ export function createFakeCore(options: FakeCoreOptions = {}): FakeCore {
           clampFakeThinkingLevel(info, input.thinkingLevel ?? conversation.thinkingLevel()),
         );
       },
+      async sendNow(id, itemId) {
+        return requireConversation(id).sendNow(itemId);
+      },
       async retry(id, input) {
-        requireConversation(id).retry(input.requestId);
+        return requireConversation(id).retry(input.requestId);
       },
       async compact(id) {
         if (!requireConversation(id).hasHistoryToCompact()) {
@@ -697,6 +823,11 @@ export function createFakeCore(options: FakeCoreOptions = {}): FakeCore {
     seedResourceActivity: resources.seed,
     timers: mvp8.timers,
     goals: mvp8.goals,
+    uploads: {
+      async stage(input) {
+        return staged.stage(input);
+      },
+    },
     mcp: mvp5.mcp,
     onChange(listener) {
       listeners.add(listener);

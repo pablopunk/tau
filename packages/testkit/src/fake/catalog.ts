@@ -16,6 +16,12 @@ export const FAKE_PROVIDERS: readonly Omit<ProviderInfo, "connection" | "cli">[]
   },
   { id: "google", name: "Google", methods: ["api_key"], keyUrl: "https://aistudio.google.com/apikey" },
   { id: "opencode", name: "OpenCode", methods: ["api_key"], keyUrl: "https://opencode.ai/auth" },
+  {
+    id: "typesafe",
+    name: "TypeSafe",
+    methods: ["api_key"],
+    keyUrl: "https://console.typesafe.ai/settings/keys",
+  },
   { id: "claude-cli", name: "Claude CLI", methods: ["claude_cli"], keyUrl: "" },
 ];
 
@@ -110,7 +116,9 @@ export const FAKE_MODELS: readonly ModelInfo[] = [
 const LEVEL_ORDER: readonly ThinkingLevel[] = ["off", "minimal", "low", "medium", "high", "xhigh", "max"];
 
 export function findFakeModel(ref: { provider: string; modelId: string }): ModelInfo | undefined {
-  return FAKE_MODELS.find((model) => model.provider === ref.provider && model.modelId === ref.modelId);
+  const matches = (model: ModelInfo) => model.provider === ref.provider && model.modelId === ref.modelId;
+  // Listed models are startable: the CLI catalog joins the keyed one once connected.
+  return FAKE_MODELS.find(matches) ?? FAKE_CLAUDE_CLI_MODELS.find(matches);
 }
 
 /** The nearest supported level at or below the wanted one, as pi-ai's `clampThinkingLevel`. */

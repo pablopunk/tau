@@ -59,11 +59,16 @@ export function createFakeProviders(deps: {
   const infoOf = (id: ProviderId): ProviderInfo => {
     const provider = FAKE_PROVIDERS.find((candidate) => candidate.id === id);
     if (!provider) throw new AppError("not_found", `Unknown provider: ${id}`);
+    const connected = connections.get(id) ?? null;
+    // The fake simulates capability: a connected decision backend reads as ready.
+    const decisions =
+      connected !== null && (id === "typesafe" || id === "openai") ? ("ready" as const) : undefined;
     return {
       ...provider,
       methods: [...provider.methods],
-      connection: connections.get(id) ?? null,
+      connection: connected,
       cli: id === "claude-cli" ? claudeCliStatus() : null,
+      ...(decisions !== undefined ? { decisions } : {}),
     };
   };
 
@@ -192,7 +197,8 @@ export function createFakeProviders(deps: {
     models: {
       async list() {
         const claudeModels = connections.has("claude-cli") ? FAKE_CLAUDE_CLI_MODELS.map(copyModel) : [];
-        return connections.size > 0 ? [...FAKE_MODELS.map(copyModel), ...claudeModels] : [];
+        const keyed = [...connections.keys()].some((id) => id !== "typesafe" && id !== "claude-cli");
+        return keyed ? [...FAKE_MODELS.map(copyModel), ...claudeModels] : claudeModels;
       },
     },
   };

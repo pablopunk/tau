@@ -1,10 +1,16 @@
 import { Type } from "typebox";
+import { ProcessOriginSchema } from "./mvp5";
 
 export const MONITOR_EVENT_KIND = "app.monitor_event";
 export const PROCESS_EXIT_KIND = "app.process_exit";
 export const TIMER_FIRED_KIND = "app.timer_fired";
 export const NOTICE_KIND = "app.notice";
 export const GOAL_VERDICT_KIND = "app.goal_verdict";
+/** Display-only row for a user `!` command: admitted while busy, never sent to the model. */
+export const BANG_KIND = "app.bang";
+
+export const BangDataSchema = Type.Object({ command: Type.String() });
+export type BangData = Type.Static<typeof BangDataSchema>;
 
 export const MonitorEndSchema = Type.Union([
   Type.Object({ exitCode: Type.Union([Type.Number(), Type.Null()]) }),
@@ -26,6 +32,16 @@ export const ProcessExitDataSchema = Type.Object({
   command: Type.String(),
   exitCode: Type.Union([Type.Number(), Type.Null()]),
   logTail: Type.String(),
+  origin: Type.Optional(ProcessOriginSchema),
+  /** Why tau stopped the command; absent for a natural exit. */
+  stopReason: Type.Optional(
+    Type.Union([
+      Type.Literal("user"),
+      Type.Literal("timeout"),
+      Type.Literal("resources"),
+      Type.Literal("memory"),
+    ]),
+  ),
 });
 export type ProcessExitData = Type.Static<typeof ProcessExitDataSchema>;
 
@@ -124,6 +140,7 @@ export const NOTIFICATION_TAGS = [
   "timer-fired",
   "notice",
   "goal-verdict",
+  "todos-updated",
 ] as const;
 
 export const isNotificationText = (text: string): boolean => {

@@ -103,7 +103,7 @@ export function createMemoryWatch(deps: WatchDeps): MemoryWatch {
   /** RSS over-counts shared pages: a tree whose footprint is within the limit is left alone. */
   const confirmThenKill = async (
     item: Item,
-    rows: readonly ProcRow[],
+    _rows: readonly ProcRow[],
     members: readonly ProcRow[],
     limit: number,
     footprintOf: Footprint,
@@ -115,7 +115,8 @@ export function createMemoryWatch(deps: WatchDeps): MemoryWatch {
         item.overSweeps = 0;
         return;
       }
-      await kill(item, rows);
+      // Re-sweep: the rows above are older than the footprint read, and a PID in them may have been reused.
+      await kill(item, await deps.sweep());
     } finally {
       item.confirming = false;
     }

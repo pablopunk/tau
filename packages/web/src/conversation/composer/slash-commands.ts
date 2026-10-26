@@ -35,3 +35,12 @@ export function parseSlashCommand(text: string): { name: CommandName; args: stri
   const command = SLASH_COMMANDS.find((candidate) => candidate.name === match?.[1]);
   return command ? { name: command.name, args: (match?.[2] ?? "").trim() } : null;
 }
+
+const NATIVE_COMMANDS: readonly CommandName[] = ["new", "rename", "archive"];
+
+/** What a native thread supports: the rest (compact, model, thinking, goal, loop) reach Pi-only requests. */
+export function nativeCommandsOf(handlers: CommandHandlers): CommandHandlers {
+  return Object.fromEntries(
+    Object.entries(handlers).filter(([name]) => NATIVE_COMMANDS.includes(name as CommandName)),
+  );
+}

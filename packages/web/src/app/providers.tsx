@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { MotionProvider } from "@/components/ui/motion";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { NodeProvider } from "@/nodes";
@@ -7,10 +8,12 @@ import { NodeProvider } from "@/nodes";
 export function Providers({ children }: { children: ReactNode }) {
   return (
     <NodeProvider>
-      <TooltipProvider>
-        {children}
-        <Toaster />
-      </TooltipProvider>
+      <MotionProvider>
+        <TooltipProvider>
+          {children}
+          <Toaster />
+        </TooltipProvider>
+      </MotionProvider>
     </NodeProvider>
   );
 }

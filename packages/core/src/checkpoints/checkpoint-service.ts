@@ -11,6 +11,7 @@ import {
   type StoredCheckpoint,
 } from "./checkpoint-store";
 import { createKeyedLock } from "./keyed-lock";
+import { relocateDoc } from "./relocate";
 import type { Repo } from "./repo";
 import { applyRestore, planRestore, previewOf, type RestoreStep } from "./restore";
 import { deleteIndexFile, deleteRefsOf, pointRefAt, refOf, takeSnapshot, takeTree } from "./snapshot";
@@ -32,6 +33,8 @@ export interface CheckpointService {
   ): Promise<{ conversation: ConversationSummary; draft: string }>;
   /** Deletes the thread's refs and index file. */
   onConversationRemoved(conversation: ConversationSummary): Promise<void>;
+  /** Points the thread's snapshot repository at the moved project folder. */
+  relocate(conversationId: string, oldRoot: string, newRoot: string): Promise<void>;
 }
 
 export interface CheckpointDeps {
@@ -189,5 +192,10 @@ export function createCheckpointService(deps: CheckpointDeps): CheckpointService
         }
         await deleteIndexFile(home, conversation.id);
       }),
+
+    relocate: (conversationId, oldRoot, newRoot) =>
+      underLock(conversationId, () =>
+        store.update(conversationId, (doc) => relocateDoc(doc, oldRoot, newRoot)),
+      ),
   };
 }

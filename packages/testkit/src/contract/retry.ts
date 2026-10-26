@@ -28,8 +28,10 @@ export function retryCases(make: MakeContractTarget, test: CaseRunner): void {
       const tracker = await trackView(core, conversation.id);
       expect(isRetryable(tracker.view() as never)).toBe(true);
       const requestId = nextRequestId();
-      await core.conversations.retry(conversation.id, { requestId });
-      await core.conversations.retry(conversation.id, { requestId });
+      const first = await core.conversations.retry(conversation.id, { requestId });
+      expect(first.submissionId).toEqual(expect.any(Number));
+      const second = await core.conversations.retry(conversation.id, { requestId });
+      expect(second).toEqual(first);
       await waitFor(() => entryKinds(tracker.view()).includes("app.retry"), "the retry entry");
       await waitForSummary(core, conversation, (summary) => summary.status === "idle", "the answer");
       await waitForIdle(tracker);

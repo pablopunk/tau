@@ -5,10 +5,7 @@ import { rejectsWithCode } from "./helpers";
 import type { ContractTarget, MakeContractTarget } from "./types";
 
 const FULL: ResourceSettings = {
-  priority: "background",
-  heavySlots: 2,
-  memoryLimitMb: 4096,
-  appliesTo: { main: true, worktrees: true, subagents: false },
+  levels: { main: "background", worktree: "balanced", subagent: "off" },
 };
 
 export function resourceCases(make: MakeContractTarget, test: CaseRunner): void {
@@ -19,13 +16,10 @@ export function resourceCases(make: MakeContractTarget, test: CaseRunner): void 
     });
     afterEach(() => target.dispose());
 
-    test("[resources] default is Off with subagents governed only", async () => {
+    test("[resources] default is Off everywhere", async () => {
       expect((await target.core.settings.get()).resources).toEqual(DEFAULT_RESOURCE_SETTINGS);
       expect(DEFAULT_RESOURCE_SETTINGS).toEqual({
-        priority: "off",
-        heavySlots: null,
-        memoryLimitMb: null,
-        appliesTo: { main: false, worktrees: false, subagents: true },
+        levels: { main: "off", worktree: "off", subagent: "off" },
       });
     });
 
@@ -37,38 +31,25 @@ export function resourceCases(make: MakeContractTarget, test: CaseRunner): void 
       expect((await core.settings.get()).resources).toEqual(DEFAULT_RESOURCE_SETTINGS);
     });
 
-    test("[resources] a partial setting is valid: each control works alone", async () => {
+    test("[resources] each scope sets its level alone", async () => {
       const { core } = target;
-      for (const partial of [
-        { ...DEFAULT_RESOURCE_SETTINGS, priority: "balanced" as const },
-        { ...DEFAULT_RESOURCE_SETTINGS, heavySlots: 1 },
-        { ...DEFAULT_RESOURCE_SETTINGS, memoryLimitMb: 64 },
-      ]) {
-        await core.settings.setResources(partial);
-        expect((await core.settings.get()).resources).toEqual(partial);
-      }
+      const partial = {
+        ...DEFAULT_RESOURCE_SETTINGS,
+        levels: { main: "balanced", worktree: "off", subagent: "off" } as const,
+      };
+      await core.settings.setResources(partial);
+      expect((await core.settings.get()).resources).toEqual(partial);
     });
 
-    test("[resources] heavy slots must be 1 to 64", async () => {
-      const { core } = target;
-      for (const heavySlots of [0, 65, 1.5, -1]) {
-        await rejectsWithCode(core.settings.setResources({ ...FULL, heavySlots }), "invalid_request");
-      }
-      for (const heavySlots of [1, 64]) await core.settings.setResources({ ...FULL, heavySlots });
-    });
-
-    test("[resources] memory limit must be at least 64 MB", async () => {
-      const { core } = target;
-      for (const memoryLimitMb of [0, 63, 64.5]) {
-        await rejectsWithCode(core.settings.setResources({ ...FULL, memoryLimitMb }), "invalid_request");
-      }
-      await core.settings.setResources({ ...FULL, memoryLimitMb: 64 });
-    });
-
-    test("[resources] a rejected value leaves the stored one alone", async () => {
+    test("[resources] a bad level is rejected and leaves the stored one alone", async () => {
       const { core } = target;
       await core.settings.setResources(FULL);
-      await rejectsWithCode(core.settings.setResources({ ...FULL, heavySlots: 0 }), "invalid_request");
+      await rejectsWithCode(
+        core.settings.setResources({
+          levels: { main: "ludicrous", worktree: "off", subagent: "off" },
+        } as unknown as ResourceSettings),
+        "invalid_request",
+      );
       expect((await core.settings.get()).resources).toEqual(FULL);
     });
 
@@ -79,6 +60,12 @@ export function resourceCases(make: MakeContractTarget, test: CaseRunner): void 
         prioritySupported: expect.any(Boolean),
         sameCgroupOnly: expect.any(Boolean),
         note: expect.toBeOneOf([null, expect.any(String)]),
+        sandbox: {
+          enforced: expect.any(Boolean),
+          mechanism: expect.stringMatching(/^(seatbelt|systemd|bwrap|none)$/),
+          tested: expect.any(Boolean),
+          note: expect.toBeOneOf([null, expect.any(String)]),
+        },
       });
     });
 

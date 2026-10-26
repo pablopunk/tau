@@ -1,4 +1,4 @@
-import { DEFAULT_RESOURCE_SETTINGS } from "@tau/protocol";
+import { DEFAULT_RESOURCE_SETTINGS, DEFAULT_SANDBOX_SETTINGS } from "@tau/protocol";
 import { afterEach, beforeEach, describe, expect } from "vitest";
 import type { CaseRunner } from "./case-runner";
 import { FAST_MODEL, hasConnectedProvider, rejectsWithCode, SECOND_MODEL } from "./helpers";
@@ -31,6 +31,7 @@ export function settingsAndProviderCases(make: MakeContractTarget, test: CaseRun
         defaultThinkingLevel: null,
         fastModel: null,
         fastThinkingLevel: null,
+        voiceModel: null,
         projectsFolder: expect.any(String),
         messageMode: "steer",
         workspaceDefault: "per-project",
@@ -38,6 +39,8 @@ export function settingsAndProviderCases(make: MakeContractTarget, test: CaseRun
         claudeConnectors: { disabled: [], alwaysAllow: [], askBeforeWrites: false },
         remote: { enabled: false },
         resources: DEFAULT_RESOURCE_SETTINGS,
+        sandbox: DEFAULT_SANDBOX_SETTINGS,
+        compaction: { mode: "summary", backend: "auto" },
         setupSkipped: false,
       });
       expect(await hasConnectedProvider(core)).toBe(false);
@@ -119,6 +122,21 @@ export function settingsAndProviderCases(make: MakeContractTarget, test: CaseRun
       });
     });
 
+    test("[settings] stores compaction and rejects fast with no decision backend", async () => {
+      const { core } = target;
+      expect((await core.settings.get()).compaction).toEqual({ mode: "summary", backend: "auto" });
+      await core.settings.setCompaction({ mode: "summary", backend: "openai" });
+      expect((await core.settings.get()).compaction).toEqual({ mode: "summary", backend: "openai" });
+      await rejectsWithCode(
+        core.settings.setCompaction({ mode: "fast", backend: "auto" }),
+        "invalid_request",
+      );
+      await core.providers.setApiKey("typesafe", "sk-contract-test");
+      await core.settings.setCompaction({ mode: "fast", backend: "typesafe" });
+      expect((await core.settings.get()).compaction).toEqual({ mode: "fast", backend: "typesafe" });
+      await core.providers.disconnect("typesafe");
+    });
+
     test("[settings] stores the projects folder and rejects a relative path or a file", async () => {
       const { core, paths } = target;
       const folder = await paths.directory("projects-root");
@@ -129,6 +147,49 @@ export function settingsAndProviderCases(make: MakeContractTarget, test: CaseRun
         core.settings.setProjectsFolder(await paths.file("a-file.txt")),
         "not_a_directory",
       );
+    });
+
+    test("[settings] stores a voice model, clears it, and rejects a malformed setting", async () => {
+      const { core } = target;
+      expect((await core.settings.get()).voiceModel).toBeNull();
+      await core.settings.setVoiceModel({ kind: "local" });
+      expect((await core.settings.get()).voiceModel).toEqual({ kind: "local" });
+      // Neither contract backend connects a key, so a provider flavor
+      // rejects the same way on both. Acceptance with a connected key is
+      // covered per backend (fake-core configured leg via the web suite,
+      // real core via settings-api unit tests with a stubbed catalog).
+      await rejectsWithCode(
+        core.settings.setVoiceModel({
+          kind: "provider",
+          provider: "openrouter",
+          modelId: "voxtral-small-latest",
+        }),
+        "no_provider",
+      );
+      await core.settings.setVoiceModel(null);
+      expect((await core.settings.get()).voiceModel).toBeNull();
+      await rejectsWithCode(
+        core.settings.setVoiceModel({ kind: "provider", provider: "openrouter" } as never),
+        "invalid_request",
+      );
+    });
+
+    test("[voice] options report local state and provider rows", async () => {
+      const { core } = target;
+      const options = await core.voice.options();
+      expect(options.local).toMatchObject({ available: expect.any(Boolean) });
+      expect(Array.isArray(options.providers)).toBe(true);
+    });
+
+    test("[voice-transcribe] transcribes audio with the stored setting", async () => {
+      const { core } = target;
+      await core.settings.setVoiceModel({ kind: "local" });
+      const { text } = await core.voice.transcribe({
+        format: "pcm-f32",
+        sampleRate: 16000,
+        data: "AAAA",
+      });
+      expect(text.length).toBeGreaterThan(0);
     });
   });
 }

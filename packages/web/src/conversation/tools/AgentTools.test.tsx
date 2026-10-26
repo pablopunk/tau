@@ -64,7 +64,7 @@ describe("agent tool cards", () => {
     renderAt("/", <AgentTool state={state} />);
     expect(screen.getByText("fork")).toBeTruthy();
     expect(screen.queryByText("model-9")).toBeNull();
-    await userEvent.click(screen.getByRole("button"));
+    await userEvent.click(screen.getByRole("button", { expanded: false }));
     expect(screen.getByText("model-9")).toBeTruthy();
     expect(screen.getByText("running")).toBeTruthy();
     expect(screen.getByRole("link", { name: "Open" })).toBeTruthy();
@@ -75,7 +75,7 @@ describe("agent tool cards", () => {
   it("hides Stop once the child is done", async () => {
     children.current = [child({ agentStatus: "done" })];
     renderAt("/", <AgentTool state={stateOf("agent", {}, "", { conversationId: "kid" })} />);
-    await userEvent.click(screen.getByRole("button"));
+    await userEvent.click(screen.getByRole("button", { expanded: false }));
     expect(screen.queryByRole("button", { name: "Stop" })).toBeNull();
     expect(screen.getByText("done")).toBeTruthy();
   });
@@ -83,7 +83,7 @@ describe("agent tool cards", () => {
   it("shows one status for a stopped child, taken from the child", async () => {
     children.current = [child({ agentStatus: "stopped" })];
     renderAt("/", <AgentTool state={stateOf("agent", {}, "", { conversationId: "kid" })} />);
-    await userEvent.click(screen.getByRole("button"));
+    await userEvent.click(screen.getByRole("button", { expanded: false }));
     expect(screen.getByText("stopped")).toBeTruthy();
     expect(screen.queryByText("Done")).toBeNull();
   });
@@ -91,14 +91,14 @@ describe("agent tool cards", () => {
   it("shows the error text of a failed agent call", async () => {
     const state = stateOf("agent", { description: "x" }, "isolation failed badly", {}, true);
     renderAt("/", <AgentTool state={state} />);
-    await userEvent.click(screen.getByRole("button"));
+    await userEvent.click(screen.getByRole("button", { expanded: false }));
     expect(screen.getByText("isolation failed badly")).toBeTruthy();
   });
 
   it("shows the model's display name instead of its id", async () => {
     models.current = [{ provider: "x", modelId: "model-9", name: "Nine" }];
     renderAt("/", <AgentTool state={stateOf("agent", {}, "", { conversationId: "kid" })} />);
-    await userEvent.click(screen.getByRole("button"));
+    await userEvent.click(screen.getByRole("button", { expanded: false }));
     expect(screen.getByText("Nine")).toBeTruthy();
     expect(screen.queryByText("model-9")).toBeNull();
   });
@@ -122,7 +122,7 @@ describe("agent tool cards", () => {
       "/",
       <AgentMergeTool state={stateOf("merge_agent", { id: "kid" }, "conflict in a.ts", {}, true)} />,
     );
-    await userEvent.click(screen.getByRole("button"));
+    await userEvent.click(screen.getByRole("button", { expanded: false }));
     expect(screen.getByText("conflict in a.ts")).toBeTruthy();
   });
 });

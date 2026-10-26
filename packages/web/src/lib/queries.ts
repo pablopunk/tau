@@ -1,27 +1,40 @@
 import {
   keepPreviousData,
   type QueryClient,
+  type QueryFunctionContext,
   useMutation,
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
-import type {
-  ApprovalDecision,
-  ClaudeConnectorSettings,
-  ConversationSummary,
-  MintPairingInput,
-  ProviderId,
-  RemoteStatus,
-  ResourceSettings,
-  UpdateStatus,
+import {
+  type Approval,
+  type ApprovalDecision,
+  type ClaudeConnectorSettings,
+  type CompactionSettings,
+  type ConversationSummary,
+  DEFAULT_SANDBOX_SETTINGS,
+  type MintPairingInput,
+  type ProviderId,
+  type RemoteStatus,
+  type ResourceSettings,
+  type SandboxSettings,
+  type Settings,
+  type UpdateStatus,
 } from "@tau/protocol";
+import { useCallback } from "react";
+import { toast } from "sonner";
+import { errorMessage } from "@/lib/error-message";
 import { isJobActive } from "@/lib/updates";
 import { useApi } from "@/nodes/node-context";
+import type { Api } from "./api";
+
+const RUNTIMES_STALE_MS = 60_000;
 
 export const queryKeys = {
   providers: ["providers"] as const,
   settings: ["settings"] as const,
   models: ["models"] as const,
+  runtimes: ["runtimes"] as const,
   skills: (projectId: string | null) => ["skills", projectId] as const,
   projects: ["projects"] as const,
   conversations: (projectId: string) => ["conversations", projectId] as const,
@@ -29,9 +42,11 @@ export const queryKeys = {
   githubStatus: ["github", "status"] as const,
   githubRepos: ["github", "repos"] as const,
   suggestedCodeFolder: ["settings", "suggested-code-folder"] as const,
+  voiceOptions: ["voice", "options"] as const,
   pathSuggestions: (prefix: string) => ["fs", "suggest", prefix] as const,
   iconCandidates: (projectId: string) => ["projects", projectId, "icon-candidates"] as const,
   workspace: (conversationId: string) => ["workspace", conversationId] as const,
+  handoffPreview: (conversationId: string) => ["handoff-preview", conversationId] as const,
   checkpoints: (conversationId: string) => ["checkpoints", conversationId] as const,
   processes: (conversationId: string) => ["processes", conversationId] as const,
   allProcesses: ["processes"] as const,
@@ -75,6 +90,30 @@ export const useProjects = () => {
 export const useModels = () => {
   const api = useApi();
   return useQuery({ queryKey: queryKeys.models, queryFn: () => api.models.list() });
+};
+
+/** Which engines this node offers a new thread. A failing or old node just has no answer: callers fall back to Pi. */
+export const useRuntimes = ({ enabled = true }: { enabled?: boolean } = {}) => {
+  const api = useApi();
+  return useQuery({
+    queryKey: queryKeys.runtimes,
+    queryFn: () => api.runtimes.list(),
+    retry: false,
+    staleTime: RUNTIMES_STALE_MS,
+    enabled,
+  });
+};
+
+/** What a handoff of this thread would carry and lose; always fresh, never kept after the dialog closes. */
+export const useHandoffPreview = (conversationId: string) => {
+  const api = useApi();
+  return useQuery({
+    queryKey: queryKeys.handoffPreview(conversationId),
+    queryFn: () => api.conversations.handoffPreview(conversationId),
+    retry: false,
+    gcTime: 0,
+    staleTime: 0,
+  });
 };
 
 export const useSkills = (projectId: string | null) => {
@@ -169,6 +208,20 @@ export const useGithubRepos = (enabled: boolean) => {
   return useQuery({ queryKey: queryKeys.githubRepos, queryFn: () => api.github.repos(), enabled });
 };
 
+const VOICE_DOWNLOAD_POLL_MS = 2_000;
+
+/** Polls only while the local model is downloading; `null` data means the node predates voice support. */
+export const useVoiceOptions = (enabled = true) => {
+  const api = useApi();
+  return useQuery({
+    queryKey: queryKeys.voiceOptions,
+    queryFn: () => api.voice.options(),
+    enabled,
+    refetchInterval: (query) =>
+      query.state.data?.local.state === "downloading" ? VOICE_DOWNLOAD_POLL_MS : false,
+  });
+};
+
 export const useSuggestedCodeFolder = () => {
   const api = useApi();
   return useQuery({
@@ -197,49 +250,58 @@ export const useIconCandidates = (projectId: string, enabled = true) => {
   });
 };
 
+export const workspaceStatusOptions = (api: Api, conversationId: string) => ({
+  queryKey: queryKeys.workspace(conversationId),
+  queryFn: ({ signal }: QueryFunctionContext) => api.workspaces.status(conversationId, { signal }),
+  staleTime: 5_000,
+});
+
 export const useWorkspaceStatus = (conversationId: string, enabled = true) => {
   const api = useApi();
-  return useQuery({
-    queryKey: queryKeys.workspace(conversationId),
-    queryFn: () => api.workspaces.status(conversationId),
-    enabled,
-  });
+  return useQuery({ ...workspaceStatusOptions(api, conversationId), enabled });
 };
+
+export const checkpointsOptions = (api: Api, conversationId: string) => ({
+  queryKey: queryKeys.checkpoints(conversationId),
+  queryFn: () => api.conversations.checkpoints(conversationId),
+});
 
 export const useCheckpoints = (conversationId: string, enabled = true) => {
   const api = useApi();
-  return useQuery({
-    queryKey: queryKeys.checkpoints(conversationId),
-    queryFn: () => api.conversations.checkpoints(conversationId),
-    enabled,
-  });
+  return useQuery({ ...checkpointsOptions(api, conversationId), enabled });
 };
+
+export const processesOptions = (api: Api, conversationId: string) => ({
+  queryKey: queryKeys.processes(conversationId),
+  queryFn: () => api.processes.list(conversationId),
+  staleTime: 5_000,
+});
 
 export const useProcesses = (conversationId: string, enabled = true) => {
   const api = useApi();
-  return useQuery({
-    queryKey: queryKeys.processes(conversationId),
-    queryFn: () => api.processes.list(conversationId),
-    enabled,
-  });
+  return useQuery({ ...processesOptions(api, conversationId), enabled });
 };
+
+export const timersOptions = (api: Api, conversationId: string) => ({
+  queryKey: queryKeys.timers(conversationId),
+  queryFn: () => api.timers.list(conversationId),
+  staleTime: 5_000,
+});
 
 export const useTimers = (conversationId: string, enabled = true) => {
   const api = useApi();
-  return useQuery({
-    queryKey: queryKeys.timers(conversationId),
-    queryFn: () => api.timers.list(conversationId),
-    enabled,
-  });
+  return useQuery({ ...timersOptions(api, conversationId), enabled });
 };
+
+export const approvalsOptions = (api: Api, conversationId: string) => ({
+  queryKey: queryKeys.approvals(conversationId),
+  queryFn: () => api.approvals.list(conversationId),
+  staleTime: 5_000,
+});
 
 export const useApprovals = (conversationId: string, enabled = true) => {
   const api = useApi();
-  return useQuery({
-    queryKey: queryKeys.approvals(conversationId),
-    queryFn: () => api.approvals.list(conversationId),
-    enabled,
-  });
+  return useQuery({ ...approvalsOptions(api, conversationId), enabled });
 };
 
 export function useDecideApproval(conversationId: string) {
@@ -248,7 +310,25 @@ export function useDecideApproval(conversationId: string) {
   return useMutation({
     mutationFn: (input: { toolUseId: string; decision: ApprovalDecision }) =>
       api.approvals.decide(conversationId, input.toolUseId, input.decision),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.approvals(conversationId) }),
+    // The card leaves at the tap and the composer stops yielding to it; a
+    // failed decision puts it back with the reason.
+    onMutate: async ({ toolUseId }) => {
+      const queryKey = queryKeys.approvals(conversationId);
+      await queryClient.cancelQueries({ queryKey });
+      const previous = queryClient.getQueryData<Approval[]>(queryKey);
+      if (previous) {
+        queryClient.setQueryData(
+          queryKey,
+          previous.filter((approval) => approval.toolUseId !== toolUseId),
+        );
+      }
+      return { previous };
+    },
+    onError: (error, _input, context) => {
+      if (context?.previous) queryClient.setQueryData(queryKeys.approvals(conversationId), context.previous);
+      toast.error(errorMessage(error));
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: queryKeys.approvals(conversationId) }),
   });
 }
 
@@ -262,13 +342,97 @@ export function useSetSetupSkipped() {
   });
 }
 
-export function useSetClaudeConnectors() {
-  const api = useApi();
+/**
+ * A settings change shows in the cache the moment it is made, so the control moves at once. A refused change
+ * puts back only the fields it touched (a later change to other fields stays), and the server's own answer
+ * replaces the guess once it settles.
+ */
+async function applySettingsPatch(queryClient: QueryClient, patch: Partial<Settings>) {
+  await queryClient.cancelQueries({ queryKey: queryKeys.settings });
+  const current = queryClient.getQueryData<Settings>(queryKeys.settings);
+  if (!current) return { previous: undefined };
+  const previous: Partial<Settings> = {};
+  for (const key of Object.keys(patch) as (keyof Settings)[])
+    Object.assign(previous, { [key]: current[key] });
+  queryClient.setQueryData<Settings>(queryKeys.settings, { ...current, ...patch });
+  return { previous };
+}
+
+function revertSettingsPatch(queryClient: QueryClient, previous: Partial<Settings> | undefined) {
+  if (!previous) return;
+  queryClient.setQueryData<Settings>(queryKeys.settings, (current) =>
+    current ? { ...current, ...previous } : current,
+  );
+}
+
+/** `save(patch, action)`: shows `patch` now, runs `action`, reverts the patch and rethrows if it fails. */
+export function useSettingsSave() {
+  const queryClient = useQueryClient();
+  return useCallback(
+    async (patch: Partial<Settings>, action: () => Promise<unknown>) => {
+      const { previous } = await applySettingsPatch(queryClient, patch);
+      try {
+        await action();
+      } catch (error) {
+        revertSettingsPatch(queryClient, previous);
+        throw error;
+      } finally {
+        void queryClient.invalidateQueries({ queryKey: queryKeys.settings });
+      }
+    },
+    [queryClient],
+  );
+}
+
+function useSettingsMutation<V>(
+  mutationFn: (value: V) => Promise<unknown>,
+  patchOf: (value: V) => Partial<Settings>,
+) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (value: ClaudeConnectorSettings) => api.settings.setClaudeConnectors(value),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.settings }),
+    mutationFn,
+    onMutate: (value: V) => applySettingsPatch(queryClient, patchOf(value)),
+    onError: (error, _value, context) => {
+      revertSettingsPatch(queryClient, context?.previous);
+      toast.error(errorMessage(error));
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: queryKeys.settings }),
   });
+}
+
+export function useSetClaudeConnectors() {
+  const api = useApi();
+  return useSettingsMutation(
+    (value: ClaudeConnectorSettings) => api.settings.setClaudeConnectors(value),
+    (value) => ({ claudeConnectors: value }),
+  );
+}
+
+export function useSetCompaction() {
+  const api = useApi();
+  return useSettingsMutation(
+    (value: CompactionSettings) => api.settings.setCompaction(value),
+    (value) => ({ compaction: value }),
+  );
+}
+
+/**
+ * The persisted sandbox switch from `useSettings` (real data path via `settings.get`).
+ * `data` is the shipped default when the node predates the switch; the group reads
+ * `useSettings` directly so it can tell “unsupported” apart from “off”.
+ */
+export const useSandboxSettings = () => {
+  const settings = useSettings();
+  return { ...settings, data: settings.data?.sandbox ?? DEFAULT_SANDBOX_SETTINGS };
+};
+
+/** Saves the sandbox switch (`PUT /api/settings/sandbox`); the UI is `SandboxGroup`. */
+export function useSetSandbox() {
+  const api = useApi();
+  return useSettingsMutation(
+    (value: SandboxSettings) => api.settings.setSandbox(value),
+    (value) => ({ sandbox: value }),
+  );
 }
 
 /** `null` data: the node is older than resource control. */
@@ -289,11 +453,10 @@ export const useResourceActivity = (enabled = true) => {
 
 export function useSetResources() {
   const api = useApi();
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (value: ResourceSettings) => api.settings.setResources(value),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.settings }),
-  });
+  return useSettingsMutation(
+    (value: ResourceSettings) => api.settings.setResources(value),
+    (value) => ({ resources: value }),
+  );
 }
 
 export function useStopResourceCommand() {
@@ -305,13 +468,15 @@ export function useStopResourceCommand() {
   });
 }
 
+export const goalOptions = (api: Api, conversationId: string) => ({
+  queryKey: queryKeys.goal(conversationId),
+  queryFn: () => api.goals.get(conversationId),
+  staleTime: 5_000,
+});
+
 export const useGoal = (conversationId: string, enabled = true) => {
   const api = useApi();
-  return useQuery({
-    queryKey: queryKeys.goal(conversationId),
-    queryFn: () => api.goals.get(conversationId),
-    enabled,
-  });
+  return useQuery({ ...goalOptions(api, conversationId), enabled });
 };
 
 export const useProcessLogs = (processId: string, tail?: number, enabled = true) => {

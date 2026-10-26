@@ -13,19 +13,28 @@ import {
 } from "@/components/ui/command";
 import { NodeName } from "@/components/ui/node-name";
 import { useSidebar } from "@/components/ui/sidebar";
+import { HandoffDialog } from "@/handoff/HandoffDialog";
 import { useHotkey } from "@/lib/hotkeys";
 import { conversationPath, newThreadPath } from "@/lib/paths";
 import { type NodeData, useNodesData } from "@/nodes";
 import { NodeScope } from "@/nodes/NodeScope";
 import { SETTINGS_SECTIONS } from "@/settings/sections";
+import { useWarmOnIntent } from "@/sidebar/use-warm-on-intent";
 import { AddProjectFlow, type AddProjectStep } from "./AddProjectFlow";
 import { useAdjacentThread } from "./adjacent-thread";
 import { ModelPage } from "./ModelPage";
 import { NodePage, type NodePick } from "./NodePage";
+import { usePaletteOpen } from "./palette-open";
 import { SettingsItem } from "./SettingsItem";
 import { SettingsSearchGroup, useSettingResults } from "./SettingsSearchGroup";
 import { ThinkingPage } from "./ThinkingPage";
 import { ThreadActions } from "./ThreadActions";
+import { threadPaletteLabel } from "./thread-palette-label";
+
+interface HandoffTarget {
+  conversationId: string;
+  nodeId: string | undefined;
+}
 
 const nodeKeyOf = (nodeId: string | undefined) => nodeId ?? "local";
 
@@ -38,6 +47,46 @@ interface SectionsProps {
   startAddProject: (nodeId: string | undefined) => void;
   openModelPage: () => void;
   openThinkingPage: () => void;
+  startHandoff: (target: HandoffTarget) => void;
+}
+
+function ThreadPaletteItem({
+  conversation,
+  nodeId,
+  nodeName,
+  projectName,
+  several,
+  onSelect,
+}: {
+  conversation: NodeData["conversations"][number];
+  nodeId: string | undefined;
+  nodeName: string;
+  projectName: string;
+  several: boolean;
+  onSelect: () => void;
+}) {
+  const hasWorktree =
+    conversation.workspace.mode === "worktree" && conversation.workspace.state !== "removed";
+  const { warmNow, handlers: warmHandlers } = useWarmOnIntent(
+    conversation.id,
+    nodeId === undefined,
+    hasWorktree,
+  );
+  return (
+    <CommandItem
+      {...warmHandlers}
+      value={`thread ${conversation.title} ${projectName} ${conversation.id} ${nodeName}`}
+      onSelect={() => {
+        warmNow();
+        onSelect();
+      }}
+    >
+      {conversation.title.trim() || "New thread"}
+      <span className="ml-auto text-xs text-muted-foreground">
+        {threadPaletteLabel(nodeName, projectName, several)}
+      </span>
+    </CommandItem>
+  );
 }
 
 function MainSections({
@@ -49,6 +98,7 @@ function MainSections({
   startAddProject,
   openModelPage,
   openThinkingPage,
+  startHandoff,
 }: SectionsProps) {
   const navigate = useNavigate();
   const adjacent = useAdjacentThread();
@@ -79,6 +129,7 @@ function MainSections({
             archived={openThread?.archivedAt != null}
             onChangeModel={openModelPage}
             onChangeThinking={openThinkingPage}
+            onHandoff={() => startHandoff({ conversationId, nodeId: openNodeId })}
             run={run}
           />
         </NodeScope>
@@ -131,18 +182,17 @@ function MainSections({
             const projectName =
               node.projects.find((project) => project.id === conversation.projectId)?.name ?? "";
             return (
-              <CommandItem
+              <ThreadPaletteItem
                 key={`${nodeKeyOf(node.nodeId)}:${conversation.id}`}
-                value={`thread ${conversation.title} ${projectName} ${conversation.id} ${node.name}`}
+                conversation={conversation}
+                nodeId={node.nodeId}
+                nodeName={node.name}
+                projectName={projectName}
+                several={several}
                 onSelect={run(() =>
                   navigate(conversationPath(conversation.projectId, conversation.id, node.nodeId)),
                 )}
-              >
-                {conversation.title.trim() || "New thread"}
-                <span className="ml-auto text-xs text-muted-foreground">
-                  {several ? `${node.name} · ${projectName}` : projectName}
-                </span>
-              </CommandItem>
+              />
             );
           }),
         )}
@@ -159,11 +209,12 @@ const PLACEHOLDERS = {
 };
 
 export function CommandPalette() {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = usePaletteOpen();
   const [search, setSearch] = useState("");
   const [page, setPage] = useState<"model" | "thinking" | "node" | null>(null);
   const [nodePick, setNodePick] = useState<NodePick | null>(null);
   const [addProject, setAddProject] = useState<AddProjectStep | null>(null);
+  const [handoff, setHandoff] = useState<HandoffTarget | null>(null);
   const { conversationId, nodeId: openNodeId } = useOpenConversation();
   const everyNode = useNodesData();
   useHotkey("mod+k", () => setOpen((current) => !current));
@@ -199,6 +250,11 @@ export function CommandPalette() {
   return (
     <>
       <AddProjectFlow state={addProject} onChange={setAddProject} />
+      {handoff ? (
+        <NodeScope nodeId={handoff.nodeId}>
+          <HandoffDialog conversationId={handoff.conversationId} onClose={() => setHandoff(null)} />
+        </NodeScope>
+      ) : null}
       <CommandDialog open={open} onOpenChange={changeOpen} title="Command palette">
         <Command key={page ?? "main"} onKeyDown={backFromEmptySearch}>
           <CommandInput
@@ -232,6 +288,7 @@ export function CommandPalette() {
                 startAddProject={startAddProject}
                 openModelPage={openPage("model")}
                 openThinkingPage={openPage("thinking")}
+                startHandoff={setHandoff}
               />
             )}
           </CommandList>

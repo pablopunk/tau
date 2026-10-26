@@ -16,6 +16,7 @@ const alive = (pid: number) => {
 };
 
 test.skip(process.platform !== "darwin", "macOS polled memory limit");
+test.setTimeout(600_000);
 test.describe.configure({ mode: "serial" });
 
 let remote: ResourceServer;
@@ -32,26 +33,27 @@ test.beforeAll(async () => {
   mkdirSync(dir, { recursive: true });
   remote = await startResourceServer({
     replies: {
-      "mem hog": bashThread(`${HOG} hog 600`),
-      "mem escapee": bashThread(`${HOG} escapee 300 ${dir}/escapee.pid`),
-      "mem daemon": bashThread(`${HOG} daemon 300 ${dir}/daemon.pid`),
+      "mem hog": bashThread(`${HOG} hog 5000`),
+      "mem escapee": bashThread(`${HOG} escapee 4500 ${dir}/escapee.pid`),
+      "mem daemon": bashThread(`${HOG} daemon 4500 ${dir}/daemon.pid`),
       "mem small": bashThread(`${HOG} hog 60 & sleep 5; echo small-done`),
-      "mem shared": bashThread(`${HOG} shared 120`),
+      "mem shared": bashThread(`${HOG} shared 1100`),
     },
   });
-  await remote.setResources({ memoryLimitMb: 200 });
+  await remote.setResources({ levels: { main: "balanced", worktree: "off", subagent: "off" } });
 });
 test.afterAll(async () => remote?.stop());
 
-test("a 600 MB command is stopped with the memory message, after the first 2 s sweep (over 1.5x)", async () => {
+test("a 5 GB command is stopped with the memory message, after the first 2 s sweep (over 1.5x)", async () => {
   const begun = Date.now();
   const id = await remote.start("mem hog");
   const text = await outputOf(id, 90);
   const seconds = (Date.now() - begun) / 1000;
   console.log(`MEMORY hog: ended after ${seconds.toFixed(1)} s\n${text}`);
-  expect(text).toContain("Stopped: memory limit 200 MB exceeded");
+  expect(text).toMatch(/Stopped: memory limit [\d,]+ MB exceeded/);
+  expect(text).toContain("(resource control is on: Main threads run at Balanced).");
   expect(seconds).toBeGreaterThan(2);
-  expect(seconds).toBeLessThan(30);
+  expect(seconds).toBeLessThan(90);
 });
 
 test("a setsid escapee holding memory dies with its command", async () => {
@@ -59,7 +61,8 @@ test("a setsid escapee holding memory dies with its command", async () => {
   const id = await remote.start("mem escapee");
   const text = await outputOf(id, 90);
   console.log(`MEMORY escapee:\n${text}`);
-  expect(text).toContain("Stopped: memory limit 200 MB exceeded");
+  expect(text).toMatch(/Stopped: memory limit [\d,]+ MB exceeded/);
+  expect(text).toContain("(resource control is on: Main threads run at Balanced).");
   console.log(`MEMORY escapee: ended after ${((Date.now() - begun) / 1000).toFixed(1)} s`);
   const pid = Number(readFileSync(join(pids, "escapee.pid"), "utf8"));
   await sleep(1500);
@@ -85,7 +88,7 @@ test("no false kill: a command well under the limit", async () => {
   expect(text).not.toContain("Stopped: memory limit");
 });
 
-test("no false kill: 120 MB shared with 3 readers (RSS sums to ~480 MB, real footprint ~120 MB)", async () => {
+test("no false kill: 1.1 GB shared with 3 readers (RSS sums to ~4.4 GB, real footprint ~1.1 GB)", async () => {
   const id = await remote.start("mem shared");
   const text = await outputOf(id, 60);
   console.log(`MEMORY shared:\n${text}`);

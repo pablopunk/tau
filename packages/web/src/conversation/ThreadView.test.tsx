@@ -44,7 +44,7 @@ function failedView(): ConversationView {
 }
 
 beforeEach(() => {
-  vi.mocked(api.conversations.retry).mockReset().mockResolvedValue(undefined);
+  vi.mocked(api.conversations.retry).mockReset().mockResolvedValue({ submissionId: 1 });
   vi.mocked(api.conversations.configure).mockReset().mockResolvedValue(undefined);
   vi.mocked(api.conversations.listAll)
     .mockReset()
@@ -57,7 +57,9 @@ describe("thread header", () => {
   it("shows the title and the model picker", async () => {
     withModels(true);
     renderView(endOf("text"));
-    expect(await screen.findByText("Fix the bug")).toBeInTheDocument();
+    // The title renders in both the mobile bar and the desktop header;
+    // CSS shows exactly one per viewport (jsdom shows both).
+    expect(await screen.findAllByText("Fix the bug")).toHaveLength(2);
     expect(await screen.findByRole("combobox", { name: "Model" })).toHaveTextContent("Faux One");
   });
 });
@@ -108,15 +110,15 @@ describe("images in the thread", () => {
     expect(within(dialog).getByRole("img", { name: "Attachment 1, full size" })).toBeInTheDocument();
   });
 
-  it("hides the attach button when the thread model has no image support", async () => {
+  it("keeps the attach button when the thread model has no image support", async () => {
     withModels(false);
     renderView(endOf("text"));
-    await waitFor(() => expect(screen.queryByRole("button", { name: "Attach images" })).toBeNull());
+    await waitFor(() => expect(screen.getByRole("button", { name: "Attach files" })).toBeInTheDocument());
   });
 
   it("allows images when the model is unknown", () => {
     renderView(endOf("text"));
-    expect(screen.getByRole("button", { name: "Attach images" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Attach files" })).toBeInTheDocument();
   });
 });
 

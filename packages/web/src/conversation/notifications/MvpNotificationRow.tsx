@@ -1,3 +1,4 @@
+import { BangRow } from "./BangRow";
 import { GoalVerdictRow } from "./GoalVerdictRow";
 import { MonitorEventRow } from "./MonitorEventRow";
 import { NoticeRow } from "./NoticeRow";
@@ -7,6 +8,7 @@ import { TimerFiredRow } from "./TimerFiredRow";
 
 /** The one place that maps an MVP8 notification item to its row, so owners only edit their own row file. */
 export function MvpNotificationRow({ item }: { item: MvpNotificationItem }) {
+  if (item.kind === "bang") return <BangRow data={item.data} />;
   if (item.kind === "monitor-event") return <MonitorEventRow data={item.data} />;
   if (item.kind === "process-exit") return <ProcessExitRow data={item.data} />;
   if (item.kind === "timer-fired") return <TimerFiredRow data={item.data} />;
@@ -14,14 +16,15 @@ export function MvpNotificationRow({ item }: { item: MvpNotificationItem }) {
   return <NoticeRow data={item.data} />;
 }
 
-const MVP_KINDS: readonly string[] = [
-  "monitor-event",
-  "process-exit",
-  "timer-fired",
-  "notice",
-  "goal-verdict",
-];
+const MVP_KINDS: Record<MvpNotificationItem["kind"], true> = {
+  bang: true,
+  "monitor-event": true,
+  "process-exit": true,
+  "timer-fired": true,
+  notice: true,
+  "goal-verdict": true,
+};
 
 export const isMvpNotificationItem = <T extends { readonly kind: string }>(
   item: T,
-): item is Extract<T, MvpNotificationItem> => MVP_KINDS.includes(item.kind);
+): item is Extract<T, MvpNotificationItem> => Object.hasOwn(MVP_KINDS, item.kind);

@@ -1,6 +1,6 @@
 import { describe } from "vitest";
 import { accessCases } from "./access";
-import { type ContractOptions, caseRunner } from "./case-runner";
+import { type CaseRunner, type ContractOptions, caseRunner } from "./case-runner";
 import { chatCases } from "./chat";
 import { checkpointCases } from "./checkpoints";
 import { claudeCliCases } from "./claude-cli";
@@ -28,6 +28,8 @@ import { queueCases } from "./queue";
 import { remoteCases } from "./remote";
 import { resourceCases } from "./resources";
 import { retryCases } from "./retry";
+import { runtimeCases } from "./runtimes";
+import { sandboxCases } from "./sandbox";
 import { settingsAndProviderCases } from "./settings-provider";
 import { sidebarDataCases } from "./sidebar-data";
 import { skillCases } from "./skills";
@@ -36,62 +38,79 @@ import { subagentCases } from "./subagents";
 import { terminalCases } from "./terminals";
 import { timerCases } from "./timers";
 import { titleAndStatusCases } from "./titles-status";
+import { todoCases } from "./todos";
 import type { MakeContractTarget } from "./types";
 import { updatesCases } from "./updates";
+import { uploadCases } from "./uploads";
 import { workspaceCases } from "./workspaces";
 
 export type { ContractOptions } from "./case-runner";
 export type { ContractGroup, ContractTarget, MakeContractTarget } from "./types";
 
+type CaseModule = (makeTarget: MakeContractTarget, test: CaseRunner) => void;
+
+/** Every contract module by name, in the order the contract has always run them. */
+export const CONTRACT_MODULES = {
+  settings: settingsAndProviderCases,
+  resources: resourceCases,
+  sandbox: sandboxCases,
+  projects: projectCases,
+  fs: fsCases,
+  conversations: conversationCases,
+  start: startCases,
+  "titles-status": titleAndStatusCases,
+  lifecycle: lifecycleCases,
+  retry: retryCases,
+  configure: configureCases,
+  clone: cloneCases,
+  chat: chatCases,
+  github: githubCases,
+  icons: iconCases,
+  "sidebar-data": sidebarDataCases,
+  provider: providerCases,
+  login: loginCases,
+  compact: compactCases,
+  files: fileCases,
+  uploads: uploadCases,
+  skills: skillCases,
+  workspaces: workspaceCases,
+  checkpoints: checkpointCases,
+  fork: forkCases,
+  queue: queueCases,
+  subagents: subagentCases,
+  processes: processCases,
+  terminals: terminalCases,
+  mcp: mcpCases,
+  timers: timerCases,
+  todos: todoCases,
+  monitors: monitorCases,
+  goals: goalCases,
+  "claude-cli": claudeCliCases,
+  "claude-connectors": claudeConnectorCases,
+  access: accessCases,
+  remote: remoteCases,
+  nodes: nodesCases,
+  "nodes-group": nodesGroupCases,
+  updates: updatesCases,
+  runtimes: runtimeCases,
+} satisfies Record<string, CaseModule>;
+
+export type ContractModule = keyof typeof CONTRACT_MODULES;
+
 /**
  * Behavior every `Core` must have. Run against the testkit fake (testkit's own test) and against the real core
  * in faux mode (core's test). `makeTarget` is called once per test and must give an empty, independent core.
  * Case names carry a `[tag]`; `options.pending` lists tags a target does not implement yet.
+ * `modules` runs a subset, so a long contract can be split across test files that vitest runs in parallel.
  */
 export function runCoreContract(
   name: string,
   makeTarget: MakeContractTarget,
   options: ContractOptions = {},
+  modules: readonly ContractModule[] = Object.keys(CONTRACT_MODULES) as ContractModule[],
 ): void {
   const test = caseRunner(options.pending);
   describe(`Core contract: ${name}`, () => {
-    settingsAndProviderCases(makeTarget, test);
-    resourceCases(makeTarget, test);
-    projectCases(makeTarget, test);
-    fsCases(makeTarget, test);
-    conversationCases(makeTarget, test);
-    startCases(makeTarget, test);
-    titleAndStatusCases(makeTarget, test);
-    lifecycleCases(makeTarget, test);
-    retryCases(makeTarget, test);
-    configureCases(makeTarget, test);
-    cloneCases(makeTarget, test);
-    chatCases(makeTarget, test);
-    githubCases(makeTarget, test);
-    iconCases(makeTarget, test);
-    sidebarDataCases(makeTarget, test);
-    providerCases(makeTarget, test);
-    loginCases(makeTarget, test);
-    compactCases(makeTarget, test);
-    fileCases(makeTarget, test);
-    skillCases(makeTarget, test);
-    workspaceCases(makeTarget, test);
-    checkpointCases(makeTarget, test);
-    forkCases(makeTarget, test);
-    queueCases(makeTarget, test);
-    subagentCases(makeTarget, test);
-    processCases(makeTarget, test);
-    terminalCases(makeTarget, test);
-    mcpCases(makeTarget, test);
-    timerCases(makeTarget, test);
-    monitorCases(makeTarget, test);
-    goalCases(makeTarget, test);
-    claudeCliCases(makeTarget, test);
-    claudeConnectorCases(makeTarget, test);
-    accessCases(makeTarget, test);
-    remoteCases(makeTarget, test);
-    nodesCases(makeTarget, test);
-    nodesGroupCases(makeTarget, test);
-    updatesCases(makeTarget, test);
+    for (const module of modules) CONTRACT_MODULES[module](makeTarget, test);
   });
 }

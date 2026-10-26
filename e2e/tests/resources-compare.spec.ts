@@ -5,7 +5,13 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { test } from "@playwright/test";
-import { type ResourceServer, type ResourceValues, sleep, startResourceServer } from "../resources-support";
+import {
+  ALL,
+  type ResourceServer,
+  type ResourceValues,
+  sleep,
+  startResourceServer,
+} from "../resources-support";
 
 /**
  * Real-world comparison, opt in: TAU_COMPARE_REPO=/tmp/tau-copy TAU_E2E_COMPARE=1 playwright test tests/resources-compare.spec.ts
@@ -16,12 +22,10 @@ const FIXTURES = join(dirname(fileURLToPath(import.meta.url)), "..", "fixtures")
 const REPO = process.env.TAU_COMPARE_REPO ?? "";
 const OUT = process.env.TAU_COMPARE_OUT ?? "/tmp/tau-compare.json";
 const THREADS = 4;
-const ALL = { main: true, worktrees: true, subagents: true };
 const MODES: Record<string, Partial<ResourceValues>> = {
   off: {},
-  "slots 2": { heavySlots: 2, appliesTo: ALL },
-  "balanced + slots 2": { priority: "balanced", heavySlots: 2, appliesTo: ALL },
-  "background + slots 2": { priority: "background", heavySlots: 2, appliesTo: ALL },
+  balanced: ALL("balanced"),
+  background: ALL("background"),
 };
 const only = process.env.TAU_COMPARE_MODES?.split(",");
 
@@ -121,7 +125,7 @@ for (const [mode, patch] of Object.entries(MODES)) {
         // biome-ignore lint/suspicious/noControlCharactersInRegex: strips ANSI colour codes
         const log = readFileSync(`${outDir}/t${index}.log`, "utf8").replace(/\u001b\[[0-9;]*m/g, "");
         return {
-          queuedFor: Math.round(start - began),
+          startedAfter: Math.round(start - began),
           ran: Math.round(end - start),
           cpu: Math.round((user ?? 0) + (sys ?? 0)),
           result: /^\s*Tests\s+(.*)$/m.exec(log)?.[1] ?? "no summary",

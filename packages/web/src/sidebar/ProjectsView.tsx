@@ -11,6 +11,7 @@ interface ProjectsViewProps {
   projects: readonly Project[];
   conversations: readonly ConversationSummary[];
   activeConversationId: string | undefined;
+  showArchived: boolean;
   onProjectRemoved: (projectId: string) => void;
 }
 
@@ -18,13 +19,16 @@ export function ProjectsView({
   projects,
   conversations,
   activeConversationId,
+  showArchived,
   onProjectRemoved,
 }: ProjectsViewProps) {
   const listRef = useRef<HTMLDivElement>(null);
   const { overrides, setOpen } = useProjectOpenOverrides();
   const currentProjectId = projectIdFromPath(useLocation().pathname, useNodeId());
   const sections = projectSections(projects, conversations);
-  const openKey = sections.map((section) => isProjectOpen(section, overrides, currentProjectId)).join(",");
+  const openKey = sections
+    .map((section) => isProjectOpen(section, overrides, currentProjectId, showArchived))
+    .join(",");
   useFlipList(listRef, openKey);
   const byId = new Map(projects.map((project) => [project.id, project]));
   return (
@@ -35,7 +39,8 @@ export function ProjectsView({
           section={section}
           projects={byId}
           activeConversationId={activeConversationId}
-          open={isProjectOpen(section, overrides, currentProjectId)}
+          showArchived={showArchived}
+          open={isProjectOpen(section, overrides, currentProjectId, showArchived)}
           onOpenChange={(open) => setOpen(section.project.id, open)}
           onRemoved={() => onProjectRemoved(section.project.id)}
         />

@@ -7,6 +7,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ProviderListActions } from "@/components/ui/provider-list";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 export interface ProviderActionItem {
   id: string;
@@ -35,11 +36,16 @@ export function ProviderActionButtons({ name, actions }: { name: string; actions
       ) : null}
       {secondary.length > 0 ? (
         <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon-sm" aria-label={`More actions for ${name}`}>
-              <MoreHorizontalIcon />
-            </Button>
-          </DropdownMenuTrigger>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon-sm" aria-label={`More actions for ${name}`}>
+                  <MoreHorizontalIcon />
+                </Button>
+              </DropdownMenuTrigger>
+            </TooltipTrigger>
+            <TooltipContent side="top">More actions for {name}</TooltipContent>
+          </Tooltip>
           <DropdownMenuContent align="end" className="w-auto">
             {secondary.map((action) => (
               <DropdownMenuItem

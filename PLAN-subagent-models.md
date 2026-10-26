@@ -150,6 +150,25 @@ One agent, serial: a small change crossing protocol/testkit/core.
 Live id overlay or our own catalog; prices in the web UI (possible later via `ModelInfo.cost`); merging Zen and
 Go; method-level billing (OpenAI via ChatGPT login ships as usage); smartness or speed scores.
 
+## Follow-ups (user, 2026-10-22)
+
+### A. Malleable subagents: change model/thinking mid-chat
+
+- The user can change a live subagent's model and thinking level mid-conversation, exactly like changing their
+  own chat's model: same picker, same semantics (applies to subsequent steps, history preserved, no restart).
+- A parent agent can do the same to its own subagents (update call on the live subagent id, same effect).
+- Web: reuse the main composer model/thinking controls in the subagent row/panel, don't reimplement them.
+- The section-3 policy stays per-spawn: each change re-evaluates "default to your own model, go lighter/heavier
+  by task" from the subagent's own current model, not the top-level parent's.
+
+### B. Nested subagents
+
+- A subagent can spawn its own subagents, to a sane max depth (undecided, small single digit).
+- The UI does not nest: only direct children are listed/shown; deeper levels are invisible in the sidebar and
+  surface only through the parent's transcript and results.
+- Cost rule compounds: N workers x M sub-workers multiply spend/quota; the guidance must say so when depth > 1
+  is used. Same-provider rule applies per spawner.
+
 ## Decisions (user, 2026-10-20)
 
 1. Policy flip: **approved**.

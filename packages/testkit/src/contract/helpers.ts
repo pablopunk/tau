@@ -42,6 +42,22 @@ export async function rejectsWithCode(promise: Promise<unknown>, code: string): 
   await expect(promise).rejects.toMatchObject({ code });
 }
 
+/**
+ * `waitFor` with ~0ms polls: the fake core's busy window is milliseconds
+ * (a fixture playback at contract speed), so a 10ms sleep between polls can
+ * let the run drain the queue before the observation lands. Settles on the
+ * first iterations for the fake; the real core's live ops arrive within
+ * milliseconds too.
+ */
+export async function waitForFast(condition: () => boolean, what: string, timeoutMs = 2_000): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    if (condition()) return;
+    if (Date.now() > deadline) throw new Error(`Timed out waiting for ${what}`);
+    await sleep(0);
+  }
+}
+
 export interface ViewTracker {
   readonly batches: readonly (readonly Op[])[];
   view(): ConversationView | null;
@@ -61,6 +77,21 @@ export async function trackView(core: Core, conversationId: string): Promise<Vie
 
 export function entryKinds(view: ConversationView | null): string[] {
   return view?.entries.map((entry) => entry.kind) ?? [];
+}
+
+/** The verbatim text of every user entry, for tests that assert exactly what was stored. */
+export function userTexts(view: ConversationView | null): string[] {
+  return (view?.entries ?? []).flatMap((entry) => {
+    if (entry.kind !== "pi.user") return [];
+    const content = (entry.model?.[0] as { content?: unknown } | undefined)?.content;
+    if (typeof content === "string") return [content];
+    if (!Array.isArray(content)) return [];
+    return content.flatMap((part) =>
+      typeof part === "object" && part !== null && (part as { type?: unknown }).type === "text"
+        ? [(part as { text?: unknown }).text].flatMap((text) => (typeof text === "string" ? [text] : []))
+        : [],
+    );
+  });
 }
 
 export function userEntryIds(view: ConversationView | null): string[] {

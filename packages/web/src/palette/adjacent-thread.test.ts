@@ -23,7 +23,12 @@ describe("threadOrder", () => {
 });
 
 describe("adjacentThread", () => {
-  const order = ["a", "b", "c"].map((id) => ({ nodeId: undefined, projectId: "p1", id }));
+  const order = ["a", "b", "c"].map((id) => ({
+    nodeId: undefined,
+    projectId: "p1",
+    id,
+    hasWorktree: false,
+  }));
 
   it("steps and wraps around", () => {
     expect(adjacentThread(order, order[2], 1)?.id).toBe("a");

@@ -7,6 +7,7 @@ import {
   startConversation,
   trackView,
   userProjects,
+  userTexts,
   waitFor,
   waitForIdle,
 } from "./helpers";
@@ -41,6 +42,16 @@ export function chatCases(make: MakeContractTarget, test: CaseRunner): void {
           entryKinds(tracker.view()).filter((kind) => kind === "pi.user").length === 2,
         "the second answer",
       );
+      await tracker.stop();
+    });
+
+    test("[bang] stores a bang command verbatim as the user entry", async () => {
+      const { core } = target;
+      const { conversation } = await startConversation(target);
+      const tracker = await trackView(core, conversation.id);
+      await core.conversations.send(conversation.id, { text: "! echo hi", requestId: nextRequestId() });
+      // Result delivery is a real-core capability; the contract pins the uniform part: the verbatim entry.
+      await waitFor(() => userTexts(tracker.view()).includes("! echo hi"), "the verbatim bang entry");
       await tracker.stop();
     });
 

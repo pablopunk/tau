@@ -35,13 +35,15 @@ function ImageThumbnail({ src, alt, onRemove, onOpen, className, ...props }: Ima
         image
       )}
       {onRemove ? (
+        // A 44px coarse target would swallow the 64px preview: keep the small
+        // visual and grow only the hit area.
         <Button
           type="button"
           variant="secondary"
           size="icon-xs"
           aria-label={`Remove ${alt}`}
           onClick={onRemove}
-          className="absolute top-0.5 right-0.5 size-5 rounded-full"
+          className="absolute top-0.5 right-0.5 size-5 rounded-full after:absolute after:-bottom-4 after:-left-4 after:top-0 after:right-0 pointer-coarse:size-5 pointer-coarse:min-h-5 pointer-coarse:min-w-5 pointer-coarse:[&_svg:not([class*='size-'])]:size-3"
         >
           <XIcon />
         </Button>

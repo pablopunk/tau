@@ -11,6 +11,7 @@ const DEFAULTS = {
   defaultThinkingLevel: null,
   fastModel: null,
   fastThinkingLevel: null,
+  voiceModel: null,
   projectsFolder: PROJECTS,
   messageMode: "steer",
   workspaceDefault: "per-project",
@@ -19,11 +20,10 @@ const DEFAULTS = {
   claudeConnectors: { disabled: [], alwaysAllow: [], askBeforeWrites: false },
   remote: { enabled: false },
   resources: {
-    priority: "off",
-    heavySlots: null,
-    memoryLimitMb: null,
-    appliesTo: { main: false, worktrees: false, subagents: true },
+    levels: { main: "off", worktree: "off", subagent: "off" },
   },
+  sandbox: { main: false, worktree: false, subagent: false },
+  compaction: { mode: "summary", backend: "auto" },
 };
 const ref = { provider: "openrouter", modelId: "x/y" };
 
@@ -157,6 +157,22 @@ describe("settings store", () => {
     expect(await createSettingsStore(path, PROJECTS).get()).toEqual({ ...DEFAULTS, defaultModel: ref });
   });
 
+  it("stores a voice model, loads it back, and drops an invalid one", async () => {
+    const path = join(await tempDir(), "settings.json");
+    const store = createSettingsStore(path, PROJECTS);
+    expect((await store.get()).voiceModel).toBeNull();
+    await store.setVoiceModel({ kind: "local" });
+    expect((await store.get()).voiceModel).toEqual({ kind: "local" });
+    expect(JSON.parse(await readFile(path, "utf8"))).toEqual({ voiceModel: { kind: "local" } });
+    const provided = { kind: "provider", provider: "openrouter", modelId: "m" } as const;
+    await store.setVoiceModel(provided);
+    expect((await store.get()).voiceModel).toEqual(provided);
+    await store.setVoiceModel(null);
+    expect((await store.get()).voiceModel).toBeNull();
+    await writeFile(path, JSON.stringify({ voiceModel: { kind: "provider" } }));
+    expect((await createSettingsStore(path, PROJECTS).get()).voiceModel).toBeNull();
+  });
+
   it("falls back to the defaults for a corrupt file", async () => {
     const path = join(await tempDir(), "settings.json");
     await writeFile(path, "{ nope");
@@ -199,18 +215,11 @@ describe("resources", () => {
   });
 
   it("keeps valid fields and defaults each invalid or missing one on its own", async () => {
-    expect(
-      await read({ priority: "balanced", heavySlots: 99, memoryLimitMb: 10, appliesTo: { main: true } }),
-    ).toEqual({
-      priority: "balanced",
-      heavySlots: null,
-      memoryLimitMb: null,
-      appliesTo: { main: true, worktrees: false, subagents: true },
+    expect(await read({ levels: { main: "balanced" }, heavySlots: 99, memoryLimitMb: 10 })).toEqual({
+      levels: { main: "balanced", worktree: "off", subagent: "off" },
     });
-    expect(await read({ heavySlots: 3, memoryLimitMb: 2048, priority: "nope" })).toMatchObject({
-      priority: "off",
-      heavySlots: 3,
-      memoryLimitMb: 2048,
+    expect(await read({ heavySlots: 3, memoryLimitMb: 2048, levels: { main: "nope" } })).toMatchObject({
+      levels: { main: "off", worktree: "off", subagent: "off" },
     });
     expect(await read("garbage")).toEqual(DEFAULTS.resources);
   });
@@ -218,12 +227,70 @@ describe("resources", () => {
   it("stores the value whole and reads it back", async () => {
     const path = join(await tempDir(), "settings.json");
     const value = {
-      priority: "background" as const,
-      heavySlots: 2,
-      memoryLimitMb: 4096,
-      appliesTo: { main: true, worktrees: true, subagents: false },
+      levels: { main: "background", worktree: "balanced", subagent: "off" } as const,
     };
     await createSettingsStore(path, PROJECTS).setResources(value);
     expect((await createSettingsStore(path, PROJECTS).get()).resources).toEqual(value);
+  });
+
+  it("defaults compaction to summary/auto and stores the value whole", async () => {
+    const path = join(await tempDir(), "settings.json");
+    await writeFile(path, JSON.stringify({}));
+    expect((await createSettingsStore(path, PROJECTS).get()).compaction).toEqual({
+      mode: "summary",
+      backend: "auto",
+    });
+    await createSettingsStore(path, PROJECTS).setCompaction({ mode: "fast", backend: "typesafe" });
+    expect((await createSettingsStore(path, PROJECTS).get()).compaction).toEqual({
+      mode: "fast",
+      backend: "typesafe",
+    });
+  });
+
+  it("defaults sandbox to all-false when the field is missing", async () => {
+    const path = join(await tempDir(), "settings.json");
+    await writeFile(path, JSON.stringify({}));
+    expect((await createSettingsStore(path, PROJECTS).get()).sandbox).toEqual(DEFAULTS.sandbox);
+  });
+
+  it("keeps each valid sandbox field and defaults each invalid or missing one on its own", async () => {
+    const readSandbox = async (stored: unknown) => {
+      const path = join(await tempDir(), "settings.json");
+      await writeFile(path, JSON.stringify({ sandbox: stored }));
+      return (await createSettingsStore(path, PROJECTS).get()).sandbox;
+    };
+    expect(await readSandbox({ main: true })).toEqual({
+      main: true,
+      worktree: false,
+      subagent: false,
+    });
+    expect(await readSandbox({ main: "yes", worktree: true, subagent: 1 })).toEqual({
+      main: false,
+      worktree: true,
+      subagent: false,
+    });
+    expect(await readSandbox("garbage")).toEqual(DEFAULTS.sandbox);
+  });
+
+  it("stores the sandbox value whole and reads it back", async () => {
+    const path = join(await tempDir(), "settings.json");
+    const value = { main: true, worktree: false, subagent: true };
+    await createSettingsStore(path, PROJECTS).setSandbox(value);
+    expect((await createSettingsStore(path, PROJECTS).get()).sandbox).toEqual(value);
+  });
+
+  it("migrates a legacy {priority, appliesTo} setting to per-scope levels", async () => {
+    expect(
+      await read({
+        priority: "balanced",
+        heavySlots: 2,
+        appliesTo: { main: true, worktrees: false, subagents: false },
+      }),
+    ).toEqual({
+      levels: { main: "balanced", worktree: "off", subagent: "off" },
+    });
+    expect(await read({ priority: "background" })).toMatchObject({
+      levels: { main: "off", worktree: "off", subagent: "background" },
+    });
   });
 });

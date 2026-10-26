@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { expect, type Page, test } from "@playwright/test";
-import { demoRepository, PORT, tokenFile } from "../support";
+import { demoRepository, PORT, tokenFile, waitForConversationRunEnd } from "../support";
 
 const ORIGIN = { Origin: `http://127.0.0.1:${PORT}` };
 const messageBox = (page: Page) => page.getByRole("textbox", { name: "Message" });
@@ -60,6 +60,7 @@ test.describe("MVP8 monitor and goal in the browser", () => {
   test("a goal shows the chip and the scripted judge's verdict rows", async () => {
     test.setTimeout(120_000);
     await startThreadWith(page, "hello");
+    await waitForConversationRunEnd(page);
     await send(page, "/goal print the magic word");
     await expect(page.getByRole("button", { name: /^Goal/ }).first()).toBeVisible({ timeout: 20_000 });
     await expect(page.getByTestId("goal-verdict").filter({ hasText: "not met" }).first()).toBeVisible({
@@ -70,6 +71,7 @@ test.describe("MVP8 monitor and goal in the browser", () => {
   test("a message after Stop resumes the goal and the next run end is judged", async () => {
     test.setTimeout(120_000);
     await startThreadWith(page, "hello");
+    await waitForConversationRunEnd(page);
     await send(page, "/goal bash sleep 30");
     await page.getByRole("button", { name: "Stop", exact: true }).click();
     await expect(page.getByText("Goal paused: you stopped the run.")).toBeVisible({ timeout: 20_000 });

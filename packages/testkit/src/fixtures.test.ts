@@ -33,6 +33,18 @@ describe("recorded fixtures", () => {
     expect(kindsOf("steer")).toContain("pi.tool-result");
   });
 
+  it("plays a todo_write call for the todo fixture", () => {
+    expect(kindsOf("todo")).toEqual([
+      "pi.user",
+      "pi.system",
+      "pi.assistant",
+      "pi.tool-result",
+      "pi.assistant",
+    ]);
+    expect(JSON.stringify(finalView(fixtures.todo)?.entries)).toContain('"name":"todo_write"');
+    expect(fixtureForMessage("todo anything here").name).toBe("todo");
+  });
+
   it("show an image message and a retry after a failure", () => {
     expect(JSON.stringify(finalView(fixtures.image)?.entries[0])).toContain('"type":"image"');
     expect(JSON.stringify(finalView(fixtures.image)?.entries)).toContain("Images received: 1");

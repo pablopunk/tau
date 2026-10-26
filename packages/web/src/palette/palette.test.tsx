@@ -1,3 +1,4 @@
+import { describeExecutors, emptyHandoffLosses, PI_RUNTIME_CAPABILITIES } from "@tau/protocol";
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -9,18 +10,27 @@ import { apiOfNode } from "@/nodes/node-apis";
 import { conversation, project, renderAt } from "@/sidebar/test-support";
 import { CommandPalette } from "./CommandPalette";
 import { GlobalShortcuts } from "./GlobalShortcuts";
+import { resetPaletteOpen } from "./palette-open";
+import { threadPaletteLabel } from "./thread-palette-label";
 
 const api = apiOfNode();
 
 vi.mock("@/lib/api", () => ({
   api: {
     projects: { list: vi.fn() },
-    conversations: { listAll: vi.fn(), configure: vi.fn() },
+    conversations: { listAll: vi.fn(), configure: vi.fn(), handoffPreview: vi.fn() },
+    approvals: { list: vi.fn() },
+    goals: { get: vi.fn() },
+    workspaces: { status: vi.fn() },
+    timers: { list: vi.fn() },
+    processes: { list: vi.fn() },
     models: { list: vi.fn() },
+    runtimes: { list: vi.fn() },
   },
 }));
 
 beforeEach(() => {
+  resetPaletteOpen();
   vi.resetAllMocks();
   vi.mocked(api.projects.list).mockResolvedValue([
     project(),
@@ -38,6 +48,24 @@ beforeEach(() => {
     } as never,
   ]);
   vi.mocked(api.conversations.configure).mockResolvedValue(undefined);
+  vi.mocked(api.runtimes.list).mockResolvedValue(describeExecutors(PI_RUNTIME_CAPABILITIES));
+  vi.mocked(api.conversations.handoffPreview).mockResolvedValue({
+    canHandoff: true,
+    losses: { ...emptyHandoffLosses(), imagesOmitted: 3 },
+    preview: "[user]\nfix login",
+  });
+  vi.mocked(api.approvals.list).mockResolvedValue([]);
+  vi.mocked(api.goals.get).mockResolvedValue(null);
+  vi.mocked(api.workspaces.status).mockResolvedValue({
+    ahead: 0,
+    behind: 0,
+    dirtyFiles: [],
+    unmergedCommits: 0,
+    canMerge: true,
+    reason: null,
+  });
+  vi.mocked(api.timers.list).mockResolvedValue([]);
+  vi.mocked(api.processes.list).mockResolvedValue([]);
   vi.mocked(api.conversations.listAll).mockResolvedValue([
     conversation({ title: "Fix login bug" }),
     conversation({ id: "c2", projectId: "p2", title: "Add dark mode" }),
@@ -49,10 +77,10 @@ const threadView = {
   docs: { "pi.agent": { model: { provider: "openai", modelId: "gpt-9" }, thinkingLevel: "off" } },
 } as never;
 
-const renderPalette = (path = "/") =>
+const renderPalette = (path = "/", live = createStubLiveClient(threadView)) =>
   renderAt(
     path,
-    <LiveClientProvider client={createStubLiveClient(threadView)}>
+    <LiveClientProvider client={live}>
       <SidebarProvider>
         <CommandPalette />
       </SidebarProvider>
@@ -61,6 +89,11 @@ const renderPalette = (path = "/") =>
   );
 
 describe("command palette", () => {
+  it("keeps the multi-node thread label as one plain line", () => {
+    expect(threadPaletteLabel("Homelab", "Home", true)).toBe("Homelab · Home");
+    expect(threadPaletteLabel("tau", "Home", false)).toBe("Home");
+  });
+
   it("opens with Mod+K and filters threads on the client", async () => {
     const user = userEvent.setup();
     renderPalette();
@@ -82,6 +115,27 @@ describe("command palette", () => {
 
     expect(screen.getByTestId("location")).toHaveTextContent("/p/p2/c/c2");
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("warms a directly selected local thread before navigating", async () => {
+    const target = conversation({ id: "c3", projectId: "p2", title: "Cold target" });
+    vi.mocked(api.conversations.listAll).mockResolvedValue([
+      conversation({ title: "Fix login bug" }),
+      conversation({ id: "c2", projectId: "p2", title: "Add dark mode" }),
+      target,
+    ]);
+    const live = createStubLiveClient(threadView);
+    live.warm = vi.fn();
+    const user = userEvent.setup();
+    renderPalette("/", live);
+
+    await user.keyboard("{Control>}k{/Control}");
+    await user.type(screen.getByRole("combobox"), "Cold target");
+    await user.keyboard("{ArrowDown}{Enter}");
+
+    expect(live.warm).toHaveBeenCalledWith("c3");
+    await waitFor(() => expect(api.approvals.list).toHaveBeenCalledWith("c3"));
+    expect(screen.getByTestId("location")).toHaveTextContent("/p/p2/c/c3");
   });
 
   it("starts a new thread in a project from the project entry", async () => {
@@ -157,6 +211,40 @@ describe("add project and thread cycling", () => {
   });
 });
 
+describe("warming for the thread keys", () => {
+  it("has the neighbouring thread ready before Mod+Alt+Arrow is pressed", async () => {
+    vi.mocked(api.conversations.listAll).mockResolvedValue([
+      conversation({
+        id: "c1",
+        workspace: {
+          mode: "worktree",
+          path: "/tmp/worktree",
+          branch: "feature",
+          base: null,
+          state: "ready",
+          mergedSha: null,
+          pullRequestUrl: null,
+        },
+      }),
+      conversation({ id: "c2", projectId: "p2" }),
+    ]);
+    const live = createStubLiveClient(threadView);
+    const warm = vi.fn();
+    live.warm = warm;
+    renderAt(
+      "/p/p2/c/c2",
+      <LiveClientProvider client={live}>
+        <GlobalShortcuts />
+      </LiveClientProvider>,
+    );
+    await waitFor(() => expect(warm).toHaveBeenCalledWith("c1"));
+    await waitFor(() => expect(api.approvals.list).toHaveBeenCalledWith("c1"));
+    expect(warm).not.toHaveBeenCalledWith("c2");
+    expect(warm).toHaveBeenCalledTimes(1);
+    expect(api.workspaces.status).toHaveBeenCalledWith("c1", expect.any(Object));
+  });
+});
+
 describe("models", () => {
   it("changes the model of the open thread from a second page", async () => {
     const user = userEvent.setup();
@@ -215,5 +303,43 @@ describe("models", () => {
     await user.type(screen.getByRole("combobox"), "gpt");
 
     expect(screen.queryByRole("option", { name: /GPT 9/ })).not.toBeInTheDocument();
+  });
+});
+
+describe("continue in Claude Code", () => {
+  it("asks the node for its runtimes only once the palette opens", async () => {
+    const user = userEvent.setup();
+    renderPalette("/p/p1/c/c1");
+    await waitFor(() => expect(api.conversations.listAll).toHaveBeenCalled());
+
+    expect(api.runtimes.list).not.toHaveBeenCalled();
+    await user.keyboard("{Control>}k{/Control}");
+    await screen.findByRole("option", { name: "Continue in Claude Code…" });
+
+    expect(api.runtimes.list).toHaveBeenCalledTimes(1);
+  });
+
+  it("opens the handoff dialog from the action", async () => {
+    const user = userEvent.setup();
+    renderPalette("/p/p1/c/c1");
+
+    await user.keyboard("{Control>}k{/Control}");
+    await user.click(await screen.findByRole("option", { name: "Continue in Claude Code…" }));
+
+    expect(await screen.findByRole("heading", { name: "Continue in Claude Code" })).toBeInTheDocument();
+    expect(await screen.findByText("3 images omitted")).toBeInTheDocument();
+    expect(api.conversations.handoffPreview).toHaveBeenCalledWith("c1");
+  });
+
+  it("is not offered while the node has Claude Code off", async () => {
+    vi.mocked(api.runtimes.list).mockResolvedValue(describeExecutors(undefined));
+    const user = userEvent.setup();
+    renderPalette("/p/p1/c/c1");
+
+    await user.keyboard("{Control>}k{/Control}");
+    await screen.findByRole("option", { name: "Change model…" });
+    await waitFor(() => expect(api.runtimes.list).toHaveBeenCalled());
+
+    expect(screen.queryByRole("option", { name: "Continue in Claude Code…" })).not.toBeInTheDocument();
   });
 });

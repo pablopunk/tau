@@ -1,0 +1,12 @@
+{
+  "source": "CI run 40016625417 on t3/fix-ci-on-main: vitest Tests lines; e2e = Running 96 tests (was 101: resources-live/classify/compare refactors removed 5 net since 92df33d)",
+  "unit": {
+    "packages/protocol": 87,
+    "packages/testkit": 223,
+    "packages/server": 367,
+    "packages/cli": 303,
+    "packages/core": 1283,
+    "packages/web": 732
+  },
+  "e2e": 96
+}

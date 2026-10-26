@@ -9,6 +9,19 @@ export interface MessageEntry {
   startsConversation?: boolean;
 }
 
+/** Entries are rebuilt on every render of the transcript, so rows compare them by value. */
+export function sameEntry(a: MessageEntry | undefined, b: MessageEntry | undefined): boolean {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  return (
+    a.conversationId === b.conversationId &&
+    a.entryId === b.entryId &&
+    a.role === b.role &&
+    a.text === b.text &&
+    a.startsConversation === b.startsConversation
+  );
+}
+
 export interface MessageAction {
   id: string;
   label: string;

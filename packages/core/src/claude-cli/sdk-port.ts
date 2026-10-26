@@ -282,7 +282,7 @@ const resolveInDevelopment = (): string | null => {
   }
 };
 
-async function importSdk(sdkHome: string | undefined): Promise<{ sdk: SdkModule; entry: string }> {
+export async function importSdk(sdkHome: string | undefined): Promise<{ sdk: SdkModule; entry: string }> {
   const entry = (sdkHome && resolveInSdkHome(sdkHome)) || resolveInDevelopment();
   if (!entry) throw new ClaudeSdkMissingError();
   return { sdk: (await import(pathToFileURL(entry).href)) as SdkModule, entry };

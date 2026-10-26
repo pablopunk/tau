@@ -4,13 +4,19 @@ import { stat } from "node:fs/promises";
 import { defineTool } from "@earendil-works/pi-durable";
 import type { BashExecution } from "@earendil-works/pi-durable/tools";
 import { Type } from "typebox";
-import { indexEntryOfCall, isGoverned } from "../../processes/governor/governed";
+import { callScopes, indexEntryOfCall, scopeFields } from "../../processes/governor/governed";
 import { stopMessage } from "../../processes/governor/governor-text";
 import type { ForegroundOutcome, ForegroundRun } from "../../processes/process-types";
 import type { ToolServicesRef } from "./tool-file";
 
-const DEFAULT_TIMEOUT_SECONDS = 120;
-const MAX_TIMEOUT_SECONDS = 600;
+/** The tool default; bang commands reuse it as their fixed kill timeout. */
+export const DEFAULT_TIMEOUT_SECONDS = 120;
+/**
+ * Background priority slows commands ~5x, so the default timeout stretches for them instead of
+ * killing commands that would finish fine unthrottled. An explicit timeout is always honored as-is.
+ */
+export const BACKGROUND_TIMEOUT_SCALE = 5;
+export const MAX_TIMEOUT_SECONDS = 600;
 const MAX_LINES = 2000;
 const MAX_KB = 50;
 
@@ -47,7 +53,7 @@ function findBash(): string {
 }
 
 /** `/bin/bash` where there is one, else the first `bash` on the PATH, else `sh`. */
-function bashPath(): string {
+export function bashPath(): string {
   resolvedBash ??= findBash();
   return resolvedBash;
 }
@@ -104,13 +110,12 @@ function guard(run: ForegroundRun, timeout: number | undefined, abortSignal: Abo
 export const createTauBashTool = ({ services, prepare }: TauBashOptions) =>
   defineTool({
     name: "bash",
-    description: `Execute a bash command in the current working directory. Returns combined stdout and stderr. Output is truncated to last ${MAX_LINES} lines or ${MAX_KB}KB (whichever is hit first). If truncated, full output is saved to a temp file. Optionally provide a timeout in seconds.`,
+    description: `Execute a bash command in the current working directory. Use it to run commands and search (grep/rg/find/ls); never to read/edit/write files — use the read/write/edit tools instead (no cat >, heredocs, sed -i, or python file writes). Returns combined stdout and stderr. Output is truncated to last ${MAX_LINES} lines or ${MAX_KB}KB (whichever is hit first). If truncated, full output is saved to a temp file. Optionally provide a timeout in seconds.`,
     parameters: BashParameters,
     structuredOutputSchema: BashStructuredOutput,
     outputLimits: { retain: "tail" },
     async execute({ command, timeout }, api, context) {
       validateTimeout(timeout);
-      const effectiveTimeout = timeout ?? DEFAULT_TIMEOUT_SECONDS;
       const cwd = api.env?.cwd ?? process.cwd();
       await requireDirectory(cwd);
       const execution: BashExecution = { command, cwd, env: {}, inheritEnv: true };
@@ -119,7 +124,13 @@ export const createTauBashTool = ({ services, prepare }: TauBashOptions) =>
       const processes = services.current().processes;
       let waiting = true;
       const settings = processes.resourceSettings();
-      const governed = await isGoverned(settings, indexEntryOfCall(api, context));
+      const scopes = await callScopes(settings, processes.sandboxSettings(), indexEntryOfCall(api, context));
+      const scope = scopes.governedScope;
+      const scale =
+        timeout === undefined && scope && settings.levels[scope] === "background"
+          ? BACKGROUND_TIMEOUT_SCALE
+          : 1;
+      const effectiveTimeout = (timeout ?? DEFAULT_TIMEOUT_SECONDS) * scale;
       const run = await processes.runForeground({
         conversationId,
         callId: api.callId,
@@ -127,7 +138,8 @@ export const createTauBashTool = ({ services, prepare }: TauBashOptions) =>
         command: execution.command,
         env: execution.env,
         shell: bashPath(),
-        ...(governed && { governed }),
+        origin: "tool",
+        ...scopeFields(scopes),
         // A command's stragglers can write after the call settled; the call no longer takes output then.
         onOutput: (text) => {
           if (!waiting) return;
@@ -164,13 +176,15 @@ export const createTauBashTool = ({ services, prepare }: TauBashOptions) =>
             details: { processId: outcome.info.id, backgrounded: true },
           };
         }
+        const level = scope ? settings.levels[scope] : "off";
+        const capMb = processes.resourceMemoryLimitMb();
         const timeoutText = `Command timed out after ${effectiveTimeout} seconds`;
         if (outcome.stopReason === "memory") {
-          throw new Error(stopMessage("memory", settings.memoryLimitMb, timeoutText));
+          throw new Error(stopMessage("memory", capMb, timeoutText, scope, level));
         }
-        if (watch.timedOut()) throw new Error(timeoutText);
+        if (watch.timedOut()) throw new Error(stopMessage("timeout", capMb, timeoutText, scope, level));
         if (outcome.stopRequested) {
-          throw new Error(stopMessage(outcome.stopReason ?? "user", settings.memoryLimitMb, timeoutText));
+          throw new Error(stopMessage(outcome.stopReason ?? "user", capMb, timeoutText, scope, level));
         }
         const exitCode = outcome.exitCode ?? 1;
         const structuredOutput = {

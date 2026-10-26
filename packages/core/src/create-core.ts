@@ -1,6 +1,8 @@
+import { execFile } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { homedir, hostname } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import { promisify } from "node:util";
 import type { Harness } from "@earendil-works/pi-durable";
 import {
   type Core,
@@ -8,6 +10,7 @@ import {
   type CreateCoreOptions,
   LINK_PROTOCOL,
   PROTOCOL_VERSION,
+  type SandboxSettings,
 } from "@tau/protocol";
 import { createAccess } from "./access/create-access";
 import { createFileDeviceStore } from "./access/file-device-store";
@@ -16,13 +19,18 @@ import { resolveModelAlias } from "./agents/model-alias";
 import { createApprovals } from "./approvals/approvals";
 import { createApprovalsApi } from "./approvals-api";
 import { createArchivedCleanup } from "./archived-cleanup";
+import { FileCredentialStore } from "./auth/file-credential-store";
+import { entryOfThread, recoverBangs } from "./bang-command";
 import { createChangeEmitter } from "./change-emitter";
 import { createCheckpointService } from "./checkpoints/checkpoint-service";
+import { createCheckpointStore } from "./checkpoints/checkpoint-store";
 import { createConnectorToolServices } from "./claude-cli/connectors/connector-tool-services";
+import { bundledSdkHomeOf, sdkHomeOf } from "./claude-cli/sdk-install";
 import { writeTauShim } from "./cli-shim/write-shim";
 import { createConversationRecovery } from "./conversation-recovery";
 import { createConversationRemoval } from "./conversation-removal";
 import { createConversationsApi } from "./conversations-api";
+import { createAvailabilityCache } from "./decisions/availability";
 import { suggestDirectories } from "./fs/suggest-directories";
 import { createCloneService } from "./git/clone-service";
 import { createGithubService } from "./github/github-service";
@@ -35,18 +43,22 @@ import { resyncWhenConnectorsChange } from "./harness/connector-resync";
 import { createConversationForker } from "./harness/conversation-fork";
 import { type ConversationOfSession, createConversationOfSession } from "./harness/conversation-of-session";
 import { createConversationStore } from "./harness/conversation-store";
+import { makeFastCompactionExtension } from "./harness/fast-compaction";
 import { createLiveWork } from "./harness/live-work";
 import { harnessNotificationSubmitter } from "./harness/notification-submitter";
 import { BACKGROUND, openAgentHarness, openSqliteStorage } from "./harness/open";
 import { createProjectStore } from "./harness/project-store";
 import { providerSessionOf } from "./harness/provider-session";
-import { createAgentRegistry } from "./harness/registry";
+import { createAgentRegistry, TOOL_FILES } from "./harness/registry";
 import { createSubagentRemover } from "./harness/subagent-removal";
 import { createLocalTerminalDaemon, type TerminalDaemon } from "./harness/terminal-daemon";
+import { agentToolFile, buildAgentToolFile } from "./harness/tools/agent";
+import { nativeChildGuard, nativeDelegationFlagOn } from "./harness/tools/agent-native";
 import { clampThinkingFor } from "./harness/tools/agent-thinking";
 import { createToolServicesRef } from "./harness/tools/tool-file";
 import { openDataHome } from "./home/data-home";
 import { acquireHomeLock } from "./home/lock";
+import { ensureRuntimeFormat, guardRuntimeFormatAtStartup } from "./home/runtime-format-file";
 import { createSettingsStore } from "./home/settings-store";
 import { createIconService } from "./icons/icon-service";
 import { createNodeIdentityStore } from "./identity/node-identity";
@@ -56,9 +68,11 @@ import { createNodes } from "./nodes/create-nodes";
 import { createDirectory } from "./nodes/directory";
 import { createSelfThreadCount } from "./nodes/self-thread-count";
 import { createFilePeersStore, migrateHubFile, migrateSummaryDirectory } from "./peers/peers-store";
+import { classifyThread, type SandboxScope } from "./processes/governor/governed";
 import { createResourceState } from "./processes/governor/resource-state";
 import { createProcessService } from "./processes/process-service";
 import { resourceActivityOf } from "./processes/resource-activity";
+import type { TrustInput } from "./processes/sandbox/trust-root";
 import { createPresentProject } from "./project-view";
 import { createProjectsApi } from "./projects-api";
 import { createProviderService, type Environment } from "./provider/provider-service";
@@ -67,7 +81,27 @@ import { createFakeRemoteAdapter } from "./remote/fake-adapter";
 import { createOpenTunnelAdapter } from "./remote/opentunnel-adapter";
 import type { RemoteAdapter, RemoteAdapterDeps } from "./remote/ports";
 import { createRemoteService } from "./remote/remote-service";
-import type { RemovalHooks } from "./removal-hooks";
+import { conversationRemovedInOrder, type RemovalHooks } from "./removal-hooks";
+import { isClaudeCodeInstalled } from "./runtimes/native/claude-code-installed";
+import type { NativeQueryFn } from "./runtimes/native/controller";
+import { createNativeDelegation, type NativeDelegation } from "./runtimes/native/delegation";
+import {
+  createNativeCheckpointPort,
+  refuseGoalsOnNative,
+  refuseLoopsOnNative,
+} from "./runtimes/native/finalize";
+import { nativeLaunchPolicy } from "./runtimes/native/launch-policy";
+import { loadNativeQuery } from "./runtimes/native/load-native-query";
+import {
+  type NativeMode,
+  nativeModeOf,
+  nativeStateExistsIn,
+  refusingQuery,
+} from "./runtimes/native/native-mode";
+import { withNativeThreads } from "./runtimes/native/permissions";
+import { createNativeService, type NativeService } from "./runtimes/native/service";
+import { nativeWriterPort } from "./runtimes/native/writer-state";
+import { createRuntimesApi } from "./runtimes-api";
 import { createSettingsApi } from "./settings-api";
 import { useBundledSkills } from "./skills/discover-skills";
 import { createSkillsApi } from "./skills/skills-api";
@@ -84,8 +118,12 @@ import { createTimerToolServices } from "./timers/timer-tool-services";
 import { createTimersApi } from "./timers-api";
 import { createTitleService } from "./titles/title-service";
 import { createUpdateService } from "./updates/update-service";
+import { createUploadStore } from "./upload-store";
+import { createVoiceApi } from "./voice-api";
 import { CRASH_LOOP_TEXT, recordStart, startRecordFiles } from "./watchdog/start-record";
 import { createWorkspaceService } from "./workspaces/workspace-service";
+import { hasLiveWorktree, sandboxRootOf } from "./workspaces/worktree-facts";
+import { createWriterBarrier } from "./workspaces/writer-barrier";
 
 export interface CoreDependencies {
   readonly env: Environment;
@@ -102,7 +140,14 @@ export interface CoreDependencies {
   /** Tests replace the tunnel with the fake adapter. Default: the OpenTunnel adapter. */
   readonly remoteAdapter?: (deps: RemoteAdapterDeps) => RemoteAdapter;
   readonly terminalService?: (deps: TerminalServiceDeps) => TerminalService;
+  /** Whether Claude Code is installed on this machine. Tests replace the real `claude --version` probe. */
+  readonly claudeCodeInstalled?: (env: Environment) => Promise<boolean>;
+  /** Tests replace the Agent SDK behind native threads. A retained node never launches. */
+  readonly nativeQuery?: NativeQueryFn;
 }
+
+const delegationOffered = (mode: NativeMode, env: Environment): boolean =>
+  mode === "active" && nativeDelegationFlagOn(env);
 
 const exitAfterLogging = (error: unknown) => {
   console.error("tau: the agent store failed", error);
@@ -132,9 +177,22 @@ export const defaultCoreDependencies = (versionDir?: string): CoreDependencies =
 };
 
 export async function createCoreWith(options: CreateCoreOptions, deps: CoreDependencies): Promise<Core> {
+  const claudeCodeInstalled = (deps.claudeCodeInstalled ?? isClaudeCodeInstalled)(deps.env);
   const home = await openDataHome(options.home);
   const lock = await acquireHomeLock(home.lockFile);
   try {
+    await guardRuntimeFormatAtStartup(home.root);
+    const sdkQuery =
+      deps.nativeQuery ??
+      ((await claudeCodeInstalled)
+        ? await loadNativeQuery(
+            options.assets?.versionDir ? bundledSdkHomeOf(options.assets.versionDir) : sdkHomeOf(home.root),
+          )
+        : undefined);
+    const nativeMode: NativeMode = nativeModeOf({
+      creationEnabled: (await claudeCodeInstalled) && sdkQuery !== undefined,
+      stateExists: await nativeStateExistsIn(home.root),
+    });
     useBundledSkills(options.assets?.versionDir);
     if (options.cliCommand !== undefined) await writeTauShim(home.root, options.cliCommand);
     const changes = createChangeEmitter();
@@ -160,8 +218,24 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
     });
     const status = createStatusTracker({ changes, now: deps.now });
     const toolServices = createToolServicesRef();
+    const nativeDelegation: { current?: NativeDelegation } = {};
+    const delegationToolFiles = delegationOffered(nativeMode, deps.env)
+      ? TOOL_FILES.map((file) =>
+          file === agentToolFile ? buildAgentToolFile({ delegation: () => nativeDelegation.current }) : file,
+        )
+      : undefined;
+    const fastCompaction = makeFastCompactionExtension({
+      settingsStore: settings,
+      credentials: new FileCredentialStore(home.credentialsFile),
+      env: deps.env,
+      // Shared across compactions so backend demotion survives the run.
+      availability: createAvailabilityCache(),
+    });
     const harness = await openAgentHarness({
-      registry: createAgentRegistry(toolServices, undefined, home.root),
+      registry: createAgentRegistry(toolServices, delegationToolFiles, home.root, [
+        fastCompaction,
+        ...(nativeMode === "off" ? [] : [nativeChildGuard(() => nativeDelegation.current)]),
+      ]),
       storage: await openSqliteStorage(home.agentDatabase),
       models: provider.models,
       onReport: (error) => console.error("tau: agent report", error),
@@ -175,19 +249,27 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
     });
 
     const projects = createProjectStore(harness);
-    sessionLookup.current = createConversationOfSession(harness);
+    sessionLookup.current = withNativeThreads(createConversationOfSession(harness));
     const connectorOffering = createConnectorOffering({
       harness,
       settings: async () => (await settings.get()).claudeConnectors,
       connectors: () => provider.claudeConnectors(),
     });
     resyncWhenConnectorsChange(changes, provider, connectorOffering);
+    const uploads = createUploadStore({ now: deps.now });
     const conversations = createConversationStore(harness, async (id) => (await projects.require(id)).path, {
       offering: connectorOffering,
       beforeAbort: (id) => approvals.denyAll(id),
+      uploads,
     });
     const shared = { projects, conversations, changes, now: deps.now };
     const titles = createTitleService({ harness, models: provider.models, settings, changes });
+    const voiceApi = createVoiceApi({
+      settings,
+      homeRoot: home.root,
+      provider,
+      versionDir: options.assets?.versionDir,
+    });
     const icons = createIconService({ iconsDirectory: home.iconsDirectory, now: deps.now });
     const present = createPresentProject(icons, settings);
     const githubRef: { current?: ReturnType<typeof createGithubService> } = {};
@@ -222,15 +304,73 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
       env: deps.env,
       now: deps.now,
     });
+    const workspaceBarrier = createWriterBarrier();
+    const nativeForWorkspaces: { current?: NativeService } = {};
     const workspaces = createWorkspaceService({
+      writerBarrier: workspaceBarrier,
+      ...(nativeMode !== "off" && {
+        writerStateOf: nativeWriterPort(() => nativeForWorkspaces.current),
+      }),
       home: home.root,
       closeTerminalsOf: (conversationId) => terminals.closeAllOf(conversationId),
       conversations,
       runGh: deps.runGh,
       announce: (projectId) => changes.emit({ resource: "conversations", projectId }),
+      hasRunningOf: (conversationId) => processes.hasRunning(conversationId),
     });
+
+    // Layer-2 + spawn sandbox wiring (integrator): resolve trusted thread metadata to a
+    // canonical root; fail closed (undefined) when the switch is off, the thread is unknown
+    // or archived, or the root is unresolvable. Never substitutes the tool's cwd.
+    const runGit = promisify(execFile);
+    const sandboxThreadOf = (conversationId: string | number) =>
+      conversations.find(String(conversationId)).catch(() => undefined);
+    const sandboxScopeOf = async (conversationId: string | number) => {
+      const sw: SandboxSettings | undefined = (await settings.get()).sandbox;
+      if (!sw) return undefined;
+      const thread = await sandboxThreadOf(conversationId);
+      if (!thread || thread.archivedAt !== null) return undefined;
+      const scope = classifyThread({ parentId: thread.parentId ?? undefined, workspace: thread.workspace });
+      const on = scope === "main" ? sw.main : scope === "worktree" ? sw.worktree : sw.subagent;
+      return on ? scope : undefined;
+    };
+    const sandboxRootOfId = async (conversationId: string | number) => {
+      const thread = await sandboxThreadOf(conversationId);
+      if (!thread || thread.archivedAt !== null) return undefined;
+      if (!(await sandboxScopeOf(conversationId))) return undefined;
+      return sandboxRootOf(thread).catch(() => undefined);
+    };
+    const sandboxTrustOf = async (conversationId: string | number): Promise<TrustInput | undefined> => {
+      const thread = await sandboxThreadOf(conversationId);
+      if (!thread || thread.archivedAt !== null) return undefined;
+      const scope = classifyThread({ parentId: thread.parentId ?? undefined, workspace: thread.workspace });
+      const sw: SandboxSettings | undefined = (await settings.get()).sandbox;
+      const on = sw && (scope === "main" ? sw.main : scope === "worktree" ? sw.worktree : sw.subagent);
+      if (!on) return undefined;
+      if (thread.workspace.state === "removed") return { kind: "removed" };
+      const root = await sandboxRootOf(thread).catch(() => undefined);
+      if (!root) return undefined;
+      const kind: TrustInput["kind"] =
+        scope === "main" ? "main" : hasLiveWorktree(thread) ? "worktree" : "checkout";
+      if (kind !== "worktree") return { kind, root };
+      const branch = thread.workspace.branch ?? undefined;
+      const gitDir = await runGit("git", ["-C", root, "rev-parse", "--absolute-git-dir"], {
+        timeout: 10_000,
+      })
+        .then(({ stdout }) => stdout.trim() || undefined)
+        .catch(() => undefined);
+      if (!gitDir || branch === undefined) return { kind, root };
+      if (!gitDir.includes("/.git/worktrees/")) return { kind, root };
+      return { kind, root, adminDir: gitDir, sharedGitDir: dirname(dirname(gitDir)), branch };
+    };
     const forker = createConversationForker(harness, conversations);
     const checkpoints = createCheckpointService({ home: home.root, conversations, forker });
+    // Tool runs mutate worktrees outside the workspace service; drop cached
+    // advisory git reads first, so the run-end change the tracker emits below
+    // always refetches fresh statuses (a slow checkpoint must not win the race).
+    status.onRunEnded(async () => {
+      workspaces.refreshStatuses();
+    });
     status.onRunEnded(({ conversationId }) => checkpoints.snapshotAfter(conversationId, ""));
     forker.onForked(async (fork) => changes.emit({ resource: "conversations", projectId: fork.projectId }));
     const notifications = harnessNotificationSubmitter(harness);
@@ -257,6 +397,8 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
       emitResourcesChange: () => changes.emit({ resource: "resources" }),
       resources: resourceState,
       nodeId: () => identity.nodeId,
+      sandbox: (await settings.get()).sandbox,
+      resolveSandboxRoot: (conversationId) => sandboxTrustOf(conversationId),
     });
     const liveWork = createLiveWork({ harness, processes, approvals });
     const goals = createGoalService({
@@ -279,6 +421,11 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
     toolServices.set({
       processes,
       mcp,
+      sandbox: {
+        scopeOf: (id) => sandboxScopeOf(id),
+        rootOf: (id) => sandboxRootOfId(id),
+        mcpAllowed: async (server) => ((await settings.get()).sandbox?.mcpAllowlist ?? []).includes(server),
+      },
       notifications,
       scheduler,
       liveWork,
@@ -306,13 +453,16 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
     const removalHooks: RemovalHooks = {
       unmergedWork: (thread) => workspaces.unmergedWork(thread),
       onConversationRemoved: [
-        (thread) => terminals.onConversationRemoved(thread),
-        (thread) => closeClaudeCliThread(thread.id),
-        (thread) => workspaces.onConversationRemoved(thread),
-        (thread) => checkpoints.onConversationRemoved(thread),
-        (thread) => processes.onConversationRemoved(thread),
-        async (thread) => goals.onConversationRemoved(thread.id),
-        (thread) => timersApi.onConversationRemoved(thread),
+        async (thread) => native?.onConversationRemoved(thread.id),
+        ...conversationRemovedInOrder({
+          terminals: (thread) => terminals.onConversationRemoved(thread),
+          claudeCliThread: (thread) => closeClaudeCliThread(thread.id),
+          processes: (thread) => processes.onConversationRemoved(thread),
+          workspace: (thread) => workspaces.onConversationRemoved(thread),
+          checkpoints: (thread) => checkpoints.onConversationRemoved(thread),
+          goals: async (thread) => goals.onConversationRemoved(thread.id),
+          timers: (thread) => timersApi.onConversationRemoved(thread),
+        }),
       ],
       onProjectRemoved: [(id) => workspaces.onProjectRemoved(id)],
     };
@@ -337,10 +487,63 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
       announce: (projectId) => changes.emit({ resource: "conversations", projectId }),
     });
     const recovery = createConversationRecovery({ harness, conversations, changes });
+    const native: NativeService | undefined =
+      nativeMode !== "off"
+        ? createNativeService({
+            harness,
+            conversations,
+            mode: nativeMode,
+            query: nativeMode === "active" ? (sdkQuery ?? refusingQuery) : refusingQuery,
+            approvals,
+            checkpoints: createNativeCheckpointPort({
+              checkpoints,
+              store: createCheckpointStore(harness),
+              find: (id) => conversations.find(id),
+            }),
+            ensureFormat: () => ensureRuntimeFormat(home.root, deps.now),
+            workspaceFence: workspaceBarrier,
+            policyFor: nativeLaunchPolicy({
+              sandbox: {
+                settings: async () => (await settings.get()).sandbox,
+                scopeOf: async (id): Promise<SandboxScope> => {
+                  const thread = await sandboxThreadOf(id);
+                  return thread
+                    ? classifyThread({ parentId: thread.parentId ?? undefined, workspace: thread.workspace })
+                    : "unknown";
+                },
+                trustOf: sandboxTrustOf,
+              },
+            }).forThread,
+            onChange: (projectId) => changes.emit({ resource: "conversations", projectId }),
+            now: deps.now,
+          })
+        : undefined;
+    nativeForWorkspaces.current = native;
+    if (native) {
+      nativeDelegation.current = createNativeDelegation({
+        service: native,
+        harness,
+        conversations,
+        onChange: (projectId) => changes.emit({ resource: "conversations", projectId }),
+      });
+    }
+    const isNativeThread = async (id: string) => (await native?.isNative(id)) ?? false;
     await status.recoverAtStartup();
     await clones.recoverAtStartup();
     await recovery.recoverAtStartup();
+    await native?.reconcileAll();
     await processes.reapStaleAtStartup();
+    // Dispatch admitted-but-unspawned bangs; stale groups are dead by now,
+    // so a redispatch can't double-run a live process.
+    await recoverBangs({
+      harness,
+      threads: conversations,
+      processes,
+      notifications,
+      home: home.root,
+      entryOf: (conversationId: string) => entryOfThread(harness, conversationId),
+      uploads,
+    });
     await goals.recoverAtStartup();
     await scheduler.start();
     archivedCleanup.start();
@@ -465,6 +668,7 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
         onProjectsFolderChanged: () => github.invalidateScan(),
         onClaudeConnectorsChanged: () => connectorOffering.resyncAll(),
         onResourcesChanged: (value) => processes.setResources(value),
+        onSandboxChanged: (value) => processes.setSandbox(value),
         resources: {
           support: () => processes.resourceSupport(),
           activity: () => resourceActivityOf(processes, conversations),
@@ -477,27 +681,45 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
         refreshRepos: () => github.refreshRepos(),
         use: (input) => github.use(input),
       },
+      voice: voiceApi,
       ...createProvidersApi(provider),
+      runtimes: createRuntimesApi(native),
       skills: createSkillsApi({ projects }),
-      projects: createProjectsApi({ ...shared, clones, icons, present, removalHooks }),
+      projects: createProjectsApi({
+        ...shared,
+        clones,
+        icons,
+        present,
+        removalHooks,
+        relocateCheckpoints: checkpoints.relocate,
+      }),
       conversations: createConversationsApi({
+        uploads,
         ...shared,
         provider,
         settings,
         titles,
         status,
         workspaces,
+        workspaceFence: workspaceBarrier,
         checkpoints,
         forker,
         harness,
+        notifications,
+        ...(native && { native }),
+        handoffGuards: {
+          hasPendingApprovals: (id) => approvals.hasPending(id),
+          hasRunningProcesses: (id) => processes.hasRunning(id),
+        },
         removal,
         archivedCleanup,
         closeClaudeCliThread,
         closeTerminalsOf: (conversationId) => terminals.closeAllOf(conversationId),
+        bang: { processes, home: home.root, notifications },
       }),
       workspaces: {
         status: (id) => workspaces.status(id),
-        merge: (id) => workspaces.merge(id),
+        merge: (id, force) => workspaces.merge(id, force),
         createPullRequest: (id) => workspaces.createPullRequest(id),
         remove: (id, force) => workspaces.remove(id, force),
       },
@@ -510,8 +732,11 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
       },
       terminals: terminals.api,
       approvals: createApprovalsApi(approvals, conversations),
-      timers: timersApi,
-      goals: createGoalsApi(goals),
+      timers: refuseLoopsOnNative(timersApi, isNativeThread),
+      goals: refuseGoalsOnNative(createGoalsApi(goals), isNativeThread),
+      uploads: {
+        stage: (input) => uploads.stage(input),
+      },
       mcp: createMcpApi({ settings, mcp, changes }),
       updates: {
         status: () => updates.status(),
@@ -532,8 +757,10 @@ export async function createCoreWith(options: CreateCoreOptions, deps: CoreDepen
             await processes.stopAll();
             await terminals.close();
             await status.settled();
+            await native?.close();
             await mcp.closeAll();
             await harness.close(BACKGROUND);
+            await voiceApi.close();
             await provider.close();
             await github.settled();
           } finally {

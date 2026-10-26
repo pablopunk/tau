@@ -23,10 +23,20 @@ function statusOf(result: ToolResultInfo | undefined, slot: ToolSlot | undefined
   return busy ? "pending" : "interrupted";
 }
 
+const resolved = new WeakMap<ToolCall, ToolCallState>();
+
+/** Returns the same state object for a call until its status, result or slot actually changes, so tool rows can be memoized. */
 export function resolveToolCall(call: ToolCall, lookup: ToolLookup): ToolCallState {
   const result = lookup.results.get(call.id);
   const slot = lookup.slots.find((candidate) => candidate.callId === call.id);
-  return { call, status: statusOf(result, slot, lookup.busy), result, slot };
+  const status = statusOf(result, slot, lookup.busy);
+  const previous = resolved.get(call);
+  if (previous && previous.status === status && previous.result === result && previous.slot === slot) {
+    return previous;
+  }
+  const next = { call, status, result, slot };
+  resolved.set(call, next);
+  return next;
 }
 
 export function isActive(status: ToolStatus): boolean {
@@ -63,4 +73,9 @@ export function exitCodeOf(result: ToolResultInfo | undefined): number | undefin
 
 export function wasAborted(result: ToolResultInfo | undefined): boolean {
   return result?.diagnostics.some((item) => item.code === "aborted") ?? false;
+}
+
+export function durationMsOf(result: ToolResultInfo | undefined): number | undefined {
+  const ms = result?.message.durationMs;
+  return typeof ms === "number" && Number.isFinite(ms) && ms >= 0 ? ms : undefined;
 }

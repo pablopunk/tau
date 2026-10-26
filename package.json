@@ -10,9 +10,11 @@
     "check": "biome check . && pnpm -r --workspace-concurrency=1 typecheck",
     "format": "biome check --write .",
     "test": "pnpm -r --filter '!@tau/e2e' test",
+    "test:changed": "node scripts/test-changed.mjs",
     "build": "pnpm -r --filter '!@tau/e2e' build",
     "fixtures": "pnpm --filter @tau/core fixtures",
     "e2e": "pnpm --filter @tau/e2e test",
+    "e2e:one": "pnpm build && pnpm --filter @tau/e2e test",
     "screenshots": "pnpm --filter @tau/e2e screenshots",
     "build:binary": "tsx scripts/build-binary.ts",
     "smoke:binary": "tsx scripts/smoke-binary.ts"

@@ -12,51 +12,192 @@ concurrency:
 permissions:
   contents: read
 
+# Required check: ci-ok. Everything else is a shard or a report.
 jobs:
-  verify:
+  build:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: jdx/mise-action@7a4e45a543138629540c9a1616d08632b893e492 # v5.0.1
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version-file: .bun-version
-      - run: mise exec -- pnpm install --frozen-lockfile
-      - run: mise exec -- pnpm check
-      - run: mise exec -- pnpm test
+      - uses: ./.github/actions/setup-workspace
       - run: mise exec -- pnpm build
-      - run: mise exec -- pnpm smoke:binary
+      - run: tar -cf dist.tar packages/cli/dist packages/web/dist
       - uses: actions/upload-artifact@v4
         with:
-          name: cli-dist
-          path: packages/cli/dist
+          name: dist
+          path: dist.tar
           retention-days: 1
 
-  e2e:
-    needs: verify
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-workspace
+      - run: mise exec -- pnpm check
+
+  unit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { id: core-1, packages: "@tau/core", shard: "1/2" }
+          - { id: core-2, packages: "@tau/core", shard: "2/2" }
+          - { id: web-1, packages: "@tau/web", shard: "1/2" }
+          - { id: web-2, packages: "@tau/web", shard: "2/2" }
+          - { id: rest, packages: "@tau/server @pablopunk/tau @tau/protocol @tau/testkit", shard: "" }
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-workspace
+      - name: Vitest, one package at a time, one JSON report per package
+        run: |
+          set -euo pipefail
+          mkdir -p "$GITHUB_WORKSPACE/reports"
+          for pkg in ${{ matrix.packages }}; do
+            name="$(echo "$pkg" | tr -c 'a-z0-9' '-')"
+            args=(--reporter=default --reporter=json "--outputFile.json=$GITHUB_WORKSPACE/reports/unit-${{ matrix.id }}-$name.json")
+            if [ -n "${{ matrix.shard }}" ]; then args+=("--shard=${{ matrix.shard }}"); fi
+            mise exec -- pnpm --filter "$pkg" exec vitest run "${args[@]}"
+          done
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: unit-${{ matrix.id }}
+          path: reports/
+          retention-days: 7
+
+  smoke:
+    needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: jdx/mise-action@7a4e45a543138629540c9a1616d08632b893e492 # v5.0.1
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version-file: .bun-version
-      - run: mise exec -- pnpm install --frozen-lockfile
+      - uses: ./.github/actions/setup-workspace
       - uses: actions/download-artifact@v4
         with:
-          name: cli-dist
-          path: packages/cli/dist
-      - run: mise exec -- pnpm --filter @tau/e2e exec playwright install --with-deps chromium
-      - run: mise exec -- pnpm e2e
+          name: dist
+      - run: tar -xf dist.tar
+      - run: mise exec -- pnpm smoke:binary
+
+  e2e:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - shard: "1"
+            files: tests/mvp12-nodes.spec.ts tests/chat.spec.ts tests/github.spec.ts tests/mvp9-claude-cli.spec.ts tests/resources-priority.spec.ts tests/mvp13-step2-pins.spec.ts tests/thread-scroll.spec.ts tests/resources-classify.spec.ts
+          - shard: "2"
+            files: tests/resources-live.spec.ts tests/mvp6.spec.ts tests/mvp7.spec.ts tests/mvp5.spec.ts tests/resources-memory.spec.ts tests/mvp12-remote.spec.ts tests/terminal.spec.ts tests/mvp8-goal-monitor.spec.ts
+          - shard: "3"
+            files: tests/mvp4.spec.ts tests/mvp8-timers.spec.ts tests/mvp8-restart.spec.ts tests/mvp9-connectors.spec.ts tests/resources-compare.spec.ts tests/resources-old-node.spec.ts tests/resources.spec.ts
+          - shard: "4"
+            files: tests/binary.spec.ts tests/update-button.spec.ts
+    env:
+      E2E_SHARD: ${{ matrix.shard }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-workspace
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+      - run: tar -xf dist.tar
+      - uses: actions/cache@v4
+        id: playwright-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+      - name: Compiled fake releases (binary shard only; rebuilt when the CLI build changes)
+        if: matrix.shard == '4'
+        id: releases-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ runner.temp }}/tau-e2e-releases
+          key: e2e-releases-${{ runner.os }}-${{ hashFiles('packages/cli/dist/**', 'packages/web/dist/**', '.bun-version') }}
+      - name: Chromium (cached browser, apt deps every time)
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: mise exec -- pnpm --filter @tau/e2e exec playwright install --with-deps chromium
+      - name: Chromium system deps (browser cached)
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: mise exec -- pnpm --filter @tau/e2e exec playwright install-deps chromium
+      - name: Playwright e2e
+        env:
+          TAU_E2E_RELEASES_DIR: ${{ runner.temp }}/tau-e2e-releases
+        run: mise exec -- pnpm --filter @tau/e2e exec playwright test ${{ matrix.files }}
+      - name: Save compiled fake releases
+        if: always() && matrix.shard == '4' && steps.releases-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ runner.temp }}/tau-e2e-releases
+          key: e2e-releases-${{ runner.os }}-${{ hashFiles('packages/cli/dist/**', 'packages/web/dist/**', '.bun-version') }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: e2e-shard-${{ matrix.shard }}
+          path: e2e-reports/
+          retention-days: 7
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
-          name: e2e-artifacts
+          name: e2e-artifacts-${{ matrix.shard }}
           path: test-artifacts
           retention-days: 7
+
+  e2e-report:
+    needs: e2e
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: e2e-shard-*
+          path: reports
+      - run: node ci/e2e-report.mjs reports
+
+  counts:
+    needs: [unit, e2e]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: unit-*
+          path: reports
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: e2e-shard-*
+          path: reports
+      - run: node ci/check-counts.mjs reports ci/test-counts.json
+
+  ci-ok:
+    needs: [check, build, unit, smoke, e2e, e2e-report, counts]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Every job succeeded
+        env:
+          NEEDS: ${{ toJson(needs) }}
+        run: |
+          node -e 'const needs = JSON.parse(process.env.NEEDS); const bad = Object.entries(needs).filter(([, job]) => job.result !== "success"); if (bad.length) { console.error(bad); process.exit(1); }'

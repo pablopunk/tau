@@ -2,6 +2,7 @@ import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, realpathSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { expect, type Page } from "@playwright/test";
 import { CONNECTED_AS_DEMO, type FakeGhRepo, installFakeGh } from "../packages/core/src/test-support/fake-gh";
 
 export const PORT = 4399;
@@ -93,6 +94,29 @@ export const bareRepository = () => join(e2eRoot(), "remote.git");
 export const projectsDir = () => join(stateDir(), "projects");
 export const tokenFile = () => join(stateDir(), "token");
 
+export async function waitForConversationRunEnd(page: Page): Promise<void> {
+  await expect(page).toHaveURL(/\/c\/[^/]+$/, { timeout: 30_000 });
+  await expect(page.getByTestId("conversation")).toBeVisible();
+  const id = new URL(page.url()).pathname.split("/").pop();
+  await expect
+    .poll(
+      async () => {
+        if (!id) return false;
+        const response = await page.request.get("/api/conversations");
+        if (!response.ok()) return false;
+        const conversations = (await response.json()) as {
+          id: string;
+          status: string;
+          lastRunEndedAt: number | null;
+        }[];
+        const conversation = conversations.find((item) => item.id === id);
+        return conversation?.status === "idle" && conversation.lastRunEndedAt !== null;
+      },
+      { timeout: 30_000 },
+    )
+    .toBe(true);
+}
+
 export const fakeGhBin = () => join(e2eRoot(), "gh", "bin");
 
 export const serverEnvironment = () => ({
@@ -106,6 +130,7 @@ export const serverEnvironment = () => ({
   GEMINI_API_KEY: "",
   OPENCODE_API_KEY: "",
   TAU_ALLOW_FILE_CLONES: "1",
+  TAU_CLAUDE_PATH: join(e2eRoot(), "no-claude"),
   TAU_FAKE_CLAUDE_CLI: "1",
   TAU_FAKE_REMOTE: "1",
 });

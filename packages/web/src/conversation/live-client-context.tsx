@@ -12,3 +12,8 @@ export function useLiveClient(): LiveClient {
   if (!client) throw new Error("useLiveClient needs a <LiveClientProvider>");
   return client;
 }
+
+/** The client when a provider exists, for call sites that only optimize (warming) and must work without one. */
+export function useOptionalLiveClient(): LiveClient | undefined {
+  return useContext(LiveClientContext);
+}

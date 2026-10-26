@@ -17,6 +17,7 @@ export interface RetryInfo {
 export interface QueuedMessage {
   readonly id: number;
   readonly mode: "steer" | "followUp";
+  readonly entryKind: string;
   readonly text: string;
   readonly images: readonly ImageContent[];
 }
@@ -42,12 +43,18 @@ function isQueuedMessage(item: InboxItem): item is QueuedItem {
 
 type Block = { type?: string; text?: string };
 
+function blocksOf(content: unknown): Block[] {
+  return Array.isArray(content) ? (content as Block[]) : [];
+}
+
 function queuedBlocks(item: QueuedItem): string | Block[] {
   const content = item.content as unknown;
   if (typeof content === "string") return content;
-  const blocks = (content as { content?: unknown } | undefined)?.content;
-  if (typeof blocks === "string") return blocks;
-  return Array.isArray(blocks) ? (blocks as Block[]) : [];
+  if (Array.isArray(content)) return content as Block[];
+  // Tolerate a wrapped `{ content }` shape, should one ever appear.
+  const wrapped = (content as { content?: unknown } | undefined)?.content;
+  if (typeof wrapped === "string") return wrapped;
+  return blocksOf(wrapped);
 }
 
 function queuedText(item: QueuedItem): string {
@@ -63,7 +70,13 @@ function queuedImages(item: QueuedItem): readonly ImageContent[] {
 }
 
 function queuedOf(item: QueuedItem): QueuedMessage {
-  return { id: Number(item.id), mode: item.mode, text: queuedText(item), images: queuedImages(item) };
+  return {
+    id: Number(item.id),
+    mode: item.mode,
+    entryKind: item.entry?.kind ?? "pi.user",
+    text: queuedText(item),
+    images: queuedImages(item),
+  };
 }
 
 function retryOf(live: LiveState): RetryInfo | undefined {

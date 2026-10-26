@@ -61,8 +61,10 @@ export function isProjectOpen(
   section: ProjectSection,
   overrides: Readonly<Record<string, boolean>>,
   currentProjectId: string | undefined,
+  showArchived = false,
 ): boolean {
   if (section.project.id === currentProjectId) return true;
   const isNotReady = section.project.status !== "ready";
-  return overrides[section.project.id] ?? (isNotReady || section.active.length > 0);
+  const hasShown = section.active.length > 0 || (showArchived && section.archived.length > 0);
+  return overrides[section.project.id] ?? (isNotReady || hasShown);
 }

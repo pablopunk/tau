@@ -194,6 +194,7 @@ describe("foreground runs", () => {
       emitChange: (id) => changes.push(id),
       stopGraceMs: 300,
       notifications: {
+        submitWrite: async () => undefined,
         notify: async (_conversationId, notification) => {
           notified.push(notification.kind);
         },
@@ -323,5 +324,97 @@ describe("foreground runs", () => {
     await run.outcome;
     await expect(service.background("c1", "call-1")).rejects.toMatchObject({ code: "not_found" });
     await run.release(false);
+  });
+});
+
+describe("bang exit delivery", () => {
+  it("a bang exit appends as a model-bearing write with the command and origin, never a follow-up", async () => {
+    const writes: import("../harness/notification-submitter").PassiveWrite[] = [];
+    const notified: import("../harness/notification-submitter").Notification[] = [];
+    const bang = createProcessService({
+      home,
+      emitChange: () => undefined,
+      stopGraceMs: 300,
+      notifications: {
+        notify: async (_id, notification) => void notified.push(notification),
+        submitWrite: async (_id, write) => void writes.push(write),
+      },
+    });
+    try {
+      const info = await bang.start({
+        conversationId: "bang-exit-1",
+        cwd,
+        command: "echo hi",
+        origin: "bang",
+        notifyOnExit: true,
+      });
+      expect(info).toMatchObject({ origin: "bang" });
+      await waitFor(() => writes.length === 1);
+      expect(notified).toEqual([]);
+      const [write] = writes;
+      expect(write?.kind).toBe(PROCESS_EXIT_KIND);
+      expect(write?.data).toMatchObject({ command: "echo hi", exitCode: 0, origin: "bang" });
+      expect(write?.text).toMatch(/^You ran: echo hi\n/);
+      expect(write?.requestId).toBe(`process-exit:${info.id}`);
+      await waitFor(async () => (await bang.list("bang-exit-1")).length === 0);
+    } finally {
+      await bang.stopAll();
+    }
+  });
+
+  it("a plain exit still notifies as a follow-up", async () => {
+    const writes: import("../harness/notification-submitter").PassiveWrite[] = [];
+    const notified: import("../harness/notification-submitter").Notification[] = [];
+    const plain = createProcessService({
+      home,
+      emitChange: () => undefined,
+      stopGraceMs: 300,
+      notifications: {
+        notify: async (_id, notification) => void notified.push(notification),
+        submitWrite: async (_id, write) => void writes.push(write),
+      },
+    });
+    try {
+      await plain.start({ conversationId: "bang-exit-2", cwd, command: "echo hi", notifyOnExit: true });
+      await waitFor(() => notified.length === 1);
+      expect(writes).toEqual([]);
+      expect(notified[0]).toMatchObject({ kind: PROCESS_EXIT_KIND });
+    } finally {
+      await plain.stopAll();
+    }
+  });
+
+  it("a user stop releases the one-at-a-time slot without an exit notice", async () => {
+    const { takeBangSlot, releaseBangSlot } = await import("../harness/conversation-submit");
+    const quiet = createProcessService({
+      home,
+      emitChange: () => undefined,
+      stopGraceMs: 300,
+      notifications: {
+        notify: async () => undefined,
+        submitWrite: async () => undefined,
+      },
+    });
+    // The dispatcher holds the slot from admission until the exit.
+    expect(takeBangSlot("bang-exit-3", "bang")).toBe(true);
+    try {
+      const info = await quiet.start({
+        conversationId: "bang-exit-3",
+        cwd,
+        command: "sleep 30",
+        origin: "bang",
+        notifyOnExit: true,
+      });
+      await waitFor(async () => (await quiet.list("bang-exit-3")).length === 1);
+      // A second bang is refused while the first runs.
+      expect(takeBangSlot("bang-exit-3", "other")).toBe(false);
+      await quiet.stop(info.id, "user");
+      await waitFor(async () => (await quiet.list("bang-exit-3")).length === 0);
+      // The prune releases it: no exit notice was posted, but the next bang may run.
+      expect(takeBangSlot("bang-exit-3", "next")).toBe(true);
+      releaseBangSlot("bang-exit-3");
+    } finally {
+      await quiet.stopAll();
+    }
   });
 });

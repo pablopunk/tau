@@ -7,6 +7,7 @@ import {
   validateOpenAiKey,
   validateOpenCodeKey,
   validateOpenRouterKey,
+  validateTypesafeKey,
 } from "./validators";
 
 export interface PiProviderRef {
@@ -91,6 +92,15 @@ const KEY_PROVIDERS: readonly Omit<KeyProviderEntry, "kind">[] = [
     ],
     validate: validateOpenCodeKey,
   },
+  {
+    id: "typesafe",
+    name: "TypeSafe",
+    methods: ["api_key"],
+    keyUrl: "https://console.typesafe.ai/settings/keys",
+    envVar: "TYPESAFE_API_KEY",
+    piProviders: [],
+    validate: validateTypesafeKey,
+  },
 ];
 
 const CLAUDE_CLI_ENTRY: CliProviderEntry = {
@@ -127,3 +137,6 @@ export function requireKeyProvider(id: ProviderId): KeyProviderEntry {
 }
 
 export const primaryPiId = (entry: ProviderEntry): string => entry.piProviders[0]?.piId ?? entry.id;
+
+/** Chat-less entries (no pi-ai provider) never count as a usable chat connection. */
+export const countsForChat = (entry: ProviderEntry): boolean => entry.piProviders.length > 0;

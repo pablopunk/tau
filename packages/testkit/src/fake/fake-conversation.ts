@@ -1,20 +1,32 @@
 import {
+  type AbortResult,
   type AgentStatus,
   AppError,
   baseOps,
+  type CancelQueuedResult,
   type ConversationStatus,
   type ConversationSummary,
   type ConversationView,
   type ConversationWatcher,
+  diffTodos,
+  type FileRef,
   type ImageInput,
   type InboxState,
   isRetryable,
+  latestTodos,
   type ModelRef,
   type Op,
   type OpsListener,
   RETIRED_OPS,
+  type SendNowResult,
+  type SendReceipt,
+  type SetQueuedModeResult,
   type ThinkingLevel,
   type ThreadWorkspace,
+  TODOS_UPDATED_KIND,
+  type TodoItem,
+  todosUpdatedText,
+  type UserItemSnapshot,
   type UserMessage,
   unmergedWarningFor,
   type WhenBusy,
@@ -39,6 +51,7 @@ import {
   rebase,
   restyleNewUserEntries,
   substituteText,
+  type UserEntryEdit,
   withInbox,
   withoutRun,
 } from "./replay";
@@ -74,6 +87,7 @@ export interface AgentInfo {
 export interface FakeInput {
   readonly text: string;
   readonly images?: readonly ImageInput[];
+  readonly files?: readonly FileRef[];
 }
 
 interface Watcher {
@@ -89,9 +103,24 @@ interface Playback {
 
 interface QueuedInput {
   readonly id: number;
+  readonly requestId: string;
   readonly mode: WhenBusy;
   readonly input: FakeInput;
   readonly content: UserMessage["content"];
+  /** Restyles the replayed user entry, so a notification rides the normal admit path. */
+  readonly entryKind?: string;
+  readonly entryData?: unknown;
+}
+
+/** Submission ids are global across threads, so a cross-thread cancel can be told apart from a delivered item. */
+let nextSubmissionId = 1000;
+
+function snapshotOf(item: QueuedInput): UserItemSnapshot {
+  return { text: item.input.text, files: [...(item.input.files ?? [])] };
+}
+
+function isUserItem(item: QueuedInput): boolean {
+  return (item.entryKind ?? "pi.user") === "pi.user";
 }
 
 const MIN_ANSWERS_TO_COMPACT = 2;
@@ -103,14 +132,21 @@ type TitleSource = "first-message" | "generated" | "user";
 
 function titleFrom(input: FakeInput): string {
   const line = input.text.trim().split("\n")[0] ?? "";
+  if (line === "" && (input.files?.length ?? 0) > 0) return input.files?.[0]?.name ?? IMAGE_TITLE;
   if (line === "") return IMAGE_TITLE;
   return line.length > TITLE_LENGTH ? `${line.slice(0, TITLE_LENGTH)}…` : line;
 }
 
 function contentOf(input: FakeInput): UserMessage["content"] {
-  if (!input.images?.length) return input.text;
+  if (!input.images?.length && !input.files?.length) return input.text;
   const text = input.text.trim() === "" ? [] : [{ type: "text" as const, text: input.text }];
-  return [...text, ...input.images.map((image) => ({ type: "image" as const, ...image }))];
+  const images = (input.images ?? []).map((image) => ({ type: "image" as const, ...image }));
+  // Path-only context: the agent sees where the staged file lives, never its bytes.
+  const files = (input.files ?? []).map((file) => ({
+    type: "text" as const,
+    text: `Attached file: ${file.path}`,
+  }));
+  return [...text, ...images, ...files];
 }
 
 export class FakeConversation {
@@ -133,10 +169,9 @@ export class FakeConversation {
   private titleTimer: ReturnType<typeof setTimeout> | undefined;
   private view: ConversationView;
   private readonly watchers = new Set<Watcher>();
-  private readonly requestIds = new Set<string>();
+  private readonly receipts = new Map<string, SendReceipt>();
   private queued: QueuedInput[] = [];
   private playback: Playback | undefined;
-  private nextSubmissionId = 1000;
   private pendingEffects: MessageEffect[] = [];
 
   constructor(private readonly deps: FakeConversationDeps) {
@@ -239,10 +274,6 @@ export class FakeConversation {
     return this.playback !== undefined;
   }
 
-  hasRequest(requestId: string): boolean {
-    return this.requestIds.has(requestId);
-  }
-
   rename(title: string): void {
     this.title = title;
     this.titleSource = "user";
@@ -267,38 +298,131 @@ export class FakeConversation {
     };
   }
 
-  send(requestId: string, input: FakeInput, mode: WhenBusy = "steer"): void {
-    if (this.requestIds.has(requestId)) return;
-    this.requestIds.add(requestId);
+  send(requestId: string, input: FakeInput, mode: WhenBusy = "steer"): SendReceipt {
+    const existing = this.receipts.get(requestId);
+    if (existing) return existing;
     this.archivedAt = null;
     this.updatedAt = this.deps.now();
     this.nameFromFirstMessage(input);
     const effect = effectOf(input.text);
     this.pendingEffects.push(effect);
     this.checkpoints.record(requestId, effect, this.deps.now());
-    this.admit({ id: this.nextSubmissionId++, mode, input, content: contentOf(input) }, undefined);
+    const receipt: SendReceipt = { submissionId: nextSubmissionId++ };
+    this.receipts.set(requestId, receipt);
+    this.admit({ id: receipt.submissionId, requestId, mode, input, content: contentOf(input) });
+    return receipt;
   }
 
-  retry(requestId: string): void {
-    if (this.requestIds.has(requestId)) return;
+  retry(requestId: string): SendReceipt {
+    const existing = this.receipts.get(requestId);
+    if (existing) return existing;
     if (this.isBusy() || !isRetryable(this.view)) {
       throw new AppError("invalid_request", "There is nothing to retry.");
     }
-    this.requestIds.add(requestId);
     this.archivedAt = null;
     this.updatedAt = this.deps.now();
-    this.admit(
-      { id: this.nextSubmissionId++, mode: "steer", input: { text: RETRY_PROMPT }, content: RETRY_PROMPT },
-      "app.retry",
-    );
+    const receipt: SendReceipt = { submissionId: nextSubmissionId++ };
+    this.receipts.set(requestId, receipt);
+    this.admit({
+      id: receipt.submissionId,
+      requestId,
+      mode: "steer",
+      input: { text: RETRY_PROMPT },
+      content: RETRY_PROMPT,
+      entryKind: "app.retry",
+    });
+    return receipt;
   }
 
-  cancelQueued(itemId: string): boolean {
+  /**
+   * The user's todo edit rides the normal admit path as a followUp notification: the replayed
+   * user entry carries the `app.todos_updated` kind and data, so the panel reads it and the fake
+   * agent wakes. Archived threads stay archived. A repeated `requestId` is a no-op.
+   */
+  updateTodos(requestId: string, todos: TodoItem[]): void {
+    if (this.receipts.has(requestId)) return;
+    this.receipts.set(requestId, { submissionId: nextSubmissionId++ });
+    this.updatedAt = this.deps.now();
+    const diff = diffTodos(latestTodos(this.view), todos);
+    const text = todosUpdatedText(todos, diff);
+    this.admit({
+      id: nextSubmissionId++,
+      requestId,
+      mode: "followUp",
+      input: { text },
+      content: text,
+      entryKind: TODOS_UPDATED_KIND,
+      entryData: { todos, diff, requestId },
+    });
+  }
+
+  hasQueuedItem(itemId: string): boolean {
+    return this.queued.some((item) => String(item.id) === itemId);
+  }
+
+  /**
+   * In-place mode switch: the item keeps its id (and inbox position), so the row updates
+   * without unmounting. `{ switched: false }` once the item already delivered.
+   */
+  setQueuedMode(itemId: string, mode: WhenBusy): SetQueuedModeResult {
+    const item = this.queued.find((candidate) => String(candidate.id) === itemId);
+    if (item && !isUserItem(item))
+      throw new AppError("invalid_request", "Only user messages can be switched.");
+    if (!item) {
+      const delivered = [...this.receipts.values()].some(
+        (receipt) => String(receipt.submissionId) === itemId,
+      );
+      if (delivered) return { switched: false };
+      throw new AppError("not_found", `Unknown queued item: ${itemId}`);
+    }
+    if (item.mode === mode) return { switched: true };
+    const index = this.queued.indexOf(item);
+    this.queued.splice(index, 1, { ...item, mode });
+    this.publishQueue();
+    return { switched: true };
+  }
+
+  cancelQueued(itemId: string): CancelQueuedResult {
     const index = this.queued.findIndex((item) => String(item.id) === itemId);
-    if (index < 0) return false;
+    if (index < 0) return { cancelled: false, restored: [] };
+    const item = this.queued[index];
+    if (!isUserItem(item as QueuedInput))
+      throw new AppError("invalid_request", "Only user messages can be cancelled.");
     this.queued.splice(index, 1);
     this.publish(this.view);
-    return true;
+    return { cancelled: true, restored: [snapshotOf(item as QueuedInput)] };
+  }
+
+  /**
+   * One atomic deliver-now: the chosen user item jumps ahead of the run while every other queued
+   * user item is withdrawn for composer restoration. Notification items stay queued. A repeated
+   * call for the same item fails: the first call consumed it.
+   */
+  sendNow(itemId: string): SendNowResult {
+    const index = this.queued.findIndex((item) => String(item.id) === itemId);
+    if (index < 0) throw new AppError("not_found", `Unknown queued item: ${itemId}`);
+    const [chosen] = this.queued.splice(index, 1);
+    if (!chosen || !isUserItem(chosen)) {
+      if (chosen) this.queued.splice(index, 0, chosen);
+      throw new AppError("invalid_request", "Only user messages can be sent now.");
+    }
+    const restored = this.queued.filter(isUserItem).map(snapshotOf);
+    this.queued = this.queued.filter((item) => !isUserItem(item));
+    if (this.playback) this.playback.cancelled = true;
+    this.playback = undefined;
+    this.publish(withoutRun(this.view));
+    const receipt: SendReceipt = { submissionId: nextSubmissionId++ };
+    const requestId = `send-now:${receipt.submissionId}`;
+    this.receipts.set(requestId, receipt);
+    this.touch();
+    this.admit({
+      id: receipt.submissionId,
+      requestId,
+      mode: chosen.mode,
+      input: chosen.input,
+      content: chosen.content,
+    });
+    return { ...receipt, restored };
   }
 
   userEntries(): { id: string; text: string }[] {
@@ -325,13 +449,15 @@ export class FakeConversation {
     this.titleSource = "user";
   }
 
-  async abort(): Promise<void> {
+  async abort(): Promise<AbortResult> {
     const wasRunning = this.playback !== undefined;
+    const restored = this.queued.filter(isUserItem).map(snapshotOf);
+    this.queued = this.queued.filter((item) => !isUserItem(item));
     if (this.playback) this.playback.cancelled = true;
     this.playback = undefined;
-    this.queued = [];
     this.publish(withoutRun(this.view));
     if (wasRunning) this.endRun(false);
+    return { restored };
   }
 
   remove(): void {
@@ -379,11 +505,11 @@ export class FakeConversation {
     this.deps.onSummaryChange(this.projectId);
   }
 
-  private admit(queued: QueuedInput, entryKind: string | undefined): void {
+  private admit(queued: QueuedInput): void {
     this.deps.onSummaryChange(this.projectId);
     if (!this.playback) {
       this.failed = false;
-      void this.playAll(queued, entryKind);
+      void this.playAll(queued);
     } else if (!this.consumeScriptedSend(queued.input.text)) {
       this.queued.push(queued);
       this.publish(this.view);
@@ -427,26 +553,37 @@ export class FakeConversation {
     for (const watcher of this.watchers) this.deliver(watcher, ops);
   }
 
+  /**
+   * Exact inbox re-publish for the in-place mode switch: the row must read
+   * under its new mode at once, not converge through later fixture frames
+   * (admit/cancel keep the append form, which heals the same way).
+   */
+  private publishQueue(): void {
+    const withQueue = withInbox(this.view, this.queuedInbox());
+    const ops = diffViews(this.view, withQueue);
+    if (ops.length === 0) return;
+    this.view = withQueue;
+    for (const watcher of this.watchers) this.deliver(watcher, ops);
+  }
+
   private deliver(watcher: Watcher, ops: readonly Op[]): void {
     watcher.chain = watcher.chain
       .then(() => (watcher.stopped ? undefined : watcher.listener(ops)))
       .catch(() => undefined);
   }
 
-  private async playAll(first: QueuedInput, entryKind: string | undefined): Promise<void> {
+  private async playAll(first: QueuedInput): Promise<void> {
     let next: QueuedInput | undefined = first;
-    let kind = entryKind;
     while (next !== undefined) {
-      const finished = await this.play(next, kind);
+      const finished = await this.play(next);
       if (!finished) return;
       next = this.queued.shift();
-      kind = undefined;
     }
     this.playback = undefined;
     this.endRun(lastAssistantFailed(this.view));
   }
 
-  private async play({ input, content }: QueuedInput, entryKind: string | undefined): Promise<boolean> {
+  private async play({ input, content, entryKind, entryData }: QueuedInput): Promise<boolean> {
     const fixture = entryKind ? fixtures.text : fixtureForMessage(input.text);
     const playback: Playback = { cancelled: false, scriptedSends: scriptedSendsOf(fixture) };
     this.playback = playback;
@@ -460,7 +597,9 @@ export class FakeConversation {
       await sleep((frame.at - previousAt) / this.deps.speed);
       if (playback.cancelled) return false;
       previousAt = frame.at;
-      this.publish(this.replayed(fixture, base, fixtureView, { input, content }, entryKind));
+      this.publish(
+        this.replayed(fixture, base, fixtureView, { input, content }, { kind: entryKind, data: entryData }),
+      );
     }
     return !playback.cancelled;
   }
@@ -470,10 +609,10 @@ export class FakeConversation {
     base: ConversationView,
     fixtureView: ConversationView,
     { input, content }: Pick<QueuedInput, "input" | "content">,
-    entryKind: string | undefined,
+    edit: Omit<UserEntryEdit, "content">,
   ): ConversationView {
     const substituted = substituteText(rebase(base, fixtureView), triggerOf(fixture) ?? "", input.text);
-    const restyled = restyleNewUserEntries(substituted, base, { content, kind: entryKind });
+    const restyled = restyleNewUserEntries(substituted, base, { content, ...edit });
     return fixture.name === "image" ? withImageCount(restyled, input.images?.length ?? 0) : restyled;
   }
 }

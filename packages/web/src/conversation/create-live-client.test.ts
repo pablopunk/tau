@@ -56,7 +56,81 @@ describe("createLiveClient", () => {
     first();
     expect(last().sent).toHaveLength(1);
     second();
+    expect(last().sent).toHaveLength(1);
+    vi.advanceTimersByTime(120_000);
     expect(last().sent[1]).toEqual({ type: "unsubscribe", conversationId: "c1" });
+  });
+
+  describe("keeping left conversations warm", () => {
+    const open = () => {
+      const fake = createFakeTransport();
+      const client = createLiveClient(fake.transport);
+      client.onChanged(() => {});
+      fake.last().handlers.onOpen();
+      return { ...fake, client };
+    };
+
+    it("hands a revisit the held view at once and keeps applying ops while it is idle", () => {
+      const { client, last } = open();
+      const leave = client.subscribe("c1", () => {});
+      last().handlers.onFrame(opsFrame("c1", [["r", emptyView(1)]]));
+      leave();
+      expect(client.peek("c1")).toBeDefined();
+      const views: (ConversationView | null)[] = [];
+      client.subscribe("c1", (view) => views.push(view));
+      expect(views).toHaveLength(1);
+      expect(last().sent.filter((frame) => frame.type === "subscribe")).toHaveLength(1);
+    });
+
+    it("peeks nothing for a conversation it never held", () => {
+      const { client } = open();
+      expect(client.peek("c9")).toBeUndefined();
+    });
+
+    it("does not unsubscribe if the conversation comes back before the idle time is up", () => {
+      const { client, last } = open();
+      client.subscribe("c1", () => {})();
+      vi.advanceTimersByTime(100_000);
+      const back = client.subscribe("c1", () => {});
+      vi.advanceTimersByTime(100_000);
+      expect(last().sent.some((frame) => frame.type === "unsubscribe")).toBe(false);
+      back();
+    });
+
+    it("lets go of an idle conversation after the idle time", () => {
+      const { client, last } = open();
+      client.subscribe("c1", () => {})();
+      vi.advanceTimersByTime(120_000);
+      expect(last().sent.at(-1)).toEqual({ type: "unsubscribe", conversationId: "c1" });
+      expect(client.peek("c1")).toBeUndefined();
+    });
+
+    it("keeps at most eight idle conversations, letting the longest idle go first", () => {
+      const { client, last } = open();
+      for (let i = 1; i <= 9; i++) client.subscribe(`c${i}`, () => {})();
+      expect(last().sent.filter((frame) => frame.type === "unsubscribe")).toEqual([
+        { type: "unsubscribe", conversationId: "c1" },
+      ]);
+    });
+
+    it("warms a conversation without a listener and does not drop one that is open", () => {
+      const { client, last } = open();
+      client.warm("c1");
+      expect(last().sent).toContainEqual({ type: "subscribe", conversationId: "c1" });
+      const shown = client.subscribe("c2", () => {});
+      client.warm("c2");
+      vi.advanceTimersByTime(200_000);
+      expect(last().sent).not.toContainEqual({ type: "unsubscribe", conversationId: "c2" });
+      shown();
+    });
+
+    it("stops the idle timers when the client closes", () => {
+      const { client, last } = open();
+      client.subscribe("c1", () => {})();
+      client.close();
+      vi.advanceTimersByTime(200_000);
+      expect(last().sent.some((frame) => frame.type === "unsubscribe")).toBe(false);
+    });
   });
 
   it("sends subscribe immediately when the socket is already open", () => {
@@ -178,6 +252,85 @@ describe("createLiveClient", () => {
     last().handlers.onClose();
     vi.advanceTimersByTime(500);
     expect(sockets).toHaveLength(4);
+  });
+
+  it("ignores ops frames from a stale predecessor after reconnect", () => {
+    const { transport, sockets, last } = createFakeTransport();
+    const client = createLiveClient(transport);
+    const views: (ConversationView | null)[] = [];
+    client.subscribe("c1", (view) => views.push(view));
+    last().handlers.onOpen();
+    last().handlers.onFrame(opsFrame("c1", [["r", emptyView(1)]]));
+    expect(views).toHaveLength(1);
+    const predecessor = last();
+    predecessor.handlers.onClose();
+    vi.advanceTimersByTime(500);
+    expect(sockets).toHaveLength(2);
+    last().handlers.onOpen();
+    // A late frame from the dead socket must not touch the shared view.
+    predecessor.handlers.onFrame(opsFrame("c1", [["s", ["docs", "stale"], 1]]));
+    expect(views).toHaveLength(1);
+    expect(views[0]).not.toHaveProperty("docs.stale");
+    last().handlers.onFrame(opsFrame("c1", [["s", ["docs", "fresh"], 1]]));
+    expect(views).toHaveLength(2);
+  });
+
+  it("does not stack reconnect timers on repeated closes", () => {
+    const { transport, sockets, last } = createFakeTransport();
+    const client = createLiveClient(transport);
+    client.subscribe("c1", () => {});
+    last().handlers.onOpen();
+    last().handlers.onClose();
+    last().handlers.onClose();
+    vi.advanceTimersByTime(500);
+    expect(sockets).toHaveLength(2);
+  });
+
+  it("survives a throwing send without propagating", () => {
+    const handlers: LiveHandlers[] = [];
+    const transport: LiveTransport = {
+      open(next) {
+        handlers.push(next);
+        return {
+          send: () => {
+            throw new Error("socket is closing");
+          },
+          close: () => {},
+        };
+      },
+    };
+    const client = createLiveClient(transport);
+    client.subscribe("c1", () => {});
+    expect(() => handlers[0]?.onOpen()).not.toThrow();
+    expect(client.status).toBe("reconnecting");
+  });
+
+  it("resubscribes a conversation whose watcher failed, on the healthy socket", () => {
+    const { transport, last } = createFakeTransport();
+    const errors: unknown[][] = [];
+    vi.spyOn(console, "error").mockImplementation((...args: unknown[]) => void errors.push(args));
+    const client = createLiveClient(transport);
+    const views: (ConversationView | null)[] = [];
+    client.subscribe("c1", (view) => views.push(view));
+    last().handlers.onOpen();
+    last().handlers.onFrame(opsFrame("c1", [["r", emptyView(1)]]));
+    // The watcher died while the socket stayed healthy: un+subscribe for a fresh base.
+    last().handlers.onFrame({ type: "watch-failed", conversationId: "c1" } as never);
+    expect(last().sent.slice(-2)).toEqual([
+      { type: "unsubscribe", conversationId: "c1" },
+      { type: "subscribe", conversationId: "c1" },
+    ]);
+    last().handlers.onFrame(opsFrame("c1", [["r", emptyView(7)]]));
+    expect(views.at(-1)?.conversation.id).toBe(7);
+  });
+
+  it("answers a heartbeat ping with a pong", () => {
+    const { transport, last } = createFakeTransport();
+    const client = createLiveClient(transport);
+    client.subscribe("c1", () => {});
+    last().handlers.onOpen();
+    last().handlers.onFrame({ type: "ping", at: 123 } as never);
+    expect(last().sent).toContainEqual({ type: "pong" });
   });
 
   it("stops everything on close", () => {

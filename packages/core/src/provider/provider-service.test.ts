@@ -42,6 +42,7 @@ describe("provider service (OpenRouter)", () => {
       "anthropic",
       "google",
       "opencode",
+      "typesafe",
       "claude-cli",
     ]);
     expect(providers.every((provider) => provider.connection === null)).toBe(true);

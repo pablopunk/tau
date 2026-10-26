@@ -11,6 +11,7 @@ import { createApi } from "@/lib/api";
 import { createFakeTransport } from "@/lib/transport/fake";
 import { NodeApiProvider } from "@/nodes/node-context";
 import { CommandPalette } from "@/palette/CommandPalette";
+import { resetPaletteOpen } from "@/palette/palette-open";
 import { SECTION_BODIES } from "./section-bodies";
 import { SETTINGS_SECTIONS } from "./sections";
 import { DYNAMIC_ROW_PREFIXES, SETTINGS_INDEX } from "./settings-index";
@@ -54,6 +55,7 @@ const renderedIds = () =>
   );
 
 beforeEach(async () => {
+  resetPaletteOpen();
   mocks.api = createApi(createFakeTransport(createFakeCore()));
   await (mocks.api as ReturnType<typeof createApi>).mcp.save({
     name: "files",
@@ -117,9 +119,11 @@ describe("settings dialog search", () => {
 
     await user.keyboard("{Enter}");
     await waitFor(() =>
-      expect(screen.getByTestId("url")).toHaveTextContent("settings=agent&setting=workspace-default"),
+      expect(screen.getByTestId("url")).toHaveTextContent(
+        "settings=limits&setting=resources-levels-worktree",
+      ),
     );
-    const row = document.querySelector('[data-setting-id="workspace-default"]') as HTMLElement;
+    const row = document.querySelector('[data-setting-id="resources-levels-worktree"]') as HTMLElement;
     await waitFor(() => expect(row).toHaveAttribute("data-highlighted"));
     expect(field).toHaveValue("");
   });

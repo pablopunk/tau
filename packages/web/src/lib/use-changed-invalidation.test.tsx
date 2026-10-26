@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { Change } from "@tau/protocol";
 import { renderHook } from "@testing-library/react";
 import type { ReactNode } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { LiveClientProvider } from "@/conversation";
 import type { LiveClient, LiveStatus } from "@/conversation/live-client";
 import { NodeApiProvider } from "@/nodes/node-context";
@@ -22,6 +22,8 @@ function setup() {
       return () => listeners.delete(listener);
     },
     status: "connecting",
+    peek: () => undefined,
+    warm: () => {},
     close: () => {},
   } satisfies LiveClient;
   const queryClient = new QueryClient();
@@ -44,6 +46,24 @@ function setup() {
 }
 
 describe("useChangedInvalidation", () => {
+  it.each([32, 8192])("characterizes advisory invalidations for %s conversation changes", (count) => {
+    vi.useFakeTimers();
+    const { change, invalidate } = setup();
+    const start = performance.now();
+    for (let i = 0; i < count; i++) change({ resource: "conversations", projectId: "p1" });
+    console.log(
+      JSON.stringify({
+        changes: count,
+        invalidations: invalidate.mock.calls.length,
+        dispatchMs: performance.now() - start,
+        scope: "inactive query client; not network/backend cost",
+      }),
+    );
+    expect(invalidate).toHaveBeenCalledTimes(5);
+    vi.advanceTimersByTime(250);
+    expect(invalidate).toHaveBeenCalledTimes(10);
+  });
+
   it("invalidates the resource activity on a node-wide resources change", () => {
     const { change, invalidate } = setup();
     change({ resource: "resources" });
@@ -81,3 +101,5 @@ describe("useChangedInvalidation", () => {
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ["github", "repos"] });
   });
 });
+
+afterEach(() => vi.useRealTimers());

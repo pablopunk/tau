@@ -1,4 +1,3 @@
-import { useQueryClient } from "@tanstack/react-query";
 import type { ConversationSummary, Project } from "@tau/protocol";
 import { ArchiveIcon, ArchiveRestoreIcon, MoreHorizontalIcon } from "lucide-react";
 import { type MouseEvent, useState } from "react";
@@ -22,8 +21,10 @@ import { RelativeTime } from "@/components/ui/relative-time";
 import { useSidebar } from "@/components/ui/sidebar";
 import { SidebarThreadRow } from "@/components/ui/sidebar-thread-row";
 import { StatusDot } from "@/components/ui/status-dot";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { TreeBranch } from "@/components/ui/tree-branch";
 import { PendingApprovalBadge } from "@/conversation/PendingApprovalBadge";
+import { useThreadListMutation } from "@/conversation/queue/thread-list-mutations";
 import { conversationPath, nodeAssetUrl } from "@/lib/paths";
 import { queryKeys } from "@/lib/queries";
 import { useApi, useNodeId } from "@/nodes/node-context";
@@ -34,6 +35,7 @@ import { GoalBadge, hasActiveGoal } from "./GoalBadge";
 import { NameDialog } from "./NameDialog";
 import { ThreadMenuItems } from "./ThreadMenuItems";
 import { hasTimer, TimerBadge } from "./TimerBadge";
+import { useWarmOnIntent } from "./use-warm-on-intent";
 import { WorktreeIndicator } from "./WorktreeIndicator";
 
 interface ThreadRowProps {
@@ -70,31 +72,48 @@ export function ThreadRow({
   const [menuOpen, setMenuOpen] = useState(false);
   const title = conversation.title.trim() || "New thread";
   const archived = conversation.archivedAt !== null;
+  const archiveAction = archived ? "Unarchive" : "Archive";
+  const archiveLabel = `${archiveAction} ${title}`;
   const dot = conversationDot(conversation, active, nodeId);
-  const queryClient = useQueryClient();
   const navigate = useNavigate();
   const { isMobile, setOpenMobile } = useSidebar();
   const closeDialog = () => setDialog(null);
+  const hasWorktree =
+    conversation.workspace.mode === "worktree" && conversation.workspace.state !== "removed";
+  const { handlers: warm } = useWarmOnIntent(conversation.id, true, hasWorktree);
 
-  const refresh = async () => {
-    await Promise.all([
-      queryClient.invalidateQueries({ queryKey: queryKeys.conversations(conversation.projectId) }),
-      queryClient.invalidateQueries({ queryKey: queryKeys.allConversations }),
-    ]);
+  const listKeys = [queryKeys.conversations(conversation.projectId), queryKeys.allConversations] as const;
+  const renameMutation = useThreadListMutation({
+    listKeys: [...listKeys],
+    mutationFn: (name: string) => api.conversations.rename(conversation.id, name),
+    transform: (list, name) =>
+      list.map((item) => (item.id === conversation.id ? { ...item, title: name } : item)),
+  });
+  const archiveMutation = useThreadListMutation({
+    listKeys: [...listKeys],
+    mutationFn: (next: boolean) => api.conversations.archive(conversation.id, next),
+    transform: (list, next) =>
+      list.map((item) =>
+        item.id === conversation.id ? { ...item, archivedAt: next ? Date.now() : null } : item,
+      ),
+  });
+  const removeMutation = useThreadListMutation({
+    listKeys: [...listKeys],
+    mutationFn: (force: boolean) => api.conversations.remove(conversation.id, { force }),
+    transform: (list) => list.filter((item) => item.id !== conversation.id),
+  });
+  // Rename closes its dialog at once: the row already shows the new name, and a refusal puts the old one back
+  // with a toast. Delete still waits, because it can be refused for reasons the dialog has to explain.
+  const rename = async (name: string): Promise<void> => {
+    renameMutation.mutate(name);
   };
-  const rename = async (name: string) => {
-    await api.conversations.rename(conversation.id, name);
-    await refresh();
+  const toggleArchive = () => {
+    archiveMutation.mutate(!archived);
   };
-  const toggleArchive = async () => {
-    await api.conversations.archive(conversation.id, !archived);
-    await refresh();
-  };
-  const remove = async (force: boolean) => {
-    await api.conversations.remove(conversation.id, { force });
-    if (active) navigate("/");
-    await refresh();
-  };
+  const remove = (force: boolean): Promise<void> =>
+    removeMutation.mutateAsync(force).then(() => {
+      if (active) navigate("/");
+    });
 
   const projectIcon = (tile: number) =>
     project ? (
@@ -125,6 +144,7 @@ export function ThreadRow({
           <SidebarThreadRow
             actionsOpen={menuOpen}
             data-depth={depth}
+            {...warm}
             compact={depth > 0}
             decoration={decoration}
             flipId={conversation.id}
@@ -140,17 +160,24 @@ export function ThreadRow({
               />
             }
             avatar={
-              <BotAvatar
-                size={depth > 0 ? 20 : 24}
-                avatarIndex={conversation.avatarIndex}
-                working={conversation.status === "running"}
-                badge={dot && dot !== "running" ? <StatusDot status={dot} /> : undefined}
-                originBadge={isFork(conversation) ? <ForkBadge conversation={conversation} /> : undefined}
-                goalBadge={
-                  hasActiveGoal(conversation) ? <GoalBadge conversation={conversation} /> : undefined
-                }
-                timerBadge={hasTimer(conversation) ? <TimerBadge conversation={conversation} /> : undefined}
-              />
+              archived ? (
+                <ArchiveIcon
+                  aria-label="Archived"
+                  className={depth > 0 ? "size-3.5 text-muted-foreground" : "size-4 text-muted-foreground"}
+                />
+              ) : (
+                <BotAvatar
+                  size={depth > 0 ? 20 : 24}
+                  avatarIndex={conversation.avatarIndex}
+                  working={conversation.status === "running"}
+                  badge={dot && dot !== "running" ? <StatusDot status={dot} /> : undefined}
+                  originBadge={isFork(conversation) ? <ForkBadge conversation={conversation} /> : undefined}
+                  goalBadge={
+                    hasActiveGoal(conversation) ? <GoalBadge conversation={conversation} /> : undefined
+                  }
+                  timerBadge={hasTimer(conversation) ? <TimerBadge conversation={conversation} /> : undefined}
+                />
+              )
             }
             context={depth === 0 && showProject ? project?.name : undefined}
             projectIcon={depth > 0 ? undefined : projectIcon(17)}
@@ -168,20 +195,25 @@ export function ThreadRow({
             }
             actions={
               <>
-                <Button
-                  variant="ghost"
-                  size="icon-xs"
-                  aria-label={`${archived ? "Unarchive" : "Archive"} ${title}`}
-                  onClick={toggleArchive}
-                >
-                  <ArchiveToggleIcon />
-                </Button>
-                <DropdownMenu onOpenChange={setMenuOpen}>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon-xs" aria-label={`Actions for ${title}`}>
-                      <MoreHorizontalIcon />
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button variant="ghost" size="icon-xs" aria-label={archiveLabel} onClick={toggleArchive}>
+                      <ArchiveToggleIcon />
                     </Button>
-                  </DropdownMenuTrigger>
+                  </TooltipTrigger>
+                  <TooltipContent side="top">{archiveAction}</TooltipContent>
+                </Tooltip>
+                <DropdownMenu onOpenChange={setMenuOpen}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon-xs" aria-label={`Actions for ${title}`}>
+                          <MoreHorizontalIcon />
+                        </Button>
+                      </DropdownMenuTrigger>
+                    </TooltipTrigger>
+                    <TooltipContent side="top">Actions</TooltipContent>
+                  </Tooltip>
                   <DropdownMenuContent side="right" align="start">
                     <ThreadMenuItems
                       Item={DropdownMenuItem}

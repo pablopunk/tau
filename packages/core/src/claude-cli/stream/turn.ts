@@ -2,8 +2,10 @@ import type { AssistantMessage, AssistantMessageEvent } from "@earendil-works/pi
 import type { ClaudeSdkMessage } from "../sdk-types";
 import { createApiMessageReader, type ReaderSummary } from "./api-message-reader";
 import { GENERIC_RESULT_TEXT, PROCESS_ENDED_TEXT } from "./errors";
+import { isStaleSessionResult } from "./stale-session";
 
-export type FailureKind = "limit" | "other";
+/** `stale`: the SDK session this launch resumed no longer exists. */
+export type FailureKind = "limit" | "stale" | "other";
 
 export type TurnOutcome =
   | { readonly kind: "complete"; readonly summary: ReaderSummary }
@@ -42,7 +44,12 @@ export function createTurn(message: AssistantMessage, push: (event: AssistantMes
     feed(sdk) {
       if (!settled) reader.feed(sdk);
     },
-    onResult: () => settle({ kind: "failed", text: GENERIC_RESULT_TEXT, failure: "other" }),
+    onResult: (sdk) =>
+      settle({
+        kind: "failed",
+        text: GENERIC_RESULT_TEXT,
+        failure: isStaleSessionResult(sdk) ? "stale" : "other",
+      }),
     fail: (text, failure = "other") => settle({ kind: "failed", text, failure }),
     end: () => settle({ kind: "failed", text: PROCESS_ENDED_TEXT, failure: "other" }),
     abort() {

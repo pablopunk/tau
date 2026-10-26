@@ -1,7 +1,11 @@
 import { defineConfig } from "tsdown";
 
 export default defineConfig({
-  entry: { bin: "src/bin.ts", watchdog: "../core/src/watchdog/worker.ts" },
+  entry: {
+    bin: "src/bin.ts",
+    watchdog: "../core/src/watchdog/worker.ts",
+    "transcriber-worker": "../core/src/voice/transcriber-worker.ts",
+  },
   format: "esm",
   platform: "node",
   target: "node22",
@@ -10,7 +14,13 @@ export default defineConfig({
   fixedExtension: false,
   deps: {
     alwaysBundle: [/^@tau\//],
-    neverBundle: ["@anthropic-ai/claude-agent-sdk", "@earendil-works/pi-env", "@opentunnel/client", "effect"],
+    neverBundle: [
+      "@anthropic-ai/claude-agent-sdk",
+      "@earendil-works/pi-env",
+      "@opentunnel/client",
+      "effect",
+      "sherpa-onnx",
+    ],
   },
   copy: [
     { from: "../web/dist", to: "dist/web" },

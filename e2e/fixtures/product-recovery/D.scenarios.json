@@ -1,0 +1,55 @@
+{
+  "version": 1,
+  "namespace": "D",
+  "seed": 15158,
+  "fixtures": {
+    "short-stream": {
+      "historyRows": 4,
+      "chunks": 32,
+      "batchSize": 1,
+      "chunk": "chunk-${i}\n",
+      "order": "numeric",
+      "viewports": [[1440, 900], [360, 640]]
+    },
+    "long-bursty-stream": {
+      "historyRows": 128,
+      "chunks": 8192,
+      "batchSize": 256,
+      "chunk": "chunk-${i}\n",
+      "order": "numeric",
+      "viewports": [[1440, 900], [360, 640]]
+    },
+    "new-thread": {
+      "transport": "fake, zero-provider-cost",
+      "requiredReads": ["projects", "models", "settings"],
+      "viewports": [[1440, 900], [360, 640]]
+    }
+  },
+  "cases": [
+    {
+      "id": "D.short-stream",
+      "fixtureId": "short-stream",
+      "requiredAssertions": ["D.short-final-text", "D.short-history-parses", "D.short-input-send-stop"]
+    },
+    {
+      "id": "D.long-bursty-stream",
+      "fixtureId": "long-bursty-stream",
+      "requiredAssertions": [
+        "D.long-final-text",
+        "D.long-history-parses",
+        "D.long-input-send-stop",
+        "D.long-task-budget"
+      ]
+    },
+    {
+      "id": "D.load-error-retry",
+      "fixtureId": "new-thread",
+      "requiredAssertions": ["D.read-error-visible", "D.retry-reads-only", "D.draft-preserved"]
+    },
+    {
+      "id": "D.pending-start",
+      "fixtureId": "new-thread",
+      "requiredAssertions": ["D.pending-single-submit", "D.pending-draft-lock", "D.retry-request-identity"]
+    }
+  ]
+}

@@ -3,9 +3,11 @@ import {
   type MonitorEventData,
   NOTICE_KIND,
   PROCESS_EXIT_KIND,
+  type ProcessExitData,
   type ProcessInfo,
 } from "@tau/protocol";
-import type { Notification } from "../harness/notification-submitter";
+import type { Notification, PassiveWrite } from "../harness/notification-submitter";
+import type { StopReason } from "./process-types";
 
 const quote = (value: string) => value.replaceAll('"', "'").replaceAll("\n", " ");
 
@@ -31,15 +33,61 @@ function endText(ended: NonNullable<MonitorEventData["ended"]>): string {
   return `Monitor ended: exit code ${ended.exitCode ?? "none"}.`;
 }
 
+/**
+ * Fallback for a timed-out entry with no `timeoutMs` (older callers). Bang passes its scaled kill-guard,
+ * so the notice names the real deadline; other reasons keep the text their call sites compose.
+ */
+export const BANG_TIMEOUT_LINE = "Timed out after 120 s.";
+
 export function processExitNotification(
   info: ProcessInfo,
   exitCode: number | null,
   logTail: string,
+  stopReason?: StopReason,
 ): Notification {
+  const data: ProcessExitData = {
+    processId: info.id,
+    name: info.name,
+    command: info.command,
+    exitCode,
+    logTail,
+    ...(stopReason === undefined ? {} : { stopReason }),
+  };
   return {
     kind: PROCESS_EXIT_KIND,
-    data: { processId: info.id, name: info.name, command: info.command, exitCode, logTail },
+    data,
     text: `<process-exit id="${info.id}" name="${quote(info.name)}" exit_code="${exitCode ?? "none"}">\n${logTail}\n</process-exit>`,
+    requestId: `process-exit:${info.id}`,
+  };
+}
+
+/**
+ * A bang exit as a model-bearing passive write. Idle threads append it
+ * without starting a turn; busy threads place it at the next boundary — a
+ * follow-up input would start a run in both cases, which pi never does for
+ * `!` commands. The transcript still renders the `app.process_exit` row from
+ * `data`; only the model text carries the `You ran` prefix.
+ */
+export function bangExitWrite(
+  info: ProcessInfo,
+  exitCode: number | null,
+  logTail: string,
+  stopReason?: StopReason,
+): PassiveWrite {
+  const text = `<process-exit id="${info.id}" name="${quote(info.name)}" exit_code="${exitCode ?? "none"}">\n${logTail}\n</process-exit>`;
+  return {
+    kind: PROCESS_EXIT_KIND,
+    text: `You ran: ${info.command}\n${text}`,
+    data: {
+      processId: info.id,
+      name: info.name,
+      command: info.command,
+      exitCode,
+      logTail,
+      origin: "bang",
+      ...(stopReason === undefined ? {} : { stopReason }),
+    },
+    model: [{ role: "user", content: `You ran: ${info.command}\n${text}` } as never],
     requestId: `process-exit:${info.id}`,
   };
 }
@@ -50,6 +98,10 @@ export const noticeNotification = (text: string, requestId: string): Notificatio
   text: `<notice>${text}</notice>`,
   requestId,
 });
+
+/** A bang a restart cut off between its dispatch marker and its exit: never re-run, just said. */
+export const interruptedBangText = (command: string) =>
+  `command "${quote(command)}" was interrupted by a restart; it was not re-run`;
 
 export const noisyNoticeText = (name: string) =>
   `monitor "${quote(name)}" stopped: too noisy; filter with grep --line-buffered`;

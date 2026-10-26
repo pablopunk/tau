@@ -5,6 +5,7 @@ import {
   type ToolRegistration,
 } from "@earendil-works/pi-durable";
 import { Type } from "typebox";
+import { submitThenWait } from "./agent-wait";
 import { finalAnswerOf } from "./task-answer";
 import { findOrCreateChild, requireOwnChild } from "./task-child";
 import type { ToolFileFactory } from "./tool-file";
@@ -46,9 +47,8 @@ export const buildTaskToolFile =
           context,
         );
         await api.details({ conversationId: String(childId), status: "running" }, context);
-        const child = await api.conversation(childId, context);
         const request = { type: "input", content: args.prompt, requestId: `task:${api.taskId}` } as const;
-        const settled = await (await child?.submit(request, context))?.wait(context);
+        const settled = await submitThenWait(api, context, childId, request);
         const answer = await api.commit((tx) => finalAnswerOf(tx, childId), context);
         const status = settled?.status === "done" ? "done" : "unanswered";
         return {

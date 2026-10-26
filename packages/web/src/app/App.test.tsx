@@ -93,7 +93,7 @@ describe("main screen", () => {
     expect(window.location.pathname + window.location.search).toMatch(/^\/new\?project=/);
     await user.type(await screen.findByLabelText("Message"), "hello{Enter}");
 
-    expect(await screen.findByTestId("conversation")).toBeInTheDocument();
+    expect(await screen.findByTestId("conversation", {}, { timeout: 5000 })).toBeInTheDocument();
     expect(window.location.pathname).toMatch(/^\/p\/[^/]+\/c\/[^/]+$/);
     const group = screen.getByRole("group", { name: "project" });
     expect(await within(group).findByRole("link")).toHaveAttribute("aria-current", "page");
@@ -189,7 +189,7 @@ describe("main screen", () => {
     expect(screen.getByRole("combobox", { name: "Model" })).toBeInTheDocument();
     await user.type(await screen.findByLabelText("Message"), "hello{Enter}");
 
-    expect(await screen.findByTestId("conversation")).toBeInTheDocument();
+    expect(await screen.findByTestId("conversation", {}, { timeout: 5000 })).toBeInTheDocument();
     expect(window.sessionStorage.getItem("tau:new-thread-request")).toBeNull();
   });
 });

@@ -21,6 +21,8 @@ const THREAD_SETTLE_ATTEMPTS = 100;
 
 export interface DemoEnvironment {
   readonly url: string;
+  /** Sign-in token: open `${url}/?token=${token}` in any browser. */
+  readonly token: string;
   /** The signed-in cookie, for a browser context. */
   readonly storageState: Awaited<ReturnType<APIRequestContext["storageState"]>>;
   stop(): Promise<void>;
@@ -148,7 +150,7 @@ export async function startDemoEnvironment(): Promise<DemoEnvironment> {
     await startThreads(api, await addProjects(api, root));
     const storageState = await api.storageState();
     await api.dispose();
-    return { url, storageState, stop };
+    return { url, token, storageState, stop };
   } catch (error) {
     await stop();
     throw error;

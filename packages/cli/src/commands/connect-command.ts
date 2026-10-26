@@ -19,6 +19,7 @@ import { cliVersion } from "../version";
 import { CliExit, failure, usageError } from "./cli-exit";
 import { callRoute, discoverServer, type Server } from "./client";
 import { type CommandEnv, processEnv } from "./command-env";
+import { MachineOutput } from "./machine-output";
 import { takeHomeFlag } from "./run-command";
 
 const REDEEM_PATH = "/api/pair/redeem";
@@ -104,6 +105,7 @@ export async function executeConnect(
   if (self) throw usageError(self);
 
   const peerName = target.peerLabel ?? new URL(target.nodeUrl).host;
+  if (env.machine && !args.yes) throw usageError("Linking requires explicit --yes confirmation");
   if (!args.yes && !(await io.confirm(`Link this node to ${peerName} (${target.nodeUrl})?`))) {
     throw new CliExit(1, "Not linked.");
   }
@@ -122,6 +124,14 @@ export async function executeConnect(
     ...(nodeId !== undefined && { nodeId }),
   };
   await peers.write([...(await peers.read()), entry]);
+  if (env.machine) {
+    env.machine.identify({ nodeId: nodeId ?? null });
+    env.machine.emit("receipt", {
+      result: { stored: true, linkState: "unknown", serverRunning: server !== undefined },
+      observation: "response",
+    });
+    return;
+  }
   env.stdout(`Linked to ${peerName} as "${args.name}".`);
   if (server) return env.stdout("The running tau connects within a few seconds.");
   await startAfterLink(args.yes ? "none" : await io.chooseStart(), env);
@@ -148,7 +158,8 @@ async function removeLegacyHubFile(home: string, peer: Peer | undefined): Promis
 async function tellServer(env: CommandEnv, id: string): Promise<void> {
   const server = await runningServer(env);
   if (!server) return;
-  await callRoute(server, "disconnectNode", { params: { id } }, env).catch(() => undefined);
+  if (env.machine) await callRoute(server, "disconnectNode", { params: { id } }, env);
+  else await callRoute(server, "disconnectNode", { params: { id } }, env).catch(() => undefined);
 }
 
 /**
@@ -166,6 +177,13 @@ export async function executeDisconnect(argv: readonly string[], env: CommandEnv
     await store.write(rest);
   }
   await removeLegacyHubFile(env.home, peer);
+  if (env.machine) {
+    env.machine.emit("terminal", {
+      result: { removedPeerId: peer ? peerIdOf(peer) : null },
+      observation: "response",
+    });
+    return;
+  }
   if (!peer) return env.stdout("This node is not linked to another node.");
   env.stdout(
     `Disconnected from ${peer.name}. Remove this node in that node's Settings → Nodes to revoke it there.`,
@@ -174,14 +192,19 @@ export async function executeDisconnect(argv: readonly string[], env: CommandEnv
 
 function runner(execute: (argv: readonly string[], env: CommandEnv) => Promise<void>) {
   return async (argv: readonly string[]): Promise<void> => {
-    const env = processEnv();
+    const baseEnv = processEnv();
+    const machine = argv.includes("--machine")
+      ? new MachineOutput(baseEnv, execute === executeConnect ? "connect" : "disconnect")
+      : undefined;
+    const env = { ...baseEnv, machine };
     try {
-      const { home, rest } = takeHomeFlag(argv);
+      const { home, rest } = takeHomeFlag(argv.filter((arg) => arg !== "--machine"));
       await execute(rest, home === undefined ? env : { ...env, home });
     } catch (error) {
-      if (!(error instanceof CliExit)) throw error;
-      env.stderr(error.message);
-      process.exitCode = error.exitCode;
+      const exit = machine ? machine.fail(error) : error;
+      if (!(exit instanceof CliExit)) throw exit;
+      env.stderr(exit.message);
+      process.exitCode = exit.exitCode;
     }
   };
 }

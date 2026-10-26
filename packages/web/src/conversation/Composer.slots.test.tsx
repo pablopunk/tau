@@ -29,22 +29,25 @@ describe("<Composer> slots", () => {
     );
   });
 
-  it("words the busy placeholder as Steer in steer mode", () => {
-    expect(setup({ busy: true, whenBusy: "steer" }).input).toHaveAttribute("placeholder", "Steer the agent…");
+  it("words the busy placeholder as steer-at-the-next-boundary in steer mode", () => {
+    expect(setup({ busy: true, whenBusy: "steer" }).input).toHaveAttribute(
+      "placeholder",
+      "Steer at the next tool boundary…",
+    );
   });
 
   it("sends with the default mode on Enter and the other one on Cmd+Enter while busy", async () => {
     const { onSend, input } = setup({ busy: true, whenBusy: "followUp" });
     await userEvent.type(input, "one{Enter}");
-    expect(onSend).toHaveBeenLastCalledWith({ text: "one", images: [], whenBusy: "followUp" });
+    expect(onSend).toHaveBeenLastCalledWith({ text: "one", images: [], files: [], whenBusy: "followUp" });
     await userEvent.type(input, "two{Meta>}{Enter}{/Meta}");
-    expect(onSend).toHaveBeenLastCalledWith({ text: "two", images: [], whenBusy: "steer" });
+    expect(onSend).toHaveBeenLastCalledWith({ text: "two", images: [], files: [], whenBusy: "steer" });
   });
 
   it("still sends with the other mode on Alt+Enter while busy", async () => {
     const { onSend, input } = setup({ busy: true, whenBusy: "followUp" });
     await userEvent.type(input, "two{Alt>}{Enter}{/Alt}");
-    expect(onSend).toHaveBeenLastCalledWith({ text: "two", images: [], whenBusy: "steer" });
+    expect(onSend).toHaveBeenLastCalledWith({ text: "two", images: [], files: [], whenBusy: "steer" });
   });
 
   it("renders the hint inside the input box next to the stop button", async () => {
@@ -60,6 +63,6 @@ describe("<Composer> slots", () => {
   it("adds no whenBusy when idle", async () => {
     const { onSend, input } = setup({ whenBusy: "steer" });
     await userEvent.type(input, "hi{Enter}");
-    expect(onSend).toHaveBeenCalledWith({ text: "hi", images: [] });
+    expect(onSend).toHaveBeenCalledWith({ text: "hi", images: [], files: [] });
   });
 });

@@ -18,7 +18,14 @@ export interface ThreadOpsContext {
 
 type ThreadOps = Pick<
   Core["conversations"],
-  "fork" | "stopAgent" | "rewindPreview" | "rewind" | "cancelQueued" | "checkpoints" | "checkpointDiff"
+  | "fork"
+  | "stopAgent"
+  | "rewindPreview"
+  | "rewind"
+  | "cancelQueued"
+  | "setQueuedMode"
+  | "checkpoints"
+  | "checkpointDiff"
 >;
 
 const entryIdsOf = (conversation: FakeConversation) => conversation.userEntries().map((entry) => entry.id);
@@ -57,7 +64,20 @@ export function createFakeThreadOps(ctx: ThreadOpsContext): ThreadOps {
       reportStopped(child, ctx.require);
     },
     async cancelQueued(id, itemId) {
-      return { cancelled: ctx.require(id).cancelQueued(itemId) };
+      const conversation = ctx.require(id);
+      if (!conversation.hasQueuedItem(itemId)) {
+        const elsewhere = ctx.live().some((item) => item.id !== id && item.hasQueuedItem(itemId));
+        if (elsewhere) throw new AppError("not_found", `Unknown queued item: ${itemId}`);
+      }
+      return conversation.cancelQueued(itemId);
+    },
+    async setQueuedMode(id, itemId, mode) {
+      const conversation = ctx.require(id);
+      if (!conversation.hasQueuedItem(itemId)) {
+        const elsewhere = ctx.live().some((item) => item.id !== id && item.hasQueuedItem(itemId));
+        if (elsewhere) throw new AppError("not_found", `Unknown queued item: ${itemId}`);
+      }
+      return conversation.setQueuedMode(itemId, mode);
     },
     async checkpoints(id) {
       const source = ctx.require(id);

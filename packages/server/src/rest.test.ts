@@ -18,6 +18,7 @@ describe("REST routes", () => {
       null,
       null,
       null,
+      null,
     ]);
     expect((await ctx.request({ url: "/api/models" })).json()).toEqual([]);
     const put = await ctx.request({
@@ -52,6 +53,37 @@ describe("REST routes", () => {
     expect((await ctx.request({ url: "/api/settings" })).json().claudeCliNoticeAt).toEqual(
       expect.any(Number),
     );
+  });
+
+  it("maps the voice routes to core", async () => {
+    ctx = await startTestServer({ fake: { configured: true } });
+    const set = await ctx.request({
+      method: "PUT",
+      url: "/api/settings/voice-model",
+      payload: { setting: { kind: "local" } },
+    });
+    expect(set.statusCode).toBe(204);
+    expect((await ctx.request({ url: "/api/settings" })).json()).toMatchObject({
+      voiceModel: { kind: "local" },
+    });
+    const bad = await ctx.request({
+      method: "PUT",
+      url: "/api/settings/voice-model",
+      payload: { setting: { kind: "provider" } },
+    });
+    expect(bad.statusCode).toBe(400);
+    const options = await ctx.request({ url: "/api/voice/options" });
+    expect(options.statusCode).toBe(200);
+    expect(options.json()).toMatchObject({ local: { available: true } });
+    const transcribed = await ctx.request({
+      method: "POST",
+      url: "/api/voice/transcribe",
+      payload: { format: "pcm-f32", sampleRate: 16000, data: "AAAA" },
+    });
+    expect(transcribed.statusCode).toBe(200);
+    expect(transcribed.json()).toMatchObject({ text: expect.any(String) });
+    const removed = await ctx.request({ method: "DELETE", url: "/api/voice/model" });
+    expect(removed.statusCode).toBe(204);
   });
 
   it("runs the project and conversation lifecycle", async () => {
@@ -89,18 +121,16 @@ describe("REST routes", () => {
         })
       ).statusCode,
     ).toBe(204);
-    expect(
-      (
-        await ctx.request({
-          method: "POST",
-          url: `/api/conversations/${conversation.id}/messages`,
-          payload: { text: "hi", requestId: "r1" },
-        })
-      ).statusCode,
-    ).toBe(204);
+    const sent = await ctx.request({
+      method: "POST",
+      url: `/api/conversations/${conversation.id}/messages`,
+      payload: { text: "hi", requestId: "r1" },
+    });
+    expect(sent.statusCode).toBe(200);
+    expect(sent.json()).toMatchObject({ submissionId: expect.any(Number) });
     expect(
       (await ctx.request({ method: "POST", url: `/api/conversations/${conversation.id}/abort` })).statusCode,
-    ).toBe(204);
+    ).toBe(200);
     expect((await ctx.request({ method: "DELETE", url: `/api/projects/${project.id}` })).statusCode).toBe(
       204,
     );

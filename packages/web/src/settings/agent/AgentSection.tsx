@@ -1,14 +1,13 @@
-import { useQueryClient } from "@tanstack/react-query";
-import type { MessageMode, WorkspaceDefault } from "@tau/protocol";
+import type { MessageMode, Settings, WorkspaceDefault } from "@tau/protocol";
 import { FormError } from "@/app/FormError";
 import { useSubmit } from "@/app/use-submit";
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { SegmentedControl, type SegmentedOption } from "@/components/ui/segmented-control";
 import { SettingRow } from "@/components/ui/settings-layout";
 import { Skeleton } from "@/components/ui/skeleton";
-import { queryKeys, useSettings } from "@/lib/queries";
+import { useSettings, useSettingsSave } from "@/lib/queries";
 import { useApi } from "@/nodes/node-context";
-import { ResourcesGroup } from "@/settings/resources/ResourcesGroup";
+import { FastCompactionGroup } from "./FastCompactionGroup";
 
 const textOption = <T extends string>(value: T, label: string): SegmentedOption<T> => ({
   value,
@@ -29,16 +28,13 @@ const WORKSPACE_LABEL = "New threads use";
 
 export function AgentSection() {
   const api = useApi();
-  const queryClient = useQueryClient();
+  const saveSettings = useSettingsSave();
   const settings = useSettings();
   const { run, error } = useSubmit();
   if (!settings.data) return <Skeleton className="h-9 w-full" />;
 
-  const save = (action: () => Promise<void>) =>
-    void run(async () => {
-      await action();
-      await queryClient.invalidateQueries({ queryKey: queryKeys.settings });
-    });
+  const save = (patch: Partial<Settings>, action: () => Promise<unknown>) =>
+    void run(() => saveSettings(patch, action));
 
   return (
     <div className="flex flex-col gap-4">
@@ -50,7 +46,7 @@ export function AgentSection() {
               aria-label={MESSAGE_MODE_LABEL}
               value={settings.data.messageMode}
               options={MESSAGE_MODES}
-              onChange={(mode) => save(() => api.settings.setMessageMode(mode))}
+              onChange={(mode) => save({ messageMode: mode }, () => api.settings.setMessageMode(mode))}
             />
           </div>
           <FieldDescription>
@@ -66,12 +62,14 @@ export function AgentSection() {
               aria-label={WORKSPACE_LABEL}
               value={settings.data.workspaceDefault}
               options={WORKSPACE_MODES}
-              onChange={(mode) => save(() => api.settings.setWorkspaceDefault(mode))}
+              onChange={(mode) =>
+                save({ workspaceDefault: mode }, () => api.settings.setWorkspaceDefault(mode))
+              }
             />
           </div>
         </Field>
       </SettingRow>
-      <ResourcesGroup />
+      <FastCompactionGroup />
       <FormError message={error} />
     </div>
   );

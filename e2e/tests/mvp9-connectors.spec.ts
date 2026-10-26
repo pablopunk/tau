@@ -45,12 +45,20 @@ async function acceptTheNoticeIfNeeded(page: Page) {
   await page.keyboard.press("Escape");
 }
 
+/** The save answers after every thread of the shared server re-syncs its connectors. */
+const SAVE_RESYNCS_EVERY_THREAD_MS = 20_000;
+
 async function turnOnLinear(page: Page) {
   await openSettingsSection(page, "Tools");
-  const linear = page.getByRole("switch", { name: "claude.ai Linear" });
+  const linear = page.getByRole("switch", { name: "Linear" });
   await expect(linear).toBeVisible();
-  await linear.click();
-  await expect(linear).toBeChecked();
+  if ((await linear.getAttribute("aria-checked")) !== "true") await linear.click();
+  await expect(linear).toBeChecked({ timeout: SAVE_RESYNCS_EVERY_THREAD_MS });
+  // Writes run without asking unless this is on (default off since c2bfbfe).
+  const askBeforeWrites = page.getByRole("switch", { name: "Ask before writes" });
+  await expect(askBeforeWrites).toBeVisible();
+  if ((await askBeforeWrites.getAttribute("aria-checked")) !== "true") await askBeforeWrites.click();
+  await expect(askBeforeWrites).toBeChecked({ timeout: SAVE_RESYNCS_EVERY_THREAD_MS });
   await page.keyboard.press("Escape");
 }
 

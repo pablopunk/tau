@@ -1,0 +1,704 @@
+{
+  "version": 1,
+  "namespace": "C",
+  "seed": 15158,
+  "fixtures": {
+    "small-v1": {
+      "files": 16,
+      "bytesPerFile": 1024,
+      "payloadBytes": 16384,
+      "directories": 4,
+      "naming": "dir-floor(index/ceil(files/directories))/file-index.txt",
+      "content": "repeat ASCII \"product-recovery/v1 seed=15158 file={index}\\n\" then truncate to bytesPerFile",
+      "inventorySha256": "9d6142eb1f252c4e04c9e0e584ee54fe6adbb0585627f0a27fdd22e9bf7a968c",
+      "inventoryOrder": "numeric file index; each UTF-8 line is sha256 + two spaces + relative path + LF; excludes Git metadata"
+    },
+    "monorepo-v1": {
+      "files": 4096,
+      "bytesPerFile": 4096,
+      "payloadBytes": 16777216,
+      "directories": 64,
+      "naming": "dir-floor(index/ceil(files/directories))/file-index.txt",
+      "content": "repeat ASCII \"product-recovery/v1 seed=15158 file={index}\\n\" then truncate to bytesPerFile",
+      "inventorySha256": "b1f31fac0964930d4fdaf1e68edf0399da9cbfdfb5468fc3335c73e0efd4e259",
+      "inventoryOrder": "numeric file index; each UTF-8 line is sha256 + two spaces + relative path + LF; excludes Git metadata"
+    }
+  },
+  "cases": [
+    {
+      "id": "C.remote-effect",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.remote-effect"]
+    },
+    {
+      "id": "C.denied-edit-absent",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.denied-edit-absent"]
+    },
+    {
+      "id": "C.retry-dedup",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.retry-dedup"]
+    },
+    {
+      "id": "C.disconnected-no-local-effect",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.disconnected-no-local-effect"]
+    },
+    {
+      "id": "C.denial-completion-not-applied",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.denial-completion-not-applied"]
+    },
+    {
+      "id": "C.route.getHealth",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.getHealth.equivalent-effects"]
+    },
+    {
+      "id": "C.route.getMetrics",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.getMetrics.equivalent-effects"]
+    },
+    {
+      "id": "C.route.getRemoteStatus",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.getRemoteStatus.equivalent-effects"]
+    },
+    {
+      "id": "C.route.enableRemote",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.enableRemote.equivalent-effects"]
+    },
+    {
+      "id": "C.route.disableRemote",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.disableRemote.equivalent-effects"]
+    },
+    {
+      "id": "C.route.recreateRemote",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.recreateRemote.equivalent-effects"]
+    },
+    {
+      "id": "C.route.listDevices",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.listDevices.equivalent-effects"]
+    },
+    {
+      "id": "C.route.renameDevice",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.renameDevice.equivalent-effects"]
+    },
+    {
+      "id": "C.route.revokeDevice",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.revokeDevice.equivalent-effects"]
+    },
+    {
+      "id": "C.route.signOutAllDevices",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.signOutAllDevices.equivalent-effects"]
+    },
+    {
+      "id": "C.route.rotateAccess",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.rotateAccess.equivalent-effects"]
+    },
+    {
+      "id": "C.route.mintPairing",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.mintPairing.equivalent-effects"]
+    },
+    {
+      "id": "C.route.redeemPairing",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.redeemPairing.equivalent-effects"]
+    },
+    {
+      "id": "C.route.listNodes",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.listNodes.equivalent-effects"]
+    },
+    {
+      "id": "C.route.renameNode",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.renameNode.equivalent-effects"]
+    },
+    {
+      "id": "C.route.getNodeSummary",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.getNodeSummary.equivalent-effects"]
+    },
+    {
+      "id": "C.route.disconnectNode",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.disconnectNode.equivalent-effects"]
+    },
+    {
+      "id": "C.route.getNodeSelf",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.getNodeSelf.equivalent-effects"]
+    },
+    {
+      "id": "C.route.forgetNode",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.forgetNode.equivalent-effects"]
+    },
+    {
+      "id": "C.route.resetNodeIdentity",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.resetNodeIdentity.equivalent-effects"]
+    },
+    {
+      "id": "C.route.getNodeDirectory",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.getNodeDirectory.equivalent-effects"]
+    },
+    {
+      "id": "C.route.listExpulsions",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.listExpulsions.equivalent-effects"]
+    },
+    {
+      "id": "C.route.removeNode",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.removeNode.equivalent-effects"]
+    },
+    {
+      "id": "C.route.linkNode",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.linkNode.equivalent-effects"]
+    },
+    {
+      "id": "C.route.getUpdateStatus",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.getUpdateStatus.equivalent-effects"]
+    },
+    {
+      "id": "C.route.refreshUpdateStatus",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.refreshUpdateStatus.equivalent-effects"]
+    },
+    {
+      "id": "C.route.startUpdate",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.startUpdate.equivalent-effects"]
+    },
+    {
+      "id": "C.route.getSettings",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.getSettings.equivalent-effects"]
+    },
+    {
+      "id": "C.route.setDefaultModel",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.setDefaultModel.equivalent-effects"]
+    },
+    {
+      "id": "C.route.setDefaultThinking",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.setDefaultThinking.equivalent-effects"]
+    },
+    {
+      "id": "C.route.setFastThinking",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.setFastThinking.equivalent-effects"]
+    },
+    {
+      "id": "C.route.setFastModel",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.setFastModel.equivalent-effects"]
+    },
+    {
+      "id": "C.route.setVoiceModel",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.setVoiceModel.equivalent-effects"]
+    },
+    {
+      "id": "C.route.getVoiceOptions",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.getVoiceOptions.equivalent-effects"]
+    },
+    {
+      "id": "C.route.transcribeVoice",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.transcribeVoice.equivalent-effects"]
+    },
+    {
+      "id": "C.route.removeVoiceModel",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.removeVoiceModel.equivalent-effects"]
+    },
+    {
+      "id": "C.route.warmVoice",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.warmVoice.equivalent-effects"]
+    },
+    {
+      "id": "C.route.setSetupSkipped",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.setSetupSkipped.equivalent-effects"]
+    },
+    {
+      "id": "C.route.setMessageMode",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.setMessageMode.equivalent-effects"]
+    },
+    {
+      "id": "C.route.setWorkspaceDefault",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.setWorkspaceDefault.equivalent-effects"]
+    },
+    {
+      "id": "C.route.setClaudeConnectors",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.setClaudeConnectors.equivalent-effects"]
+    },
+    {
+      "id": "C.route.setResources",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.setResources.equivalent-effects"]
+    },
+    {
+      "id": "C.route.setSandbox",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.setSandbox.equivalent-effects"]
+    },
+    {
+      "id": "C.route.setCompaction",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.setCompaction.equivalent-effects"]
+    },
+    {
+      "id": "C.route.getResourceSupport",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.getResourceSupport.equivalent-effects"]
+    },
+    {
+      "id": "C.route.getResourceActivity",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.getResourceActivity.equivalent-effects"]
+    },
+    {
+      "id": "C.route.stopResourceCommand",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.stopResourceCommand.equivalent-effects"]
+    },
+    {
+      "id": "C.route.setProjectsFolder",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.setProjectsFolder.equivalent-effects"]
+    },
+    {
+      "id": "C.route.getSuggestedCodeFolder",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.getSuggestedCodeFolder.equivalent-effects"]
+    },
+    {
+      "id": "C.route.suggestDirectories",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.suggestDirectories.equivalent-effects"]
+    },
+    {
+      "id": "C.route.getGithubStatus",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.getGithubStatus.equivalent-effects"]
+    },
+    {
+      "id": "C.route.listGithubRepos",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.listGithubRepos.equivalent-effects"]
+    },
+    {
+      "id": "C.route.refreshGithubRepos",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.refreshGithubRepos.equivalent-effects"]
+    },
+    {
+      "id": "C.route.useGithubRepo",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.useGithubRepo.equivalent-effects"]
+    },
+    {
+      "id": "C.route.listProviders",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.listProviders.equivalent-effects"]
+    },
+    {
+      "id": "C.route.setProviderKey",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.setProviderKey.equivalent-effects"]
+    },
+    {
+      "id": "C.route.disconnectProvider",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.disconnectProvider.equivalent-effects"]
+    },
+    {
+      "id": "C.route.acknowledgeClaudeCli",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.acknowledgeClaudeCli.equivalent-effects"]
+    },
+    {
+      "id": "C.route.refreshClaudeCli",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.refreshClaudeCli.equivalent-effects"]
+    },
+    {
+      "id": "C.route.installClaudeCliSdk",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.installClaudeCliSdk.equivalent-effects"]
+    },
+    {
+      "id": "C.route.startLogin",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.startLogin.equivalent-effects"]
+    },
+    {
+      "id": "C.route.getLogin",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.getLogin.equivalent-effects"]
+    },
+    {
+      "id": "C.route.submitLoginUrl",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.submitLoginUrl.equivalent-effects"]
+    },
+    {
+      "id": "C.route.cancelLogin",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.cancelLogin.equivalent-effects"]
+    },
+    {
+      "id": "C.route.listModels",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.listModels.equivalent-effects"]
+    },
+    {
+      "id": "C.route.listRuntimes",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.listRuntimes.equivalent-effects"]
+    },
+    {
+      "id": "C.route.listProjects",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.listProjects.equivalent-effects"]
+    },
+    {
+      "id": "C.route.addProject",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.addProject.equivalent-effects"]
+    },
+    {
+      "id": "C.route.cloneProject",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.cloneProject.equivalent-effects"]
+    },
+    {
+      "id": "C.route.retryClone",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.retryClone.equivalent-effects"]
+    },
+    {
+      "id": "C.route.renameProject",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.renameProject.equivalent-effects"]
+    },
+    {
+      "id": "C.route.setProjectFolder",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.setProjectFolder.equivalent-effects"]
+    },
+    {
+      "id": "C.route.removeProject",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.removeProject.equivalent-effects"]
+    },
+    {
+      "id": "C.route.getProjectIcon",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.getProjectIcon.equivalent-effects"]
+    },
+    {
+      "id": "C.route.setProjectIcon",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.setProjectIcon.equivalent-effects"]
+    },
+    {
+      "id": "C.route.resetProjectIcon",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.resetProjectIcon.equivalent-effects"]
+    },
+    {
+      "id": "C.route.listIconCandidates",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.listIconCandidates.equivalent-effects"]
+    },
+    {
+      "id": "C.route.getIconCandidate",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.getIconCandidate.equivalent-effects"]
+    },
+    {
+      "id": "C.route.suggestProjectFiles",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.suggestProjectFiles.equivalent-effects"]
+    },
+    {
+      "id": "C.route.listSkills",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.listSkills.equivalent-effects"]
+    },
+    {
+      "id": "C.route.stageUpload",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.stageUpload.equivalent-effects"]
+    },
+    {
+      "id": "C.route.listConversations",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.listConversations.equivalent-effects"]
+    },
+    {
+      "id": "C.route.listAllConversations",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.listAllConversations.equivalent-effects"]
+    },
+    {
+      "id": "C.route.startConversation",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.startConversation.equivalent-effects"]
+    },
+    {
+      "id": "C.route.renameConversation",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.renameConversation.equivalent-effects"]
+    },
+    {
+      "id": "C.route.sendMessage",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.sendMessage.equivalent-effects"]
+    },
+    {
+      "id": "C.route.updateTodos",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.updateTodos.equivalent-effects"]
+    },
+    {
+      "id": "C.route.archiveConversation",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.archiveConversation.equivalent-effects"]
+    },
+    {
+      "id": "C.route.deleteArchivedConversations",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.deleteArchivedConversations.equivalent-effects"]
+    },
+    {
+      "id": "C.route.removeConversation",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.removeConversation.equivalent-effects"]
+    },
+    {
+      "id": "C.route.configureConversation",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.configureConversation.equivalent-effects"]
+    },
+    {
+      "id": "C.route.retryConversation",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.retryConversation.equivalent-effects"]
+    },
+    {
+      "id": "C.route.compactConversation",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.compactConversation.equivalent-effects"]
+    },
+    {
+      "id": "C.route.abortConversation",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.abortConversation.equivalent-effects"]
+    },
+    {
+      "id": "C.route.stopAgent",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.stopAgent.equivalent-effects"]
+    },
+    {
+      "id": "C.route.forkConversation",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.forkConversation.equivalent-effects"]
+    },
+    {
+      "id": "C.route.getHandoffPreview",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.getHandoffPreview.equivalent-effects"]
+    },
+    {
+      "id": "C.route.handoffConversation",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.handoffConversation.equivalent-effects"]
+    },
+    {
+      "id": "C.route.rewindPreview",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.rewindPreview.equivalent-effects"]
+    },
+    {
+      "id": "C.route.rewindConversation",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.rewindConversation.equivalent-effects"]
+    },
+    {
+      "id": "C.route.sendNow",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.sendNow.equivalent-effects"]
+    },
+    {
+      "id": "C.route.cancelQueued",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.cancelQueued.equivalent-effects"]
+    },
+    {
+      "id": "C.route.setQueuedMode",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.setQueuedMode.equivalent-effects"]
+    },
+    {
+      "id": "C.route.listCheckpoints",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.listCheckpoints.equivalent-effects"]
+    },
+    {
+      "id": "C.route.getCheckpointDiff",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.getCheckpointDiff.equivalent-effects"]
+    },
+    {
+      "id": "C.route.getWorkspace",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.getWorkspace.equivalent-effects"]
+    },
+    {
+      "id": "C.route.mergeWorkspace",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.mergeWorkspace.equivalent-effects"]
+    },
+    {
+      "id": "C.route.createPullRequest",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.createPullRequest.equivalent-effects"]
+    },
+    {
+      "id": "C.route.removeWorkspace",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.removeWorkspace.equivalent-effects"]
+    },
+    {
+      "id": "C.route.listProcesses",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.listProcesses.equivalent-effects"]
+    },
+    {
+      "id": "C.route.getProcessLogs",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.getProcessLogs.equivalent-effects"]
+    },
+    {
+      "id": "C.route.stopProcess",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.stopProcess.equivalent-effects"]
+    },
+    {
+      "id": "C.route.backgroundToolCall",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.backgroundToolCall.equivalent-effects"]
+    },
+    {
+      "id": "C.route.stopToolCall",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.stopToolCall.equivalent-effects"]
+    },
+    {
+      "id": "C.route.getTerminalsAvailable",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.getTerminalsAvailable.equivalent-effects"]
+    },
+    {
+      "id": "C.route.listTerminals",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.listTerminals.equivalent-effects"]
+    },
+    {
+      "id": "C.route.openTerminal",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.openTerminal.equivalent-effects"]
+    },
+    {
+      "id": "C.route.closeTerminal",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.closeTerminal.equivalent-effects"]
+    },
+    {
+      "id": "C.route.listApprovals",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.listApprovals.equivalent-effects"]
+    },
+    {
+      "id": "C.route.decideApproval",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.decideApproval.equivalent-effects"]
+    },
+    {
+      "id": "C.route.listTimers",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.listTimers.equivalent-effects"]
+    },
+    {
+      "id": "C.route.deleteTimer",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.deleteTimer.equivalent-effects"]
+    },
+    {
+      "id": "C.route.startLoop",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.startLoop.equivalent-effects"]
+    },
+    {
+      "id": "C.route.stopLoop",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.stopLoop.equivalent-effects"]
+    },
+    {
+      "id": "C.route.getGoal",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.getGoal.equivalent-effects"]
+    },
+    {
+      "id": "C.route.setGoal",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.setGoal.equivalent-effects"]
+    },
+    {
+      "id": "C.route.clearGoal",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.clearGoal.equivalent-effects"]
+    },
+    {
+      "id": "C.route.listMcpServers",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.listMcpServers.equivalent-effects"]
+    },
+    {
+      "id": "C.route.saveMcpServer",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.saveMcpServer.equivalent-effects"]
+    },
+    {
+      "id": "C.route.removeMcpServer",
+      "fixtureId": "small-v1",
+      "requiredAssertions": ["C.route.removeMcpServer.equivalent-effects"]
+    }
+  ]
+}

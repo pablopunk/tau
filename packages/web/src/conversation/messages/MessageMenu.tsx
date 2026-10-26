@@ -6,6 +6,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { type MessageEntry, useMessageActions } from "./message-actions";
 
 export function MessageMenu({ entry }: { entry: MessageEntry }) {
@@ -14,11 +15,16 @@ export function MessageMenu({ entry }: { entry: MessageEntry }) {
   return (
     <>
       <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="icon-xs" aria-label="Message actions">
-            <MoreHorizontalIcon />
-          </Button>
-        </DropdownMenuTrigger>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon-xs" aria-label="Message actions">
+                <MoreHorizontalIcon />
+              </Button>
+            </DropdownMenuTrigger>
+          </TooltipTrigger>
+          <TooltipContent side="top">Message actions</TooltipContent>
+        </Tooltip>
         <DropdownMenuContent align="end">
           {actions.map((action) => (
             <DropdownMenuItem
