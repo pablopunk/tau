@@ -20,7 +20,7 @@
     "smoke:binary": "tsx scripts/smoke-binary.ts"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.5.15",
+    "@biomejs/biome": "2.6.4",
     "@types/node": "26.6.5",
     "tsdown": "0.23.2",
     "tsx": "4.23.15",
