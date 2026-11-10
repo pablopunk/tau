@@ -23,7 +23,7 @@
     "@opentunnel/client": "0.6.1",
     "@tau/protocol": "workspace:*",
     "effect": "4.0.6",
-    "pi-web-access": "0.45.0",
+    "pi-web-access": "0.47.0",
     "sherpa-onnx": "1.13.8",
     "typebox": "1.4.3"
   },
